@@ -341,8 +341,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const next = new Map();
       for (const p of m.players.slice(0, 12)) {
         if (!p || typeof p.id !== "string") continue;
+        // Update the existing object in place: the host's grace timer and last-seen time
+        // live on it, and a fresh copy would let a stale timer free a seat its owner came back to.
         const old = LIVE.players.get(p.id);
-        next.set(p.id, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, ans: old ? old.ans : {}, typing: old ? old.typing : null });
+        next.set(p.id, Object.assign(old || { ans: {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready }));
         if (!before.has(p.id) && p.id !== LIVE.myId && before.size) {
           LIVE.flash = `${cleanName(p.name) || "Someone"} joined`;
           toast(LIVE.flash); Sound.tier("mlion");
