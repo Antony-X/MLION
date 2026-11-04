@@ -34,6 +34,7 @@ The max is 700 a day. Score bands: Underfit 0–150 · Converging 151–250 · G
 
 - **Daily descent**: resets at local midnight, with streaks and a shareable emoji grid.
 - **∞ Unlimited**: endless 7-prompt runs dealt from the whole pool.
+- **Quiz**: the same prompts as multiple choice. Four answers, one fits; 100 a right answer, seven a run. Challenge a friend with a quiz link, or pick **Quiz** as the format of a live room (equal points: the faster total time wins).
 - **Themed packs**: Building Blocks, The Model Zoo, Classical ML, The LLM Era, The Stack,
   Math & Theory, Lore & Legends.
 - **Archive**: replay any past daily.
