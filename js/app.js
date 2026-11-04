@@ -354,6 +354,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.players = next;
       if (LIVE_SIZES.includes(+m.n)) LIVE.n = +m.n;
       if (!LIVE.isHost) LIVE.isPublic = !!m.pub;
+      if (["off", "typos", "full"].includes(m.assist)) LIVE.assist = m.assist;
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
     } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && LIVE_SIZES.includes(+m.n)) {
@@ -361,6 +362,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
+        assist: ["off", "typos", "full"].includes(m.assist) ? m.assist : "typos",
         promptIds: Array.isArray(m.ids) && m.ids.length === LIVE.n && m.ids.every((id) => PROMPTS.has(id)) ? m.ids.slice() : challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
       renderPlayShell();
       renderIntro();
@@ -414,7 +416,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     apply(m);
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
+    return { t: "lobby", n: LIVE.n, assist: LIVE.assist || "typos", phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
@@ -497,7 +499,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (fresh.length >= LIVE.n) ids = fresh.slice(0, LIVE.n);
       LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
     }
-    broadcast({ t: "start", seed, n: LIVE.n, ids });
+    broadcast({ t: "start", seed, n: LIVE.n, ids, assist: LIVE.assist || "typos" });
     broadcast(lobbyMsg());
     liveLater(() => hostRound(0), 1800);
   }
@@ -799,15 +801,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
+        <div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>No repeat questions across matches</span></label>
         <div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${LIVE_SIZES.map((n) => `<button type="button" class="vs-size${n === LIVE.n ? " on" : ""}" role="radio" aria-checked="${n === LIVE.n}" data-n="${n}">${n}</button>`).join("")}</div></div>
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the number of questions.</p>`}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. Autocorrect: ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}.</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
     $$(".vs-size").forEach((b) => b.addEventListener("click", () => { LIVE.n = +b.dataset.n; broadcast(lobbyMsg()); }));
     const ll = $("#live-leave-lobby");
     if (ll) ll.addEventListener("click", () => leaveLive(false));
+    $$(".lv-assist").forEach((b) => b.addEventListener("click", () => { LIVE.assist = b.dataset.a; broadcast(lobbyMsg()); }));
     const nr = $("#live-norepeat");
     if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
     wireReady();
@@ -1311,7 +1315,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const raw = (input ? input.value : RUN.draft || "").trim();
     const p = currentPrompt();
     if (!raw) { if (force) finishRound(null, "", { timeout: true }); return; }
-    const m = E.matchAnswer(p, raw);
+    let m = E.matchAnswer(p, raw);
+    // Live matches: the host decides how much autocorrect may help.
+    const assist = RUN.mode === "live" ? RUN.assist || "typos" : "full";
+    if (assist === "off" && m.kind !== "exact") m = { kind: "none" };
+    if (assist === "typos" && (m.kind === "suggest" || (m.kind === "correction" && m.confidence !== undefined && m.confidence < 0.88))) m = { kind: "none" };
     showChips([]);
     if (m.kind === "exact") return finishRound(m.answer, raw, {});
     if (force) {
@@ -1334,7 +1342,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       showChips(m.suggestions);
       return;
     }
-    if (settings.aiCheck && aiUsable()) return askClaude(p, raw, input);
+    if (settings.aiCheck && aiUsable() && RUN.mode !== "live") return askClaude(p, raw, input);
     reject(raw, input);
   }
 
