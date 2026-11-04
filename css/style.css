@@ -969,3 +969,30 @@ details.key.inline .body { padding: 8px 0 4px; }
 .tabs a.on { background: var(--ink); color: var(--bg); }
 @media (hover: hover) and (pointer: fine) { .tabs a:not(.on):hover { color: var(--ink); } }
 .board-list .nm-t { color: var(--muted); font-size: var(--s1); margin-left: 10px; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------- the 3D descent (home) */
+#hero3d { display: none; }
+body.hero3d #hero3d { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+body.hero3d #landscape { opacity: 0; }
+.home .home-hero, .home .depths-sec { position: relative; z-index: 1; }
+.depths-sec h2 { font-size: var(--s4); margin-bottom: 28px; }
+.depths-sec .n small { display: block; color: var(--muted); font-size: var(--s1); letter-spacing: 0; }
+.depths-sec { padding-bottom: 24px; }
+/* with the hero, the list becomes the scroll track: one row per depth, lit as the ball reaches it */
+body.hero3d .depths-sec { padding-top: 12svh; padding-bottom: 60svh; max-width: 620px; }
+body.hero3d .depths-sec .depths { gap: 0; }
+body.hero3d .depths-sec .depths li {
+  min-height: 24svh; margin-left: calc(var(--d) * 24%); padding: 0;
+  opacity: calc(0.32 * var(--fade, 1)); transition: opacity 320ms ease;
+  text-shadow: 0 0 14px var(--bg), 0 0 4px var(--bg);
+}
+body.hero3d .depths-sec .depths li.past { opacity: calc(0.62 * var(--fade, 1)); }
+body.hero3d .depths-sec .depths li.on { opacity: 1; }
+body.hero3d .depths-sec .glyph { font-size: 30px; }
+body.hero3d .depths-sec .n { font-size: var(--s3); letter-spacing: -0.01em; }
+html.reduce-motion body.hero3d .depths-sec .depths li { transition: none; }
+.home-rest > section h2 { margin-bottom: 20px; }
+/* text scrolling up under the transparent top bar fades out instead of colliding with it */
+body.hero3d .topbar { background: linear-gradient(var(--bg) 52%, rgba(11, 10, 8, 0)); }
+/* the opaque rest of home runs to the very bottom, over the surface */
+body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom, 0px)); padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }

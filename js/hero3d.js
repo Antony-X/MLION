@@ -78,7 +78,7 @@
     // target on screen: phone, under the copy, then up out of the text's way;
     // wide, right of the copy
     const lift = still ? 0.3 : smooth(clamp(t / 0.3, 0, 1));
-    const fx = tall ? 0.5 : 0.66, fy = tall ? lerp(0.68, 0.4, lift) : lerp(0.58, 0.55, e);
+    const fx = tall ? 0.5 : 0.66, fy = tall ? lerp(0.68, 0.4, lift) : lerp(0.76, 0.55, lift); // wide: the ball starts beside the buttons, clear of the wordmark
     const f = 1 / Math.tan((tall ? 1 : 0.66) / 2), n = 0.1, far = 40;
     // view basis: forward, side, up
     let F = tg.map((v, i) => v - eye[i]), l = Math.hypot(...F);
@@ -297,7 +297,12 @@ gl_FragColor=vec4(C.rgb*sh,C.a*a);}`;
         listen.forEach(([o, e, fn]) => o.removeEventListener(e, fn));
         if (io) io.disconnect();
         if (ro) ro.disconnect();
-        if (gl) { [buf, ibuf, dbuf].forEach((b) => gl.deleteBuffer(b)); gl.deleteProgram(surf.p); gl.deleteProgram(dots.p); gl = null; }
+        if (gl) {
+          [buf, ibuf, dbuf].forEach((b) => gl.deleteBuffer(b)); gl.deleteProgram(surf.p); gl.deleteProgram(dots.p);
+          const lose = gl.getExtension("WEBGL_lose_context"); // free the context now: browsers cap how many stay alive
+          if (lose) lose.loseContext();
+          gl = null;
+        }
       },
     };
   }

@@ -76,9 +76,10 @@
   /** What the page backdrop shows: the full surface at home, a horizon elsewhere. */
   function scene(view, opts) { document.body.dataset.view = view; if (V.scene) V.scene(view, opts); }
   /** The six tiers, each set as deep as it scores. */
-  function depthList() {
+  const DEPTH_LINES = { baseline: "The answer everyone blurts out.", overfit: "The famous obscure pick.", indist: "Right in the fat middle.", outlier: "Genuinely uncommon.", longtail: "Few sample this far out.", mlion: "The global minimum." };
+  function depthList(lines = false) {
     const order = E.TIERS_BY_SCORE.slice().reverse();
-    return `<ol class="depths" aria-label="Rarity tiers">${order.map((t, i) => `<li class="t-${t.id}" style="--d:${(i / (order.length - 1)).toFixed(2)}">${G(t.id)}<span class="n">${esc(t.name)}</span><span class="p">+${t.score}</span></li>`).join("")}</ol>`;
+    return `<ol class="depths" aria-label="Rarity tiers">${order.map((t, i) => `<li class="t-${t.id}" style="--d:${(i / (order.length - 1)).toFixed(2)}">${G(t.id)}<span class="n">${esc(t.name)}${lines ? `<small>${DEPTH_LINES[t.id]}</small>` : ""}</span><span class="p">+${t.score}</span></li>`).join("")}</ol>`;
   }
 
   // ------------------------------------------------------------ storage
@@ -1505,6 +1506,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     closeModal();
     if (!(LIVE.active && RUN && RUN.mode === "live")) stopRun();
     clearScreenTimers();
+    unmountHomeHero();
     window.scrollTo(0, 0);
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
     if ((LIVE.active && h !== liveHash()) || (joinState && h !== `live-${joinState.code}`)) leaveLive();
@@ -1557,24 +1559,72 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
     ].filter(([href]) => BOARD_ON || href !== "#board");
     app.innerHTML = `<section class="screen home">
+      <canvas id="hero3d" aria-hidden="true"></canvas>
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
         <p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>
         <div class="hero-cta">${cta}</div>
       </div>
+      <section class="depths-sec"><h2>Six depths</h2>${depthList(true)}</section>
       <div class="home-rest">
-        <section><h2>Six depths</h2>${depthList()}</section>
-        <section>${s.played ? `<div class="figures">
+        <section><h2>More</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        ${s.played ? `<section><h2>Your descent</h2><div class="figures">
           <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
           <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
           <div class="figure"><b>${s.gems}</b><span>Gems</span></div>
-        </div>` : ""}<h2>More</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        </div></section>` : ""}
         <p class="home-close"><span>One in a MLion</span></p>
       </div>
     </section>`;
-    scene("home", { progress, animate: true });
+    if (mountHomeHero()) document.body.dataset.view = "home"; // the 3D descent replaces the flat backdrop
+    else scene("home", { progress, animate: true });
     if (rec) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); if (today() !== date) route(); });
     if (!LS.get("seenHow")) { LS.set("seenHow", true); setTimeout(() => showHowModal(), 400); }
+  }
+
+  // The 3D descent behind home. Scroll drives the ball piecewise, so each depth row reaches the
+  // reading line just as the ball reaches that depth, and it has settled by the end of the list.
+  let homeHero = null, homeHeroOff = null;
+  function unmountHomeHero() {
+    if (homeHeroOff) { homeHeroOff(); homeHeroOff = null; }
+    if (homeHero) { homeHero.destroy(); homeHero = null; }
+    document.body.classList.remove("hero3d");
+  }
+  function mountHomeHero() {
+    const canvas = $("#hero3d"), rows = $$(".depths-sec .depths li");
+    if (!canvas || !window.MLionHero || rows.length !== 6) return false;
+    const phone = () => innerWidth < 760;
+    let xs = [0, 1], ts = [0, 1];
+    function anchors() {
+      const line = innerHeight * (phone() ? 0.8 : 0.56); // a phone reads under the basin, a wide screen beside it
+      const ys = rows.map((r) => { const b = r.getBoundingClientRect(); return b.top + scrollY + b.height / 2 - line; });
+      xs = [0].concat(ys.slice(1), [ys[5] + innerHeight * (phone() ? 0.12 : 0.3)]);
+      for (let i = 1; i < xs.length; i++) xs[i] = Math.max(xs[i], xs[i - 1] + 1);
+      ts = [0].concat(MLionHero.stages.slice(1), [1]);
+    }
+    function progress() {
+      const y = scrollY;
+      if (y <= xs[0]) return 0;
+      for (let i = 1; i < xs.length; i++) if (y < xs[i]) return ts[i - 1] + ((ts[i] - ts[i - 1]) * (y - xs[i - 1])) / (xs[i] - xs[i - 1]);
+      return 1;
+    }
+    function fade() { // on a phone, rows already read fade as they rise into the basin
+      const p = phone();
+      for (const r of rows) r.style.setProperty("--fade", p ? Math.max(0, Math.min(1, (r.getBoundingClientRect().top / innerHeight - 0.45) / 0.2)).toFixed(2) : "1");
+    }
+    document.body.classList.add("hero3d");
+    anchors(); fade();
+    const h = MLionHero.mount(canvas, {
+      progress,
+      onStage(i) { rows.forEach((r, k) => { r.classList.toggle("on", k === i); r.classList.toggle("past", k < i); }); },
+    });
+    if (!h.ok) { h.destroy(); document.body.classList.remove("hero3d"); canvas.remove(); rows.forEach((r) => r.style.removeProperty("--fade")); return false; }
+    const onResize = () => { anchors(); fade(); };
+    addEventListener("resize", onResize);
+    addEventListener("scroll", fade, { passive: true });
+    homeHero = h;
+    homeHeroOff = () => { removeEventListener("resize", onResize); removeEventListener("scroll", fade); };
+    return true;
   }
 
   // ========================================================== the round
