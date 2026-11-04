@@ -1011,3 +1011,9 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
   display: block; padding: 10px 0; border: 0; background: none; text-align: left; cursor: pointer;
   font: inherit; font-size: var(--s3); letter-spacing: -0.015em; color: var(--gold);
 }
+/* while the question set downloads on a first visit: a ball rolling in place (shown only if it takes a while) */
+.boot { min-height: 60vh; display: grid; place-items: center; margin: 0; opacity: 0; animation: boot-in 300ms ease 400ms forwards; }
+.boot span { width: 12px; height: 12px; border-radius: 50%; background: var(--gold); animation: boot-roll 900ms var(--ease-in-out) infinite alternate; }
+@keyframes boot-in { to { opacity: 1; } }
+@keyframes boot-roll { from { transform: translate(-28px, -6px); } to { transform: translate(28px, 6px); } }
+@media (prefers-reduced-motion: reduce) { .boot span { animation: none; } }
