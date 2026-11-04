@@ -635,3 +635,64 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .duel-rows .dc { display: flex; align-items: center; gap: 6px; justify-content: flex-end; font-variant-numeric: tabular-nums; color: var(--muted); }
 .duel-rows .dc.win { color: var(--ink); }
 .duel-rows .dc.win b { color: var(--gold); }
+
+/* ----------------------------------------------------------------- live */
+.live { display: grid; gap: 28px; max-width: 640px; }
+.lv-code { color: var(--gold); letter-spacing: 0.04em; }
+.live-err { color: var(--negative); }
+.lv-note { color: var(--muted); margin: 0; }
+.lv-av {
+  width: 40px; height: 40px; border-radius: 50%; flex: none; display: inline-grid; place-items: center;
+  background: var(--raised-2); color: var(--ink); font-weight: 600;
+}
+.me > .lv-av, .lp.me .lv-av { background: var(--gold); color: var(--gold-ink); }
+.lv-players { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.lv-players li {
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--soft); background: var(--surface);
+  animation: lv-in 420ms var(--ease-out) both;
+}
+.lv-players li b { font-size: var(--s3); font-weight: 400; }
+.lv-players li span:last-child { margin-left: auto; color: var(--muted); font-size: var(--s1); }
+.lv-wait { color: var(--muted); background: transparent !important; }
+.lv-pulse { background: var(--raised); animation: lv-pulse 1.4s ease-in-out infinite; }
+@keyframes lv-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes lv-pulse { 50% { opacity: 0.35; } }
+.live-strip {
+  display: flex; gap: 8px; overflow-x: auto; padding: 12px var(--side-r) 0 var(--side-l);
+  margin: 0 calc(var(--side-r) * -1) 0 calc(var(--side-l) * -1); scrollbar-width: none;
+}
+.live-strip::-webkit-scrollbar { display: none; }
+.lp {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: var(--round);
+  background: var(--surface); white-space: nowrap; flex: none; transition: background-color 240ms ease;
+}
+.lp .lv-av { width: 28px; height: 28px; font-size: var(--s1); }
+.lp b { font-weight: 400; font-size: var(--s1); }
+.lp em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--gold); }
+.lp.done { background: var(--raised); }
+.lp-tick { font-style: normal; color: var(--ink); font-size: var(--s1); }
+.lv-reveal { display: grid; gap: 18px; }
+.lv-answers, .lv-standings, .lv-podium { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.lv-answers li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: var(--soft); background: var(--surface); animation: lv-in 380ms var(--ease-out) both;
+}
+.lv-answers li:nth-child(2) { animation-delay: 80ms; } .lv-answers li:nth-child(3) { animation-delay: 160ms; } .lv-answers li:nth-child(4) { animation-delay: 240ms; }
+.lv-answers b { display: block; font-weight: 400; color: var(--muted); font-size: var(--s1); }
+.lv-answers .la { display: block; font-size: var(--s3); overflow-wrap: anywhere; }
+.lv-answers em, .lv-standings em, .lv-podium em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--gold); font-size: var(--s3); }
+.lv-standings { counter-reset: st; }
+.lv-standings li { display: flex; justify-content: space-between; padding: 4px 2px; color: var(--muted); }
+.lv-standings li.me { color: var(--ink); }
+.lv-standings em { font-size: var(--s2); }
+.lv-podium li {
+  display: grid; grid-template-columns: 28px auto minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: var(--soft); background: var(--surface); animation: lv-in 420ms var(--ease-out) both;
+}
+.lv-podium li.first { background: var(--gold); color: var(--gold-ink); }
+.lv-podium li.first em, .lv-podium li.first .rk { color: var(--gold-ink); }
+.lv-podium .rk { color: var(--muted); font-variant-numeric: tabular-nums; }
+.lv-podium .nm { display: grid; gap: 6px; min-width: 0; }
+.lv-podium .nm b { font-weight: 400; font-size: var(--s3); }
+.lv-podium em { font-size: var(--s4); font-weight: 300; }
+.reduce-motion .lv-pulse { animation: none; }
