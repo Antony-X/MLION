@@ -23,7 +23,7 @@
     del(k) { try { localStorage.removeItem("mlion:" + k); } catch { /* ignore */ } },
   };
   const sysReduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, reducedMotion: sysReduced, shareLink: true };
+  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true };
   let settings = Object.assign({}, DEFAULTS, LS.get("settings", {}));
   function applySettings() { document.documentElement.classList.toggle("reduce-motion", !!settings.reducedMotion); }
   function saveSettings() { LS.set("settings", settings); applySettings(); }
@@ -74,6 +74,47 @@
     };
   })();
   document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+
+  // ------------------------------------------------- Claude answer check
+  // Where the page runs inside a Claude viewer, a miss the local matcher can't
+  // place is sent to Claude with the prompt's answer list. Claude may only pick
+  // a listed answer, and the player still confirms it. Elsewhere it's absent.
+  const AI = { sample: null, perms: null, state: "unavailable" };
+  (async () => {
+    if (!window.claude || typeof window.claude.use !== "function") return;
+    try {
+      const [sample, perms] = await Promise.all([window.claude.use("sample"), window.claude.use("permissions").catch(() => null)]);
+      if (!sample) return;
+      AI.sample = sample; AI.perms = perms;
+      AI.state = perms ? await perms.state("sample") : "prompt";
+      if (AI.state === "unavailable") AI.sample = null;
+    } catch { AI.state = "unavailable"; }
+    const s = document.getElementById("ai-setting");
+    if (s) s.hidden = !aiUsable();
+  })();
+  const aiUsable = () => !!AI.sample && AI.state !== "denied" && AI.state !== "unavailable";
+  async function aiConsentUpFront() {
+    if (!settings.aiCheck || !aiUsable() || AI.state !== "prompt" || !AI.perms) return;
+    try { const r = await AI.perms.request(["sample"]); AI.state = (r && r.sample) || AI.state; } catch { /* ask lazily instead */ }
+  }
+  async function aiResolve(p, raw, signal) {
+    const list = p.answers.map((a) => (a.aka && a.aka.length ? `${a.a} (${a.aka.slice(0, 3).join(", ")})` : a.a)).join("\n");
+    const input = `You check answers for MLion, a machine-learning trivia game.
+
+Prompt: "${p.text}"${p.note ? ` (${p.note})` : ""}
+The player typed: "${raw}"
+
+Accepted answers, one per line (canonical name, then aliases in parentheses):
+${list}
+
+Did the player mean exactly one of these accepted answers? Count misspellings, partial or alternate names, nicknames, different version formatting, translations, or a description that clearly identifies one specific listed answer. If the text names something that is not in the list, could be several answers, or is too vague, reply null.
+
+Reply with only JSON: {"match": "<canonical name exactly as written in the list>"} or {"match": null}`;
+    const res = await AI.sample.json(input, { modelTier: "quick", signal });
+    const name = res && typeof res.match === "string" ? res.match.trim() : "";
+    if (!name) return null;
+    return p.answers.find((a) => a.a === name) || p.answers.find((a) => E.fullKey(a.a) === E.fullKey(name)) || null;
+  }
 
   // ------------------------------------------------------------- helpers
   function toast(msg) {
@@ -257,7 +298,11 @@
     if (descent) { descent.destroy(); descent = null; }
     RUN = null;
   }
-  function persistRun() { if (RUN && RUN.mode !== "practice") LS.set("run:" + RUN.key, RUN); }
+  function persistRun() {
+    if (!RUN || RUN.mode === "practice") return;
+    const { aiCtl, ...plain } = RUN; // eslint-disable-line no-unused-vars
+    LS.set("run:" + RUN.key, plain);
+  }
   function totalScore(results) { return results.reduce((s, r) => s + r.score, 0); }
 
   function openArchive(date) {
@@ -353,7 +398,7 @@
       <button class="btn primary big block" id="begin">▶ Begin descent</button>
       <p class="small muted" style="margin:10px 0 0">Tip: press <kbd>Enter</kbd> to submit and to continue.</p>
     </div>`;
-    $("#begin").addEventListener("click", startRound);
+    $("#begin").addEventListener("click", async () => { $("#begin").disabled = true; await aiConsentUpFront(); startRound(); });
     $("#begin").focus();
   }
 
@@ -390,6 +435,7 @@
         <div class="preview-veil" id="veil"><div>the clock starts in<b id="veil-n">3</b></div></div>
       </div>
       <div class="status" id="status" role="status" aria-live="polite"></div>
+      <div class="chips" id="chips"></div>
       <div class="tried" id="tried"></div>`;
     const input = $("#answer");
     if (RUN.draft) input.value = RUN.draft;
@@ -397,6 +443,8 @@
       RUN.draft = input.value;
       input.classList.remove("corrected");
       RUN.pendingCorrection = null;
+      if (RUN.aiCtl) { RUN.aiCtl.abort(); RUN.aiCtl = null; }
+      showChips([]);
       clearTimeout(input._p); input._p = setTimeout(persistRun, 300);
     });
     $("#answer-form").addEventListener("submit", (e) => { e.preventDefault(); submit(false); });
@@ -453,24 +501,21 @@
     s.textContent = msg;
   }
 
-  function submit(force) {
-    if (!RUN || RUN.phase !== "answering") return;
-    const input = $("#answer");
-    const raw = (input ? input.value : RUN.draft || "").trim();
-    const p = currentPrompt();
-    if (!raw) { if (force) finishRound(null, "", { timeout: true }); return; }
-    const m = E.matchAnswer(p, raw);
-    if (m.kind === "exact") return finishRound(m.answer, raw, {});
-    if (m.kind === "correction") {
-      if (force || !settings.previewCorrections) return finishRound(m.answer, raw, { corrected: true });
-      input.value = m.answer.a; RUN.draft = m.answer.a;
-      input.classList.add("corrected");
-      RUN.pendingCorrection = { from: raw, to: m.answer.a };
-      setStatus(`autocorrect: “${raw}” → “${m.answer.a}”. Press Step to confirm, or keep typing.`, "info");
-      input.focus();
-      return;
-    }
-    if (force) return finishRound(null, raw, { timeout: true });
+  /** Tappable "did you mean" answers under the input. */
+  function showChips(list, label) {
+    const el = $("#chips");
+    if (!el) return;
+    if (!list.length) { el.innerHTML = ""; return; }
+    el.innerHTML = `<span class="chips-label">${esc(label || "did you mean")}</span>` +
+      list.map((a, i) => `<button type="button" class="chip" data-i="${i}">${esc(a.a)}</button>`).join("");
+    $$(".chip", el).forEach((b) => b.addEventListener("click", () => {
+      if (!RUN || RUN.phase !== "answering") return;
+      const raw = ($("#answer") || {}).value || "";
+      finishRound(list[+b.dataset.i], raw.trim() || list[+b.dataset.i].a, { corrected: true });
+    }));
+  }
+
+  function reject(raw, input) {
     RUN.tried = (RUN.tried || []).concat(raw);
     Sound.reject();
     setStatus(`“${raw}”: no gradient. try again`, "bad");
@@ -481,8 +526,65 @@
     persistRun();
   }
 
+  function submit(force) {
+    if (!RUN || RUN.phase !== "answering") return;
+    const input = $("#answer");
+    const raw = (input ? input.value : RUN.draft || "").trim();
+    const p = currentPrompt();
+    if (!raw) { if (force) finishRound(null, "", { timeout: true }); return; }
+    const m = E.matchAnswer(p, raw);
+    showChips([]);
+    if (m.kind === "exact") return finishRound(m.answer, raw, {});
+    if (force) {
+      // Time's up: take a confident near miss, otherwise it's a miss.
+      if (m.kind === "correction") return finishRound(m.answer, raw, { corrected: true });
+      if (m.kind === "suggest" && m.confidence >= 0.75 && m.suggestions.length === 1) return finishRound(m.suggestions[0], raw, { corrected: true });
+      return finishRound(null, raw, { timeout: true });
+    }
+    if (m.kind === "correction") {
+      if (!settings.previewCorrections) return finishRound(m.answer, raw, { corrected: true });
+      input.value = m.answer.a; RUN.draft = m.answer.a;
+      input.classList.add("corrected");
+      RUN.pendingCorrection = { from: raw, to: m.answer.a };
+      setStatus(`did you mean “${m.answer.a}”? Press Step to confirm, or keep typing.`, "info");
+      input.focus();
+      return;
+    }
+    if (m.kind === "suggest") {
+      setStatus(`“${raw}” isn't an exact match.`, "info");
+      showChips(m.suggestions);
+      return;
+    }
+    if (settings.aiCheck && aiUsable()) return askClaude(p, raw, input);
+    reject(raw, input);
+  }
+
+  async function askClaude(p, raw, input) {
+    const round = RUN.round, key = RUN.key;
+    if (RUN.aiCtl) RUN.aiCtl.abort();
+    const ctl = new AbortController();
+    RUN.aiCtl = ctl;
+    setStatus(`“${raw}”: no exact match. Asking Claude what you meant…`, "info");
+    let found = null;
+    try { found = await aiResolve(p, raw, ctl.signal); }
+    catch (e) {
+      const code = e && e.code;
+      if (code === "cancelled") return;
+      if (["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(code)) AI.state = "denied";
+    }
+    if (!RUN || RUN.key !== key || RUN.round !== round || RUN.phase !== "answering" || ctl.signal.aborted) return;
+    RUN.aiCtl = null;
+    const now = $("#answer");
+    if (!now) return;
+    if (found) {
+      setStatus(`Claude thinks “${raw}” means:`, "info");
+      showChips([found], "Claude thinks you meant");
+    } else reject(raw, now);
+  }
+
   function finishRound(answer, raw, { corrected = false, timeout = false, silent = false } = {}) {
     cancelAnimationFrame(runRaf);
+    if (RUN.aiCtl) { RUN.aiCtl.abort(); RUN.aiCtl = null; }
     const p = currentPrompt();
     const res = {
       promptId: p.id, promptText: p.text, raw: raw || null,
@@ -843,7 +945,7 @@
       <ol>
         <li>Each prompt shows for <b>3 seconds</b>, then you get <b>25 seconds</b> to answer.</li>
         <li>Type any valid answer and press <kbd>Enter</kbd>. If it isn't in the answer key you'll see <i>“no gradient”</i>; try again as often as you like until time runs out.</li>
-        <li>Close misspellings trigger <b>autocorrect</b>, which suggests the nearest accepted answer. Press Step again to confirm, or keep typing.</li>
+        <li>Close misspellings trigger <b>autocorrect</b>, which suggests the nearest accepted answer. Press Step again to confirm, or keep typing. If several answers are close, tap the one you meant.</li>
         <li>Rarer accepted answers <b>descend deeper</b>. Your optimizer rolls down the loss landscape and your loss drops by points ÷ 100.</li>
       </ol>
       ${tierLegend()}
@@ -889,10 +991,11 @@
       ["sound", "Sound effects", "Ticks, chimes and the lion's roar."],
       ["reducedMotion", "Reduce motion", "Shorter animations and fewer particles."],
       ["shareLink", "Include link when sharing", "Append this page's address to your share text."],
+      ["aiCheck", "Ask Claude when nothing matches", "If an answer isn't recognized, Claude checks whether you meant a listed answer, and you confirm it. Uses your Claude usage. Only on the claude.ai page."],
     ];
     app.innerHTML = `<section class="screen stack">
       <div class="panel"><p class="kicker">settings</p><div class="settings-list">${items.map(([k, t, d]) => `
-        <label class="setting"><span class="txt"><b>${esc(t)}</b><span>${esc(d)}</span></span>
+        <label class="setting" ${k === "aiCheck" ? `id="ai-setting" ${aiUsable() ? "" : "hidden"}` : ""}><span class="txt"><b>${esc(t)}</b><span>${esc(d)}</span></span>
           <span class="switch"><input type="checkbox" data-k="${k}" ${settings[k] ? "checked" : ""}><i></i></span></label>`).join("")}</div></div>
       <div class="panel"><p class="kicker">progress</p>
         <p class="small muted" style="margin-top:0">Move your history to another browser: export it here and import it there.</p>

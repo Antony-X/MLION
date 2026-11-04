@@ -1,0 +1,48 @@
+{
+  "id": "lr-schedule",
+  "pack": "blocks",
+  "text": "Name a learning rate schedule",
+  "note": "Any rule for changing the learning rate over training: decays, warmups, cycles, restarts, plateau rules. PyTorch/Keras scheduler names count.",
+  "strip": ["learning", "rate", "lr", "schedule", "scheduler", "scheduling", "decay", "annealing", "policy", "torch", "optim"],
+  "answers": [
+    { "a": "Bold driver", "t": "mlion", "aka": ["bold driver heuristic"], "q": "Loss fell? Step on it by 5%. Loss rose? Undo the step and halve the rate. A 1980s heuristic with road rage." },
+
+    { "a": "Flat cosine", "t": "longtail", "aka": ["flat and anneal", "fit_flat_cos", "flat-cos"] },
+    { "a": "Linear cosine decay", "t": "longtail" },
+    { "a": "Noisy linear cosine decay", "t": "longtail", "q": "Found by RL-driven neural optimizer search (Bello et al. 2017), then shipped in TF1." },
+    { "a": "Search-then-converge", "t": "longtail", "aka": ["STC"], "q": "Darken & Moody, 1990: hold the rate steady while searching, then decay like 1/t to converge." },
+    { "a": "Knee schedule", "t": "longtail", "aka": ["explore-exploit schedule"] },
+    { "a": "REX", "t": "longtail", "aka": ["REX schedule"] },
+    { "a": "Tanh decay", "t": "longtail", "aka": ["hyperbolic tangent decay", "HTD", "TanhLRScheduler"] },
+    { "a": "Sigmoid decay", "t": "longtail", "q": "Caffe's lr_policy: \"sigmoid\". A smooth step down centered on a chosen iteration." },
+    { "a": "Exponential warmup", "t": "longtail" },
+    { "a": "SequentialLR", "t": "longtail", "q": "PyTorch glue: run the warmup scheduler, then hand off to the main one at a milestone." },
+    { "a": "ChainedScheduler", "t": "longtail" },
+    { "a": "AutoLRS", "t": "longtail" },
+    { "a": "Polyak step size", "t": "longtail", "aka": ["SPS", "stochastic Polyak step size"] },
+
+    { "a": "Warmup-stable-decay", "t": "outlier", "aka": ["WSD", "trapezoidal", "trapezoid", "constant with cooldown", "cooldown"], "q": "Warm up, hold steady, then cool down fast. Lets you extend or stop a run without retraining from scratch." },
+    { "a": "Inverse time decay", "t": "outlier", "aka": ["time-based decay", "1/t decay", "Robbins-Monro"] },
+    { "a": "Slanted triangular", "t": "outlier", "aka": ["STLR", "slanted triangular learning rates"], "q": "ULMFiT's short, sharp warmup followed by a long linear decay." },
+    { "a": "LambdaLR", "t": "outlier", "aka": ["lambda schedule", "custom lambda"] },
+    { "a": "Multiplicative decay", "t": "outlier", "aka": ["MultiplicativeLR"] },
+    { "a": "Piecewise linear", "t": "outlier", "aka": ["piecewise linear interpolation"] },
+    { "a": "Power scheduling", "t": "outlier", "aka": ["power scheduler", "power-law decay"], "q": "Decay as a power of the step: Géron's lr₀/(1+t/s)^c, or IBM's batch-size-agnostic 2024 Power scheduler." },
+
+    { "a": "Linear decay", "t": "indist", "aka": ["LinearLR", "linear decay to zero", "D2Z", "linear schedule with warmup"], "q": "Straight to zero. Bergsma et al. 2025 argue it beats cosine for LLM pretraining." },
+    { "a": "Constant", "t": "indist", "aka": ["ConstantLR", "fixed", "constant with warmup", "no schedule"] },
+    { "a": "Reduce on plateau", "t": "indist", "aka": ["ReduceLROnPlateau", "plateau", "plateau decay", "performance scheduling"], "q": "Waits for you to stop improving, then cuts the LR. Patience is a hyperparameter." },
+    { "a": "Polynomial decay", "t": "indist", "aka": ["PolynomialLR", "poly"] },
+    { "a": "Multi-step decay", "t": "indist", "aka": ["MultiStepLR", "piecewise constant", "PiecewiseConstantDecay", "milestones"], "q": "÷10 at epochs 30, 60 and 90: the classic ResNet-on-ImageNet ritual." },
+    { "a": "Cyclical learning rate", "t": "indist", "aka": ["CLR", "CyclicLR", "cyclic learning rate", "triangular", "triangular2", "exp_range"], "q": "Leslie Smith 2015: bounce between two bounds in triangles instead of only decaying." },
+    { "a": "Inverse square root", "t": "indist", "aka": ["inverse sqrt", "rsqrt", "rsqrt decay", "sqrt decay", "Noam", "Noam schedule", "transformer schedule"], "q": "Linear warmup, then 1/√step, straight from \"Attention Is All You Need\". tensor2tensor named it after Noam Shazeer." },
+
+    { "a": "One-cycle", "t": "overfit", "aka": ["OneCycleLR", "super-convergence", "fit_one_cycle"], "q": "Leslie Smith's up-then-down LR cycle with inverted momentum. Super-convergence, and fast.ai's default." },
+    { "a": "Cosine annealing with warm restarts", "t": "overfit", "aka": ["SGDR", "warm restarts", "CosineAnnealingWarmRestarts", "cosine with restarts", "cosine with hard restarts", "CosineDecayRestarts", "cyclic cosine"], "q": "Loshchilov & Hutter 2016: decay along a cosine, then jump back up. Restarts as a feature." },
+
+    { "a": "Cosine annealing", "t": "baseline", "aka": ["cosine decay", "CosineAnnealingLR", "half-cosine", "warmup cosine", "cosine with warmup", "linear warmup with cosine decay"] },
+    { "a": "Step decay", "t": "baseline", "aka": ["StepLR", "staircase", "step-wise decay"] },
+    { "a": "Exponential decay", "t": "baseline", "aka": ["ExponentialLR", "natural exponential decay", "exp decay"] },
+    { "a": "Warmup", "t": "baseline", "aka": ["linear warmup", "gradual warmup", "constant warmup"], "q": "Start tiny, ramp up. Goyal et al. 2017 needed it to train ImageNet in an hour." }
+  ]
+}

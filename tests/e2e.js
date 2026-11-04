@@ -83,7 +83,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.waitForSelector("#next:not([disabled])", { timeout: 6000 });
   await page.screenshot({ path: path.join(OUT, "05-feedback.png") });
 
-  const plan = ["Snake", "relu", "sparsemax", "Squareplus", "__timeout__", "gelu"];
+  const plan = ["Snake", "relu", "sparsemax", "Squareplus", "__timeout__", "__chips__"];
   for (const ans of plan) {
     await page.click("#next");
     await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
@@ -98,6 +98,19 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
       check(t < 25, `timer survives reload (${t}s left)`);
       await page.waitForSelector(".feedback.miss", { timeout: 30000 });
       check(true, "timeout with unknown draft scores a miss");
+      await page.waitForSelector("#next:not([disabled])", { timeout: 6000 });
+      continue;
+    }
+    if (ans === "__chips__") {
+      // several near misses: tap the one you meant
+      await page.fill("#answer", "xelu");
+      await page.press("#answer", "Enter");
+      await page.waitForSelector(".chip");
+      const chips = await page.$$eval(".chip", (els) => els.map((e) => e.textContent));
+      check(chips.includes("GELU"), `ambiguous typo offers chips (${chips.join(" · ")})`);
+      await page.screenshot({ path: path.join(OUT, "06b-chips.png") });
+      await page.click(".chip:text-is('GELU')");
+      await page.waitForSelector(".feedback.indist");
       await page.waitForSelector("#next:not([disabled])", { timeout: 6000 });
       continue;
     }

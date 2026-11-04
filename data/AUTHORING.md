@@ -40,8 +40,21 @@ The engine already handles these, so **don't** add aliases for them:
 - a leading "the/a/an", and simple plurals (`GANs` → `GAN`)
 - typos of one or two characters: autocorrect offers the nearest answer
 
-**Do** add genuine alternate names, e.g. `SiLU` for Swish, `SVM` / `support vector machine`,
-`k-NN` / `nearest neighbors`, `GPT-4 Turbo` as an alias of GPT-4 if you don't list it on its own.
+The engine also handles these:
+- initials of multi-word names (`recurrent neural network` ↔ `RNN`, `support vector machine` ↔ `SVM`)
+- `v` before a version number (`YOLOv8` = `YOLO 8` = `yolo v8`) and number words (`zero-shot` = `0-shot`)
+- the words "model", "algorithm", "method", "technique", "framework" and "library"
+- near misses: a trigram-similarity index proposes "did you mean…?" suggestions
+
+**Do** add every other way people actually write an answer. Be generous, because a player who
+knows the thing but types it differently should never be rejected:
+- abbreviation ↔ expansion when the initials aren't obvious (`k-NN` / `nearest neighbors`, `t-SNE`)
+- former names, nicknames and marketing names (`Bard` → Gemini only if you merge them; `SD` / `SDXL`)
+- vendor or org prefixes (`Meta Llama 3`, `Google Gemma`, `OpenAI o1`)
+- the paper title or method name when the model is known by both (`Segment Anything` / `SAM`)
+- alternate spellings (British/American, `Kullback–Leibler` / `KL`), and the framework class name
+  (`nn.LayerNorm`, `sklearn RandomForestClassifier`)
+- a variant you decided not to list separately (`GPT-4 Turbo` as an alias of GPT-4)
 
 No two answers may share a name or alias once normalized; the validator rejects collisions.
 When an abbreviation is ambiguous, give it to the most canonical answer only.

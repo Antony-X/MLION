@@ -457,3 +457,12 @@ body.drawer-open .drawer-backdrop { opacity: 1; pointer-events: auto; }
 }
 .share-box { height: 150px; padding: 10px; white-space: pre; resize: none; }
 code { font-family: var(--font-ui); font-size: 0.9em; color: var(--ink-2); }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.chips:empty { display: none; }
+.chips-label { font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.chip {
+  font-family: var(--font-ui); font-size: 13px; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+  background: rgba(71, 198, 255, 0.1); border: 1px solid rgba(71, 198, 255, 0.45); color: #bfe9ff;
+}
+.chip:hover, .chip:focus-visible { background: rgba(71, 198, 255, 0.2); }
+[hidden] { display: none !important; }

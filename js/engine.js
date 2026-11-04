@@ -69,6 +69,17 @@
   const GREEK_RE = new RegExp("[" + Object.keys(GREEK).join("") + "]", "g");
   const ARTICLES = new Set(["the", "a", "an"]);
 
+  const NUMBER_WORDS = {
+    zero: "0", one: "1", two: "2", three: "3", four: "4", five: "5",
+    six: "6", seven: "7", eight: "8", nine: "9", ten: "10",
+  };
+  // Generic words that never tell two answers apart; dropped in a soft layer.
+  const SOFT_FILLER = new Set([
+    "model", "models", "algorithm", "algorithms", "method", "methods", "technique", "techniques",
+    "framework", "frameworks", "library", "libraries", "approach", "system", "tool", "tools",
+  ]);
+  const STOP = new Set(["of", "the", "and", "for", "with", "a", "an", "in", "on", "to", "via", "by", "using"]);
+
   /** Split any string into lowercase ascii word tokens. */
   function tokens(s) {
     let t = String(s == null ? "" : s).toLowerCase();
@@ -76,18 +87,32 @@
     t = t.normalize("NFKD").replace(/[̀-ͯ]/g, "");
     t = t.replace(/&/g, " and ").replace(/\+/g, " plus ").replace(/\*/g, " star ").replace(/@/g, " at ");
     t = t.replace(/['’`]/g, ""); // don't split "Bayes'" / "Hinton's"
-    return t.split(/[^a-z0-9]+/).filter(Boolean);
+    return t.split(/[^a-z0-9]+/).filter((w) => w && w !== "version").map((w) => NUMBER_WORDS[w] || w);
   }
-  function fullKey(s) { return tokens(s).join(""); }
+  /** Join tokens into a key; "v" before a version number is dropped (YOLOv8 = YOLO 8). */
+  function joinKey(tk) { return tk.join("").replace(/(^|[a-z])v(\d)/g, "$1$2"); }
+  function fullKey(s) { return joinKey(tokens(s)); }
+  function dropArticle(tk) { return tk.length > 1 && ARTICLES.has(tk[0]) ? tk.slice(1) : tk; }
+  function without(tk, set) {
+    if (!set || !set.size) return tk;
+    const kept = tk.filter((w) => !set.has(w));
+    return kept.length ? kept : tk;
+  }
   /** Key with leading article and prompt-specific filler words removed. */
-  function strippedKey(s, strip) {
-    let tk = tokens(s);
-    if (tk.length > 1 && ARTICLES.has(tk[0])) tk = tk.slice(1);
-    if (strip && strip.size) {
-      const kept = tk.filter((w) => !strip.has(w));
-      if (kept.length) tk = kept;
+  function strippedKey(s, strip) { return joinKey(without(dropArticle(tokens(s)), strip)); }
+  function softKey(s, strip) { return joinKey(without(without(dropArticle(tokens(s)), strip), SOFT_FILLER)); }
+  /** Initials of a multi-word name: "long short-term memory" -> lstm, "mixture of experts" -> moe. */
+  function acronyms(s) {
+    const tk = dropArticle(tokens(s));
+    const out = new Set();
+    if (tk.length < 2) return out;
+    for (const list of [tk.filter((w) => !STOP.has(w)), tk]) {
+      if (list.length < 2) continue;
+      const ac = list.map((w) => (/^\d+$/.test(w) ? w : w[0])).join("");
+      const longWords = list.every((w) => w.length >= 3);
+      if (ac.length >= 3 || (ac.length === 2 && longWords)) out.add(joinKey([ac]));
     }
-    return tk.join("");
+    return out;
   }
   function singular(k) {
     if (k.length > 4 && k.endsWith("es") && !k.endsWith("ses")) return k.slice(0, -2);
@@ -119,10 +144,30 @@
     }
     return prev[lb];
   }
+  /** Typos allowed for a key of this length. */
   function fuzzyBudget(len) {
     if (len <= 3) return 0;
-    if (len <= 7) return 1;
-    return 2;
+    if (len <= 5) return 1;
+    if (len <= 9) return 2;
+    return 3;
+  }
+  function trigrams(key) {
+    const s = "^^" + key + "$";
+    const m = new Map();
+    for (let i = 0; i + 3 <= s.length; i++) { const g = s.slice(i, i + 3); m.set(g, (m.get(g) || 0) + 1); }
+    return m;
+  }
+
+  /** Map of key -> answer index where ambiguous keys are dropped instead of erroring. */
+  function softMap(pairs) {
+    const m = new Map(), bad = new Set();
+    for (const [k, idx] of pairs) {
+      if (!k || bad.has(k)) continue;
+      const had = m.get(k);
+      if (had === undefined) m.set(k, idx);
+      else if (had !== idx) { m.delete(k); bad.add(k); }
+    }
+    return m;
   }
 
   /** Build the lookup index for one prompt. Returns {index, errors}. */
@@ -139,71 +184,118 @@
         errors.push(`key "${key}" (from ${label}) collides: "${answers[had].a}" vs "${answers[idx].a}"`);
       }
     }
+    const softPairs = [], acPairs = [];
     answers.forEach((ans, idx) => {
-      const names = [ans.a].concat(ans.aka || []);
-      for (const n of names) {
+      for (const n of [ans.a].concat(ans.aka || [])) {
         claim(fullKey(n), idx, `"${n}"`);
         claim(strippedKey(n, strip), idx, `"${n}" stripped`);
+        softPairs.push([softKey(n, strip), idx]);
+        for (const ac of acronyms(n)) acPairs.push([ac, idx]);
       }
     });
-    // Plural-tolerant layer: only unambiguous singular forms.
-    const loose = new Map();
-    const looseBad = new Set();
-    for (const [k, idx] of exact) {
-      const s = singular(k);
-      if (looseBad.has(s)) continue;
-      const had = loose.get(s);
-      if (had === undefined) loose.set(s, idx);
-      else if (had !== idx) { loose.delete(s); looseBad.add(s); }
-    }
     const keys = [...exact.keys()];
-    return { index: { strip, exact, loose, keys }, errors };
+    // Plural-tolerant, filler-tolerant and acronym layers: only unambiguous keys survive.
+    const loose = softMap(keys.map((k) => [singular(k), exact.get(k)]));
+    const soft = softMap(softPairs);
+    const acro = softMap(acPairs.filter(([k]) => !exact.has(k)));
+    // Character-trigram TF-IDF vectors: a small "embedding" for near-miss suggestions.
+    const df = new Map();
+    const grams = keys.map((k) => { const g = trigrams(k); for (const t of g.keys()) df.set(t, (df.get(t) || 0) + 1); return g; });
+    const N = keys.length || 1;
+    const idf = (t) => Math.log(1 + N / (df.get(t) || 0.5));
+    const vecs = grams.map((g) => {
+      let norm = 0;
+      const w = new Map();
+      for (const [t, c] of g) { const v = c * idf(t); w.set(t, v); norm += v * v; }
+      return { w, norm: Math.sqrt(norm) || 1 };
+    });
+    return { index: { strip, exact, loose, soft, acro, keys, vecs, idf }, errors };
   }
 
   /**
-   * Match a raw player answer against a prompt.
-   * Returns {kind:"exact", answer} | {kind:"correction", answer, from} | {kind:"none"}.
+   * Match a raw player answer against a prompt. Returns one of:
+   *   {kind: "exact", answer}                    accepted as typed
+   *   {kind: "correction", answer, from}         one confident near miss ("did you mean X?")
+   *   {kind: "suggest", suggestions: [answer]}   a few plausible near misses
+   *   {kind: "none"}
    */
   function matchAnswer(prompt, raw) {
     if (!prompt._index) prompt._index = buildIndex(prompt).index;
-    const { strip, exact, loose, keys } = prompt._index;
+    const { strip, exact, loose, soft, acro, keys, vecs, idf } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
     const kf = fullKey(text);
     if (!kf) return { kind: "none" };
     const ks = strippedKey(text, strip);
+    const kso = softKey(text, strip);
     const answers = prompt.answers;
-    for (const k of [kf, ks]) {
-      if (exact.has(k)) return { kind: "exact", answer: answers[exact.get(k)] };
-    }
+    const hit = (idx) => ({ kind: "exact", answer: answers[idx] });
+    for (const k of [kf, ks]) if (exact.has(k)) return hit(exact.get(k));
     for (const k of [kf, ks]) {
       const s = singular(k);
-      if (loose.has(s)) return { kind: "exact", answer: answers[loose.get(s)] };
-      if (exact.has(s)) return { kind: "exact", answer: answers[exact.get(s)] };
+      if (loose.has(s)) return hit(loose.get(s));
+      if (exact.has(s)) return hit(exact.get(s));
     }
-    // Fuzzy: nearest answer within the length-scaled budget. On a tie, a typo
-    // is likelier to be aimed at the more common answer, so prefer the lower
-    // tier; a tie inside the same tier stays ambiguous (no correction).
-    let best = Infinity;
-    let cands = new Set();
-    for (const probe of ks === kf ? [kf] : [kf, ks]) {
-      const budget = fuzzyBudget(probe.length);
-      if (!budget) continue;
-      for (const key of keys) {
-        if (Math.abs(key.length - probe.length) > budget) continue;
-        if (fuzzyBudget(key.length) === 0) continue;
-        const d = editDistance(probe, key, Math.min(budget, best));
-        if (d > budget) continue;
-        const idx = exact.get(key);
-        if (d < best) { best = d; cands = new Set([idx]); }
-        else if (d === best) cands.add(idx);
+    for (const k of [kso, singular(kso)]) if (soft.has(k)) return hit(soft.get(k));
+    for (const k of [kf, ks]) if (acro.has(k)) return hit(acro.get(k));
+    // The player typed the long form of an answer listed only as initials.
+    for (const ac of acronyms(text)) {
+      if (exact.has(ac)) return { kind: "correction", answer: answers[exact.get(ac)], from: text };
+    }
+
+    // ---- fuzzy: score every answer by its best key, then decide.
+    const probes = [...new Set([kf, ks, kso])].filter(Boolean);
+    const qv = probes.map((p) => {
+      const w = new Map(); let norm = 0;
+      for (const [t, c] of trigrams(p)) { const v = c * idf(t); w.set(t, v); norm += v * v; }
+      return { p, w, norm: Math.sqrt(norm) || 1 };
+    });
+    const score = new Map(); // answer idx -> best score
+    const typo = new Map(); // answer idx -> best edit-distance score
+    const bump = (m, idx, s) => { if (s > (m.get(idx) || 0)) m.set(idx, s); };
+    keys.forEach((key, ki) => {
+      const idx = exact.get(key);
+      const kv = vecs[ki];
+      for (const q of qv) {
+        // 1. typos: edit distance within a length-scaled budget
+        const budget = Math.min(fuzzyBudget(q.p.length), fuzzyBudget(key.length));
+        if (budget && Math.abs(key.length - q.p.length) <= budget) {
+          const d = editDistance(q.p, key, budget);
+          if (d <= budget) {
+            const s = 1 - (0.6 * d) / Math.max(key.length, q.p.length);
+            bump(typo, idx, s); bump(score, idx, s);
+          }
+        }
+        // 2. character-trigram cosine similarity
+        let dot = 0;
+        for (const [t, v] of q.w) { const u = kv.w.get(t); if (u) dot += u * v; }
+        bump(score, idx, dot / (q.norm * kv.norm));
+        // 3. containment: "efficientnetb" contains "efficientnet"; "llama" sits inside "llama3"
+        const short = q.p.length < key.length ? q.p : key, long = short === key ? q.p : key;
+        if (short.length >= 4 && short.length / long.length >= 0.5 && long.includes(short)) {
+          bump(score, idx, 0.45 + 0.5 * (short.length / long.length));
+        }
       }
+    });
+    const ranked = [...score.entries()].sort((a, b) => b[1] - a[1] || TIERS[answers[a[0]].t].score - TIERS[answers[b[0]].t].score);
+    if (!ranked.length) return { kind: "none" };
+    // A single clear typo wins outright; ties go to the more common answer only across tiers.
+    const typos = [...typo.entries()].sort((a, b) => b[1] - a[1]);
+    if (typos.length) {
+      const best = typos[0][1];
+      const near = typos.filter(([, s]) => s >= best - 0.04).map(([i]) => answers[i]);
+      const tied = typos.filter(([, s]) => s === best).map(([i]) => answers[i]);
+      const low = Math.min(...tied.map((a) => TIERS[a.t].score));
+      const pick = tied.filter((a) => TIERS[a.t].score === low);
+      if (near.length === 1 || (near.length === tied.length && pick.length === 1 && best >= 0.85)) {
+        return { kind: "correction", answer: near.length === 1 ? near[0] : pick[0], from: text, confidence: best };
+      }
+      if (near.length > 1) return { kind: "suggest", suggestions: near.slice(0, 3), confidence: best };
     }
-    if (cands.size) {
-      const list = [...cands].map((i) => answers[i]);
-      const low = Math.min(...list.map((a) => TIERS[a.t].score));
-      const pick = list.filter((a) => TIERS[a.t].score === low);
-      if (pick.length === 1) return { kind: "correction", answer: pick[0], from: text };
-    }
+    const [i1, s1] = ranked[0];
+    const s2 = ranked[1] ? ranked[1][1] : 0;
+    if (s1 >= 0.8 && s1 - s2 >= 0.08) return { kind: "correction", answer: answers[i1], from: text, confidence: s1 };
+    const sugg = ranked.filter(([, s]) => s >= 0.45).slice(0, 3).map(([i]) => answers[i]);
+    if (sugg.length) return { kind: "suggest", suggestions: sugg, confidence: s1 };
     return { kind: "none" };
   }
 
@@ -316,7 +408,7 @@
   return {
     TIERS, TIER_IDS, TIERS_BY_SCORE, MISS_EMOJI, ROUNDS, MAX_SCORE, PREVIEW_MS, ANSWER_MS,
     MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
-    tokens, fullKey, strippedKey, singular, editDistance, buildIndex, matchAnswer,
+    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer,
     mulberry32, hashString, shuffled,
     EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,

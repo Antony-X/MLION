@@ -1,0 +1,57 @@
+{
+  "id": "divergence",
+  "pack": "theory",
+  "text": "Name a divergence or distance between probability distributions",
+  "note": "Any divergence, metric or discrepancy that compares two distributions",
+  "strip": ["divergence", "distance", "metric", "discrepancy"],
+  "answers": [
+    { "a": "Gromov–Wasserstein", "t": "mlion", "aka": ["gromov wasserstein", "GW distance"], "q": "OT between distributions in different spaces: match how points relate, not where they are." },
+
+    { "a": "Itakura–Saito", "t": "longtail", "aka": ["itakura saito", "IS divergence"], "q": "Scale-invariant spectral divergence. Audio NMF's favorite, born in speech coding." },
+    { "a": "Alpha divergence", "t": "longtail", "aka": ["α-divergence", "amari alpha divergence"] },
+    { "a": "Beta divergence", "t": "longtail", "aka": ["β-divergence"] },
+    { "a": "Generalized KL", "t": "longtail", "aka": ["I-divergence", "generalized kullback-leibler", "csiszar i-divergence"] },
+    { "a": "Neyman chi-squared", "t": "longtail", "aka": ["neyman χ²", "neyman chi square", "reverse chi-squared"] },
+    { "a": "Triangular discrimination", "t": "longtail", "aka": ["vincze-le cam", "le cam"] },
+    { "a": "Cauchy–Schwarz divergence", "t": "longtail", "aka": ["cauchy schwarz", "CS divergence"] },
+    { "a": "Chernoff information", "t": "longtail", "aka": ["chernoff", "chernoff divergence"] },
+    { "a": "Tsallis divergence", "t": "longtail", "aka": ["tsallis", "tsallis relative entropy"] },
+    { "a": "Lévy–Prokhorov", "t": "longtail", "aka": ["levy prokhorov", "prokhorov", "prohorov"], "q": "Metrizes weak convergence. The probabilist's metric, rarely the practitioner's." },
+    { "a": "Lévy", "t": "longtail", "aka": ["levy metric", "levy distance"] },
+    { "a": "Bounded Lipschitz", "t": "longtail", "aka": ["dudley", "fortet-mourier", "dudley metric"] },
+    { "a": "Cramér–von Mises", "t": "longtail", "aka": ["cramer von mises", "CvM"] },
+    { "a": "Anderson–Darling", "t": "longtail", "aka": ["anderson darling"] },
+    { "a": "Cramér distance", "t": "longtail", "aka": ["cramer", "cramér"], "q": "Bellemare et al.: Wasserstein with unbiased sample gradients. Distributional RL took note." },
+    { "a": "Stein discrepancy", "t": "longtail", "aka": ["kernel stein discrepancy", "KSD", "stein"] },
+    { "a": "Fisher–Rao", "t": "longtail", "aka": ["fisher rao", "rao distance", "fisher information metric"] },
+    { "a": "Bures–Wasserstein", "t": "longtail", "aka": ["bures", "bures metric", "bures wasserstein"] },
+    { "a": "Wasserstein–Fisher–Rao", "t": "longtail", "aka": ["hellinger-kantorovich", "WFR"] },
+    { "a": "H-divergence", "t": "longtail", "aka": ["HΔH-divergence", "A-distance", "proxy A-distance", "PAD"], "q": "Ben-David et al.'s domain-adaptation yardstick: how well can a classifier tell the domains apart?" },
+    { "a": "Kernel Inception Distance", "t": "longtail", "aka": ["KID"] },
+    { "a": "Contrastive divergence", "t": "longtail", "aka": ["CD-k"], "q": "Hinton's RBM trick, literally a difference of two KLs. Counts, on a technicality." },
+
+    { "a": "Bregman", "t": "outlier", "aka": ["bregman divergence"], "q": "Gap between a convex function and its tangent. Squared error and KL are both members." },
+    { "a": "Jeffreys", "t": "outlier", "aka": ["symmetric KL", "symmetrized KL", "J-divergence", "jeffreys divergence"] },
+    { "a": "Energy distance", "t": "outlier", "aka": ["energy", "székely energy distance"] },
+    { "a": "Fréchet Inception Distance", "t": "outlier", "aka": ["FID", "frechet", "fréchet distance"], "q": "W2 between two Gaussians fitted to Inception features. GAN papers' leaderboard." },
+    { "a": "Sinkhorn", "t": "outlier", "aka": ["sinkhorn divergence", "sinkhorn distance", "entropic OT", "entropic optimal transport", "entropy-regularized OT"], "q": "Cuturi 2013: add entropy, and optimal transport becomes matrix scaling." },
+    { "a": "Sliced Wasserstein", "t": "outlier", "aka": ["SWD", "sliced wasserstein distance"], "q": "Project to random 1D lines where OT is just sorting, then average." },
+    { "a": "Fisher divergence", "t": "outlier", "aka": ["fisher", "hyvärinen divergence", "score matching divergence"] },
+    { "a": "Integral probability metric", "t": "outlier", "aka": ["IPM"] },
+
+    { "a": "Rényi", "t": "indist", "aka": ["renyi", "rényi divergence", "alpha-renyi"] },
+    { "a": "Total variation", "t": "indist", "aka": ["TV", "TVD", "statistical distance", "variational distance", "total variation distance"], "q": "The biggest gap in probability any single event can show. Bounded by Pinsker via KL." },
+    { "a": "Bhattacharyya", "t": "indist", "aka": ["bhattacharyya coefficient", "bhattacharyya distance"] },
+    { "a": "Kolmogorov–Smirnov", "t": "indist", "aka": ["KS", "kolmogorov", "kolmogorov distance", "KS statistic"], "q": "The largest vertical gap between two CDFs." },
+    { "a": "Chi-squared", "t": "indist", "aka": ["χ²", "chi square", "chi2", "pearson chi-squared", "pearson"] },
+    { "a": "f-divergence", "t": "indist", "aka": ["csiszar", "csiszár divergence", "ali-silvey", "phi-divergence", "φ-divergence"], "q": "KL, TV, χ², Hellinger and JS: one convex function each, same family." },
+    { "a": "Cross-entropy", "t": "indist", "aka": ["cross entropy", "CE"], "q": "KL plus an entropy you can't change. Not a true divergence, but it does the job daily." },
+
+    { "a": "Hellinger", "t": "overfit", "aka": ["hellinger distance", "squared hellinger"], "q": "L2 between square-root densities. The stats-course pick that sounds exotic." },
+    { "a": "MMD", "t": "overfit", "aka": ["maximum mean discrepancy", "kernel two-sample"], "q": "Compare kernel mean embeddings. Gretton et al.'s two-sample workhorse." },
+
+    { "a": "KL divergence", "t": "baseline", "aka": ["KL", "KLD", "kullback-leibler", "relative entropy", "reverse KL", "forward KL"], "q": "Asymmetric, unbounded, and in every loss function you've ever loved." },
+    { "a": "Jensen–Shannon", "t": "baseline", "aka": ["JS", "JSD", "jensen shannon", "information radius"], "q": "KL made symmetric and bounded. What the original GAN minimizes at the optimal discriminator." },
+    { "a": "Wasserstein", "t": "baseline", "aka": ["earth mover's distance", "earth movers", "EMD", "optimal transport", "OT", "kantorovich", "kantorovich-rubinstein", "mallows", "W1", "W2"], "q": "How much dirt you'd move to reshape one pile into another. WGAN made it famous." }
+  ]
+}

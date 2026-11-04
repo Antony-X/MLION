@@ -21,6 +21,36 @@ assert.strictEqual(E.fullKey("Bayes' theorem"), "bayestheorem"); ok("apostrophes
 assert.strictEqual(E.editDistance("relu", "rleu", 2), 1); ok("transposition = 1 edit");
 assert.strictEqual(E.singular("gans"), "gan"); ok("plural");
 
+// --- matcher layers
+{
+  const P = { id: "t", text: "Name a thing", strip: ["network"], answers: [
+    { a: "Recurrent neural network", t: "baseline" },
+    { a: "Long short-term memory", t: "indist" },
+    { a: "YOLOv8", t: "outlier" },
+    { a: "Mixture of experts", t: "outlier" },
+    { a: "Zero-shot learning", t: "longtail" },
+    { a: "Random forest", t: "baseline" },
+    { a: "ReLU", t: "baseline" }, { a: "ReGLU", t: "longtail" },
+    { a: "Segment Anything", t: "mlion" },
+  ] };
+  const m = (s) => E.matchAnswer(P, s);
+  assert.strictEqual(m("RNN").answer.a, "Recurrent neural network"); ok("acronym -> long name");
+  assert.strictEqual(m("lstm").answer.a, "Long short-term memory"); ok("hyphenated acronym");
+  assert.strictEqual(m("moe").answer.a, "Mixture of experts"); ok("acronym keeps 'of'");
+  assert.strictEqual(m("yolo 8").answer.a, "YOLOv8"); ok("v before version");
+  assert.strictEqual(m("yolo version 8").answer.a, "YOLOv8"); ok("'version' dropped");
+  assert.strictEqual(m("0-shot learning").answer.a, "Zero-shot learning"); ok("number words");
+  assert.strictEqual(m("random forest algorithm").answer.a, "Random forest"); ok("soft filler words");
+  assert.strictEqual(m("random forests").answer.a, "Random forest"); ok("plurals");
+  assert.strictEqual(m("segment anything model").kind, "exact"); ok("filler 'model'");
+  const top = (r) => r.answer || (r.suggestions && r.suggestions[0]);
+  assert.strictEqual(top(m("reccurent nueral netwrk")).a, "Recurrent neural network"); ok("four typos still find it");
+  assert.strictEqual(top(m("recurent neural network")).a, "Recurrent neural network"); ok("one typo corrects");
+  assert.strictEqual(m("recurent neural network").kind, "correction"); ok("single typo is a correction");
+  assert.strictEqual(m("rellu").answer.a, "ReLU"); ok("tie goes to the more common answer");
+  assert.strictEqual(m("banana").kind, "none"); ok("nonsense stays a miss");
+}
+
 // --- every answer and alias matches itself, in every prompt
 let names = 0;
 for (const p of DATA.prompts) {
