@@ -144,7 +144,7 @@
     { "a": "MSELoss", "t": "indist", "aka": ["MSE"] },
     { "a": "BCELoss", "t": "indist", "aka": ["BCE"] },
     { "a": "BCEWithLogitsLoss", "t": "indist", "aka": ["BCEWithLogits"], "q": "Sigmoid and BCE fused for numerical stability. Reach for it before BCELoss." },
-    { "a": "NLLLoss", "t": "indist", "aka": ["NLL"], "q": "Expects log-probabilities: LogSoftmax + NLLLoss = CrossEntropyLoss." },
+    { "a":"NLLLoss", "t":"indist", "aka":["NLL","NLLLoss2d"], "q":"Expects log-probabilities: LogSoftmax + NLLLoss = CrossEntropyLoss." },
     { "a": "L1Loss", "t": "indist", "aka": ["L1"] },
     { "a": "BatchNorm2d", "t": "indist", "aka": ["BatchNorm"] },
     { "a": "BatchNorm1d", "t": "indist" },
@@ -175,6 +175,8 @@
     { "a": "Conv2d", "t": "baseline", "aka": ["Conv"] },
     { "a": "ReLU", "t": "baseline" },
     { "a": "Sequential", "t": "baseline" },
-    { "a": "Module", "t": "baseline" }
+    { "a": "Module", "t": "baseline" },
+    { "a": "LPPool3d", "t": "longtail" },
+    { "a": "Buffer", "t": "longtail", "aka": ["nn.Buffer"] }
   ]
 }
