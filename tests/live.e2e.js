@@ -79,23 +79,75 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check((await ben.textContent(".lv-players")).includes("Ana"), "friend sees the host in the lobby");
   await ana.screenshot({ path: path.join(OUT, "20-live-lobby.png") });
 
+  // Chat in the lobby: Ben says hi, everyone else gets a badge and a preview.
+  check(await ben.isVisible("#chat-btn"), "chat button shows inside a room");
+  await ben.click("#chat-btn");
+  await ben.fill("#chat-input", "hi all");
+  await ben.press("#chat-input", "Enter");
+  await ana.waitForSelector("#chat-peek:not([hidden])", { timeout: 10000 });
+  check((await ana.textContent("#chat-peek")).includes("hi all") && (await ana.textContent("#chat-badge")).trim() === "1", "a new message shows a preview and an unread count");
+  await ana.screenshot({ path: path.join(OUT, "26-chat-peek.png") });
+  await ana.click("#chat-peek");
+  check(/Ben\s*hi all/.test(await ana.textContent("#chat-log")) && await ana.isHidden("#chat-badge"), "opening the chat shows the message and clears the count");
+  await ana.fill("#chat-input", "hey <b>ben</b>");
+  await ana.press("#chat-input", "Enter");
+  await ben.waitForFunction(() => /hey <b>ben<\/b>/.test(document.querySelector("#chat-log").textContent), null, { timeout: 10000 });
+  check(!(await ben.$("#chat-log li b b")), "messages arrive as plain text, never as markup");
+  check(await ben.$$eval("#chat-log li.me", (els) => els.length === 1 && !els[0].classList.contains("pending")), "your own message is confirmed once the room has it");
+  await cy.waitForFunction(() => document.querySelector("#chat-badge").textContent.trim() === "2", null, { timeout: 10000 });
+  check(true, "everyone in the room gets every message");
+  await ben.screenshot({ path: path.join(OUT, "27-chat-open.png") });
+  await ben.press("#chat-input", "Escape");
+  check(await ben.isHidden("#chat"), "Escape closes the chat");
+
   await ana.click('.vs-size[data-n="5"]');
   for (const pg of [ana, ben, cy]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
   check(true, "everyone taps Ready; match starts by itself");
+  await ana.click("#chat-btn"); // left open while the match starts
   const plan = { ana: ["snake", "snake", "snake", "snake", "snake"], ben: ["relu", "relu", "relu", "relu", "relu"], cy: ["gelu", "gelu", "gelu", "gelu", "gelu"] };
   for (let i = 0; i < 5; i++) {
     for (const [page, who] of [[ana, "ana"], [ben, "ben"], [cy, "cy"]]) {
       await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
+      if (i === 0 && who === "ana") {
+        check(await ana.isHidden("#chat"), "the chat folds away when a question starts");
+        await ana.click("#chat-btn");
+        await ana.fill("#chat-input", "its relu lol");
+        await ana.press("#chat-input", "Enter");
+        check((await ana.textContent("#chat-note")).includes("ReLU") && (await ana.inputValue("#chat-input")) === "its relu lol", "a chat message naming an answer waits for the reveal");
+        await ana.fill("#chat-input", "");
+        await ana.press("#chat-input", "Escape");
+      }
+      if (i === 0 && who === "ben") { // Ana has answered: she watches Ben type, Cy (still thinking) doesn't
+        await ben.fill("#answer", "qqqq");
+        await ben.press("#answer", "Enter");
+        await ana.waitForFunction(() => /qqqq/.test(document.querySelector("#live-rivals s") ? document.querySelector("#live-rivals s").textContent : ""), null, { timeout: 8000 });
+        check(true, "after you answer, you see their wrong guesses");
+      }
       await page.fill("#answer", plan[who][i]);
       if (i === 0 && who === "ana") {
         await ben.waitForFunction(() => /•{3,}/.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
         check(!/snake/i.test(await ben.textContent("#live-rivals")), "friend sees you typing, hidden as dots");
+      }
+      if (i === 0 && who === "ben") {
+        await ana.waitForFunction(() => /relu/.test(document.querySelector("#live-rivals").textContent), null, { timeout: 8000 });
+        check(true, "after you answer, you see what they're typing");
+        await cy.waitForFunction(() => /•{3,}/.test(document.querySelector("#live-rivals").textContent), null, { timeout: 8000 });
+        check(!/relu|qqqq/.test(await cy.textContent("#live-rivals")), "someone still thinking only sees dots");
+        await ana.screenshot({ path: path.join(OUT, "28-live-watch-typing.png") });
       }
       await page.press("#answer", "Enter");
       if (i === 0 && who === "ana") {
         await ben.waitForFunction(() => /Locked in/.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
         check(!/snake/i.test(await ben.textContent("#live-rivals")), "your answer stays hidden until your friend answers");
         await ben.screenshot({ path: path.join(OUT, "25-live-rival.png") });
+        await ana.click("#chat-btn");
+        await ana.fill("#chat-input", "come on ben");
+        await ana.press("#chat-input", "Enter");
+        await ana.press("#chat-input", "Escape");
+        await ben.waitForFunction(() => /come on ben/.test(document.querySelector("#chat-peek").textContent) && !document.querySelector("#chat-peek").hidden, null, { timeout: 10000 });
+        check((await ben.evaluate(() => document.activeElement && document.activeElement.id)) === "answer", "a message mid-question doesn't take the answer box's focus");
+        check((await ben.textContent("#chat-badge")).trim() === "1", "the blocked spoiler never reached anyone");
+        await ben.screenshot({ path: path.join(OUT, "29-chat-mid-question.png") });
       }
     }
     if (i === 0) {
@@ -115,6 +167,10 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   const order = await ana.$$eval(".lv-podium .nm b", (els) => els.map((e) => e.textContent));
   check(order.join(",") === "Ana,Cy,Ben", `podium order (${order.join(", ")})`);
   await ben.screenshot({ path: path.join(OUT, "23-live-podium.png") });
+  check(await ben.isVisible("#chat-btn"), "chat stays available on the podium");
+  await cy.evaluate(() => { location.hash = "#home"; });
+  await cy.waitForSelector("#chat-btn", { state: "hidden", timeout: 5000 });
+  check(true, "leaving the room hides the chat");
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();

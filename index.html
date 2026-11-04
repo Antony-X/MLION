@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=17mdco3">
+  <link rel="stylesheet" href="css/style.css?v=hu058s">
 </head>
 <body>
   <canvas id="landscape" aria-hidden="true"></canvas>
@@ -20,6 +20,10 @@
   <header class="topbar">
     <button class="brand" id="brand" aria-label="MLion home"><svg class="mark" viewBox="-32 -32 64 64" aria-hidden="true" focusable="false"><path class="mk-mane" d="M0 -30L6.6 -22.5L16.2 -25.2L17.8 -15.4L27.3 -12.5L23.3 -3.3L29.7 4.3L21.4 9.8L22.7 19.6L12.7 19.8L8.5 28.8L0 23.5L-8.5 28.8L-12.7 19.8L-22.7 19.6L-21.4 9.8L-29.7 4.3L-23.3 -3.3L-27.3 -12.5L-17.8 -15.4L-16.2 -25.2L-6.6 -22.5Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path class="mk-face" d="M-15.5 -8.5H15.5L0 16Z" fill="none" stroke-width="5.5" stroke-linejoin="round"/><circle class="mk-eye" cx="-5.2" cy="-1.6" r="2.3"/><circle class="mk-eye" cx="5.2" cy="-1.6" r="2.3"/></svg><span>MLion</span></button>
     <div class="topbar-mid" id="topbar-mid"></div>
+    <button class="icon-btn chat-btn" id="chat-btn" aria-label="Room chat" aria-expanded="false" aria-controls="chat" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5a8 8 0 0 1-11.8 7L3.5 20l1.5-4.9a8 8 0 1 1 15.5-3.6z"/></svg>
+      <span class="chat-badge" id="chat-badge" hidden></span>
+    </button>
     <button class="icon-btn" id="menu-btn" aria-label="Open menu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg>
     </button>
@@ -51,10 +55,21 @@
   <div id="modal"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <section class="chat" id="chat" aria-label="Room chat" hidden>
+    <div class="chat-head"><b>Chat</b><button class="icon-btn" id="chat-close" aria-label="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <ol class="chat-log" id="chat-log" aria-live="polite"></ol>
+    <p class="chat-note" id="chat-note" role="status"></p>
+    <form class="chat-form" id="chat-form" autocomplete="off">
+      <input class="chat-input" id="chat-input" maxlength="200" autocomplete="off" enterkeyhint="send" aria-label="Message" placeholder="Say something">
+      <button class="btn primary" id="chat-send" type="submit">Send</button>
+    </form>
+  </section>
+  <button class="chat-peek" id="chat-peek" type="button" hidden></button>
+
   <noscript><p style="position:relative;z-index:2;text-align:center;padding:40px">MLion needs JavaScript to run.</p></noscript>
   <script src="js/engine.js?v=88vg5e"></script>
   <script src="js/data.js?v=ie5b7z"></script>
   <script src="js/landscape.js?v=fe3t3r"></script>
-  <script src="js/app.js?v=wuzu2a"></script>
+  <script src="js/app.js?v=1ane1pg"></script>
 </body>
 </html>

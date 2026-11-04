@@ -83,6 +83,7 @@
       reject() { tone(180, 0.2, { type: "sawtooth", vol: 0.04, slide: 0.7 }); },
       submit() { tone(520, 0.09, { type: "triangle", vol: 0.04, slide: 1.6 }); },
       miss() { tone(320, 0.55, { type: "triangle", vol: 0.06, slide: 0.35 }); },
+      chat() { tone(988, 0.07, { vol: 0.03 }); tone(1319, 0.1, { vol: 0.03, delay: 0.07 }); },
       tier(t) {
         (SEQ[t] || SEQ.baseline).forEach((f, i) => tone(f, 0.24, { type: t === "mlion" ? "triangle" : "sine", vol: 0.06, delay: i * 0.085 }));
         if (t === "mlion") tone(2093, 0.7, { vol: 0.025, delay: 0.46 });
@@ -315,6 +316,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
       players: new Map(), seed: "", phase: "lobby", revealed: -1, status: "" });
+    chatRate.clear();
+    syncChat();
   }
   function leaveLive(quiet) {
     LIVE.quietLeave = quiet !== false;
@@ -396,6 +399,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (!pl || m.id === LIVE.myId) return;
       pl.typing = { i: m.i, draft: String(m.draft || "").slice(0, 60), tried: Array.isArray(m.tried) ? m.tried.slice(-6).map((x) => String(x).slice(0, 40)) : [] };
       renderRivals();
+    } else if (m.t === "chat" && typeof m.id === "string") {
+      chatIncoming(m);
     } else if (m.t === "reveal" && Number.isInteger(m.i)) {
       LIVE.revealed = Math.max(LIVE.revealed, m.i);
       if (RUN && RUN.mode === "live" && RUN.results.length <= m.i && (RUN.phase === "preview" || RUN.phase === "answering")) submit(true);
@@ -451,6 +456,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       broadcast({ t: "typing", id: conn.peer, i: m.i, draft: m.draft, tried: m.tried });
     } else if (m.t === "ans" && LIVE.players.has(conn.peer)) {
       hostAnswer(conn.peer, m);
+    } else if (m.t === "chat" && LIVE.players.has(conn.peer)) {
+      hostChat(conn.peer, m.text, m.k);
     }
   }
   function hostAnswer(id, m) {
@@ -700,6 +707,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         js.joined = true;
         const me = d.players.find((p) => p.id === id);
         Object.assign(LIVE, { active: true, code, isHost: false, client, myId: id, phase: me.late && d.phase === "playing" ? "waiting" : "lobby" });
+        syncChat();
         if (LIVE.phase === "waiting") { renderLiveStatus("You're in. A match is in progress, so you'll play the next one.", false); return; }
       }
       if (d.t === "lobby" && Array.isArray(d.players) && !d.players.some((p) => p && p.id === id)) { hello(); return; } // our seat expired: ask again
@@ -715,7 +723,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         return;
       }
       if (d.t === "lobby" && LIVE.phase === "waiting" && d.phase !== "playing") LIVE.phase = "lobby";
-      if (LIVE.phase === "waiting" && d.t !== "lobby" && d.t !== "start") return;
+      if (LIVE.phase === "waiting" && d.t !== "lobby" && d.t !== "start" && d.t !== "chat") return; // sitting out still hears the room
       apply(d);
     });
   }
@@ -832,8 +840,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const line = a
         ? (iDone ? `<span class="rv-locked t-${tierOf(a.tier)}">${G(a.tier)}<b>${a.answer ? esc(a.answer) : "No answer"}</b><em>+${a.score}</em></span>`
           : `<span class="rv-locked"><b>Locked in ✓</b></span>`)
-        : `<span class="rv-typing">${ty.draft ? `<span class="rv-mask">${mask(ty.draft)}</span>` : `<span class="muted">thinking</span>`}<i class="rv-caret"></i></span>`;
-      const tried = !a && ty.tried.length ? `<span class="rv-tried">${ty.tried.length} wrong ${ty.tried.length === 1 ? "guess" : "guesses"}</span>` : "";
+        : `<span class="rv-typing">${ty.draft ? (iDone ? `<span class="rv-draft">${esc(ty.draft)}</span>` : `<span class="rv-mask">${mask(ty.draft)}</span>`) : `<span class="muted">thinking</span>`}<i class="rv-caret"></i></span>`;
+      // once you've answered, watch them type for real: draft and bounced guesses in the clear
+      const tried = a || !ty.tried.length ? ""
+        : iDone ? `<span class="rv-tried">${ty.tried.map((x) => `<s>${esc(x)}</s>`).join("")}</span>`
+        : `<span class="rv-tried">${ty.tried.length} wrong ${ty.tried.length === 1 ? "guess" : "guesses"}</span>`;
       return `<div class="rv${a ? " done" : ""}">${avatar(p.name)}<div class="rv-main"><span class="rv-name">${esc(p.name)}${p.away ? " · reconnecting" : ""}</span>${line}${tried}</div></div>`;
     }).join("");
   }
@@ -904,6 +915,149 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $("#live-leave").insertAdjacentHTML("beforebegin", readyBlock("Ready for rematch"));
     wireReady();
   }
+  // ---- chat: room messages ride the same relay as everything else. Guests send
+  // {t:"chat"} up, the host stamps who said it and broadcasts it down. The panel
+  // lives outside #app so screen redraws never eat a half-typed message.
+  const CHAT_MAX = 200;
+  const CHAT = { code: "", msgs: [], unread: 0, open: false, shown: false, leftAt: 0, sent: [] };
+  const chatRate = new Map(); // host side: recent message times per player, a flood guard
+  const cleanChat = (s) => String(s || "").replace(/[\u0000-\u001f\u007f‪-‮⁦-⁩]/g, " ").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX);
+  const chatTyping = () => document.activeElement === $("#chat-input");
+
+  /** Show the chat button only inside a room; keep a room's history if you step out briefly. */
+  function syncChat() {
+    const on = LIVE.active;
+    if (on && (CHAT.code !== LIVE.code || (CHAT.leftAt && Date.now() - CHAT.leftAt > 10 * 60000))) {
+      Object.assign(CHAT, { code: LIVE.code, msgs: [], unread: 0, sent: [] });
+    }
+    if (on) CHAT.leftAt = 0; else if (CHAT.shown) CHAT.leftAt = Date.now();
+    CHAT.shown = on;
+    $("#chat-btn").hidden = !on;
+    $(".topbar").classList.toggle("has-chat", on);
+    if (!on) { setChatOpen(false); $("#chat-peek").hidden = true; }
+    drawChatBadge();
+  }
+  function setChatOpen(v, focus) {
+    CHAT.open = !!v && LIVE.active;
+    $("#chat").hidden = !CHAT.open;
+    $("#chat-btn").setAttribute("aria-expanded", String(CHAT.open));
+    $("#chat-btn").classList.toggle("on", CHAT.open);
+    if (!CHAT.open) { if (chatTyping()) $("#chat-input").blur(); return; }
+    CHAT.unread = 0;
+    drawChatBadge();
+    $("#chat-peek").hidden = true;
+    chatViewport();
+    drawChatLog();
+    if (focus !== false) $("#chat-input").focus({ preventScroll: true });
+  }
+  function drawChatBadge() {
+    const b = $("#chat-badge");
+    b.hidden = !CHAT.unread;
+    b.textContent = CHAT.unread > 9 ? "9+" : String(CHAT.unread);
+    $("#chat-btn").setAttribute("aria-label", CHAT.unread ? `Room chat, ${CHAT.unread} new` : "Room chat");
+  }
+  function drawChatLog() {
+    const log = $("#chat-log");
+    if (!CHAT.open) return;
+    log.innerHTML = CHAT.msgs.length ? CHAT.msgs.map((m) => {
+      const me = m.id === LIVE.myId;
+      return `<li class="${me ? "me" : ""}${m.pending ? " pending" : ""}">${me ? "" : avatar(m.name)}<div class="chat-msg">${me ? "" : `<b>${esc(m.name)}</b>`}<p>${esc(m.text)}</p>${m.failed ? `<em>Not sent</em>` : ""}</div></li>`;
+    }).join("") : `<li class="chat-empty">No messages yet.</li>`;
+    log.scrollTop = log.scrollHeight;
+  }
+  function chatNote(text) { $("#chat-note").textContent = text || ""; }
+  /** A new message from someone else while the panel is shut: a short preview under the button. */
+  function peekChat(name, text) {
+    const el = $("#chat-peek");
+    el.innerHTML = `<b>${esc(name)}</b><span>${esc(text)}</span>`;
+    el.hidden = false;
+    el.classList.remove("in"); void el.offsetWidth; el.classList.add("in");
+    clearTimeout(peekChat._t);
+    peekChat._t = setTimeout(() => { el.hidden = true; }, 5000);
+  }
+  function chatIncoming(m) {
+    const text = cleanChat(m.text);
+    if (!text) return;
+    const pl = LIVE.players.get(m.id);
+    const name = cleanName(m.name) || (pl && pl.name) || "Player";
+    const k = typeof m.k === "string" ? m.k : "";
+    const mine = m.id === LIVE.myId;
+    const echo = mine && k ? CHAT.msgs.find((x) => x.k === k && x.id === m.id) : null;
+    if (echo) { echo.pending = 0; echo.failed = false; drawChatLog(); return; } // our own message came back: delivered
+    CHAT.msgs.push({ id: m.id, name, text, k });
+    if (CHAT.msgs.length > 150) CHAT.msgs.splice(0, CHAT.msgs.length - 150);
+    if (CHAT.open) drawChatLog();
+    if (mine) return;
+    if (!CHAT.open) { CHAT.unread++; drawChatBadge(); peekChat(name, text); }
+    Sound.chat();
+  }
+  /** While a question is open, a message that names one of its answers would spoil it
+   *  for anyone still thinking, so it waits for the reveal. Exact matches only. */
+  function chatSpoiler(text) {
+    if (!RUN || RUN.mode !== "live" || LIVE.phase !== "playing" || RUN.round <= LIVE.revealed) return null;
+    const p = currentPrompt();
+    if (!p) return null;
+    const w = text.split(" ").filter(Boolean).slice(0, 40);
+    for (let n = Math.min(5, w.length); n >= 1; n--) {
+      for (let s = 0; s + n <= w.length; s++) {
+        const part = w.slice(s, s + n).join(" ");
+        if (E.fullKey(part).length < 3) continue; // "go", "R": too common to block
+        const m = E.matchAnswer(p, part);
+        if (m.kind === "exact") return m.answer.a;
+      }
+    }
+    return null;
+  }
+  function sendChat() {
+    const input = $("#chat-input");
+    const text = cleanChat(input.value);
+    if (!text || !LIVE.active) return;
+    const spoil = chatSpoiler(text);
+    if (spoil) return chatNote(`“${spoil}” answers this question. Send it after the reveal.`);
+    const now = Date.now();
+    CHAT.sent = CHAT.sent.filter((t) => now - t < 8000);
+    if (CHAT.sent.length >= 5) return chatNote("Slow down a little.");
+    CHAT.sent.push(now);
+    input.value = "";
+    chatNote("");
+    const k = rid(6);
+    if (LIVE.isHost) return hostChat(LIVE.myId, text, k);
+    CHAT.msgs.push({ id: LIVE.myId, name: "You", text, k, pending: now });
+    drawChatLog();
+    guestSend({ t: "chat", text, k });
+    setTimeout(() => {
+      const msg = CHAT.msgs.find((x) => x.k === k && x.pending);
+      if (msg) { msg.pending = 0; msg.failed = true; drawChatLog(); }
+    }, 10000);
+  }
+  function hostChat(id, text, k) {
+    const pl = LIVE.players.get(id);
+    const clean = cleanChat(text);
+    if (!pl || !clean) return;
+    const now = Date.now();
+    const recent = (chatRate.get(id) || []).filter((t) => now - t < 8000);
+    if (recent.length >= 6) return; // a little looser than the sender's own limit, so honest pages never hit it
+    recent.push(now);
+    chatRate.set(id, recent);
+    broadcast({ t: "chat", id, name: pl.name, text: clean, k: typeof k === "string" ? k.slice(0, 8) : "" });
+  }
+  /** Phones: keep the panel inside the part of the screen the keyboard leaves visible. */
+  function chatViewport() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    document.documentElement.style.setProperty("--vv-top", `${vv.offsetTop}px`);
+    document.documentElement.style.setProperty("--vv-h", `${vv.height}px`);
+  }
+  if (window.visualViewport) { visualViewport.addEventListener("resize", chatViewport); visualViewport.addEventListener("scroll", chatViewport); }
+  $("#chat-btn").addEventListener("click", () => setChatOpen(!CHAT.open));
+  $("#chat-close").addEventListener("click", () => setChatOpen(false));
+  $("#chat-peek").addEventListener("click", () => setChatOpen(true));
+  $("#chat-form").addEventListener("submit", (e) => { e.preventDefault(); sendChat(); });
+  $("#chat-input").addEventListener("input", () => chatNote(""));
+  document.addEventListener("pointerdown", (e) => { // tap anywhere else to close, like any popover
+    if (CHAT.open && !e.target.closest("#chat, #chat-btn, #chat-peek")) setChatOpen(false);
+  });
+
   /** Public rooms: ask each fixed public code who's there. */
   let roomsWatch = null;
   async function renderRooms() {
@@ -980,6 +1134,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     window.scrollTo(0, 0);
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
     if ((LIVE.active && h !== liveHash()) || (joinState && h !== `live-${joinState.code}`)) leaveLive();
+    syncChat();
     if (h !== "rooms" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
     if (RUN && RUN.mode === "live" && !LIVE.active) stopRun();
     scene("page");
@@ -1189,6 +1344,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     RUN.answerEndsAt = RUN.previewEndsAt + E.ANSWER_MS;
     RUN.tried = [];
     persistRun();
+    // a new question: fold the chat away so the prompt is in view, unless they're mid-message
+    if (RUN.mode === "live" && CHAT.open && !(chatTyping() && $("#chat-input").value)) setChatOpen(false);
     renderRound();
   }
 
@@ -1261,7 +1418,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           RUN.phase = "answering"; persistRun();
           input.disabled = false; $("#step").disabled = false;
           veil.classList.add("hidden");
-          input.focus({ preventScroll: true });
+          if (!chatTyping()) input.focus({ preventScroll: true }); // never yank someone out of a chat message
           $("#timer-label").textContent = "Time left";
         }
         const left = Math.max(0, RUN.answerEndsAt - now);
@@ -1468,11 +1625,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // Global keyboard: Enter continues from feedback.
   document.addEventListener("keydown", (e) => {
+    if (e.target && e.target.id === "chat-input") { if (e.key === "Escape") setChatOpen(false); return; } // chat keys stay in chat
     if (e.key === "Enter" && RUN && RUN.phase === "feedback") {
       const n = $("#next");
       if (n && !n.disabled && document.activeElement !== n) { e.preventDefault(); advance(); }
     }
-    if (e.key === "Escape") { closeDrawer(); closeModal(); }
+    if (e.key === "Escape") { closeDrawer(); closeModal(); if (CHAT.open) setChatOpen(false); }
   });
 
   // ============================================================ results

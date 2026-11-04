@@ -723,3 +723,62 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .reduce-motion .rv-caret { animation: none; }
 .rv-mask { letter-spacing: 0.12em; color: var(--muted); }
 .vs-size.lv-assist { font-size: var(--s2); padding: 0 18px; }
+.rv-draft { color: var(--ink); overflow-wrap: anywhere; }
+
+/* ----------------------------------------------------------------- chat */
+/* hangs from its button in the top bar; the visual-viewport vars keep it above a phone keyboard */
+.topbar.has-chat { grid-template-columns: auto 1fr auto auto; gap: 10px; }
+.chat-btn { position: relative; }
+.chat-btn.on { background: var(--raised-2); }
+.chat-badge {
+  position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--round);
+  display: grid; place-items: center; background: var(--gold); color: var(--gold-ink); font-size: 12px; font-weight: 600; line-height: 1;
+}
+.chat, .chat-peek {
+  position: fixed; z-index: 30; right: var(--side-r);
+  top: calc(var(--vv-top, 0px) + env(safe-area-inset-top, 0px) + 68px);
+  width: min(400px, calc(100vw - var(--side-l) - var(--side-r)));
+  animation: lv-in 260ms var(--ease-out) both;
+}
+.chat {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  max-height: min(520px, calc(var(--vv-h, 100vh) - env(safe-area-inset-top, 0px) - 84px));
+  border-radius: var(--soft); background: var(--raised);
+}
+.chat-head { display: flex; align-items: center; justify-content: space-between; padding-left: 6px; }
+.chat-head b { font-weight: 400; font-size: var(--s2); }
+.chat-head .icon-btn { width: 36px; height: 36px; background: var(--raised-2); }
+.chat-head .icon-btn svg { width: 16px; height: 16px; }
+.chat-log {
+  list-style: none; margin: 0; padding: 0 2px; min-height: 96px; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.chat-log li { display: flex; align-items: flex-end; gap: 8px; }
+.chat-log li:first-child { margin-top: auto; }
+.chat-log li .lv-av { width: 28px; height: 28px; font-size: var(--s1); }
+.chat-log li.me { justify-content: flex-end; }
+.chat-msg { max-width: 82%; padding: 8px 14px; border-radius: 18px; background: var(--surface); min-width: 0; }
+.chat-log li.me .chat-msg { background: var(--raised-2); }
+.chat-msg b { display: block; font-weight: 400; font-size: var(--s1); color: var(--muted); }
+.chat-msg p { overflow-wrap: anywhere; }
+.chat-msg em { display: block; font-style: normal; font-size: var(--s1); color: var(--negative); }
+.chat-log li.pending .chat-msg { opacity: 0.55; }
+.chat-empty { color: var(--faint); justify-content: center; font-size: var(--s1); }
+.chat-note { color: var(--negative); font-size: var(--s1); padding: 0 6px; }
+.chat-note:empty { display: none; }
+.chat-form { display: flex; gap: 8px; }
+.chat-input {
+  flex: 1; min-width: 0; height: 48px; padding: 0 18px; border-radius: var(--round); border: 0; outline: none;
+  background: var(--surface); color: var(--ink); font-size: var(--s2); /* 17px: under 16px iOS zooms the page on focus */
+}
+.chat-input::placeholder { color: var(--faint); }
+.chat-input:focus { box-shadow: inset 0 0 0 2px var(--gold); }
+.chat-form .btn { min-height: 48px; padding: 0 20px; }
+.chat-peek {
+  width: auto; max-width: min(340px, calc(100vw - var(--side-l) - var(--side-r)));
+  display: grid; gap: 2px; padding: 10px 16px; border: 0; border-radius: var(--soft); text-align: left; cursor: pointer;
+  background: var(--raised-2); color: var(--ink);
+}
+.chat-peek b { font-weight: 400; font-size: var(--s1); color: var(--muted); }
+.chat-peek span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.reduce-motion .chat, .reduce-motion .chat-peek { animation: none; }
