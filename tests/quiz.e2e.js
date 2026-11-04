@@ -171,6 +171,16 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.reload();
   await page.waitForSelector(".feedback");
   check((await page.textContent(".fb-name")).trim() === "Correct", "a reload after answering lands on the same verdict");
+  // a small phone (360 x 640): nothing spills sideways on the verdict or the next question
+  await page.setViewportSize({ width: 360, height: 640 });
+  check(await noSideScroll(page), "no horizontal scroll on the verdict at 360 px wide");
+  await page.click("#next");
+  await readQuestion(page);
+  check(await noSideScroll(page), "no horizontal scroll on a question at 360 px wide");
+  const small = await page.$$eval(".mcq-opt", (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), Math.round(r.bottom)]; }));
+  check(small.every(([w, h]) => w >= 280 && h >= 56), `the options stay big taps at 360 px (${small.map((b) => b[0] + "x" + b[1]).join(" ")}; bottoms ${small.map((b) => b[2]).join("/")} of 640)`);
+  await page.screenshot({ path: path.join(OUT, "48-quiz-small-phone.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
 
   // ---- quiz challenge: Ana plays 3 and sends a link; Ben opens it on his own phone
   await page.goto(base + "#challenge");

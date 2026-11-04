@@ -876,3 +876,19 @@ html:not(.reduce-motion) .feedback .mcq-key { transition: opacity 500ms var(--ea
 .lv-podium li.first .nm-t { color: #4a3812; }
 .duel-tie { color: var(--muted); font-size: var(--s1); margin-top: -8px; }
 .vs-size.fmt-size, .vs-size.lv-fmt { font-size: var(--s2); padding: 0 22px; min-width: 0; }
+/* a quiz round has four options (and, live, the room's strip and rivals) to fit under the stage: tighter on phones */
+@media (max-width: 999px) {
+  .play.quiz .stage { height: clamp(112px, 16vh, 180px); }
+  .play.quiz .prompt-card { padding-top: 16px; }
+  .play.quiz .round { gap: 14px; }
+  .play.quiz .mcq { gap: 8px; }
+  .play.quiz .mcq-opt { min-height: 60px; }
+  .play.quiz .mcq-zone, .play.quiz .input-zone { margin-top: 12px; }
+  /* live: the rivals fold to one slim line each, the skip vote sits closer */
+  .play.quiz .live-rivals { gap: 6px; margin-top: 8px; }
+  .play.quiz .rv { padding: 6px 12px; gap: 10px; }
+  .play.quiz .rv .lv-av { width: 28px; height: 28px; font-size: var(--s1); }
+  .play.quiz .rv-main { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; }
+  .play.quiz .rv-locked, .play.quiz .rv-typing { font-size: var(--s2); }
+  .play.quiz .live-skip { margin-top: 8px; }
+}

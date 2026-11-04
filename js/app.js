@@ -1582,7 +1582,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function renderPlayShell() {
     setMid(RUN.label);
-    app.innerHTML = `<section class="screen play">
+    app.innerHTML = `<section class="screen play${RUN.fmt === "quiz" ? " quiz" : ""}">
       <div class="stage" id="stage">
         <canvas id="descent" aria-hidden="true"></canvas>
         <div class="hud"><span>Loss</span><b id="hud-loss">7.00</b></div>

@@ -2,7 +2,8 @@
 /* Live match: a guest whose phone goes quiet long enough to be marked away, and
  * comes back inside the grace period, keeps their seat in the running match.
  * Regression test for a stale grace timer that freed the seat anyway.
- *   node tests/live.rejoin.e2e.js   (needs unpkg.com and public.cloud.shiftr.io) */
+ *   node tests/live.rejoin.e2e.js          (needs unpkg.com and public.cloud.shiftr.io)
+ *   node tests/live.rejoin.e2e.js --quiz   the same in a Quiz match (real data: a quiz needs distinct prompts) */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
@@ -10,6 +11,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
+const quiz = process.argv.includes("--quiz");
 const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log("  ✓ " + msg); };
 function fixtureBundle() {
   const packs = JSON.parse(fs.readFileSync(path.join(ROOT, "data/packs.json"), "utf8"));
@@ -20,7 +22,7 @@ function fixtureBundle() {
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
-  if (url === "/js/data.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(fixtureBundle()); }
+  if (url === "/js/data.js" && !quiz) { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(fixtureBundle()); }
   const file = path.join(ROOT, url === "/" ? "index.html" : url);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end(); }
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
@@ -47,8 +49,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await ben.goto(base + `#live-${code}`); await ben.fill("#live-name", "Ben"); await ben.click("#live-go");
   await ana.waitForFunction(() => window.MLION_LIVE_STATE.players.size === 2, null, { timeout: 40000 });
   await ben.waitForSelector("#live-ready:not([disabled])", { timeout: 20000 });
+  if (quiz) await ana.click('.lv-fmt[data-f="quiz"]');
   for (const pg of [ana, ben]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
-  await Promise.all([ana.waitForSelector("#answer", { timeout: 30000 }), ben.waitForSelector("#answer", { timeout: 30000 })]);
+  const inputSel = quiz ? ".mcq:not(.locked)" : "#answer";
+  await Promise.all([ana.waitForSelector(inputSel, { timeout: 30000 }), ben.waitForSelector(inputSel, { timeout: 30000 })]);
   const benId = await ben.evaluate(() => window.MLION_LIVE_STATE.myId);
   console.log(`room ${code}, match running, Ben = ${benId}`);
 
@@ -79,6 +83,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log(`${stamp()}  final host view: ${JSON.stringify(final)}`);
   console.log(`         Ben's screen: "${benScreen}"`);
   check(final && !final.late && !final.away, "a guest who comes back within the grace period keeps their seat");
+  if (quiz) { // and can still play: the question is on his screen, and an answer reaches the host
+    check(await ben.evaluate(() => window.MLION_LIVE_STATE.mfmt === "quiz"), "it was a quiz match");
+    await ben.waitForSelector(".mcq:not(.locked) .mcq-opt:not([disabled])", { timeout: 60000 });
+    const i = await ben.evaluate(() => window.MLION_LIVE_STATE.revealed + 1);
+    await ben.click(".mcq-opt");
+    await ana.waitForFunction(([id, k]) => { const p = window.MLION_LIVE_STATE.players.get(id); return p && p.ans[k]; }, [benId, i], { timeout: 30000 });
+    check(true, "after coming back, the guest answers a quiz question and the host records it");
+  }
   console.log("live rejoin e2e passed");
   await browser.close(); server.close();
 })().catch((e) => { console.error(e); process.exit(1); });
