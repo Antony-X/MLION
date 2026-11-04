@@ -82,6 +82,25 @@ for (let d = 1; d <= 365; d++) {
 const counts = [...uses.values()];
 if (DATA.prompts.length >= 14) assert.ok(Math.max(...counts) - Math.min(...counts) <= 2, "dailies should spread prompts evenly");
 ok("365 dailies valid & balanced");
+{ // flat dealing: every prompt equally often, and runs are not forced to one prompt per pack
+  const flatUses = new Map(DATA.prompts.map((p) => [p.id, 0]));
+  let doublePack = 0;
+  const runs = Math.ceil((DATA.prompts.length * 4) / 7);
+  for (let r = 1; r <= runs; r++) {
+    const ids = E.runFor(DATA, "flat-test", r, null, true);
+    assert.strictEqual(new Set(ids).size, ids.length, `flat run ${r} has repeats`);
+    ids.forEach((id) => flatUses.set(id, flatUses.get(id) + 1));
+    const packsIn = ids.map((id) => DATA.prompts.find((p) => p.id === id).pack);
+    if (new Set(packsIn).size < packsIn.length) doublePack++;
+  }
+  const fc = [...flatUses.values()];
+  if (DATA.prompts.length >= 14) {
+    assert.ok(Math.max(...fc) - Math.min(...fc) <= 2, "flat dealing spreads prompts evenly");
+    assert.ok(doublePack > 0, "flat runs can hold two prompts from one pack");
+  }
+  assert.deepStrictEqual(E.runFor(DATA, "flat-test", 3, null, true), E.runFor(DATA, "flat-test", 3, null, true));
+  ok("flat dealing: even use, no one-per-pack rule, deterministic");
+}
 assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); ok("deterministic");
 
 // --- quiz: multiple choice built from the same data

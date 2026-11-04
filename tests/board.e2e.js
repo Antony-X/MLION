@@ -151,14 +151,16 @@ async function mockRoute(route) {
 
   await page.goto(base + "#board");
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 15000 });
-  await page.waitForSelector("[data-login]");
-  check((await page.$$eval("[data-login]", (els) => els.map((e) => e.dataset.login))).join() === "discord", "only providers switched on in Supabase get a button (Discord)");
+  await page.waitForSelector("#app [data-login]");
+  check((await page.$$eval("#app [data-login]", (els) => els.map((e) => e.dataset.login))).join() === "discord", "only providers switched on in Supabase get a button (Discord)");
   providers.google = true;
   await page.goto("about:blank");
   await page.goto(base + "#board");
-  await page.waitForSelector('[data-login="google"]', { timeout: 15000 });
-  check((await page.$$("[data-login]")).length === 2, "switching Google on in the dashboard adds its button, no code change");
+  await page.waitForSelector('#app [data-login="google"]', { timeout: 15000 });
+  check((await page.$$("#app [data-login]")).length === 2, "switching Google on in the dashboard adds its button, no code change");
   check((await page.textContent(".board-side")).includes("Play today's daily"), "the board points at today's daily when you haven't played");
+  await page.waitForSelector('#drawer-acct [data-login="discord"]', { state: "attached" });
+  check(true, "the menu offers Discord login on every page");
 
   // a finished daily (as if just played), scoring 6-5-4-3-2-1-0 = 300
   const tiers = ["mlion", "longtail", "outlier", "indist", "overfit", "baseline", "miss"];
@@ -199,6 +201,8 @@ async function mockRoute(route) {
   const rows = await page.$$eval(".board-list .list-item", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
   check(rows.length === 2 && /^1 Grace/.test(rows[0]) && /685/.test(rows[0]) && /^2 Ada · you/.test(rows[1]) && /300/.test(rows[1]), "the board ranks by score and marks your row");
   check((await page.textContent(".board-acct")).includes("Ada"), "the board says who you're logged in as");
+  check((await page.textContent("#drawer-acct")).includes("Logged in as Ada") && !!(await page.$("#acct-out")), "the menu shows the account and a Log out button");
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:name"))) === "Ada", "the account name fills an empty player name for rooms and challenges");
   await page.screenshot({ path: path.join(OUT, "board-02-board.png"), fullPage: true });
 
   // posting twice doesn't duplicate

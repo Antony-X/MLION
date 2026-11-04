@@ -14,7 +14,7 @@
   const EXTRA_COUNT = WIDE.prompts.length - CORE.prompts.length;
   const CORE_DAILY_FROM = "2026-11-06"; // dailies before this keep the questions they were played with
   const soloPool = () => (settings.extraQuestions ? WIDE : CORE);
-  const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(CORE, "daily-v2", n) : E.dailyPromptIds(DATA, n));
+  const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(CORE, "daily-v2", n, null, true) : E.dailyPromptIds(DATA, n));
   const PACKS = new Map(DATA.packs.map((p) => [p.id, p]));
   const T = E.TIERS;
   // Launch mode: the daily, endless Unlimited, live rooms and challenges. Packs and
@@ -235,7 +235,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return { key: `archive:${date}`, mode: "archive", number: n, date, label: `Archive #${n}`, promptIds: dailyIds(date, n) };
   }
   function unlimitedSpec(n) {
-    return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `Unlimited #${n}`, promptIds: E.runFor(soloPool(), "unlimited-v1", n) };
+    return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `Unlimited #${n}`, promptIds: E.runFor(soloPool(), "unlimited-v2", n, null, true) };
   }
   function packSpec(packId, n) {
     const pk = PACKS.get(packId);
@@ -304,7 +304,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   const tierPoints = (tiers) => tiers.reduce((sum, t) => sum + (T[t] ? T[t].score : 0), 0);
   const myName = () => String(LS.get("name", "") || "").slice(0, 16);
-  function challengePromptIds(seed, n) { return E.makeStream(CORE, `vs-${seed}`).take(n); }
+  function challengePromptIds(seed, n) { return E.makeStream(CORE, `vs-${seed}`, null, true).take(n); }
   function challengeLink(seed, n, players, secs) {
     const tail = players.map((pl) => `-${encTiers(pl.tiers)}-${encName(pl.name)}`).join("");
     const t = validSecs(secs) && secs !== DEFAULT_SECS ? `t${secs}` : "";
@@ -981,17 +981,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
   }
   function renderLiveStart(code) {
-    setMid("Live");
     const joining = !!code;
+    setMid(joining ? "Live" : "Play with friends");
     app.innerHTML = `<section class="screen live">
-      <div class="page-head"><h1>${joining ? "Join live match" : "Live match"}</h1>
-        <p>${joining ? `Room ${esc(code)}. Same questions, same clock, scores live.` : "Make a room, send the link, play the same questions at the same time."}</p></div>
+      <div class="page-head"><h1>${joining ? "Join live match" : "Play with friends"}</h1>
+        <p>${joining ? `Room ${esc(code)}. Same questions, same clock, scores live.` : "Make a room and send the link, or join an open room below. Same questions, same clock."}</p></div>
       <div class="vs-form">
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
-        ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>Public duo room: anyone can find it in Public rooms</span></label>`}
-        <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button>${joining ? "" : `<a class="btn big" href="#rooms">Browse public rooms</a>`}</div>
+        ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms so anyone can join (2 players)</span></label>`}
+        <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button></div>
       </div>
+      ${joining ? "" : `<section class="lv-open"><h2 class="block-title">Open rooms</h2><p id="rooms-status" role="status">Looking for rooms…</p>
+        <ul class="lv-players" id="rooms-list"></ul>
+        <p class="lv-note">Not online at the same time? <a href="#challenge">Send a challenge link</a>: same questions, play whenever.</p></section>`}
     </section>`;
+    if (!joining) watchRooms();
     const go1 = () => {
       const name = cleanName($("#live-name").value) || "Player";
       joining ? liveJoin(code, name) : liveCreate(name, !!($("#live-public") && $("#live-public").checked));
@@ -1032,7 +1036,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p>${LIVE.isPublic ? "Public duo room · listed in Public rooms. " : ""}${ps.length < 2 ? "Waiting for someone to join…" : `${ps.length} players here.`}</p>
         ${LIVE.isHost ? `<p class="lv-note">Keep MLion open while friends join. If you switch apps, come back here and the room reconnects.</p>` : ""}</div>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
-      <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#rooms" id="live-leave-lobby">Leave</a></div>
+      <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#live" id="live-leave-lobby">Leave</a></div>
       <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
@@ -1381,21 +1385,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   /** Public rooms: ask each fixed public code who's there. */
   let roomsWatch = null;
-  async function renderRooms() {
-    if (liveBlocked()) return renderLiveBlocked("");
-    setMid("Public rooms");
-    app.innerHTML = `<section class="screen live">
-      <div class="page-head"><h1>Public rooms</h1><p>Duo rooms anyone can join. This list updates live.</p><p id="rooms-status" role="status">Connecting…</p></div>
-      <ul class="lv-players" id="rooms-list"><li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Looking for rooms…</span></li></ul>
-      <div class="btn-row"><a class="btn primary big" href="#live">Create a room</a></div>
-    </section>`;
+  async function watchRooms() {
     if (roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
     let latest = new Map(), settled = false;
     const draw = () => {
       const list = $("#rooms-list"), st = $("#rooms-status");
-      if (!list || location.hash !== "#rooms") return;
+      if (!list || location.hash !== "#live") return;
       const rooms = [...latest.entries()].filter(([, r]) => Date.now() - (+r.at || 0) < 45000).sort((a, b) => a[0].localeCompare(b[0]));
-      st.textContent = rooms.length ? `${rooms.length} open ${rooms.length === 1 ? "room" : "rooms"}` : settled ? "No public rooms right now. Create one and it shows up here for everyone." : "Looking for rooms…";
+      st.textContent = rooms.length ? `${rooms.length} open ${rooms.length === 1 ? "room" : "rooms"}` : settled ? "No open rooms right now. Make one and tick the box above to list it here." : "Looking for rooms…";
       list.innerHTML = rooms.map(([code, r]) => {
         const max = +r.max || 2, n = +r.players || 1, full = n >= max;
         return `<li>${avatar(r.host)}<b>${esc(cleanName(r.host) || "Someone")}'s room</b><span>${n}/${max} · ${full ? "full" : r.phase === "playing" ? "playing" : "open"}</span>${full ? "" : `<a class="btn sm primary" href="#live-${code}">Join</a>`}</li>`;
@@ -1432,7 +1429,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     stats: renderStats, how: renderHow, faq: renderFaq, prefs: renderSettings,
     challenge: renderChallenge,
     live: () => openLive(""),
-    rooms: renderRooms,
+    rooms: () => go("live"), // old links: the room list is part of #live now
     board: () => renderBoard(""),
   };
   const slugFor = (key) => key.replace(/:/g, "-");
@@ -1459,11 +1456,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
     if ((LIVE.active && h !== liveHash()) || (joinState && h !== `live-${joinState.code}`)) leaveLive();
     syncChat();
-    if (h !== "rooms" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
+    if (h !== "live" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
     if (RUN && RUN.mode === "live" && !LIVE.active) stopRun();
     scene("page");
     $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + (h || "home")));
-    if (!BROWSE && /^(packs|library|pack-|practice-|answers-)/.test(h)) return go("home");
+    if (!BROWSE && /^(packs|library|pack-|practice-|answers-|archive)/.test(h)) return go("home");
     if (!BROWSE && /^unlimited-\d+$/.test(h) && +h.slice(10) > nextUnlimited()) return go(`unlimited-${nextUnlimited()}`);
     if (!BROWSE && /^quiz-\d+$/.test(h) && +h.slice(5) > nextQuiz()) return go(`quiz-${nextQuiz()}`); // same launch rule as Unlimited: no jumping ahead
     if (SIMPLE[h]) return SIMPLE[h]();
@@ -1497,21 +1494,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <span class="countdown">Next in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></span>`;
     else if (inProg) cta = `<a class="btn primary big" href="#daily">Resume · ${Math.min(inProg.results.length + 1, 7)} of 7</a>`;
     else cta = `<a class="btn primary big" href="#daily">Start training</a>`;
-    cta += `<a class="btn big" href="#live">Play live with friends</a>`;
+    cta += `<a class="btn big" href="#live">Play with friends</a>`;
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const modes = [
-      ["#live", "Live match", "Play friends in real time"],
-      ["#rooms", "Public rooms", "Join anyone playing now"],
-      ["#challenge", "Challenge a friend", "Same questions, one link"],
       ["#unlimited", "Unlimited", "Endless runs"],
       ["#quiz", "Quiz", "Four answers, one fits"],
-      ["#packs", "Packs", `${DATA.packs.length} themes`],
       ["#board", "Leaderboard", "Today's top scores"],
-      ["#archive", "Archive", "Past days"],
-      ["#library", "Library", `${DATA.prompts.length} prompts`],
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
-      ["#how", "How to play", ""],
-    ].filter(([href]) => (BROWSE || (href !== "#packs" && href !== "#library")) && (BOARD_ON || href !== "#board"));
+    ].filter(([href]) => BOARD_ON || href !== "#board");
     app.innerHTML = `<section class="screen home">
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
@@ -1524,8 +1514,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
           <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
           <div class="figure"><b>${s.gems}</b><span>Gems</span></div>
-        </div>` : ""}<h2>More ways to play</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
-        <p class="home-close"><span>One in a MLion</span><a href="${REPO_URL}" target="_blank" rel="noopener">Source</a></p>
+        </div>` : ""}<h2>More</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        <p class="home-close"><span>One in a MLion</span></p>
       </div>
     </section>`;
     scene("home", { progress, animate: true });
@@ -2197,7 +2187,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const returning = q.has("code") || q.has("error");
     let stored = false;
     try { stored = Object.keys(localStorage).some((k) => k.startsWith(SB_STORE)); } catch { /* storage blocked */ }
-    if (!returning && !stored) { AUTH.ready = true; return; }
+    if (!returning && !stored) { AUTH.ready = true; drawAccount(); return; }
     try {
       const sb = await loadSupabase();
       sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => onSession(session), 0); }); // no awaits inside the callback
@@ -2224,6 +2214,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       try {
         AUTH.profile = await loadProfile(user);
         if (AUTH.uid !== uid) return;
+        if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
         await postDaily(records[`daily:${today()}`]);
       } catch { /* offline: the board page retries */ }
     }
@@ -2290,6 +2281,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // Redraw whatever leaderboard UI is on screen after a login change.
   function boardRedraw() {
+    drawAccount();
     const h = location.hash.replace(/^#/, "");
     if (/^board(-\d{4}-\d{2}-\d{2})?$/.test(h)) return route();
     const box = $("#board-box");
@@ -2305,6 +2297,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       .then((j) => PROVIDERS.filter(([id]) => j && j.external && j.external[id]))
       .catch(() => { providersOn = null; return []; });
     return providersOn;
+  }
+  // The account lives in the menu on every page: optional, Discord only for now.
+  function drawAccount() {
+    const box = $("#drawer-acct");
+    if (!box) return;
+    box.hidden = !BOARD_ON;
+    if (!BOARD_ON || !AUTH.ready) { box.innerHTML = ""; return; }
+    if (AUTH.user) {
+      box.innerHTML = `<p class="acct-who">Logged in as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b></p>
+        <div class="btn-row"><button class="btn sm" id="acct-name">Change name</button><button class="btn sm" id="acct-out">Log out</button></div>`;
+      $("#acct-out", box).addEventListener("click", () => { closeDrawer(); boardLogout(); });
+      $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
+    } else {
+      box.innerHTML = `<p class="acct-who">Log in to keep your name and post daily scores.</p>${loginButtons()}`;
+      wireLogin(box);
+    }
   }
   function loginButtons() { return `<div class="btn-row board-login"></div>`; }
   async function wireLogin(root) {
@@ -2513,7 +2521,6 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="btn-row">
           <a class="btn" href="#home">Home</a>
           <a class="btn" href="#stats">Stats</a>
-          <a class="btn" href="#archive">Archive</a>
         </div>
       </div>
     </section>`;
@@ -2852,7 +2859,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderHow() {
     setMid("How to play");
     app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>How to play</h1></div>${howHtml()}
-      <a class="btn primary big" href="#daily">Play today</a></section>`;
+      <div class="btn-row"><a class="btn primary big" href="#daily">Play today</a><a class="btn big" href="#faq">FAQ</a></div></section>`;
   }
   function renderFaq() {
     setMid("FAQ");

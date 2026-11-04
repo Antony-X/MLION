@@ -154,17 +154,22 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.waitForSelector(".stat-grid");
   check((await page.textContent(".stat-grid")).includes("1"), "stats count the run");
   await page.screenshot({ path: path.join(OUT, "09-stats.png"), fullPage: true });
-  for (const r of ["unlimited", "archive", "faq", "prefs", "how"]) {
+  for (const r of ["unlimited", "faq", "prefs", "how", "live"]) {
     await page.goto(base + "#" + r);
     await page.waitForSelector(".screen");
     await page.screenshot({ path: path.join(OUT, `10-${r}.png`), fullPage: true });
   }
   check(true, "all secondary screens render");
-  for (const r of ["packs", "library", "pack-blocks", "pack-blocks-1", "practice-activation-function", "answers-activation-function"]) {
+  for (const r of ["packs", "library", "archive", "archive-2026-01-01", "pack-blocks", "pack-blocks-1", "practice-activation-function", "answers-activation-function"]) {
     await page.goto(base + "#" + r);
     await page.waitForFunction(() => location.hash === "#home", null, { timeout: 5000 });
   }
   check(!(await page.$('#drawer a[href="#packs"], #drawer a[href="#library"]')) && !(await page.$('.home a[href="#packs"], .home a[href="#library"]')), "packs and the library are gone: no picking questions");
+  check(!(await page.$('#drawer a[href="#archive"], #drawer a[href="#rooms"], #drawer a[href="#challenge"], #drawer a[href="#faq"]')), "the menu is trimmed: no archive, separate room list, challenge or FAQ entries");
+  await page.goto(base + "#rooms");
+  await page.waitForFunction(() => location.hash === "#live", null, { timeout: 5000 });
+  await page.waitForSelector("#rooms-list", { state: "attached" });
+  check((await page.textContent(".page-head h1")).trim() === "Play with friends" && !!(await page.$('a[href="#challenge"]')) && !!(await page.$("#live-go")), "Play with friends holds room creation, open rooms and the challenge link");
   await page.goto(base + "#unlimited-9");
   await page.waitForFunction(() => location.hash === "#unlimited-1", null, { timeout: 5000 });
   check(true, "Unlimited can't jump ahead to a later run");

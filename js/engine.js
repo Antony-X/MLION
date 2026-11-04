@@ -369,12 +369,17 @@
    * An endless deterministic stream of prompt ids. Each cycle shuffles every
    * pack, then deals round-robin across packs so consecutive prompts vary.
    */
-  function makeStream(data, seedLabel, packFilter) {
+  // flat: one shuffled deck of every prompt, so each comes up equally often and runs aren't
+  // forced to hold one prompt per pack (that bunched small packs together: a 5-prompt pack
+  // showed up in five runs in a row). Without flat, the old pack-interleaved deal (kept so
+  // dailies dealt with it keep their questions).
+  function makeStream(data, seedLabel, packFilter, flat) {
     const packs = data.packs.filter((p) => !packFilter || packFilter === p.id);
     const byPack = packs.map((p) => data.prompts.filter((q) => q.pack === p.id).map((q) => q.id));
     let cycle = 0, buf = [];
     function refill() {
       const rng = mulberry32(hashString(`${seedLabel}:${cycle++}`));
+      if (flat) { buf = buf.concat(shuffled([].concat(...byPack), rng)); return; }
       const decks = shuffled(byPack.map((ids) => shuffled(ids, rng)), rng);
       const out = [];
       let more = true;
@@ -401,10 +406,10 @@
   }
   const _runCache = new Map();
   /** The 7 prompt ids for run number `n` (1-based) of a stream. */
-  function runFor(data, streamLabel, n, packFilter) {
-    const key = `${streamLabel}|${packFilter || ""}|${data.version}`;
+  function runFor(data, streamLabel, n, packFilter, flat) {
+    const key = `${streamLabel}|${packFilter || ""}|${data.version}|${flat ? "flat" : "packs"}`;
     let c = _runCache.get(key);
-    if (!c) { c = { stream: makeStream(data, streamLabel, packFilter), runs: [] }; _runCache.set(key, c); }
+    if (!c) { c = { stream: makeStream(data, streamLabel, packFilter, flat), runs: [] }; _runCache.set(key, c); }
     while (c.runs.length < n) c.runs.push(c.stream.take(ROUNDS));
     return c.runs[n - 1];
   }
@@ -513,7 +518,7 @@
     const ctx = quizContext(data);
     const dealt = ctx.prompts.filter((p) => data.packs.some((pk) => pk.id === p.pack)).length; // the stream only deals listed packs
     const want = Math.min(n, ctx.prompts.length);
-    const stream = makeStream({ packs: data.packs, prompts: ctx.prompts }, `quiz-${seedKey}`);
+    const stream = makeStream({ packs: data.packs, prompts: ctx.prompts }, `quiz-${seedKey}`, null, true);
     const ids = [...new Set(((opts && opts.promptIds) || []).concat(stream.take(dealt)))];
     const out = [];
     for (const id of ids) {
@@ -525,7 +530,7 @@
   }
   /** Solo quiz run `n` (1-based): seven questions, the prompts dealt like Unlimited's so runs don't repeat. */
   function quizRun(data, n) {
-    return quizFor(data, `quiz-v1:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v1", n) });
+    return quizFor(data, `quiz-v2:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v2", n, null, true) });
   }
 
   // -------------------------------------------------------------- share

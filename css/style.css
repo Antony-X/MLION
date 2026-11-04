@@ -902,3 +902,12 @@ html:not(.reduce-motion) .feedback .mcq-key { transition: opacity 500ms var(--ea
   .play.quiz .rv-locked, .play.quiz .rv-typing { font-size: var(--s2); }
   .play.quiz .live-skip { margin-top: 8px; }
 }
+
+/* open rooms inside Play with friends */
+.lv-open { margin-top: 36px; }
+.lv-open .lv-note a { color: var(--gold); }
+
+/* account in the menu */
+.drawer-acct { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--raised-2); }
+.drawer-acct .acct-who { color: var(--muted); font-size: var(--s1); margin: 0 0 10px; }
+.drawer-acct .acct-who b { color: var(--ink); }
