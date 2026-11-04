@@ -102,10 +102,8 @@ body[data-view="home"] .topbar { background: transparent; }
 .brand .mark { width: 30px; height: 30px; }
 body[data-view="home"] .topbar { grid-template-columns: 1fr auto; }
 body[data-view="home"] .topbar .brand { display: none; }
-/* the lion: a mane around a nabla. The mane takes the colour, the face cuts it */
+/* the lion: Leo's sign as a curve and the ball, one colour (currentColor) */
 .mark { display: inline-block; flex: none; color: var(--gold); overflow: visible; }
-.mk-face { stroke: var(--mark-ink, var(--bg)); }
-.mk-eye { fill: var(--mark-ink, var(--bg)); }
 .topbar-mid { color: var(--muted); font-size: var(--s1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .icon-btn {
   width: 44px; height: 44px; border-radius: var(--round); border: 0;
@@ -177,7 +175,6 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
 
 /* --------------------------------------------------------------- glyphs */
 .glyph { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; flex: none; overflow: visible; color: var(--tc); }
-.glyph.g-mlion { width: 1.12em; height: 1.12em; margin: -0.06em; }
 .tiers { display: inline-flex; align-items: center; gap: 0.34em; font-size: 26px; line-height: 1; }
 .t-baseline { --tc: var(--t-baseline); }
 .t-overfit { --tc: var(--t-overfit); }
@@ -194,8 +191,9 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
   display: grid; align-content: start; gap: 0;
   padding-top: 2vh;
 }
-.brandmark { display: flex; align-items: center; gap: 0.2em; font-size: clamp(60px, 16.5vw, 200px); }
-.hero-mark { width: 1.02em; height: 1.02em; }
+.brandmark { display: flex; align-items: center; gap: 0.16em; font-size: clamp(60px, 16.5vw, 200px); }
+/* cap-height tall, stroke as heavy as the light stems, the ball resting on the baseline */
+.hero-mark { width: 0.9em; height: 0.9em; }
 .wordmark {
   font-size: 1em; font-stretch: 125%; font-weight: 300;
   line-height: 0.9; letter-spacing: -0.045em; margin: 0; white-space: nowrap;
@@ -400,7 +398,7 @@ html:not(.reduce-motion) .feedback.mlion::before { transition: clip-path 900ms v
 .feedback.mlion.landed .fb-name, .feedback.mlion.landed .fb-points, .feedback.mlion.landed .fb-tier { color: var(--gold-ink); }
 .feedback.mlion.landed .fb-q, .feedback.mlion.landed .fb-quip, .feedback.mlion.landed .fb-note, .feedback.mlion.landed .muted { color: #4a3812; }
 .feedback.mlion.landed .btn.primary { background: var(--gold-ink); color: var(--gold); }
-.feedback.mlion.landed .fb-tier .glyph { font-size: 72px; color: var(--gold-ink); --mark-ink: var(--gold); }
+.feedback.mlion.landed .fb-tier .glyph { font-size: 72px; color: var(--gold-ink); }
 .prompt-card:has(.feedback.mlion) { isolation: isolate; }
 html:not(.reduce-motion) .feedback.mlion.landed .fb-name { animation: gem-in 900ms var(--ease-expo); }
 @keyframes gem-in { from { transform: translateY(18px); opacity: 0; } }
@@ -455,7 +453,7 @@ details.key[open] summary .chev { transform: rotate(180deg); }
 @media (hover: hover) and (pointer: fine) { details.key summary:hover { background: var(--raised); } }
 details.key .body { padding: 4px 20px 20px; }
 .gem-line { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; padding: 14px 18px; border-radius: 16px; background: var(--gold); color: var(--gold-ink); margin-bottom: 16px; }
-.gem-line .glyph { font-size: 26px; color: var(--gold-ink); --mark-ink: var(--gold); }
+.gem-line .glyph { font-size: 26px; color: var(--gold-ink); }
 .gem-line b { font-weight: 600; }
 .gem-line .gq { display: block; font-size: var(--s1); color: #4a3812; margin-top: 2px; }
 .tier-counts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 14px; font-size: var(--s1); color: var(--muted); }

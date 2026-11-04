@@ -20,7 +20,8 @@ const html = read("index.html");
 const safe = (js) => js.replace(/<\/script/gi, "<\\/script");
 
 const fonts = html.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/)[0];
-const icon = html.match(/<link rel="icon"[^>]+>/)[0];
+// one file has no img/ folder beside it, so the favicon travels as a data URI
+const icon = `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(read("img/favicon.svg").trim())}">`;
 const desc = html.match(/<meta name="description"[^>]+>/)[0];
 const body = html.slice(html.indexOf("<body>") + 6, html.search(/<script src="js\/engine\.js/)).trim();
 const scripts = ["js/engine.js", "js/data.js", "js/landscape.js", "js/app.js"]
