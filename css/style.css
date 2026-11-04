@@ -943,3 +943,18 @@ details.key.inline summary .chev { width: 16px; height: 16px; }
 @media (hover: hover) and (pointer: fine) { details.key.inline summary:hover { background: none; } details.key.inline summary:hover .cnt-s { color: var(--ink); } }
 details.key.inline .body { padding: 8px 0 4px; }
 .run-item > span:nth-child(2) { min-width: 0; }
+
+/* pass 3: pickers as compact segmented controls; topic chips */
+.vs-form { gap: 22px; padding: 20px; border-radius: var(--soft); background: var(--surface); }
+.vs-field { gap: 8px; }
+.vs-sizes { display: inline-flex; flex-wrap: nowrap; gap: 4px; padding: 4px; border-radius: var(--round); background: var(--raised); justify-self: start; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.vs-sizes::-webkit-scrollbar { display: none; }
+.vs-size, .vs-size.t-size, .vs-size.fmt-size, .vs-size.lv-fmt, .vs-size.lv-assist { min-height: 44px; min-width: 52px; padding: 0 14px; font-size: var(--s2); background: transparent; flex: none; }
+.vs-size:hover { background: var(--raised-2); }
+.vs-size.on, .vs-size.on:hover { background: var(--gold); color: var(--gold-ink); }
+.q-custom { width: 72px; height: 44px; background: transparent; font-size: var(--s2); flex: none; }
+.q-custom:not(.on):not(:focus) { box-shadow: inset 0 0 0 1px var(--raised-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 40px; padding: 0 16px; border: 0; border-radius: var(--round); background: var(--raised); color: var(--ink); font: inherit; font-size: var(--s1); cursor: pointer; transition: background-color 160ms ease; }
+.chip.on { background: var(--gold); color: var(--gold-ink); }
+@media (hover: hover) and (pointer: fine) { .chip:not(.on):hover { background: var(--raised-2); } }

@@ -72,10 +72,10 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ben.fill("#live-name", "Ben");
   await ben.click("#live-go");
   await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 40000 });
-  check((await ana.$$eval(".lv-fmt", (els) => els.map((e) => e.textContent.trim()).join(","))) === "Rarity,Quiz", "the host's lobby offers Rarity and Quiz");
-  check(!!(await ana.$(".lv-assist")), "Rarity keeps its autocorrect setting");
-  await ben.waitForFunction(() => /Rarity format/.test(document.body.textContent), null, { timeout: 8000 });
-  check(true, "a guest's settings note names the format (Rarity by default)");
+  check((await ana.$$eval(".lv-fmt", (els) => els.map((e) => e.textContent.trim()).join(","))) === "Classic,Quiz", "the host's lobby offers Classic and Quiz");
+  check(!!(await ana.$(".lv-assist")), "Classic keeps its autocorrect setting");
+  await ben.waitForFunction(() => /Classic format/.test(document.body.textContent), null, { timeout: 8000 });
+  check(true, "a guest's settings note names the format (Classic by default)");
   await ana.click('.lv-fmt[data-f="quiz"]');
   await ana.fill("#q-custom", "4");
   await ana.press("#q-custom", "Enter");
@@ -168,7 +168,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(await ana.evaluate((id) => !window.MLION_LIVE_STATE.players.get(id).ans[3], benId), "the host ignores a pick that isn't one of the four options");
   await forge((Q3.correct + 1) % 4, 99999999); // a wrong pick with an absurd time
   await ana.waitForFunction((id) => { const a = window.MLION_LIVE_STATE.players.get(id).ans[3]; return a && a.ms; }, benId, { timeout: 8000 });
-  check((await ana.evaluate((id) => window.MLION_LIVE_STATE.players.get(id).ans[3].ms, benId)) === 10000, "the host clamps a forged answer time to the clock (10 s)");
+  const clamp = (await state(ana)).ids[3].startsWith("rq-") ? 24000 : 10000; // a reasoning question runs 2.4x the clock
+  check((await ana.evaluate((id) => window.MLION_LIVE_STATE.players.get(id).ans[3].ms, benId)) === clamp, `the host clamps a forged answer time to the clock (${clamp / 1000} s)`);
   await ana.waitForTimeout(1500);
   await ana.click(`.mcq-opt[data-i="${(Q3.correct + 1) % 4}"]`);
   await Promise.all([ana.waitForSelector(".lv-podium", { timeout: 25000 }), ben.waitForSelector(".lv-podium", { timeout: 25000 })]);

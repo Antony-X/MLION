@@ -486,6 +486,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ---- messages: everyone (host included) applies the same events
   function apply(m) {
     if (!m || typeof m !== "object") return;
+    if (m.t === "lobby" && Array.isArray(m.topics)) LIVE.topics = m.topics.filter((id) => PACKS.has(id));
     if (m.t === "lobby" && Array.isArray(m.players)) {
       const before = new Set(LIVE.players.keys());
       const next = new Map();
@@ -516,7 +517,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       // a quiz match: every page builds the same questions from the room's seed and the host's prompt list
-      const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [] }) : null;
+      const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [], ...(Array.isArray(m.topics) && m.topics.length ? { reasoningIds: [] } : {}) }) : null; // a topic match has no reasoning questions
       if (quiz) LIVE.n = quiz.length;
       LIVE.mfmt = quiz ? "quiz" : "rarity"; LIVE.quiz = quiz;
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
@@ -614,8 +615,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (m.t === "lobby") publishInfo();
     apply(m);
   }
+  /** The packs a room plays (empty: every topic), and the prompt ids they hold. */
+  const liveTopics = () => (Array.isArray(LIVE.topics) ? LIVE.topics.filter((id) => PACKS.has(id)) : []);
+  function livePool() {
+    const t = liveTopics();
+    return CORE.prompts.filter((p) => !t.length || t.includes(p.pack)).map((p) => p.id);
+  }
+  function topicPicker() {
+    const t = liveTopics();
+    const chip = (id, label, on) => `<button type="button" class="chip lv-topic${on ? " on" : ""}" aria-pressed="${on}" data-p="${id}">${esc(label)}</button>`;
+    return `<div class="vs-field"><span>Topics</span><div class="chips" role="group" aria-label="Topics">${chip("", "All topics", !t.length)}${DATA.packs.map((pk) => chip(pk.id, pk.name, t.includes(pk.id))).join("")}</div></div>`;
+  }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", fmt: LIVE.fmt || "rarity", phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
+    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
@@ -701,21 +713,25 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.timers.forEach(clearTimeout); LIVE.timers = [];
     LIVE.phase = "playing";
     const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
-    let ids = challengePromptIds(seed, LIVE.n);
+    const topics = liveTopics();
+    const pool = livePool();
+    if (topics.length && pool.length < LIVE.n) { LIVE.n = pool.length; toast(`These topics have ${pool.length} questions, so the match has ${pool.length}`); }
+    let ids = topics.length ? E.shuffled(pool, E.mulberry32(E.hashString(seed))).slice(0, LIVE.n) : challengePromptIds(seed, LIVE.n);
     let fresh = [];
     const used = new Set(LS.get("liveUsed", []));
     if (LIVE.noRepeat !== false) {
-      fresh = E.shuffled(CORE.prompts.map((p) => p.id).filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
+      fresh = E.shuffled(pool.filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
       if (fresh.length >= LIVE.n) ids = fresh.slice(0, LIVE.n);
     }
     if (LIVE.fmt === "quiz") { // the host fixes which prompts get a question, so every page builds the same ones
-      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : ids });
+      // a topic match keeps to its topics: no reasoning questions (they span every topic)
+      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : topics.length ? E.shuffled(pool, E.mulberry32(E.hashString(seed))) : ids, ...(topics.length ? { reasoningIds: [] } : {}) });
       if (!quiz.length) { LIVE.phase = "lobby"; toast("This question set can't make a quiz"); return; }
       ids = quiz.map((q) => q.promptId);
       LIVE.n = ids.length;
     }
     if (LIVE.noRepeat !== false) LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
-    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", fmt: LIVE.fmt === "quiz" ? "quiz" : "rarity" });
+    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", fmt: LIVE.fmt === "quiz" ? "quiz" : "rarity", topics }); // guests rebuild a quiz knowing whether it was a topic match
     broadcast(lobbyMsg());
     liveLater(() => hostRound(0), 1800);
   }
@@ -750,7 +766,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.timers.forEach(clearTimeout); LIVE.timers = []; // this question's time cap and any pending reveal
     const inMatchIds = new Set(RUN.promptIds);
     const used = new Set(LS.get("liveUsed", []));
-    const pool = CORE.prompts.map((p) => p.id).filter((id) => !inMatchIds.has(id));
+    const pool = livePool().filter((id) => !inMatchIds.has(id));
     const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !used.has(id)) : pool;
     const from = fresh.length ? fresh : pool;
     if (!from.length) return;
@@ -885,7 +901,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: LS.get("liveFmt", "rarity") === "quiz" ? "quiz" : "rarity" });
+        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: LS.get("liveFmt", "rarity") === "quiz" ? "quiz" : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)) });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
         becomeHost();
         go(liveHash());
@@ -1058,10 +1074,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${LIVE.isHost ? `<div class="vs-form">
         <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         ${LIVE.fmt === "quiz" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
-        <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>No repeat questions across matches</span></label>
+        ${topicPicker()}
         ${qPicker(LIVE.n)}
         ${timePicker(LIVE.secs || DEFAULT_SECS)}
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each · ${LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}</p>`}
+        <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>Skip questions this room already played</span></label>
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -1070,6 +1087,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const ll = $("#live-leave-lobby");
     if (ll) ll.addEventListener("click", () => leaveLive(false));
     $$(".lv-assist").forEach((b) => b.addEventListener("click", () => { LIVE.assist = b.dataset.a; broadcast(lobbyMsg()); }));
+    $$(".lv-topic").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.p, t = liveTopics();
+      LIVE.topics = !id ? [] : t.includes(id) ? t.filter((x) => x !== id) : t.concat(id);
+      if (LIVE.topics.length === DATA.packs.length) LIVE.topics = []; // every topic picked is the same as all
+      LS.set("liveTopics", LIVE.topics);
+      broadcast(lobbyMsg());
+    }));
     $$(".lv-fmt").forEach((b) => b.addEventListener("click", () => { LIVE.fmt = b.dataset.f; LS.set("liveFmt", LIVE.fmt); broadcast(lobbyMsg()); }));
     if (typingN !== null && $("#q-custom")) { const box = $("#q-custom"); box.value = typingN; box.focus(); }
     const nr = $("#live-norepeat");
