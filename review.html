@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>MLion review</title>
+  <style>
+    :root {
+      --bg: #0b0a08; --surface: #161411; --raised: #211e1a; --line: #2c2823;
+      --ink: #f2ede4; --muted: #a39b90; --gold: #f2b53c; --bad: #f0705c;
+      --t-baseline: #857f76; --t-overfit: #a59a88; --t-indist: #c4ae88; --t-outlier: #dfbf7e; --t-longtail: #f5d999; --t-mlion: #f2b53c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); padding: 12px 16px; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    input, select, textarea, button { font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    input[type=search] { flex: 1 1 180px; min-width: 0; }
+    button { cursor: pointer; }
+    button.primary { background: var(--gold); color: #1a1306; border-color: var(--gold); font-weight: 600; }
+    .count { color: var(--muted); font-size: 13px; }
+    main { max-width: 900px; margin: 0 auto; padding: 12px 16px 80px; }
+    .pack { margin: 22px 0 8px; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+    details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 8px 0; }
+    details.flagged { border-color: var(--bad); }
+    summary { list-style: none; cursor: pointer; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+    summary::-webkit-details-marker { display: none; }
+    .q { font-weight: 600; }
+    .sub { color: var(--muted); font-size: 13px; }
+    .body { padding: 0 14px 14px; }
+    .tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+    .drop.on, .ans .x.on { background: var(--bad); border-color: var(--bad); color: #1a0d0a; }
+    textarea { width: 100%; min-height: 44px; resize: vertical; }
+    .tier { margin-top: 12px; }
+    .tier h3 { font-size: 13px; margin: 0 0 4px; }
+    .ans { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; padding: 5px 0; border-top: 1px solid var(--line); }
+    .ans .a { word-break: break-word; }
+    .ans .aka, .ans .ex { display: block; color: var(--muted); font-size: 13px; }
+    .ans .x { padding: 2px 8px; font-size: 13px; }
+    .ans.bad .a { text-decoration: line-through; color: var(--bad); }
+    .badge { font-size: 12px; color: var(--bad); font-weight: 600; }
+    dialog { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; width: min(640px, calc(100vw - 32px)); }
+    dialog textarea { min-height: 260px; font: 13px/1.4 ui-monospace, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MLion question review</h1>
+    <div class="bar">
+      <input type="search" id="q" placeholder="Search questions or answers" aria-label="Search">
+      <select id="pack" aria-label="Pack"><option value="">All packs</option></select>
+      <label class="count"><input type="checkbox" id="only"> flagged only</label>
+      <button class="primary" id="copy">Copy my list</button>
+    </div>
+    <p class="count" id="stats"></p>
+  </header>
+  <main id="list"><p class="count">Loading questions…</p></main>
+  <dialog id="dlg"><p>Copied. If copying was blocked, select this and copy it, then paste it to Claude.</p><textarea id="out" readonly></textarea><p><button id="close">Close</button></p></dialog>
+
+  <script src="js/data.js"></script>
+  <script>
+  "use strict";
+  // Unlisted page for the owner: read every question and answer, mark the ones to drop,
+  // then copy the list. Marks live in this browser only (localStorage).
+  const D = window.MLION_DATA;
+  const TIERS = [["mlion", "One in a MLion"], ["longtail", "Long Tail"], ["outlier", "Outlier"], ["indist", "In-Distribution"], ["overfit", "Overfit"], ["baseline", "Baseline"]];
+  const KEY = "mlion-review";
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  const st = Object.assign({ drop: {}, bad: {}, notes: {} }, load());
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* private mode */ } drawStats(); };
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const all = D.prompts.map((p) => ({ ...p, extra: false })).concat((D.extras || []).map((p) => ({ ...p, extra: true })));
+  const packName = Object.fromEntries(D.packs.map((p) => [p.id, `${p.emoji || ""} ${p.name}`.trim()]));
+  const aKey = (pid, a) => `${pid}::${a}`;
+
+  const sel = document.getElementById("pack");
+  D.packs.forEach((p) => sel.insertAdjacentHTML("beforeend", `<option value="${esc(p.id)}">${esc(packName[p.id])}</option>`));
+  if (all.some((p) => p.extra)) sel.insertAdjacentHTML("beforeend", `<option value="__extra">Practice-only extras</option>`);
+
+  function flagged(p) { return st.drop[p.id] || st.notes[p.id] || p.answers.some((a) => st.bad[aKey(p.id, a.a)]); }
+  function drawStats() {
+    const nb = Object.values(st.bad).filter(Boolean).length, nd = Object.values(st.drop).filter(Boolean).length, nn = Object.values(st.notes).filter((x) => x && x.trim()).length;
+    document.getElementById("stats").textContent = `${all.length} questions · ${all.reduce((s, p) => s + p.answers.length, 0)} answers · marked: ${nd} questions to drop, ${nb} answers, ${nn} notes`;
+  }
+
+  function card(p) {
+    const byTier = TIERS.map(([t, name]) => {
+      const as = p.answers.filter((a) => a.t === t);
+      if (!as.length) return "";
+      return `<div class="tier"><h3 style="color:var(--t-${t})">${name} · ${as.length}</h3>${as.map((a) => {
+        const k = aKey(p.id, a.a), bad = !!st.bad[k];
+        return `<div class="ans${bad ? " bad" : ""}"><span><span class="a">${esc(a.a)}</span>${a.aka && a.aka.length ? `<span class="aka">also: ${esc(a.aka.join(", "))}</span>` : ""}${a.q ? `<span class="ex">${esc(a.q)}</span>` : ""}</span>
+          <button class="x${bad ? " on" : ""}" data-bad="${esc(k)}" title="Mark this answer as wrong or unwanted">${bad ? "Marked" : "Bad"}</button></div>`;
+      }).join("")}</div>`;
+    }).join("");
+    return `<details data-id="${esc(p.id)}" class="${flagged(p) ? "flagged" : ""}">
+      <summary><span><span class="q">${esc(p.text)}</span><br><span class="sub">${p.answers.length} answers${p.example ? ` · e.g. ${esc(p.example)}` : ""}${p.extra ? " · practice-only extra" : ""}</span></span>
+        <span class="badge">${st.drop[p.id] ? "DROP" : flagged(p) ? "marked" : ""}</span></summary>
+      <div class="body">
+        ${p.note ? `<p class="sub">${esc(p.note)}</p>` : ""}
+        <div class="tools"><button class="drop${st.drop[p.id] ? " on" : ""}" data-drop="${esc(p.id)}">${st.drop[p.id] ? "Marked to drop" : "Drop this question"}</button></div>
+        <textarea data-note="${esc(p.id)}" placeholder="Note for this question (optional)">${esc(st.notes[p.id] || "")}</textarea>
+        ${byTier}
+      </div></details>`;
+  }
+
+  function draw() {
+    const q = document.getElementById("q").value.trim().toLowerCase();
+    const pk = sel.value, only = document.getElementById("only").checked;
+    const open = new Set([...document.querySelectorAll("details[open]")].map((d) => d.dataset.id));
+    const shown = all.filter((p) => (!pk || (pk === "__extra" ? p.extra : p.pack === pk && !p.extra)) && (!only || flagged(p)) &&
+      (!q || p.text.toLowerCase().includes(q) || p.answers.some((a) => a.a.toLowerCase().includes(q))));
+    const groups = new Map();
+    shown.forEach((p) => { const g = p.extra ? "Practice-only extras" : packName[p.pack] || p.pack; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
+    document.getElementById("list").innerHTML = shown.length ? [...groups].map(([g, ps]) => `<h2 class="pack">${esc(g)} · ${ps.length}</h2>${ps.map(card).join("")}`).join("") : `<p class="count">Nothing matches.</p>`;
+    open.forEach((id) => { const d = document.querySelector(`details[data-id="${CSS.escape(id)}"]`); if (d) d.open = true; });
+    drawStats();
+  }
+
+  document.getElementById("list").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.drop) { st.drop[b.dataset.drop] = !st.drop[b.dataset.drop]; save(); draw(); }
+    if (b.dataset.bad) { st.bad[b.dataset.bad] = !st.bad[b.dataset.bad]; save(); draw(); }
+  });
+  document.getElementById("list").addEventListener("input", (e) => {
+    const t = e.target.closest("textarea[data-note]");
+    if (t) { st.notes[t.dataset.note] = t.value; save(); }
+  });
+  document.getElementById("list").addEventListener("change", (e) => { if (e.target.matches("textarea[data-note]")) draw(); });
+  ["q", "pack", "only"].forEach((id) => document.getElementById(id).addEventListener("input", draw));
+
+  document.getElementById("copy").addEventListener("click", async () => {
+    const lines = [];
+    all.forEach((p) => {
+      const bad = p.answers.filter((a) => st.bad[aKey(p.id, a.a)]);
+      const note = (st.notes[p.id] || "").trim();
+      if (!st.drop[p.id] && !bad.length && !note) return;
+      lines.push(`${p.id}: "${p.text}"${st.drop[p.id] ? "  -> DROP QUESTION" : ""}`);
+      if (note) lines.push(`  note: ${note}`);
+      bad.forEach((a) => lines.push(`  bad answer: ${a.a} [${a.t}]`));
+    });
+    const text = lines.length ? `MLion review (${new Date().toLocaleDateString("en-CA")})\n${lines.join("\n")}` : "Nothing marked yet.";
+    document.getElementById("out").value = text;
+    try { await navigator.clipboard.writeText(text); } catch { /* shown in the dialog anyway */ }
+    document.getElementById("dlg").showModal();
+  });
+  document.getElementById("close").addEventListener("click", () => document.getElementById("dlg").close());
+
+  draw();
+  </script>
+</body>
+</html>
