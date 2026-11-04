@@ -144,7 +144,7 @@
     {"a": "LMDD", "t": "longtail", "aka": ["linear method for deviation detection"]},
     {"a": "RGraph", "t": "longtail", "aka": ["R-graph", "robust graph outlier detection"]},
     {"a": "One-class neural network", "t": "longtail", "aka": ["OC-NN", "OCNN"]},
-    {"a": "DB-outliers", "t": "longtail", "aka": ["DB(p,d)-outliers", "DB(p,d) outliers", "distance-based outliers", "Knorr-Ng", "knorr and ng", "distance-based outlier detection"]},
+    {"a": "DB-outliers", "t": "longtail", "aka": ["DB(p,d)-outliers", "DB(p,d) outliers", "Knorr-Ng", "knorr and ng"]},
     {"a": "ORCA", "t": "longtail", "aka": ["orca outlier detection", "bay and schwabacher"]},
     {"a": "RBDA", "t": "longtail", "aka": ["rank-based detection algorithm"]},
     {"a": "SmartSifter", "t": "longtail"},

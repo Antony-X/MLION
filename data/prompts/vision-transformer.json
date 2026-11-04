@@ -94,7 +94,7 @@
     {"a": "Swin Transformer", "t": "baseline", "aka": ["Swin", "Swin-T", "Swin-S", "Swin-B", "Swin-L", "Shifted Window Transformer", "swin_base_patch4_window7_224", "swin_tiny_patch4_window7_224"], "q": "Shifted windows plus a hierarchy. ICCV 2021 best paper."},
     {"a": "MambaVision", "t": "longtail", "aka": ["mambavision_t_1k", "MambaVision-T", "MambaVision-B", "MambaVision-L"], "q": "NVIDIA's hybrid: Mamba mixer blocks in the early stages, self-attention in the last ones (2024)."},
     {"a": "Vision Mamba", "t": "longtail", "aka": ["Vim"]},
-    {"a": "VMamba", "t": "longtail", "aka": ["VMamba-T", "LocalMamba", "PlainMamba", "EfficientVMamba", "MambaOut", "Mamba-R"]},
+    {"a": "VMamba", "t": "longtail", "aka": ["VMamba-T"]},
     {"a": "Vision-LSTM", "t": "longtail", "aka": ["ViL", "xLSTM Vision"]},
     {"a": "Vision-RWKV", "t": "longtail", "aka": ["Vision RWKV", "VRWKV"]},
     {"a": "RMT", "t": "longtail", "aka": ["Retentive Vision", "Vision Retention", "Retentive Network meets Vision Transformer"]},
@@ -107,7 +107,7 @@
     {"a": "FLatten Transformer", "t": "longtail", "aka": ["FLatten", "Focused Linear Attention"]},
     {"a": "Slide Transformer", "t": "longtail"},
     {"a": "StarNet", "t": "longtail"},
-    {"a": "CAFormer", "t": "longtail", "aka": ["ConvFormer", "IdentityFormer", "RandFormer"]},
+    {"a": "CAFormer", "t": "longtail"},
     {"a": "HorNet", "t": "longtail"},
     {"a": "InternImage", "t": "outlier"},
     {"a": "FocalNet", "t": "longtail", "aka": ["Focal Modulation Network", "focalnet_base_lrf", "FocalNet-DINO"]},
@@ -164,11 +164,13 @@
     {"a": "PixArt-alpha", "t": "longtail", "aka": ["PixArt-α", "PixArt-Sigma", "PixArt-Σ"]},
     {"a": "Point-BERT", "t": "longtail", "aka": ["Point-MAE", "Point-M2AE"]},
     {"a": "ViT-Lens", "t": "longtail"},
-    {"a": "Pix2Struct", "t": "longtail", "aka": ["Donut", "Nougat"]},
+    {"a": "Pix2Struct", "t": "longtail"},
     {"a": "LayoutLMv3", "t": "longtail"},
-    {"a": "DiT-Document", "t": "longtail", "aka": ["Document Image Transformer"]},
-    {"a": "Florence", "t": "longtail", "aka": ["Florence-2 DaViT", "Florence-2 encoder"]},
-    {"a": "LambdaNetworks", "t": "longtail", "aka": ["Lambda Networks", "LambdaResNet"]},
-    {"a": "ViTCoD", "t": "longtail"}
+    {"a": "Donut", "t": "longtail", "aka": ["Document Understanding Transformer"]},
+    {"a": "Nougat", "t": "longtail"},
+    {"a": "LocalMamba", "t": "longtail"},
+    {"a": "PlainMamba", "t": "longtail"},
+    {"a": "MambaOut", "t": "longtail"},
+    {"a": "ConvFormer", "t": "longtail", "aka": ["IdentityFormer", "RandFormer"]}
   ]
 }
