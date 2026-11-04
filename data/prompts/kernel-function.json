@@ -24,7 +24,7 @@
     { "a": "Piecewise polynomial", "t": "longtail", "aka": ["PiecewisePolynomialKernel"] },
     { "a": "Spline", "t": "longtail", "aka": ["B-spline kernel", "spline kernel", "cubic spline"] },
     { "a": "ANOVA", "t": "longtail", "aka": ["anova kernel"] },
-    { "a": "Wavelet", "t": "longtail", "aka": ["wavelet kernel"] },
+    { "a": "Wavelet", "t": "longtail", "aka": ["wavelet kernel", "Mexican hat", "Morlet"] },
     { "a": "Hellinger", "t": "longtail", "aka": ["bhattacharyya kernel"] },
     { "a": "Jensen–Shannon", "t": "longtail", "aka": ["jensen-shannon kernel", "JS kernel"] },
     { "a": "Probability product kernel", "t": "longtail" },
@@ -42,7 +42,7 @@
     { "a": "Signature kernel", "t": "longtail", "q": "Compares paths through their iterated-integral signatures. Rough path theory meets SVMs." },
     { "a": "Gibbs", "t": "longtail", "aka": ["gibbs kernel", "nonstationary gibbs"] },
     { "a": "Changepoint", "t": "longtail", "aka": ["change-point kernel", "ChangePoints"] },
-    { "a": "Coregionalization", "t": "longtail", "aka": ["ICM", "intrinsic coregionalization model", "LMC", "linear model of coregionalization", "coregion", "LCMKernel", "IndexKernel"] },
+    { "a": "Coregionalization", "t": "longtail", "aka": ["ICM", "intrinsic coregionalization model", "LMC", "linear model of coregionalization", "coregion", "LCMKernel", "IndexKernel", "multitask kernel", "multi-output kernel", "MultitaskKernel"] },
     { "a": "Neural network kernel", "t": "longtail", "aka": ["arcsine kernel", "arcsin kernel", "williams kernel", "erf kernel"] },
     { "a": "Quantum kernel", "t": "longtail", "aka": ["quantum kernel estimation"] },
 
@@ -81,7 +81,7 @@
     { "a": "Neural tangent kernel", "t": "overfit", "aka": ["NTK", "neural tangent"], "q": "Jacot et al., 2018: infinitely wide nets train like kernel regression. Everyone read that paper." },
 
     { "a": "Linear", "t": "baseline", "aka": ["dot product", "DotProduct", "inner product", "LinearKernel"], "q": "Just ⟨x, y⟩. The kernel trick, minus the trick." },
-    { "a": "Polynomial", "t": "baseline", "aka": ["poly", "homogeneous polynomial", "inhomogeneous polynomial", "PolynomialKernel"] },
+    { "a": "Polynomial", "t": "baseline", "aka": ["poly", "homogeneous polynomial", "inhomogeneous polynomial", "PolynomialKernel", "quadratic"] },
     { "a": "RBF", "t": "baseline", "aka": ["gaussian", "squared exponential", "SE", "radial basis function", "exponentiated quadratic", "gaussian RBF", "normal kernel", "RBFKernel"], "q": "exp(−γ‖x−y‖²). The SVM default, with an infinite-dimensional feature space." },
     { "a": "Weighted degree kernel", "t": "longtail", "aka": ["WD kernel", "weighted degree kernel with shifts"] },
     { "a": "Tensor product kernel", "t": "longtail" },
@@ -106,8 +106,9 @@
     { "a": "Time series cluster kernel", "t": "longtail", "aka": ["TCK"] },
     { "a": "Pearson VII", "t": "longtail", "aka": ["PUK", "Pearson VII universal kernel", "Pearson universal kernel"] },
     { "a": "Gamma-exponential", "t": "longtail", "aka": ["γ-exponential", "power-exponential", "powered exponential", "exponential power"] },
-    { "a": "Fractional Brownian motion", "t": "longtail", "aka": ["fBm"] },
+    { "a": "Fractional Brownian motion", "t": "longtail", "aka": ["fBm", "fractional Brownian"] },
     { "a": "Sobolev", "t": "longtail", "aka": ["Sobolev kernel", "Sobolev space kernel"] },
-    { "a": "Graph neural tangent kernel", "t": "longtail", "aka": ["GNTK"] }
+    { "a": "Graph neural tangent kernel", "t": "longtail", "aka": ["GNTK"] },
+    { "a": "Compositional kernel", "t": "longtail", "aka": ["sum kernel", "product kernel", "kernel composition", "kernel grammar", "compositional kernel search"] }
   ]
 }

@@ -55,7 +55,7 @@
     { "a": "Gower", "t": "outlier", "aka": ["gower's distance"], "q": "Gower, 1971: one distance for mixed numeric and categorical features." },
     { "a": "Tanimoto", "t": "outlier", "q": "Jaccard, as spelled by chemists comparing molecular fingerprints." },
     { "a": "Simple matching coefficient", "t": "outlier", "aka": ["SMC", "sokal–michener", "sokalmichener", "matching"] },
-    { "a": "Kendall tau", "t": "outlier", "aka": ["kendall tau distance", "kendall's tau", "kendall rank correlation", "bubble-sort distance", "Kendall", "Kendall's tau-b", "Kendall tau-b"] },
+    { "a": "Kendall tau", "t": "outlier", "aka": ["kendall tau distance", "kendall's tau", "kendall rank correlation", "bubble-sort distance", "Kendall", "Kendall's tau-b", "Kendall tau-b", "Kemeny distance"] },
     { "a": "Damerau–Levenshtein", "t": "outlier", "aka": ["damerau-levenshtein distance", "optimal string alignment", "OSA", "Damerau"] },
     { "a": "Jaro–Winkler", "t": "outlier", "aka": ["jaro-winkler", "jaro"], "q": "Built at the US Census for matching names, with extra credit for a shared prefix." },
     { "a": "Longest common subsequence", "t": "outlier", "aka": ["LCS", "LCSS"] },
@@ -86,7 +86,7 @@
     { "a": "Chebyshev", "t": "indist", "aka": ["L-infinity", "Linf", "chessboard distance", "maximum metric", "supremum distance", "max norm", "uniform norm", "tchebychev", "infinity norm", "sup norm", "L∞"], "q": "The king's distance on a chessboard: the max over coordinates." },
     { "a": "Squared Euclidean", "t": "indist", "aka": ["sqeuclidean", "squared L2", "sum of squared differences", "SSD", "mean squared error", "MSE", "Euclidean squared", "L2 squared", "squared L2 norm"] },
     { "a": "Dot product", "t": "indist", "aka": ["inner product", "scalar product", "dot", "MIPS", "maximum inner product search", "negative dot product", "linear kernel"] },
-    { "a": "Pearson correlation", "t": "indist", "aka": ["correlation distance", "correlation", "pearson correlation coefficient", "pearson's r", "pearson similarity"] },
+    { "a": "Pearson correlation", "t": "indist", "aka": ["correlation distance", "correlation", "pearson correlation coefficient", "pearson's r", "pearson similarity", "phi coefficient"] },
     { "a": "Spearman correlation", "t": "indist", "aka": ["spearman's rho", "spearman rank correlation", "rank correlation", "Spearman", "Spearman rank", "Spearman's correlation"] },
     { "a": "Haversine", "t": "indist", "aka": ["great-circle distance", "great circle", "orthodromic distance", "orthodrome"], "q": "Great-circle distance from latitudes and longitudes. Every Kaggle taxi notebook's favorite feature." },
     { "a": "Levenshtein", "t": "indist", "aka": ["edit distance", "string edit distance", "Wagner–Fischer"], "q": "Minimum insertions, deletions and substitutions. Levenshtein, 1965." },
@@ -177,6 +177,10 @@
     { "a": "Edit distance on real sequence", "t": "longtail", "aka": ["EDR"] },
     { "a": "Average symmetric surface distance", "t": "longtail", "aka": ["ASSD", "average surface distance"] },
     { "a": "Common neighbors", "t": "longtail", "aka": ["common neighbours"] },
-    { "a": "Katz index", "t": "longtail", "aka": ["Katz similarity"] }
+    { "a": "Katz index", "t": "longtail", "aka": ["Katz similarity"] },
+    { "a": "dCor", "t": "longtail", "aka": ["distance covariance", "dcov", "brownian distance covariance", "székely distance covariance"] },
+    { "a": "Canonical correlation analysis", "t": "longtail", "aka": ["CCA"] },
+    { "a": "Maximal information coefficient", "t": "longtail", "aka": ["MIC"] },
+    { "a": "Fowlkes–Mallows index", "t": "longtail", "aka": ["Fowlkes-Mallows", "FMI"] }
   ]
 }

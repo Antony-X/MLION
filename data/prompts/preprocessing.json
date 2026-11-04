@@ -2,7 +2,7 @@
   "id": "preprocessing",
   "pack": "classic",
   "text": "Name a feature preprocessing technique",
-  "note": "Scaling, encoding, transforming, binning and expanding features before they reach a model, for tabular, text and time-series data",
+  "note": "Scaling, encoding, transforming, binning and expanding features before they reach a model: tabular, text, time-series, image and audio data",
   "strip": [
     "scaling",
     "scaler",
