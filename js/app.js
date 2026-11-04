@@ -378,6 +378,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       renderStrip();
       renderLiveWait();
       if (LIVE.revealed >= m.i) renderReveal(m.i);
+    } else if (m.t === "typing" && typeof m.id === "string" && Number.isInteger(m.i)) {
+      const pl = LIVE.players.get(m.id);
+      if (!pl || m.id === LIVE.myId) return;
+      pl.typing = { i: m.i, draft: String(m.draft || "").slice(0, 60), tried: Array.isArray(m.tried) ? m.tried.slice(-6).map((x) => String(x).slice(0, 40)) : [] };
+      renderRivals();
     } else if (m.t === "reveal" && Number.isInteger(m.i)) {
       LIVE.revealed = Math.max(LIVE.revealed, m.i);
       if (RUN && RUN.mode === "live" && RUN.results.length <= m.i && (RUN.phase === "preview" || RUN.phase === "answering")) submit(true);
@@ -426,6 +431,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {} });
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
+    } else if (m.t === "typing" && LIVE.players.has(conn.peer)) {
+      broadcast({ t: "typing", id: conn.peer, i: m.i, draft: m.draft, tried: m.tried });
     } else if (m.t === "ans" && LIVE.players.has(conn.peer)) {
       hostAnswer(conn.peer, m);
     }
@@ -701,7 +708,37 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const st = $("#live-start");
     if (st) st.addEventListener("click", hostStart);
   }
+  /** Everyone else, live: what they're typing, what bounced, what they locked in. */
+  function renderRivals() {
+    const el = $("#live-rivals");
+    if (!el || !RUN || RUN.mode !== "live") return;
+    const i = RUN.round;
+    const others = inMatch().filter((p) => p.id !== LIVE.myId);
+    el.innerHTML = others.map((p) => {
+      const a = p.ans[i];
+      const ty = p.typing && p.typing.i === i ? p.typing : { draft: "", tried: [] };
+      const line = a
+        ? `<span class="rv-locked t-${tierOf(a.tier)}">${G(a.tier)}<b>${a.answer ? esc(a.answer) : "No answer"}</b><em>+${a.score}</em></span>`
+        : `<span class="rv-typing">${ty.draft ? esc(ty.draft) : `<span class="muted">thinking</span>`}<i class="rv-caret"></i></span>`;
+      const tried = !a && ty.tried.length ? `<span class="rv-tried">${ty.tried.map((x) => `<s>${esc(x)}</s>`).join(" ")}</span>` : "";
+      return `<div class="rv${a ? " done" : ""}">${avatar(p.name)}<div class="rv-main"><span class="rv-name">${esc(p.name)}${p.away ? " · reconnecting" : ""}</span>${line}${tried}</div></div>`;
+    }).join("");
+  }
+  let typingSent = 0, typingTimer = 0;
+  /** Tell the room what this player is typing (throttled). */
+  function liveTyping() {
+    if (!RUN || RUN.mode !== "live" || !LIVE.active) return;
+    const send = () => {
+      typingSent = Date.now();
+      const m = { t: "typing", i: RUN.round, draft: String(RUN.draft || "").slice(0, 60), tried: (RUN.tried || []).slice(-6) };
+      if (LIVE.isHost) broadcast(Object.assign({ id: LIVE.myId }, m)); else guestSend(m);
+    };
+    clearTimeout(typingTimer);
+    const wait = 220 - (Date.now() - typingSent);
+    if (wait <= 0) send(); else typingTimer = setTimeout(send, wait);
+  }
   function renderStrip() {
+    renderRivals();
     const el = $("#live-strip");
     if (!el || !RUN || RUN.mode !== "live") return;
     const i = RUN.round;
@@ -970,7 +1007,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     descent.set(RUN.results);
     updateHead();
     setHud(totalScore(RUN.results));
-    if (RUN.mode === "live") { $("#card").insertAdjacentHTML("beforebegin", `<div class="live-strip" id="live-strip" aria-live="polite"></div>`); renderStrip(); }
+    if (RUN.mode === "live") { $("#card").insertAdjacentHTML("beforebegin", `<div class="live-strip" id="live-strip" aria-live="polite"></div><div class="live-rivals" id="live-rivals"></div>`); renderStrip(); }
   }
   function updateHead() {
     if (!RUN) return;
@@ -1072,6 +1109,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (RUN.draft) input.value = RUN.draft;
     input.addEventListener("input", () => {
       RUN.draft = input.value;
+      liveTyping();
       input.classList.remove("corrected");
       RUN.pendingCorrection = null;
       if (RUN.aiCtl) { RUN.aiCtl.abort(); RUN.aiCtl = null; }
@@ -1148,6 +1186,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function reject(raw, input) {
     RUN.tried = (RUN.tried || []).concat(raw);
+    liveTyping();
     Sound.reject();
     setStatus(`“${raw}” isn't in the key: no gradient. Try again.`, "bad");
     input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake");

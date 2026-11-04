@@ -86,7 +86,16 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     for (const [page, who] of [[ana, "ana"], [ben, "ben"], [cy, "cy"]]) {
       await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
       await page.fill("#answer", plan[who][i]);
+      if (i === 0 && who === "ana") {
+        await ben.waitForFunction(() => /snake/i.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
+        check(true, "friend sees what you're typing, live");
+      }
       await page.press("#answer", "Enter");
+      if (i === 0 && who === "ana") {
+        await ben.waitForFunction(() => /\+100/.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
+        check(true, "friend sees your locked-in answer and points instantly");
+        await ben.screenshot({ path: path.join(OUT, "25-live-rival.png") });
+      }
     }
     if (i === 0) {
       await ben.waitForSelector("#live-wait");

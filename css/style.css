@@ -706,3 +706,18 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
   padding: 18px 20px; border-radius: var(--soft); background: var(--gold); color: var(--gold-ink);
   font-size: var(--s3); font-weight: 600; animation: lv-in 420ms var(--ease-out) both;
 }
+
+.live-rivals { display: grid; gap: 8px; margin-top: 10px; }
+.live-rivals:empty { display: none; }
+.rv { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: var(--soft); background: var(--surface); }
+.rv.done { background: var(--raised); }
+.rv-main { display: grid; gap: 2px; min-width: 0; }
+.rv-name { color: var(--muted); font-size: var(--s1); }
+.rv-typing { font-size: var(--s3); overflow-wrap: anywhere; }
+.rv-caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -0.12em; background: var(--gold); animation: rv-blink 1s steps(1) infinite; }
+@keyframes rv-blink { 50% { opacity: 0; } }
+.rv-locked { display: flex; align-items: center; gap: 8px; font-size: var(--s3); }
+.rv-locked em { font-style: normal; color: var(--gold); font-variant-numeric: tabular-nums; }
+.rv-tried { color: var(--faint); font-size: var(--s1); }
+.rv-tried s { margin-right: 6px; }
+.reduce-motion .rv-caret { animation: none; }
