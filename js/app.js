@@ -309,14 +309,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.intervals.forEach(clearInterval); LIVE.intervals = [];
     const c = LIVE.client;
     if (c) {
-      try { if (LIVE.isHost) pubJSON(c, `${roomTopic(LIVE.code)}/down`, { t: "closed" }); } catch { /* ignore */ }
+      try { if (LIVE.isHost && !LIVE.quietLeave) pubJSON(c, `${roomTopic(LIVE.code)}/down`, { t: "closed", ep: LIVE.ep || 0 }); } catch { /* ignore */ }
       try { if (LIVE.isHost && LIVE.isPublic) c.publish(infoTopic(LIVE.code), "", { retain: true, qos: 1 }); } catch { /* ignore */ }
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
     Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
       players: new Map(), seed: "", phase: "lobby", revealed: -1, status: "" });
   }
-  function leaveLive() {
+  function leaveLive(quiet) {
+    LIVE.quietLeave = quiet !== false;
     if (joinState) {
       clearInterval(joinState.helloTimer);
       const c = joinState.client;
@@ -360,7 +361,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
-        promptIds: challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
+        promptIds: Array.isArray(m.ids) && m.ids.length === LIVE.n && m.ids.every((id) => PROMPTS.has(id)) ? m.ids.slice() : challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
       renderPlayShell();
       renderIntro();
     } else if (m.t === "round" && RUN && RUN.mode === "live" && Number.isInteger(m.i) && m.i < RUN.promptIds.length) {
@@ -425,7 +426,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (m.t === "hello" && LIVE.players.has(conn.peer)) { // came back within the grace period
       const pl = LIVE.players.get(conn.peer);
-      clearTimeout(pl.awayTimer); pl.away = false;
+      clearTimeout(pl.awayTimer); pl.awayTimer = 0; pl.away = false;
       LIVE.conns.set(conn.peer, conn);
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "resume", seed: LIVE.seed, n: LIVE.n }); } catch { /* ignore */ }
@@ -456,7 +457,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function hostDrop(id) {
     const pl = LIVE.players.get(id);
-    if (!pl || pl.away) return;
+    if (!pl || pl.away || pl.host) return;
     LIVE.conns.delete(id);
     pl.away = true; // keep their seat for a while: phones pause pages when you switch apps
     broadcast(lobbyMsg());
@@ -488,7 +489,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!LIVE.isHost || LIVE.players.size < 2) return;
     LIVE.timers.forEach(clearTimeout); LIVE.timers = [];
     LIVE.phase = "playing";
-    broadcast({ t: "start", seed: Math.random().toString(36).slice(2, 9).padEnd(6, "0"), n: LIVE.n });
+    const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
+    let ids = challengePromptIds(seed, LIVE.n);
+    if (LIVE.noRepeat !== false) {
+      const used = new Set(LS.get("liveUsed", []));
+      const fresh = E.shuffled(DATA.prompts.map((p) => p.id).filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
+      if (fresh.length >= LIVE.n) ids = fresh.slice(0, LIVE.n);
+      LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
+    }
+    broadcast({ t: "start", seed, n: LIVE.n, ids });
     broadcast(lobbyMsg());
     liveLater(() => hostRound(0), 1800);
   }
@@ -550,9 +559,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (topic.endsWith("/down")) { // another page claims the room with a newer epoch: hand over and rejoin
       if (m.hid && m.hid !== LIVE.myId && (+m.ep || 0) > (LIVE.ep || 0)) {
         const code = LIVE.code, me = LIVE.players.get(LIVE.myId), name = me ? me.name : myName();
-        toast("Someone else is hosting now. Rejoining…");
-        leaveLive();
-        liveJoin(code, name);
+        const keepId = LIVE.myId;
+        toast("Reconnected. Your friend is hosting now");
+        leaveLive(true);
+        liveJoin(code, name, keepId);
       }
       return;
     }
@@ -568,11 +578,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const oldHost = playerList().find((p) => p.host);
     const rest = playerList().filter((p) => !p.host && !p.away).map((p) => p.id).sort();
     if (!rest.length || rest[0] !== LIVE.myId) return;
-    if (oldHost) LIVE.players.delete(oldHost.id);
+    if (oldHost) { oldHost.host = false; oldHost.seen = Date.now(); }
     LIVE.ep = (LIVE.ep || 0) + 1;
     LIVE.offset = 0;
     for (const p of LIVE.players.values()) p.seen = Date.now();
     becomeHost();
+    if (oldHost) hostDrop(oldHost.id); // their seat is held for the grace period
     LIVE.client.removeAllListeners("message");
     LIVE.client.on("message", (topic, payload) => hostIncoming(topic, payload));
     if (joinState) { clearInterval(joinState.helloTimer); joinState = null; }
@@ -623,7 +634,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0 });
+        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
         becomeHost();
         go(liveHash());
@@ -636,13 +647,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   const JOIN_PATIENCE_MS = 120000;
   let joinState = null; // { code, name, client, id, started, joined, lastHost }
-  async function liveJoin(code, name) {
+  async function liveJoin(code, name, keepId) {
     LS.set("name", name);
-    leaveLive();
+    leaveLive(true);
     renderJoinWait(code, "Connecting to the live server…");
     let client;
     try { client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
-    const id = "g" + rid(8);
+    const id = keepId || "g" + rid(8);
     const js = joinState = { code, name, client, id, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
     const hello = () => pubJSON(client, `${roomTopic(code)}/up`, { from: id, t: "hello", name, v: 2 });
     client.on("connect", () => {
@@ -656,7 +667,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (js.joined) {
         pubJSON(client, `${roomTopic(code)}/up`, { from: id, t: "hb" });
         const quiet = Date.now() - js.lastHost;
-        if (quiet > 8000 && client.connected) maybeTakeOver();
+        if (quiet > 11000 && client.connected) maybeTakeOver();
         if (joinState !== js) return;
         if (quiet > 60000) { clearInterval(js.helloTimer); leaveLive(); renderLiveStatus("The host left the room.", true); }
         else if (quiet > 6000 && !js.warned) { js.warned = true; toast("Lost the host. Reconnecting…"); }
@@ -784,16 +795,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p>${LIVE.isPublic ? "Public duo room · listed in Public rooms. " : ""}${ps.length < 2 ? "Waiting for someone to join…" : `${ps.length} players here.`}</p>
         ${LIVE.isHost ? `<p class="lv-note">Keep MLion open while friends join. If you switch apps, come back here and the room reconnects.</p>` : ""}</div>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
-      <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#rooms">Leave</a></div>
+      <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#rooms" id="live-leave-lobby">Leave</a></div>
       <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
+        <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>No repeat questions across matches</span></label>
         <div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${LIVE_SIZES.map((n) => `<button type="button" class="vs-size${n === LIVE.n ? " on" : ""}" role="radio" aria-checked="${n === LIVE.n}" data-n="${n}">${n}</button>`).join("")}</div></div>
       </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the number of questions.</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
     $$(".vs-size").forEach((b) => b.addEventListener("click", () => { LIVE.n = +b.dataset.n; broadcast(lobbyMsg()); }));
+    const ll = $("#live-leave-lobby");
+    if (ll) ll.addEventListener("click", () => leaveLive(false));
+    const nr = $("#live-norepeat");
+    if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
     wireReady();
   }
   /** Everyone else, live: what they're typing, what bounced, what they locked in. */
@@ -801,14 +817,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const el = $("#live-rivals");
     if (!el || !RUN || RUN.mode !== "live") return;
     const i = RUN.round;
+    const iDone = RUN.results.length > i || LIVE.revealed >= i; // no peeking until you've answered
+    const mask = (x) => "•".repeat(Math.min(24, String(x).length));
     const others = inMatch().filter((p) => p.id !== LIVE.myId);
     el.innerHTML = others.map((p) => {
       const a = p.ans[i];
       const ty = p.typing && p.typing.i === i ? p.typing : { draft: "", tried: [] };
       const line = a
-        ? `<span class="rv-locked t-${tierOf(a.tier)}">${G(a.tier)}<b>${a.answer ? esc(a.answer) : "No answer"}</b><em>+${a.score}</em></span>`
-        : `<span class="rv-typing">${ty.draft ? esc(ty.draft) : `<span class="muted">thinking</span>`}<i class="rv-caret"></i></span>`;
-      const tried = !a && ty.tried.length ? `<span class="rv-tried">${ty.tried.map((x) => `<s>${esc(x)}</s>`).join(" ")}</span>` : "";
+        ? (iDone ? `<span class="rv-locked t-${tierOf(a.tier)}">${G(a.tier)}<b>${a.answer ? esc(a.answer) : "No answer"}</b><em>+${a.score}</em></span>`
+          : `<span class="rv-locked"><b>Locked in ✓</b></span>`)
+        : `<span class="rv-typing">${ty.draft ? `<span class="rv-mask">${mask(ty.draft)}</span>` : `<span class="muted">thinking</span>`}<i class="rv-caret"></i></span>`;
+      const tried = !a && ty.tried.length ? `<span class="rv-tried">${ty.tried.length} wrong ${ty.tried.length === 1 ? "guess" : "guesses"}</span>` : "";
       return `<div class="rv${a ? " done" : ""}">${avatar(p.name)}<div class="rv-main"><span class="rv-name">${esc(p.name)}${p.away ? " · reconnecting" : ""}</span>${line}${tried}</div></div>`;
     }).join("");
   }
@@ -832,7 +851,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const i = RUN.round;
     el.innerHTML = inMatch().map((p) => {
       const done = !!p.ans[i];
-      return `<span class="lp${p.id === LIVE.myId ? " me" : ""}${done ? " done" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><em>${shownTotal(p)}</em>${done && LIVE.revealed < i ? `<i class="lp-tick" aria-label="answered">✓</i>` : ""}</span>`;
+      const iDone = RUN.results.length > i || LIVE.revealed >= i;
+      const tot = shownTotal(p) - (!iDone && p.id !== LIVE.myId ? roundPts(p, i) : 0);
+      return `<span class="lp${p.id === LIVE.myId ? " me" : ""}${done ? " done" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><em>${tot}</em>${done && LIVE.revealed < i ? `<i class="lp-tick" aria-label="answered">✓</i>` : ""}</span>`;
     }).join("");
   }
   function renderLiveWait() {
@@ -873,6 +894,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <a class="btn big" href="#home" id="live-leave">Leave</a>
       </div>
     </section>`;
+    $("#live-leave").addEventListener("click", () => leaveLive(false));
     $("#live-leave").insertAdjacentHTML("beforebegin", readyBlock("Ready for rematch"));
     wireReady();
   }

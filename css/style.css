@@ -721,3 +721,4 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .rv-tried { color: var(--faint); font-size: var(--s1); }
 .rv-tried s { margin-right: 6px; }
 .reduce-motion .rv-caret { animation: none; }
+.rv-mask { letter-spacing: 0.12em; color: var(--muted); }

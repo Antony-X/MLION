@@ -88,13 +88,13 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
       await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
       await page.fill("#answer", plan[who][i]);
       if (i === 0 && who === "ana") {
-        await ben.waitForFunction(() => /snake/i.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
-        check(true, "friend sees what you're typing, live");
+        await ben.waitForFunction(() => /•{3,}/.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
+        check(!/snake/i.test(await ben.textContent("#live-rivals")), "friend sees you typing, hidden as dots");
       }
       await page.press("#answer", "Enter");
       if (i === 0 && who === "ana") {
-        await ben.waitForFunction(() => /\+100/.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
-        check(true, "friend sees your locked-in answer and points instantly");
+        await ben.waitForFunction(() => /Locked in/.test((document.querySelector("#live-rivals") || {}).textContent || ""), null, { timeout: 8000 });
+        check(!/snake/i.test(await ben.textContent("#live-rivals")), "your answer stays hidden until your friend answers");
         await ben.screenshot({ path: path.join(OUT, "25-live-rival.png") });
       }
     }
