@@ -129,7 +129,7 @@
 
     { "a": "Llama 3.3", "t": "indist", "aka": ["Llama 3.3 70B"] },
     { "a": "Llama Guard", "t": "indist", "aka": ["Llama Guard 2", "Llama Guard 3", "Llama Guard 4", "Purple Llama"], "q": "A Llama fine-tuned to flag unsafe prompts and replies against a hazard taxonomy." },
-    { "a": "Muse Glimmer", "t": "outlier", "aka": ["Glimmer"], "q": "30B open weights under Apache 2.0, distilled from Muse Spark to run on one consumer GPU." },
+    { "a": "Muse Glimmer", "t": "outlier", "aka": ["Glimmer"], "q": "Meta's 30B open-weight model under Apache 2.0 (Aug 2026), small enough to run locally." },
     { "a": "Muse Wonder", "t": "outlier", "aka": ["Muse Wonder Full", "Wonder"] },
     { "a": "Muse Image", "t": "outlier" },
     { "a": "BlenderBot", "t": "indist", "aka": ["Blender", "BlenderBot 2", "BlenderBot 3", "BB3"], "q": "BlenderBot 3 went public in 2022 and was soon calling Zuckerberg 'creepy and manipulative'." },
@@ -158,7 +158,7 @@
     { "a": "Nougat", "t": "outlier", "q": "Reads academic PDFs, equations and all, and writes them back out as Markdown." },
     { "a": "DeiT", "t": "indist", "aka": ["Data-efficient Image Transformer", "Data-efficient Image Transformers", "DeiT III"] },
     { "a": "ConvNeXt V2", "t": "outlier" },
-    { "a": "ResNeXt", "t": "outlier", "aka": ["ResNeXt WSL", "ResNeXt-101", "ResNeXt-101 32x48d"], "q": "ResNet plus cardinality. FAIR later pretrained it on 3.5B Instagram images by hashtag." },
+    { "a": "ResNeXt", "t": "outlier", "aka": ["ResNeXt WSL", "ResNeXt-101", "ResNeXt-101 32x48d", "ResNeXt-101 WSL"], "q": "ResNet plus cardinality. FAIR later pretrained it on 3.5B Instagram images by hashtag." },
     { "a": "RegNet", "t": "outlier", "aka": ["RegNetX", "RegNetY", "Designing Network Design Spaces"] },
     { "a": "RetinaNet", "t": "indist", "aka": ["Focal Loss", "Focal Loss for Dense Object Detection"], "q": "The one-stage detector rescued by focal loss, which mutes the easy negatives." },
     { "a": "FPN", "t": "outlier", "aka": ["Feature Pyramid Network", "Feature Pyramid Networks"] },
@@ -203,7 +203,7 @@
     { "a": "Llama 3.2", "t": "indist", "aka": ["Llama 3.2 Vision", "Llama 3.2 1B", "Llama 3.2 3B", "Llama 3.2 11B", "Llama 3.2 90B"], "q": "The first multimodal Llamas (11B, 90B), plus 1B and 3B models small enough for phones." },
     { "a": "Llama 4", "t": "indist", "aka": ["Llama 4 Scout", "Llama 4 Maverick", "Llama 4 Behemoth", "Scout", "Maverick", "Behemoth"], "q": "A mixture-of-experts herd: Scout with a 10M-token context, Maverick, and a Behemoth that never shipped." },
     { "a": "Code Llama", "t": "indist", "aka": ["CodeLlama", "Code Llama Python", "Code Llama Instruct", "Code Llama 70B"] },
-    { "a": "Muse Spark", "t": "indist", "aka": ["Muse", "Muse Spark 1.1", "Muse Spark 1.2", "Muse Spark 1.3", "Muse Spark Open"], "q": "Meta Superintelligence Labs' first model, April 2026, and the successor to Llama." },
+    { "a": "Muse Spark", "t": "indist", "aka": ["Muse", "Muse Spark 1.1", "Muse Spark 1.2", "Muse Spark 1.3", "Muse Spark Open"], "q": "Meta Superintelligence Labs' first model (April 2026): proprietary, a break from the open-weights Llama line." },
     { "a": "SAM 2", "t": "indist", "aka": ["Segment Anything 2", "Segment Anything Model 2", "SAM 2.1"], "q": "Segment Anything for video, with a streaming memory that tracks masks across frames." },
     { "a": "DINO", "t": "indist", "aka": ["DINOv1", "self-distillation with no labels"], "q": "Self-DIstillation with NO labels. Its attention maps segmented objects nobody had labeled." },
     { "a": "DINOv2", "t": "indist", "aka": ["DINOv2 with registers"], "q": "Self-supervised on 142M curated images; frozen features good enough to estimate depth." },
@@ -236,6 +236,8 @@
     { "a": "LLaMA", "t": "baseline", "aka": ["Llama", "Llama 1", "LLaMA 7B", "LLaMA 13B", "LLaMA 33B", "LLaMA 65B", "Large Language Model Meta AI"], "q": "Released to researchers only in Feb 2023; the weights were on 4chan within a week." },
     { "a": "Llama 2", "t": "baseline", "aka": ["Llama 2 7B", "Llama 2 13B", "Llama 2 70B", "Llama 2 Chat", "Llama 2 Long"] },
     { "a": "Llama 3", "t": "baseline", "aka": ["Llama 3 8B", "Llama 3 70B"] },
-    { "a": "SAM", "t": "baseline", "aka": ["Segment Anything", "Segment Anything Model", "SAM 1"], "q": "Promptable segmentation trained on SA-1B: 1.1B masks over 11M images." }
+    { "a": "SAM", "t": "baseline", "aka": ["Segment Anything", "Segment Anything Model", "SAM 1"], "q": "Promptable segmentation trained on SA-1B: 1.1B masks over 11M images." },
+    { "a": "Humpback", "t": "longtail", "aka": ["Self-Alignment with Instruction Backtranslation", "Instruction Backtranslation"] },
+    { "a": "FBNet", "t": "longtail", "aka": ["FBNetV2", "FBNetV3"] }
   ]
 }
