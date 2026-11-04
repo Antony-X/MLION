@@ -1020,9 +1020,12 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 /* page intros stay a readable measure on wide screens */
 .page-head p { max-width: 62ch; }
 .dq-card { max-width: 620px; }
-/* a reasoning question is a paragraph: on phones the stage shrinks and the hint goes, so four options still fit under it (live adds the rivals and the skip vote) */
+/* a reasoning question is a paragraph: on phones the hint goes (and, live, the stage shrinks), so four options still fit under it (live adds the rivals and the skip vote) */
 @media (max-width: 999px) {
-  .play.quiz:has(.rq-text) .stage { height: clamp(64px, 9vh, 110px); }
+  /* live only (solo has room): a shorter stage keeps loss and score; the progress row goes */
+  .play.quiz:has(#live-strip):has(.rq-text) .stage { height: 104px; }
+  .play.quiz:has(#live-strip):has(.rq-text) .play-head { display: none; }
+  .play.quiz:has(#live-strip):has(.rq-text) .mcq-opt { min-height: 52px; }
   .play.quiz:has(.rq-text) .prompt-note { display: none; }
 }
 /* the category above a reasoning question reads as a quiet label, not a tracked-caps eyebrow */
