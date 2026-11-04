@@ -159,7 +159,7 @@
     {"a": "Minimum volume ellipsoid", "t": "longtail", "aka": ["MVE"]},
     {"a": "REPEN", "t": "longtail", "aka": ["representation learning for outlier detection"]},
     {"a": "RDP", "t": "longtail", "aka": ["random distance prediction"]},
-    {"a": "PANDA", "t": "longtail", "aka": ["patch anomaly detection panda", "PANDA anomaly detection"]},
+    {"a": "PANDA", "t": "longtail", "aka": ["PANDA anomaly detection"]},
     {"a": "Mean-shifted contrastive loss", "t": "longtail", "aka": ["MSC", "mean shifted contrastive"]},
     {"a": "Transformaly", "t": "longtail", "aka": ["transformer anomaly detection transformaly"]},
     {"a": "AnoDDPM", "t": "longtail", "aka": ["anomaly detection with denoising diffusion probabilistic models"]},
