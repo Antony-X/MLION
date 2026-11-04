@@ -1007,3 +1007,7 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 .time-setting { flex-wrap: wrap; cursor: default; }
 .time-setting .txt { min-width: 220px; }
 .split > .main.set-groups > * + * { margin-top: 0; }
+.drawer button.nav.install {
+  display: block; padding: 10px 0; border: 0; background: none; text-align: left; cursor: pointer;
+  font: inherit; font-size: var(--s3); letter-spacing: -0.015em; color: var(--gold);
+}

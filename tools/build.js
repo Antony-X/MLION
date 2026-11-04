@@ -189,9 +189,19 @@ console.log(`wrote ${path.relative(ROOT, OUT)} (${(body.length / 1024).toFixed(0
 // phones never run a stale app.js against a new index.html.
 const INDEX = path.join(ROOT, "index.html");
 let html = fs.readFileSync(INDEX, "utf8");
+const stamped = [];
 for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/app.js"]) {
   const h = E.hashString(fs.readFileSync(path.join(ROOT, f), "utf8")).toString(36);
   const esc = f.replace(/[.]/g, "\\.");
   html = html.replace(new RegExp(`(["'])${esc}(\\?v=[a-z0-9]+)?\\1`), `$1${f}?v=${h}$1`);
+  stamped.push(`${f}?v=${h}`);
 }
 fs.writeFileSync(INDEX, html);
+
+// The service worker precaches exactly these, so the game opens offline after one visit.
+const SW = path.join(ROOT, "sw.js");
+if (fs.existsSync(SW)) {
+  const assets = ["./", ...stamped, "manifest.webmanifest", "img/favicon.svg", "img/icon-192.png", "img/apple-touch-icon.png"];
+  const sw = fs.readFileSync(SW, "utf8").replace(/\/\*ASSETS\*\/[\s\S]*?\/\*END\*\//, `/*ASSETS*/${JSON.stringify(assets)}/*END*/`);
+  fs.writeFileSync(SW, sw);
+}

@@ -3083,6 +3083,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $("#how-go").focus();
   }
 
+  // An installable app that opens offline: the service worker runs on the live site (https),
+  // or anywhere once mlion:sw is set (the offline test does that on localhost).
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || LS.get("sw"))) {
+    addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* private mode, or blocked */ }); });
+  }
+  let installEvt = null;
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; $("#install").hidden = false; });
+  addEventListener("appinstalled", () => { installEvt = null; $("#install").hidden = true; });
+  $("#install").addEventListener("click", async () => {
+    if (!installEvt) return;
+    closeDrawer();
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch { /* dismissed */ }
+    installEvt = null; $("#install").hidden = true;
+  });
+
   $("#menu-btn").addEventListener("click", openDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);
   $("#drawer-close").addEventListener("click", closeDrawer);
