@@ -103,8 +103,8 @@
     { "a": "FedAvg", "t": "outlier", "aka": ["federated averaging"] },
     { "a": "Genetic algorithm", "t": "outlier", "aka": ["GA", "neuroevolution"] },
 
-    { "a": "SGD with momentum", "t": "indist", "aka": ["momentum", "momentum SGD", "heavy ball", "Polyak momentum", "classical momentum", "Polyak heavy ball", "SGDM", "SGD-M", "Heavy ball momentum", "SGD momentum"], "q": "Polyak's heavy ball (1964): let the gradient roll downhill with inertia." },
-    { "a": "Nesterov accelerated gradient", "t": "indist", "aka": ["NAG", "Nesterov momentum", "Nesterov", "Nesterov's accelerated gradient", "SGD-Nesterov", "SGD with Nesterov", "Accelerated gradient descent", "SGD with Nesterov momentum", "Nesterov SGD"], "q": "Peek ahead along the momentum, then take the gradient. Optimal O(1/k²) for smooth convex problems." },
+    { "a": "SGD with momentum", "t": "indist", "aka": ["momentum", "momentum SGD", "heavy ball", "Polyak momentum", "classical momentum", "Polyak heavy ball", "SGDM", "SGD-M", "Heavy ball momentum", "SGD momentum", "SGD w/ momentum", "stochastic gradient descent with momentum"], "q": "Polyak's heavy ball (1964): let the gradient roll downhill with inertia." },
+    { "a": "Nesterov accelerated gradient", "t": "indist", "aka": ["NAG", "Nesterov momentum", "Nesterov", "Nesterov's accelerated gradient", "SGD-Nesterov", "SGD with Nesterov", "Accelerated gradient descent", "SGD with Nesterov momentum", "Nesterov SGD", "accelerated gradient"], "q": "Peek ahead along the momentum, then take the gradient. Optimal O(1/k²) for smooth convex problems." },
     { "a": "Adagrad", "t": "indist", "aka": ["adaptive gradient", "AdaGrad-Norm", "AdaGradNorm", "Full-matrix Adagrad", "Adagrad8bit"], "q": "Per-parameter learning rates that only ever shrink. Great for sparse features, fatal on long runs." },
     { "a": "Adadelta", "t": "indist" },
     { "a": "Adamax", "t": "indist", "aka": ["optax.adamaxw", "AdaMaxW"] },
@@ -233,6 +233,14 @@
     { "a": "Deep gradient compression", "t": "longtail", "aka": ["top-k SGD", "DGC"] },
     { "a": "Quasi-Newton method", "t": "outlier", "aka": ["quasi-Newton", "quasi-Newton methods"] },
     { "a": "Exponential moving average", "t": "longtail", "aka": ["EMA", "EMA weights", "model EMA", "weight EMA"] },
-    { "a": "Perceptron learning rule", "t": "longtail", "aka": ["perceptron algorithm", "perceptron training rule"] }
+    { "a": "Perceptron learning rule", "t": "longtail", "aka": ["perceptron algorithm", "perceptron training rule"] },
+    { "a": "FTML", "t": "longtail", "aka": ["follow the moving leader", "Follow-the-Moving-Leader"] },
+    { "a": "Forward-Forward", "t": "longtail", "aka": ["forward forward algorithm", "FF algorithm"], "q": "Hinton 2022: two forward passes, one on real data and one on negative data, and no backprop at all." },
+    { "a": "Feedback alignment", "t": "longtail", "aka": ["random feedback alignment", "direct feedback alignment", "DFA"], "q": "Lillicrap et al. 2016: backprop with fixed random feedback weights instead of the transposed forward ones, and it still learns." },
+    { "a": "Target propagation", "t": "longtail", "aka": ["difference target propagation"] },
+    { "a": "Equilibrium propagation", "t": "longtail", "aka": ["EqProp"] },
+    { "a": "Forward gradient", "t": "longtail", "aka": ["forward-mode gradient descent", "forward gradient descent"] },
+    { "a": "Synthetic gradients", "t": "longtail", "aka": ["decoupled neural interfaces", "DNI"] },
+    { "a": "Extended Kalman filter", "t": "longtail", "aka": ["EKF", "Kalman filter training", "EKF training"] }
   ]
 }

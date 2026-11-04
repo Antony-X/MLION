@@ -2,7 +2,7 @@
   "id": "normalization",
   "pack": "blocks",
   "text": "Name a normalization technique for neural networks",
-  "note": "Normalization layers and reparameterizations used in or around neural nets: BatchNorm, LayerNorm, RMSNorm, WeightNorm, spectral norm…",
+  "note": "Normalization layers, reparameterizations and input/feature scaling used in or around neural nets: BatchNorm, LayerNorm, RMSNorm, WeightNorm, StandardScaler…",
   "strip": ["normalization", "normalisation", "norm", "normalize", "normalizing", "technique", "nn", "torch"],
   "answers": [
     { "a": "Ghost batch normalization", "t": "mlion", "aka": ["Ghost BatchNorm", "ghost BN", "GBN"], "q": "BatchNorm statistics over small \"ghost\" sub-batches inside a big one: large-batch speed, small-batch generalization." },
@@ -33,12 +33,12 @@
     { "a": "Mode normalization", "t": "longtail" },
     { "a": "Normalization propagation", "t": "longtail", "aka": ["NormProp"] },
     { "a": "Logit normalization", "t": "longtail", "aka": ["LogitNorm"] },
-    { "a": "Frozen batch normalization", "t": "longtail", "aka": ["FrozenBatchNorm2d", "FrozenBN", "torchvision.ops.misc.FrozenBatchNorm2d", "frozen BN", "BN in eval mode", "freeze batchnorm"] },
+    { "a": "Frozen batch normalization", "t": "longtail", "aka": ["FrozenBatchNorm2d", "FrozenBN", "torchvision.ops.misc.FrozenBatchNorm2d", "frozen BN", "BN in eval mode", "freeze batchnorm", "freeze BN", "BN freeze"] },
 
     { "a": "Batch renormalization", "t": "outlier", "aka": ["Batch Renorm", "BRN", "batch renormalisation"], "q": "Ioffe's 2017 sequel: nudges BN toward its moving averages so tiny or non-i.i.d. batches stop hurting." },
     { "a": "Weight standardization", "t": "outlier", "aka": ["WS", "weight standardisation", "scaled weight standardization"] },
     { "a": "Synchronized batch normalization", "t": "outlier", "aka": ["SyncBatchNorm", "sync BN", "synchronised batch normalisation", "cross-GPU batch normalization", "nn.SyncBatchNorm", "torch.nn.SyncBatchNorm", "SyncBatchNormalization", "convert_sync_batchnorm"] },
-    { "a": "Pre-LN", "t": "indist", "aka": ["pre-norm", "pre-layer normalization", "pre-layernorm", "pre-LN transformer", "pre-norm transformer", "pre-RMSNorm"], "q": "LayerNorm before each sublayer instead of after. Tames gradients enough to drop the warmup (Xiong et al. 2020)." },
+    { "a": "Pre-LN", "t": "indist", "aka": ["pre-norm", "pre-layer normalization", "pre-layernorm", "pre-LN transformer", "pre-norm transformer", "pre-RMSNorm", "norm_first"], "q": "LayerNorm before each sublayer instead of after. Tames gradients enough to drop the warmup (Xiong et al. 2020)." },
     { "a": "Post-LN", "t": "outlier", "aka": ["post-norm", "post-layer normalization"] },
     { "a": "QK-Norm", "t": "outlier", "aka": ["query-key normalization", "QK LayerNorm"], "q": "Normalize queries and keys before the dot product so attention logits can't explode. ViT-22B needed it." },
     { "a": "Adaptive layer normalization", "t": "outlier", "aka": ["AdaLN", "adaLN-Zero", "adaptive LN", "modulated layer norm", "DiT adaLN", "adaLN-single", "conditional layer normalization", "CLN"] },
@@ -50,7 +50,7 @@
     { "a": "EvoNorm", "t": "outlier", "aka": ["EvoNorm-B0", "EvoNorm-S0"], "q": "Found by evolutionary search over joint normalization-activation layers (Liu et al. 2020)." },
     { "a": "Switchable normalization", "t": "outlier", "aka": ["SwitchNorm", "Switchable Norm", "switch norm"] },
     { "a": "DeepNorm", "t": "outlier", "aka": ["DeepNet"], "q": "Up-weights the residual before Post-LN. Trained a 1,000-layer Transformer." },
-    { "a": "ZCA whitening", "t": "outlier", "aka": ["whitening", "PCA whitening", "ZCA", "ZCA transform"] },
+    { "a": "ZCA whitening", "t": "outlier", "aka": ["whitening", "PCA whitening", "ZCA", "ZCA transform", "sphering"] },
     { "a": "Virtual batch normalization", "t": "outlier", "aka": ["VBN"], "q": "Normalize against a reference batch chosen once at the start. One of Salimans et al.'s GAN tricks." },
     { "a": "Self-normalizing networks", "t": "outlier", "aka": ["SELU", "self-normalization", "SNN", "SELU network", "scaled exponential linear unit normalization"], "q": "No norm layers at all: SELU's fixed point pulls activations to zero mean, unit variance by itself." },
     { "a": "Dynamic Tanh", "t": "outlier", "aka": ["DyT", "Dynamic Tanh normalization", "Derf", "Dynamic erf", "normalization-free transformer", "Transformers without normalization"], "q": "tanh(αx) in place of LayerNorm: \"Transformers without Normalization\" (2025). Not a norm, strictly. We'll allow it." },
@@ -61,7 +61,7 @@
     { "a": "Spectral normalization", "t": "indist", "aka": ["SpectralNorm", "SN", "nn.utils.spectral_norm", "torch.nn.utils.spectral_norm", "nn.utils.parametrizations.spectral_norm", "torch.nn.utils.parametrizations.spectral_norm", "SpectralNormalization", "spectral_norm"], "q": "Divide each weight matrix by its largest singular value. Keeps GAN discriminators roughly 1-Lipschitz." },
     { "a": "Local response normalization", "t": "indist", "aka": ["LRN", "LocalResponseNorm", "CrossMapLRN2d", "nn.LocalResponseNorm", "F.local_response_norm", "tf.nn.local_response_normalization", "LocalResponseNormalization"], "q": "AlexNet's lateral-inhibition trick, quietly dropped once VGG reported it didn't help." },
     { "a": "Adaptive instance normalization", "t": "indist", "aka": ["AdaIN"], "q": "Swap in the style image's channel mean and std. Arbitrary style transfer in real time, then StyleGAN." },
-    { "a": "L2 normalization", "t": "indist", "aka": ["L2 norm", "unit normalization", "unit-norm embeddings", "F.normalize", "torch.nn.functional.normalize", "UnitNormalization", "l2_normalize", "tf.math.l2_normalize", "tf.nn.l2_normalize", "sklearn Normalizer", "Normalizer", "unit vector scaling", "row normalization", "feature normalization (L2)", "hypersphere projection", "projection onto the unit sphere"] },
+    { "a": "L2 normalization", "t": "indist", "aka": ["L2 norm", "unit normalization", "unit-norm embeddings", "F.normalize", "torch.nn.functional.normalize", "UnitNormalization", "l2_normalize", "tf.math.l2_normalize", "tf.nn.l2_normalize", "sklearn Normalizer", "Normalizer", "unit vector scaling", "row normalization", "feature normalization (L2)", "hypersphere projection", "projection onto the unit sphere", "embedding normalization", "normalized embeddings", "normalize embeddings"] },
     { "a": "Standardization", "t": "indist", "aka": ["standardisation", "z-score normalization", "standard scaling", "StandardScaler", "input normalization", "per-image standardization", "per_image_standardization", "feature scaling", "mean-variance normalization", "zero mean unit variance", "Z-score", "ImageNet normalization", "ImageNet mean and std", "transforms.Normalize", "per-channel standardization", "tf.keras.layers.Normalization", "sklearn scale"] },
     { "a": "Min-max normalization", "t": "indist", "aka": ["min-max scaling", "MinMaxScaler", "rescaling", "min max scaling", "feature scaling min-max", "rescale to [0,1]"] },
 
@@ -101,7 +101,7 @@
     { "a": "Max-norm constraint", "t": "longtail", "aka": ["max norm", "MaxNorm", "max-norm regularization", "max norm regularization", "weight norm clipping", "maxnorm constraint", "kernel_constraint max_norm"] },
     { "a": "Natural neural networks", "t": "longtail", "aka": ["natural neural network", "natural networks", "Projected Natural Gradient Descent", "PRONG", "whitening reparametrization"] },
     { "a": "Robust scaling", "t": "outlier", "aka": ["RobustScaler", "robust scaler", "median and IQR scaling", "IQR scaling", "robust normalization", "robust standardization"] },
-    { "a": "Max-abs scaling", "t": "longtail", "aka": ["MaxAbsScaler", "maxabs scaler", "max absolute scaling", "maximum absolute scaling"] },
+    { "a": "Max-abs scaling", "t": "longtail", "aka": ["MaxAbsScaler", "maxabs scaler", "max absolute scaling", "maximum absolute scaling", "max abs", "maxabs"] },
     { "a": "L1 normalization", "t": "longtail", "aka": ["L1 norm normalization", "l1 normalize", "sum-to-one normalization", "normalize to sum 1", "sample-wise L1 normalization"] },
     { "a": "Quantile transformation", "t": "longtail", "aka": ["QuantileTransformer", "quantile normalization", "quantile transform", "rank-gauss", "RankGauss", "gauss rank normalization", "quantile transformer", "rank transform", "rank transformation", "rank normalization"] },
     { "a": "Power transformation", "t": "longtail", "aka": ["PowerTransformer", "Box-Cox", "Box-Cox transform", "Yeo-Johnson", "Yeo-Johnson transform", "power transform"] },
@@ -117,6 +117,9 @@
     { "a": "Reward normalization", "t": "longtail", "aka": ["reward scaling", "return normalization", "return scaling", "reward standardization"] },
     { "a": "Advantage normalization", "t": "longtail", "aka": ["advantage standardization", "normalized advantages"] },
     { "a": "GraphNorm", "t": "longtail", "aka": ["graph norm", "graph normalization"] },
-    { "a": "PairNorm", "t": "longtail", "aka": ["pair norm"] }
+    { "a": "PairNorm", "t": "longtail", "aka": ["pair norm"] },
+    { "a": "Cepstral mean and variance normalization", "t": "longtail", "aka": ["CMVN", "CMN", "cepstral mean normalization", "per-utterance normalization"] },
+    { "a": "Per-channel energy normalization", "t": "longtail", "aka": ["PCEN"], "q": "Trainable automatic gain control for spectrograms, used in place of the log (Wang et al., 2017)." },
+    { "a": "Stain normalization", "t": "longtail", "aka": ["stain colour normalization", "stain color normalization", "Macenko", "Reinhard", "Vahadane", "color normalization", "colour normalization"] }
   ]
 }

@@ -165,7 +165,7 @@
     { "a": "Mish", "t": "overfit", "aka": ["pmish", "parametric mish"], "q": "x·tanh(softplus(x)). The YOLOv4 hipster pick." },
 
     { "a": "ReLU", "t": "baseline", "aka": ["rectified linear unit", "rectifier", "rectified linear", "ramp", "ramp function", "positive part", "poslin", "max(0, x)"] },
-    { "a": "Sigmoid", "t": "baseline", "aka": ["logistic", "logistic function", "logistic sigmoid", "sigmoid function", "expit", "soft step", "logsig", "standard logistic", "logistic curve"] },
+    { "a": "Sigmoid", "t": "baseline", "aka": ["logistic", "logistic function", "logistic sigmoid", "sigmoid function", "expit", "soft step", "logsig", "standard logistic", "logistic curve", "inverse logit", "sigmoidal"] },
     { "a": "Tanh", "t": "baseline", "aka": ["hyperbolic tangent", "tansig"] },
     { "a": "Softmax", "t": "baseline", "aka": ["soft max", "normalized exponential", "softargmax", "soft argmax", "softmax2d", "softmax with temperature", "temperature softmax"] },
     { "a": "Cube", "t": "longtail", "aka": ["cubic", "cube activation", "cubic activation"], "q": "x³. Chen & Manning's 2014 neural dependency parser swapped tanh and sigmoid for it." },
@@ -173,6 +173,8 @@
     { "a": "Softmax1", "t": "longtail", "aka": ["softmax_1", "softmax+1", "off-by-one softmax", "off by one softmax", "quiet softmax", "quietsoftmax", "softmax one"], "q": "exp(x)/(1 + Σexp). Evan Miller's 'Attention Is Off By One' lets a head vote for nothing." },
     { "a": "Arcsinh", "t": "longtail", "aka": ["asinh", "arsinh", "inverse hyperbolic sine"] },
     { "a": "Morlet", "t": "longtail", "aka": ["morlet wavelet"] },
-    { "a": "Dice", "t": "longtail", "aka": ["data adaptive activation function", "dice activation"], "q": "PReLU with a data-driven switch, from Alibaba's Deep Interest Network (Zhou et al., 2018)." }
+    { "a": "Dice", "t": "longtail", "aka": ["data adaptive activation function", "dice activation"], "q": "PReLU with a data-driven switch, from Alibaba's Deep Interest Network (Zhou et al., 2018)." },
+    { "a": "GroupSort", "t": "longtail", "aka": ["group sort", "MaxMin", "FullSort"], "q": "Sort the activations within groups: a gradient-norm-preserving unit for 1-Lipschitz networks (Anil et al., 2019)." },
+    { "a": "Probit", "t": "longtail", "aka": ["normal CDF", "Gaussian CDF", "cumulative normal", "normal cumulative distribution function", "ndtr"] }
   ]
 }
