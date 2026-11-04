@@ -30,7 +30,7 @@
     {"a": "Optimal transport imputation", "t": "longtail", "aka": ["OT imputation", "sinkhorn imputation"]},
     {"a": "Local least squares imputation", "t": "longtail", "aka": ["LLSimpute", "LLS imputation"]},
     {"a": "Ratio imputation", "t": "longtail"},
-    {"a": "End-of-distribution imputation", "t": "longtail", "aka": ["end of tail imputation", "EndTailImputer", "tail imputation"]},
+    {"a": "End-of-distribution imputation", "t": "longtail", "aka": ["end of tail imputation", "EndTailImputer", "end distribution imputation", "end of distribution imputer"]},
     {"a": "Half-minimum imputation", "t": "longtail", "aka": ["minimum value imputation", "min imputation", "half minimum", "LOD/2", "limit of detection imputation"]},
     {"a": "QRILC", "t": "longtail", "aka": ["quantile regression imputation of left-censored data", "quantile regression imputation"]},
     {"a": "Polynomial interpolation", "t": "longtail", "aka": ["Lagrange interpolation"]},

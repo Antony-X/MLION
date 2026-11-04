@@ -253,7 +253,7 @@
     { "a": "spectral_embedding", "t": "longtail" },
     { "a": "extract_patches_2d", "t": "longtail", "q": "Slices an image into overlapping patches: image patching, scikit-learn style." },
     { "a": "reconstruct_from_patches_2d", "t": "longtail" },
-    { "a": "img_to_graph", "t": "longtail", "aka": ["grid_to_graph"] },
+    { "a": "img_to_graph", "t": "longtail", "aka": ["image to graph"] },
     { "a": "strip_accents_unicode", "t": "longtail", "aka": ["strip_accents_ascii"] },
     { "a": "l1_min_c", "t": "longtail", "q": "The smallest C for which an L1-penalised model has any nonzero weight." },
     { "a": "isotonic_regression", "t": "longtail" },
@@ -284,7 +284,7 @@
     { "a": "stable_cumsum", "t": "longtail" },
     { "a": "cartesian", "t": "longtail" },
     { "a": "murmurhash3_32", "t": "longtail", "q": "The hash behind HashingVectorizer, exposed as a plain function." },
-    { "a": "Parallel", "t": "longtail", "aka": ["delayed", "sklearn.utils.parallel"] },
+    { "a": "Parallel", "t": "longtail", "aka": ["sklearn.utils.parallel", "joblib parallel"] },
     { "a": "enable_halving_search_cv", "t": "longtail" },
     { "a": "load_boston", "t": "outlier", "aka": ["load boston", "boston housing"], "q": "Gone since 1.2: scikit-learn removed it over an ethically problematic feature, and the docs point to California housing." },
     { "a": "BaseEstimator", "t": "outlier", "q": "Subclass it and get_params, set_params and a repr for free, as long as __init__ only stores its arguments." },
@@ -305,6 +305,8 @@
     { "a": "sample_without_replacement", "t": "longtail" },
     { "a": "paired_euclidean_distances", "t": "longtail" },
     { "a": "paired_manhattan_distances", "t": "longtail" },
-    { "a": "paired_cosine_distances", "t": "longtail" }
+    { "a": "paired_cosine_distances", "t": "longtail" },
+    { "a": "delayed", "t": "longtail", "aka": ["sklearn.utils.parallel.delayed", "joblib delayed"] },
+    { "a": "grid_to_graph", "t": "longtail", "aka": ["grid to graph"] }
   ]
 }
