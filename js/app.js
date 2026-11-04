@@ -2245,7 +2245,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (RUN && RUN.fmt === "quiz" && RUN.phase === "answering" && /^[1-4]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey
       && !(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) && !$("#modal").firstElementChild) { e.preventDefault(); pickQuiz(+e.key - 1); } // keys 1 to 4 pick an option
-    if (e.key === "Escape") { closeDrawer(); closeModal(); if (CHAT.open) setChatOpen(false); }
+    if (e.key === "Escape") { closeDrawer(true); closeModal(); if (CHAT.open) setChatOpen(false); }
   });
 
   // ========================================================= leaderboard
@@ -3066,17 +3066,38 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // ======================================================= drawer/modal
-  function openDrawer() { document.body.classList.add("drawer-open"); $("#drawer").setAttribute("aria-hidden", "false"); }
-  function closeDrawer() { document.body.classList.remove("drawer-open"); $("#drawer").setAttribute("aria-hidden", "true"); }
+  function openDrawer() {
+    document.body.classList.add("drawer-open");
+    $("#drawer").setAttribute("aria-hidden", "false");
+    $("#menu-btn").setAttribute("aria-expanded", "true");
+    const first = $("#drawer a.nav.on") || $("#drawer a.nav");
+    if (first) setTimeout(() => first.focus({ preventScroll: true }), 30);
+  }
+  /** giveBack: return focus to the menu button (Escape, the close button, the backdrop). */
+  function closeDrawer(giveBack = false) {
+    if (!document.body.classList.contains("drawer-open")) return;
+    const inside = $("#drawer").contains(document.activeElement);
+    document.body.classList.remove("drawer-open");
+    $("#drawer").setAttribute("aria-hidden", "true");
+    $("#menu-btn").setAttribute("aria-expanded", "false");
+    if (inside) { if (giveBack) $("#menu-btn").focus({ preventScroll: true }); else document.activeElement.blur(); }
+  }
+  let modalOpener = null;
   function showModal(title, html) {
     const m = $("#modal");
+    if (!m.innerHTML) modalOpener = document.activeElement;
     m.innerHTML = `<div class="modal-backdrop" id="mb"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
       <div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" id="mclose" aria-label="Close">${XICON}</button></div>${html}</div></div>`;
     $("#mclose").addEventListener("click", closeModal);
     $("#mb").addEventListener("click", (e) => { if (e.target.id === "mb") closeModal(); });
     $("#mclose").focus();
   }
-  function closeModal() { $("#modal").innerHTML = ""; }
+  function closeModal() {
+    if (!$("#modal").innerHTML) return;
+    $("#modal").innerHTML = "";
+    if (modalOpener && modalOpener.isConnected && modalOpener !== document.body) modalOpener.focus({ preventScroll: true });
+    modalOpener = null;
+  }
   function showHowModal() {
     showModal("How to play", howHtml() + `<div class="btn-row"><button class="btn primary big block" id="how-go">Got it</button></div>`);
     $("#how-go").addEventListener("click", closeModal);
@@ -3100,8 +3121,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   });
 
   $("#menu-btn").addEventListener("click", openDrawer);
-  $("#drawer-backdrop").addEventListener("click", closeDrawer);
-  $("#drawer-close").addEventListener("click", closeDrawer);
+  $("#drawer-backdrop").addEventListener("click", () => closeDrawer(true));
+  $("#drawer-close").addEventListener("click", () => closeDrawer(true));
   $("#brand").addEventListener("click", () => go("home"));
 
   // A phone keyboard shrinks the visual viewport (on iOS only that), so flag it
