@@ -128,7 +128,8 @@ tools/build-single.js bundle everything into one HTML file (Artifact build)
 tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SUGGEST/NONE)
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
-tests/live.e2e.js     Playwright: 3 browsers, live match over the real MQTT broker
+tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQTT broker
+tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat
 README.md, package.json, .nojekyll (needed for Pages)
 ```
 
@@ -139,7 +140,7 @@ npm run build      # node tools/build.js
 npm run stats      # node tools/build.js --stats
 npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
-npm run e2e:live   # node tests/live.e2e.js      (needs network: unpkg.com + public.cloud.shiftr.io)
+npm run e2e:live   # live.e2e.js then live.rejoin.e2e.js (needs network: unpkg.com + public.cloud.shiftr.io)
 ```
 
 ### Artifact build
@@ -381,10 +382,25 @@ intro → preview (3 s, input locked) → answering (25 s) → feedback → next
   REVEAL_MS = 4500. The end is a podium.
 
 **Rival panel**
-- Opponent typing shows as dots, with a count of wrong guesses.
-- A locked answer shows only "Locked in ✓" until you've answered. Their round points are also
-  hidden from the strip until then.
-- (One intermediate version showed the actual text; the user asked for it to be hidden.)
+- Before you answer: opponent typing shows as dots, with a count of wrong guesses. A locked
+  answer shows only "Locked in ✓", and their round points are hidden from the strip.
+- After you answer (user request, 2026-11-04): you see their draft and their bounced guesses
+  (struck through) in the clear. Someone still thinking keeps seeing dots.
+
+**Chat** (added 2026-11-04)
+- A chat button (`#chat-btn`) in the top bar, visible only while `LIVE.active` (lobby, match,
+  podium, waiting for the next match). The panel (`#chat`) and preview (`#chat-peek`) live
+  outside `#app`, so screen redraws never eat a draft.
+- Guests send `{t:"chat", text, k}` up; the host checks the sender, rate-limits (6 per 8 s per
+  player) and broadcasts `{t:"chat", id, name, text, k}`. The sender shows its own message dimmed
+  until the echo with the same `k` returns; after 10 s without it, "Not sent".
+- Unread count and a 5 s preview when the panel is shut; a soft sound (Sound setting).
+- The panel folds away when a question starts unless you're mid-message, and the answer box
+  never takes focus from the chat input. Enter and Escape in the chat stay in the chat.
+- Spoiler hold: while a question is open, a message whose 1–5-word windows exactly match an
+  answer of the current prompt (keys of 3+ chars) is not sent ("Send it after the reveal").
+- Text is cleaned (control and bidi characters, 200 chars) and always escaped. History is kept
+  in memory per room code for 10 minutes after you step out.
 
 **Resilience**
 - Host heartbeat every 3 s.
@@ -478,10 +494,14 @@ rounded.
 - **GitHub Pages deploy run #8 stuck "queued"** for more than 30 minutes. Pushing a new real
   commit (the README change) deployed immediately. Runs #8 and #9 may still show
   queued or waiting in Actions; they're harmless.
-- **Kick-out bug** (reported once, root cause **not confirmed**). Hypothesis: a brief network
-  blip made the guest take over while the host was alive, and the real host was demoted and
-  rejoined as a "late" new player. Mitigations in commit `18e60a1` (§7 Resilience).
-  **These are untested with real phones**; the scripted live test passes.
+- **Kick-out bug: root cause found and fixed 2026-11-04.** `apply()` rebuilt every player
+  object on each lobby broadcast, so the grace timer set in `hostDrop` held a stale copy whose
+  `away` never cleared. A guest quiet for ~9 s who came back inside the 15 s grace was still
+  removed when the timer fired, then re-admitted as `late` and sat out the match. Lobby updates
+  now modify player objects in place. `tests/live.rejoin.e2e.js` reproduced it (guest ended
+  "late") and passes after the fix. The earlier handover mitigations (`18e60a1`) remain.
+  Still unverified on real phones. Side note: a guest who returns mid-question gets "You're
+  back, the next question starts in a moment" and loses that question.
 - **Push hiccups:** pushes sometimes failed with "fatal error in commit_refs_rules" or GitHub
   500 errors. Retrying with backoff worked.
 
@@ -496,8 +516,14 @@ rounded.
   - a third player joins;
   - Ready-up;
   - masked typing and "Locked in";
+  - typing shown in the clear once you've answered, still dots for someone thinking;
+  - chat: delivery to everyone, unread count and preview, escaping, own-message confirm,
+    Escape, folding at question start, spoiler hold, no focus theft, hidden after leaving;
   - reveal and podium (Ana 500, Cy 150, Ben 50);
   - no errors.
+- `tests/live.rejoin.e2e.js`: guest goes quiet until marked away, returns, keeps the seat.
+- Since 2026-11-04 all suites also pass locally on Windows (the share-text check now accepts
+  the CRLF the Windows clipboard returns).
 - Ad hoc scripts (scratchpad, not in the repo): host closes the page mid-question → guest
   takes over → the next question starts; public room create, list, join; create, join and
   start on the production Pages site.
@@ -518,7 +544,8 @@ rounded.
 - Element ids used by tests and logic: `#answer #step #veil #timer-num #status #chips .chip
   #next #begin #card #dots #descent #hud-loss #hud-score .feedback.<tier> #share .score-big
   details.key .search .stat-grid .wordmark #how-go .modal #live-ready #live-name #live-go
-  .lv-code .lv-players #live-rivals #rooms-list #vs-name #vs-go #send-vs .duel-head`, and others
+  .lv-code .lv-players #live-rivals #rooms-list #vs-name #vs-go #send-vs .duel-head #chat-btn
+  #chat-badge #chat #chat-log #chat-input #chat-note #chat-peek`, and others
   listed in the redesign brief.
 - The user doesn't want the live site changed while they're playing. **Ask before pushing**
   when they're in a session.
@@ -532,7 +559,8 @@ rounded.
 ## 11. Open items and next steps
 
 1. **Verify on real phones:** the live autocorrect-help setting, masked typing, no-repeat
-   questions, and the kick-out mitigations. Ask the user what the screen says if anything
+   questions, the kick-out fix, and chat with the phone keyboard open (the panel follows
+   `visualViewport`; only desktop and emulated phone sizes were checked). Ask the user what the screen says if anything
    fails.
 2. **Public broker risk:** shiftr.io's public instance is shared and unauthenticated, so anyone
    can publish to `mlion/v2/*`. Messages are validated (types, lengths, tiers, and scores
@@ -562,6 +590,8 @@ rounded.
 
 ```bash
 git clone https://github.com/Antony-X/MLION && cd MLION
+# Windows with core.autocrlf=true: use LF here, or every build rewrites all ?v= stamps
+git config core.autocrlf false && git config core.eol lf && git rm -rq --cached . && git reset -q --hard
 git checkout claude/mlion-game
 python3 -m http.server 8000      # open http://localhost:8000  (live mode works locally too)
 node tools/build.js              # after editing data/prompts/*.json or display.json
