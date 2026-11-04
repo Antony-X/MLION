@@ -135,8 +135,12 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   check(/^MLion #\d+ 🦁\n300\/700 · loss 4\.00\n\n🦜🦁🐑🦄☄️⬛📊/.test(clip), "share text format");
   console.log(clip.split("\n").map((l) => "    | " + l).join("\n"));
 
+  const snakeNote = JSON.parse(fs.readFileSync(path.join(ROOT, "data/prompts/activation-function.json"), "utf8")).answers.find((a) => a.a === "Snake").q;
+  check((await page.textContent(".run-list")).includes(snakeNote), "your answers come with their explanations");
   // open an answer key and search it
   await page.click("details.key summary");
+  await page.waitForSelector("details.key[open] .ans-list .ex", { timeout: 5000 });
+  check((await page.$$("details.key[open] .ans-list .ex")).length > 3, "answer keys explain their answers");
   await page.fill("details.key[open] .search", "relu");
   const items = await page.$$eval("details.key[open] .ans-list li", (els) => els.length);
   check(items > 3, `answer key search works (${items} hits)`);
@@ -156,6 +160,19 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
     await page.screenshot({ path: path.join(OUT, `10-${r}.png`), fullPage: true });
   }
   check(true, "all secondary screens render");
+
+  // ---- custom question count: any number up to 25
+  await page.goto(base + "#challenge");
+  await page.waitForSelector("#vs-go");
+  await page.fill("#q-custom", "8"); // the fixture has 9 prompts; the real set has 128
+  await page.press("#q-custom", "Enter");
+  check(await page.$eval("#q-custom", (el) => el.classList.contains("on")) && !(await page.$(".q-size.on")), "a custom count replaces the presets");
+  await page.fill("#q-custom", "40");
+  await page.press("#q-custom", "Enter");
+  check((await page.inputValue("#q-custom")) === "8", "counts over 25 are refused");
+  await page.click("#vs-go");
+  await page.waitForSelector("#begin");
+  check(/#vs-[a-z0-9]+-8$/.test(await page.evaluate(() => location.hash)) && (await page.textContent(".beats li b")) === "8", "an 8-question challenge starts");
 
   // ---- challenge a friend: Ana plays 3, sends a link; Ben opens it on his own phone
   await page.goto(base + "#challenge");

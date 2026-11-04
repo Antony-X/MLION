@@ -20,7 +20,13 @@
   const G = (t, cls) => V.glyph(t && T[t] ? t : null, cls);
   const tierOf = (t) => (t && T[t] ? t : "miss");
   /** The share grid as marks: one per prompt, shaped and lit by its tier. */
-  const tiersRow = (tiers, cls = "") => `<span class="tiers ${cls}" role="img" aria-label="${esc(tiers.map((t) => (T[t] ? T[t].name : "Miss")).join(", "))}">${tiers.map((t) => G(t)).join("")}</span>`;
+  /** The one-line explanation an answer carries in the key (about a quarter of answers have one). */
+  function explainOf(promptId, name) {
+    const p = PROMPTS.get(promptId);
+    const a = p && name ? p.answers.find((x) => x.a === name) : null;
+    return a && a.q ? a.q : null;
+  }
+  const tiersRow = (tiers, cls = "") =>`<span class="tiers ${cls}" role="img" aria-label="${esc(tiers.map((t) => (T[t] ? T[t].name : "Miss")).join(", "))}">${tiers.map((t) => G(t)).join("")}</span>`;
   const CHEV = `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
   const LOCK = `<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
   const XICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
@@ -218,7 +224,29 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // no server: #vs-<seed>-<n>[-<tiers>-<name>][-<tiers>-<name>]. Tiers are one
   // digit per question, names are UTF-8 hex (links allow only a-z, 0-9, -).
   const TIER_CODE = ["miss", "baseline", "overfit", "indist", "outlier", "longtail", "mlion"];
-  const VS_SIZES = [3, 5, 7, 10];
+  // Question counts for challenges and live rooms: quick picks, or any count up to Q_MAX.
+  const Q_PRESETS = [3, 5, 7, 10];
+  const Q_MAX = 25;
+  const validQ = (n) => Number.isInteger(n) && n >= 1 && n <= Q_MAX;
+  /** The presets as a radio row plus a number box for anything else (1 to Q_MAX). */
+  function qPicker(n) {
+    const custom = !Q_PRESETS.includes(n);
+    return `<div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${Q_PRESETS.map((k) => `<button type="button" class="vs-size q-size${k === n ? " on" : ""}" role="radio" aria-checked="${k === n}" data-n="${k}">${k}</button>`).join("")}
+      <input class="q-custom${custom ? " on" : ""}" id="q-custom" type="number" inputmode="numeric" min="1" max="${Q_MAX}" step="1" placeholder="1–${Q_MAX}" aria-label="Custom number of questions, 1 to ${Q_MAX}" value="${custom ? n : ""}"></div></div>`;
+  }
+  /** Wire a qPicker: onPick(n) gets a valid count; a bad custom entry snaps back to the current one. */
+  function wireQPicker(cur, onPick) {
+    $$(".q-size").forEach((b) => b.addEventListener("click", () => onPick(+b.dataset.n)));
+    const box = $("#q-custom");
+    if (!box) return;
+    box.addEventListener("keydown", (e) => { if (e.key === "Enter") box.blur(); });
+    box.addEventListener("change", () => {
+      const v = Math.round(+box.value);
+      if (box.value !== "" && validQ(v)) return onPick(v);
+      if (box.value !== "") toast(`Pick 1 to ${Q_MAX} questions`);
+      box.value = Q_PRESETS.includes(cur()) ? "" : String(cur());
+    });
+  }
   const SHARE_BASE = ((document.querySelector('meta[name="mlion:url"]') || {}).content || "").trim();
   const encTiers = (tiers) => tiers.map((t) => Math.max(0, TIER_CODE.indexOf(t || "miss"))).join("");
   const decTiers = (str) => str.split("").map((c) => TIER_CODE[+c] || "miss");
@@ -234,10 +262,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return `${SHARE_BASE || siteUrl()}#vs-${seed}-${n}${tail}`;
   }
   function parseChallenge(h) {
-    const m = h.match(/^vs-([a-z0-9]{4,12})-(\d{1,2})((?:-[0-6]{1,10}-[0-9a-f]{0,64}){0,2})$/);
+    const m = h.match(/^vs-([a-z0-9]{4,12})-(\d{1,2})((?:-[0-6]{1,25}-[0-9a-f]{0,64}){0,2})$/);
     if (!m) return null;
     const n = +m[2];
-    if (!VS_SIZES.includes(n)) return null;
+    if (!validQ(n)) return null;
     const parts = m[3].split("-").filter((x, i) => i > 0);
     const players = [];
     for (let i = 0; i + 1 < parts.length + 1; i += 2) {
@@ -281,7 +309,6 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const MQTT_SRC = "https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js";
   const BROKER = "wss://public.cloud.shiftr.io";
   const TOPIC = "mlion/v2";
-  const LIVE_SIZES = [5, 7, 10];
   const PUB_SLOTS = 10; // public rooms live at fixed codes pub01..pub10 so anyone can find them
   const pubCode = (k) => `pub${String(k).padStart(2, "0")}`;
   const AWAY_GRACE_MS = 15000;
@@ -315,7 +342,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
     Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
-      players: new Map(), seed: "", phase: "lobby", revealed: -1, status: "" });
+      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null });
     chatRate.clear();
     syncChat();
   }
@@ -357,18 +384,20 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       }
       for (const id of before) if (!next.has(id) && LIVE.players.get(id)) toast(`${LIVE.players.get(id).name} left`);
       LIVE.players = next;
-      if (LIVE_SIZES.includes(+m.n)) LIVE.n = +m.n;
+      if (validQ(+m.n)) LIVE.n = +m.n;
       if (!LIVE.isHost) LIVE.isPublic = !!m.pub;
       if (["off", "typos", "full"].includes(m.assist)) LIVE.assist = m.assist;
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
-    } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && LIVE_SIZES.includes(+m.n)) {
+    } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && validQ(+m.n)) {
       LIVE.seed = m.seed; LIVE.n = +m.n; LIVE.phase = "playing"; LIVE.revealed = -1; LIVE.countdownAt = 0;
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
         assist: ["off", "typos", "full"].includes(m.assist) ? m.assist : "typos",
         promptIds: Array.isArray(m.ids) && m.ids.length === LIVE.n && m.ids.every((id) => PROMPTS.has(id)) ? m.ids.slice() : challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
+      LIVE.skip = null;
+      LIVE.ids = RUN.promptIds; // same array: kept for the recap after RUN is gone, and skips update both
       renderPlayShell();
       renderIntro();
     } else if (m.t === "round" && RUN && RUN.mode === "live" && Number.isInteger(m.i) && m.i < RUN.promptIds.length) {
@@ -401,6 +430,28 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       renderRivals();
     } else if (m.t === "chat" && typeof m.id === "string") {
       chatIncoming(m);
+    } else if (m.t === "skipvotes" && Number.isInteger(m.i) && Array.isArray(m.ids)) {
+      const before = LIVE.skip && LIVE.skip.i === m.i ? LIVE.skip.ids : [];
+      LIVE.skip = { i: m.i, ids: m.ids.filter((x) => typeof x === "string").slice(0, 12), need: Math.max(1, Math.min(12, Math.round(+m.need) || 1)) };
+      for (const id of LIVE.skip.ids) {
+        const pl = LIVE.players.get(id);
+        if (!before.includes(id) && id !== LIVE.myId && pl) Sound.tick(); // the skip row names them; a toast would cover the answer box
+      }
+      renderSkip();
+    } else if (m.t === "skip" && RUN && RUN.mode === "live" && Number.isInteger(m.i) && m.i < RUN.promptIds.length && m.i > LIVE.revealed && PROMPTS.has(m.id)) {
+      // the room voted this question out: a fresh one takes its slot, and nobody keeps points from it
+      cancelAnimationFrame(runRaf);
+      RUN.promptIds[m.i] = m.id;
+      RUN.results.length = Math.min(RUN.results.length, m.i);
+      Object.assign(RUN, { round: m.i, phase: "intro", draft: "", tried: [], pendingCorrection: null });
+      for (const pl of LIVE.players.values()) { delete pl.ans[m.i]; pl.typing = null; }
+      LIVE.skip = null;
+      if (descent) descent.set(RUN.results);
+      setHud(totalScore(RUN.results));
+      updateHead();
+      if ($("#card")) $("#card").innerHTML = `<div class="intro-card"><div><h2>Skipped</h2><p class="sub">A new question is on its way…</p></div></div>`;
+      renderStrip();
+      toast("Question skipped");
     } else if (m.t === "reveal" && Number.isInteger(m.i)) {
       LIVE.revealed = Math.max(LIVE.revealed, m.i);
       if (RUN && RUN.mode === "live" && RUN.results.length <= m.i && (RUN.phase === "preview" || RUN.phase === "answering")) submit(true);
@@ -458,10 +509,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       hostAnswer(conn.peer, m);
     } else if (m.t === "chat" && LIVE.players.has(conn.peer)) {
       hostChat(conn.peer, m.text, m.k);
+    } else if (m.t === "skipvote" && LIVE.players.has(conn.peer)) {
+      hostSkipVote(conn.peer, m.i, !!m.v);
     }
   }
   function hostAnswer(id, m) {
     if (LIVE.phase !== "playing" || !Number.isInteger(m.i) || m.i <= LIVE.revealed) return;
+    if (m.pid && RUN && RUN.mode === "live" && RUN.promptIds[m.i] !== m.pid) return; // answered a question that was skipped
     broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier });
     const everyone = inMatch().every((p) => p.ans[m.i]);
     if (everyone) liveLater(() => hostReveal(m.i), 700);
@@ -498,6 +552,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function hostStart() {
     if (!LIVE.isHost || LIVE.players.size < 2) return;
+    if (!validQ(LIVE.n)) LIVE.n = 7;
     LIVE.timers.forEach(clearTimeout); LIVE.timers = [];
     LIVE.phase = "playing";
     const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
@@ -520,11 +575,40 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function hostReveal(i) {
     if (LIVE.revealed >= i || LIVE.phase !== "playing") return;
     broadcast({ t: "reveal", i });
-    liveLater(() => { if (i + 1 < LIVE.n) hostRound(i + 1); else { broadcast({ t: "end" }); LIVE.phase = "done"; broadcast(lobbyMsg()); } }, REVEAL_MS);
+    // explanations take reading: hold the reveal a little longer for each one on screen
+    const pid = RUN && RUN.mode === "live" ? RUN.promptIds[i] : "";
+    const notes = new Set(inMatch().map((pl) => pl.ans[i] && explainOf(pid, pl.ans[i].answer)).filter(Boolean)).size;
+    liveLater(() => { if (i + 1 < LIVE.n) hostRound(i + 1); else { broadcast({ t: "end" }); LIVE.phase = "done"; broadcast(lobbyMsg()); } }, REVEAL_MS + Math.min(3000, 1200 * notes));
+  }
+  /** Players present for the question; a skip needs more than half of them (both, in a duo). */
+  const skipNeed = () => Math.floor(inMatch().filter((p) => !p.away).length / 2) + 1;
+  function hostSkipVote(id, i, v) {
+    if (LIVE.phase !== "playing" || !RUN || RUN.mode !== "live" || i !== RUN.round || i <= LIVE.revealed) return;
+    const pl = LIVE.players.get(id);
+    if (!pl || pl.late) return;
+    const votes = new Set(LIVE.skip && LIVE.skip.i === i ? LIVE.skip.ids : []);
+    if (v) votes.add(id); else votes.delete(id);
+    const need = skipNeed();
+    broadcast({ t: "skipvotes", i, ids: [...votes], need });
+    const present = new Set(inMatch().filter((p) => !p.away).map((p) => p.id));
+    if ([...votes].filter((x) => present.has(x)).length >= need) hostSkip(i);
+  }
+  function hostSkip(i) {
+    LIVE.timers.forEach(clearTimeout); LIVE.timers = []; // this question's time cap and any pending reveal
+    const inMatchIds = new Set(RUN.promptIds);
+    const used = new Set(LS.get("liveUsed", []));
+    const pool = DATA.prompts.map((p) => p.id).filter((id) => !inMatchIds.has(id));
+    const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !used.has(id)) : pool;
+    const from = fresh.length ? fresh : pool;
+    if (!from.length) return;
+    const id = from[Math.floor(Math.random() * from.length)];
+    if (LIVE.noRepeat !== false) LS.set("liveUsed", [...used, id].slice(-400));
+    broadcast({ t: "skip", i, id });
+    liveLater(() => hostRound(i), 1200);
   }
   /** Called from renderFeedback when this player's answer for the round is final. */
   function liveLocalAnswer(res) {
-    const m = { t: "ans", i: RUN.round, answer: res.answer, tier: res.tier };
+    const m = { t: "ans", i: RUN.round, pid: RUN.promptIds[RUN.round], answer: res.answer, tier: res.tier };
     if (LIVE.isHost) hostAnswer(LIVE.myId, m);
     else guestSend(m);
   }
@@ -799,6 +883,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function renderLobby() {
     if (!LIVE.active) return;
+    const typingN = document.activeElement && document.activeElement.id === "q-custom" ? document.activeElement.value : null;
     setMid(`Room ${LIVE.code}`);
     const ps = playerList();
     const host = ps.find((p) => p.host);
@@ -813,15 +898,16 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${LIVE.isHost ? `<div class="vs-form">
         <div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>No repeat questions across matches</span></label>
-        <div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${LIVE_SIZES.map((n) => `<button type="button" class="vs-size${n === LIVE.n ? " on" : ""}" role="radio" aria-checked="${n === LIVE.n}" data-n="${n}">${n}</button>`).join("")}</div></div>
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. Autocorrect: ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}.</p>`}
+        ${qPicker(LIVE.n)}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}.</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
-    $$(".vs-size").forEach((b) => b.addEventListener("click", () => { LIVE.n = +b.dataset.n; broadcast(lobbyMsg()); }));
+    wireQPicker(() => LIVE.n, (n) => { LIVE.n = n; broadcast(lobbyMsg()); });
     const ll = $("#live-leave-lobby");
     if (ll) ll.addEventListener("click", () => leaveLive(false));
     $$(".lv-assist").forEach((b) => b.addEventListener("click", () => { LIVE.assist = b.dataset.a; broadcast(lobbyMsg()); }));
+    if (typingN !== null && $("#q-custom")) { const box = $("#q-custom"); box.value = typingN; box.focus(); }
     const nr = $("#live-norepeat");
     if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
     wireReady();
@@ -863,6 +949,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function renderStrip() {
     renderRivals();
+    renderSkip();
     const el = $("#live-strip");
     if (!el || !RUN || RUN.mode !== "live") return;
     const i = RUN.round;
@@ -872,6 +959,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const tot = shownTotal(p) - (!iDone && p.id !== LIVE.myId ? roundPts(p, i) : 0);
       return `<span class="lp${p.id === LIVE.myId ? " me" : ""}${done ? " done" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><em>${tot}</em>${done && LIVE.revealed < i ? `<i class="lp-tick" aria-label="answered">✓</i>` : ""}</span>`;
     }).join("");
+  }
+  /** Vote to skip the open question; shows who else wants to. */
+  function renderSkip() {
+    const el = $("#live-skip");
+    if (!el || !RUN || RUN.mode !== "live") return;
+    const i = RUN.round;
+    if (LIVE.phase !== "playing" || i <= LIVE.revealed || RUN.phase === "intro") { el.innerHTML = ""; return; }
+    const cur = LIVE.skip && LIVE.skip.i === i ? LIVE.skip : { ids: [], need: skipNeed() };
+    const mine = cur.ids.includes(LIVE.myId);
+    const others = cur.ids.filter((id) => id !== LIVE.myId).map((id) => (LIVE.players.get(id) || {}).name).filter(Boolean);
+    el.innerHTML = `<button type="button" class="btn sm${mine ? " on" : ""}" id="skip-vote" aria-pressed="${mine}">${mine ? "Voted to skip" : "Vote to skip"}${cur.ids.length ? ` · ${cur.ids.length} of ${cur.need}` : ""}</button>${others.length ? `<span class="skip-who">${esc(others.join(", "))} ${others.length === 1 ? "wants" : "want"} to skip</span>` : ""}`;
+    $("#skip-vote").addEventListener("click", () => {
+      const m = { t: "skipvote", i, v: !mine };
+      if (LIVE.isHost) hostSkipVote(LIVE.myId, i, m.v); else guestSend(m);
+    });
   }
   function renderLiveWait() {
     const el = $("#live-wait");
@@ -890,7 +992,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <p class="fb-q">${esc(p.text)}</p>
       <ul class="lv-answers">${ps.map((pl) => {
         const a = pl.ans[i];
-        return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span></span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
+        const x = a && explainOf(p.id, a.answer);
+        return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="lx">${esc(x)}</span>` : ""}</span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
       }).join("")}</ul>
       <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <p class="lv-note">${last ? "Final standings coming up…" : `Question ${i + 2} of ${LIVE.n} coming up…`}</p>
@@ -903,6 +1006,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const ps = inMatch().sort((a, b) => shownTotal(b) - shownTotal(a));
     const top = ps.length ? shownTotal(ps[0]) : 0;
     const winners = ps.filter((p) => shownTotal(p) === top);
+    const ids = (LIVE.ids || []).slice(0, LIVE.n).filter((id) => PROMPTS.has(id));
+    const me = LIVE.players.get(LIVE.myId);
+    const openKeys = new Set($$("details.key[open]", app).map((d) => d.dataset.pid)); // redraws (Ready taps) keep what you opened
+    const recap = ids.length ? `
+      <section class="lv-recap">
+        <h2 class="block-title">Answers</h2>
+        ${ids.map((pid, i) => `<div class="rc"><p class="rc-q">${esc(PROMPTS.get(pid).text)}</p><ul class="rc-list">${ps.map((pl) => {
+          const a = pl.ans[i], x = a && explainOf(pid, a.answer);
+          return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${G(a && a.tier)}<span><span class="rn">${esc(pl.name)}</span><span class="ra">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="rx">${esc(x)}</span>` : ""}</span><em>+${roundPts(pl, i)}</em></li>`;
+        }).join("")}</ul></div>`).join("")}
+      </section>
+      <section>
+        <h2 class="block-title">Answer keys</h2>
+        ${ids.map((pid, i) => answerKey(PROMPTS.get(pid), me && me.ans[i] && me.ans[i].answer, openKeys.has(pid))).join("")}
+      </section>` : "";
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>${winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${LIVE.n} questions · Room ${esc(LIVE.code)}</p></div>
       <ol class="lv-podium">${ps.map((pl, k) => `<li class="${k === 0 ? "first" : ""}${pl.id === LIVE.myId ? " me" : ""}">
@@ -910,7 +1028,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div class="btn-row">
         <a class="btn big" href="#home" id="live-leave">Leave</a>
       </div>
+      ${recap}
     </section>`;
+    wireAnswerKeys(app);
     $("#live-leave").addEventListener("click", () => leaveLive(false));
     $("#live-leave").insertAdjacentHTML("beforebegin", readyBlock("Ready for rematch"));
     wireReady();
@@ -1263,6 +1383,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div class="prompt-card" id="card"></div>
     </section>`;
     scene("play");
+    V.setRounds(RUN.promptIds.length);
     descent = V.Descent($("#descent"), {
       onFrame: (x) => {
         if (!RUN) return;
@@ -1277,7 +1398,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     descent.set(RUN.results);
     updateHead();
     setHud(totalScore(RUN.results));
-    if (RUN.mode === "live") { $("#card").insertAdjacentHTML("beforebegin", `<div class="live-strip" id="live-strip" aria-live="polite"></div><div class="live-rivals" id="live-rivals"></div>`); renderStrip(); }
+    if (RUN.mode === "live") { $("#card").insertAdjacentHTML("beforebegin", `<div class="live-strip" id="live-strip" aria-live="polite"></div><div class="live-rivals" id="live-rivals"></div><div class="live-skip" id="live-skip"></div>`); renderStrip(); }
   }
   function updateHead() {
     if (!RUN) return;
@@ -1664,7 +1785,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           const isYou = you && [a.a].concat(a.aka || []).some((n) => E.fullKey(n) === you);
           return `<li class="t-${a.t}${isYou ? " you" : ""}">${G(a.t)}
             <span><span class="nm">${esc(a.a)}</span>${isYou ? `<span class="you-tag">You</span>` : ""}
-            ${a.aka && a.aka.length ? `<span class="ak">${esc(a.aka.slice(0, 3).join(", "))}</span>` : ""}</span>
+            ${a.aka && a.aka.length ? `<span class="ak">${esc(a.aka.slice(0, 3).join(", "))}</span>` : ""}
+            ${a.q ? `<span class="ex">${esc(a.q)}</span>` : ""}</span>
             <span class="pt">+${T[a.t].score}</span></li>`;
         }).join("") || `<li><span></span><span class="muted">No matches</span><span></span></li>`;
         cnt.textContent = `${fmt(shown.length)} of ${fmt(m.length)}`;
@@ -1693,6 +1815,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const nextLabel = rec.mode === "unlimited" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
     const isVs = rec.mode === "vs";
+    V.setRounds(n); // the results chart uses the same hill as the run
     scene("results");
     app.innerHTML = `<section class="screen results">
       <div class="side">
@@ -1718,7 +1841,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <ul class="run-list">${rec.results.map((r) => `
             <li class="run-item t-${tierOf(r.tier)}">${G(r.tier)}
               <span><span class="q">${esc(r.promptText)}</span>
-                <span class="a ${r.answer ? "" : "missed"}">${r.answer ? esc(r.answer) : r.raw ? `“${esc(r.raw)}”` : "No answer"}</span></span>
+                <span class="a ${r.answer ? "" : "missed"}">${r.answer ? esc(r.answer) : r.raw ? `“${esc(r.raw)}”` : "No answer"}</span>
+                ${(() => { const x = r.answer && (explainOf(r.promptId, r.answer) || r.quip); return x ? `<span class="qp">${esc(x)}</span>` : ""; })()}</span>
               <span class="pts">+${r.score}</span>
             </li>`).join("")}</ul>
         </section>
@@ -1811,20 +1935,25 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderChallenge() {
     setMid("Challenge");
     let size = LS.get("vsSize", 5);
-    if (!VS_SIZES.includes(size)) size = 5;
+    if (!validQ(size)) size = 5;
     app.innerHTML = `<section class="screen challenge">
       <div class="page-head"><h1>Challenge a friend</h1><p>Play first, then send one link. Your friend plays the same questions and sees who won. No accounts.</p></div>
       <div class="vs-form">
         <label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So your friend knows" value="${esc(myName())}"></label>
-        <div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${VS_SIZES.map((n) => `<button type="button" class="vs-size${n === size ? " on" : ""}" role="radio" aria-checked="${n === size}" data-n="${n}">${n}</button>`).join("")}</div></div>
+        ${qPicker(size)}
         <button class="btn primary big" id="vs-go">Start</button>
       </div>
     </section>`;
-    $$(".vs-size").forEach((b) => b.addEventListener("click", () => {
-      size = +b.dataset.n;
-      $$(".vs-size").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); });
-    }));
+    wireQPicker(() => size, (n) => {
+      size = n;
+      $$(".q-size").forEach((x) => { const on = +x.dataset.n === n; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); });
+      const box = $("#q-custom");
+      box.classList.toggle("on", !Q_PRESETS.includes(n));
+      if (Q_PRESETS.includes(n)) box.value = "";
+    });
     $("#vs-go").addEventListener("click", () => {
+      const box = $("#q-custom"); // a number typed but not yet confirmed still counts
+      if (box.value !== "" && validQ(Math.round(+box.value))) size = Math.round(+box.value);
       LS.set("name", $("#vs-name").value.trim().slice(0, 16));
       LS.set("vsSize", size);
       const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");

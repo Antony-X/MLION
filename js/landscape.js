@@ -242,7 +242,10 @@
   }
 
   // --------------------------------------------------------- the terrain
-  const END = 7000; // the global minimum
+  // The global minimum sits at a perfect score (10 world units per point). Seven
+  // questions is the daily; longer matches stretch the hill so the ball never climbs.
+  let END = 7000;
+  function setRounds(n) { END = Math.max(7, Math.round(+n) || 7) * 1000; }
   function wig(x, z) {
     return 34 * Math.sin(x / 173 + z * 0.9) * (1 + 0.25 * z) +
       17 * Math.sin(x / 57 + 1.3 + z * 1.7) + 7 * Math.sin(x / 21 + 0.4 + z * 2.9);
@@ -569,5 +572,5 @@
     </svg>`;
   }
 
-  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, glyph, mark, MARK, profileSvg, GLYPHS };
+  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, glyph, mark, MARK, profileSvg, GLYPHS, setRounds };
 })();

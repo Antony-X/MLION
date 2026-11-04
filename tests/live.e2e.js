@@ -100,12 +100,34 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ben.press("#chat-input", "Escape");
   check(await ben.isHidden("#chat"), "Escape closes the chat");
 
-  await ana.click('.vs-size[data-n="5"]');
+  // Host settings. Tapping autocorrect help used to turn the question count into NaN, so no match could start.
+  await ana.click('.lv-assist[data-a="full"]');
+  await ana.fill("#q-custom", "4");
+  await ana.press("#q-custom", "Enter");
+  await ben.waitForFunction(() => /picks the settings. 4 questions · autocorrect full/.test(document.body.textContent), null, { timeout: 8000 });
+  check(true, "guests see the host's custom question count and autocorrect choice");
   for (const pg of [ana, ben, cy]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
   check(true, "everyone taps Ready; match starts by itself");
   await ana.click("#chat-btn"); // left open while the match starts
-  const plan = { ana: ["snake", "snake", "snake", "snake", "snake"], ben: ["relu", "relu", "relu", "relu", "relu"], cy: ["gelu", "gelu", "gelu", "gelu", "gelu"] };
-  for (let i = 0; i < 5; i++) {
+  const plan = { ana: ["snake", "snake", "snake", "snake"], ben: ["relu", "relu", "relu", "relu"], cy: ["gelu", "gelu", "gelu", "gelu"] };
+  const snakeNote = JSON.parse(fs.readFileSync(path.join(ROOT, "data/prompts/activation-function.json"), "utf8")).answers.find((a) => a.a === "Snake").q;
+  for (let i = 0; i < 4; i++) {
+    if (i === 1) { // Cy answers, then Ana and Ben vote the question out: a new one starts and Cy's points from it are gone
+      for (const pg of [ana, ben, cy]) await pg.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
+      check(i === 1 && (await ana.evaluate(() => window.MLION_LIVE_STATE.n)) === 4, "the match runs the custom count, even after changing autocorrect help");
+      const before = await ana.textContent("#prompt-text");
+      await cy.fill("#answer", "gelu");
+      await cy.press("#answer", "Enter");
+      await ana.click("#skip-vote");
+      await ben.waitForFunction(() => /Ana wants to skip/.test(document.querySelector("#live-skip").textContent) && /1 of 2/.test(document.querySelector("#live-skip").textContent), null, { timeout: 8000 });
+      check(true, "a skip vote shows who wants to skip and how many votes it needs");
+      await ben.screenshot({ path: path.join(OUT, "34-skip-vote.png") });
+      await ben.click("#skip-vote");
+      for (const pg of [ana, ben, cy]) {
+        await pg.waitForFunction((b) => { const el = document.querySelector("#prompt-text"); return el && el.textContent !== b && document.querySelector("#veil.hidden"); }, before, { timeout: 20000 });
+      }
+      check(true, "a majority skips the question and a new one starts for everyone");
+    }
     for (const [page, who] of [[ana, "ana"], [ben, "ben"], [cy, "cy"]]) {
       await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
       if (i === 0 && who === "ana") {
@@ -158,14 +180,26 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     if (i === 0) {
       const txt = await ben.textContent(".lv-answers");
       check(txt.includes("Ana") && txt.includes("Snake") && txt.includes("ReLU"), "both answers revealed to everyone");
+      check(txt.includes(snakeNote), "the reveal explains the answers that have an explanation");
       await ben.screenshot({ path: path.join(OUT, "22-live-reveal.png") });
     }
   }
   await Promise.all([ana.waitForSelector(".lv-podium", { timeout: 15000 }), ben.waitForSelector(".lv-podium", { timeout: 15000 })]);
   check((await ben.textContent("h1")).includes("Ana wins"), "podium names the winner on both phones");
-  check((await ana.textContent(".lv-podium li.first em")).trim() === "500", "scores add up (Ana 500)");
+  check((await ana.textContent(".lv-podium li.first em")).trim() === "400", "scores add up (Ana 400)");
   const order = await ana.$$eval(".lv-podium .nm b", (els) => els.map((e) => e.textContent));
   check(order.join(",") === "Ana,Cy,Ben", `podium order (${order.join(", ")})`);
+  const cyPts = await ana.$$eval(".lv-podium li", (els) => els.find((li) => li.textContent.includes("Cy")).querySelector("em").textContent.trim());
+  check(cyPts === "120", `the skipped question's points are gone (Cy ${cyPts}, would be 150 with them)`);
+  check((await ana.$$(".lv-recap .rc")).length === 4 && (await ana.textContent(".lv-recap")).includes(snakeNote), "the end recap lists every question's answers with explanations");
+  await ana.click("details.key summary");
+  await ana.waitForSelector("details.key[open] .ans-list .ex", { timeout: 5000 });
+  check((await ana.$$("details.key[open] .ans-list .ex")).length > 3, "answer keys explain their answers");
+  await ana.screenshot({ path: path.join(OUT, "35-podium-recap.png"), fullPage: true });
+  await ben.click("#live-ready"); // a lobby update redraws Ana's podium
+  await ana.waitForFunction(() => /Ben/.test(document.querySelector(".lv-note") ? document.body.textContent : "") && document.querySelectorAll("details.key").length === 4, null, { timeout: 8000 });
+  await ana.waitForTimeout(600);
+  check((await ana.$$("details.key[open]")).length === 1, "an answer key you opened stays open when the podium redraws");
   await ben.screenshot({ path: path.join(OUT, "23-live-podium.png") });
   check(await ben.isVisible("#chat-btn"), "chat stays available on the podium");
   await cy.evaluate(() => { location.hash = "#home"; });

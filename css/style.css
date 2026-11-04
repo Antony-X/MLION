@@ -782,3 +782,36 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .chat-peek b { font-weight: 400; font-size: var(--s1); color: var(--muted); }
 .chat-peek span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .reduce-motion .chat, .reduce-motion .chat-peek { animation: none; }
+
+/* ------------------------------------------------------- explanations */
+/* the key's one-liners: under an answer, always quieter than the answer itself */
+.ans-list .ex { display: block; font-size: var(--s1); color: var(--muted); margin-top: 2px; }
+.lv-answers .lx { display: block; font-size: var(--s1); color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.lv-recap { display: grid; gap: 14px; }
+.rc { display: grid; gap: 8px; padding: 14px 16px; border-radius: var(--soft); background: var(--surface); }
+.rc-q { color: var(--muted); font-size: var(--s1); }
+.rc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rc-list li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: start; color: var(--tc); }
+.rc-list .glyph { font-size: 22px; margin-top: 1px; }
+.rc-list .rn { display: block; font-size: var(--s1); color: var(--muted); }
+.rc-list li.me .rn { color: var(--gold); }
+.rc-list .ra { display: block; color: var(--ink); overflow-wrap: anywhere; }
+.rc-list .rx { display: block; font-size: var(--s1); color: var(--muted); margin-top: 2px; }
+.rc-list em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--tc); }
+
+/* ------------------------------------------------- custom question count */
+.vs-sizes { flex-wrap: wrap; }
+.q-custom {
+  width: 96px; height: 56px; padding: 0 14px; border: 0; border-radius: var(--round); outline: none;
+  background: var(--raised); color: var(--ink); font-size: var(--s3); text-align: center; -moz-appearance: textfield;
+}
+.q-custom::-webkit-outer-spin-button, .q-custom::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.q-custom::placeholder { color: var(--faint); font-size: var(--s2); }
+.q-custom:focus { box-shadow: inset 0 0 0 2px var(--gold); }
+.q-custom.on { background: var(--gold); color: var(--gold-ink); }
+
+/* ------------------------------------------------------- vote to skip */
+.live-skip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.live-skip:empty { display: none; }
+.live-skip .btn.on { background: var(--raised-2); box-shadow: inset 0 0 0 2px var(--muted); }
+.skip-who { color: var(--muted); font-size: var(--s1); }
