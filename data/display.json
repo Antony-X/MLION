@@ -1,0 +1,103 @@
+{
+  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown.",
+  "accelerator": {
+    "scope": "A specific chip or accelerator line, not just a vendor"
+  },
+  "ai-book": {
+    "example": "Deep Learning"
+  },
+  "ai-leader": {
+    "scope": "Surname is enough"
+  },
+  "ai-researcher": {
+    "scope": "Surname is enough"
+  },
+  "bert-variant": {
+    "scope": "Encoder-only transformers"
+  },
+  "cnn-architecture": {
+    "example": "ResNet"
+  },
+  "code-model": {
+    "scope": "Models, not IDE products"
+  },
+  "decision-tree-algo": {
+    "example": "CART",
+    "scope": "Single trees, not ensembles"
+  },
+  "dropout-variant": {
+    "example": "DropConnect"
+  },
+  "eponym": {
+    "scope": "Type the person's surname"
+  },
+  "feature-selection": {
+    "scope": "Keeps a subset of the original features"
+  },
+  "fictional-ai": {
+    "scope": "From film, TV, books or games"
+  },
+  "gan-variant": {
+    "example": "DCGAN"
+  },
+  "historic-ai": {
+    "scope": "Built before the year 2000"
+  },
+  "hyperparameter": {
+    "scope": "Anything chosen rather than learned"
+  },
+  "kernel-function": {
+    "example": "RBF"
+  },
+  "llm": {
+    "example": "GPT-4",
+    "scope": "Generations count separately; sizes don't"
+  },
+  "ml-competition": {
+    "example": "Netflix Prize"
+  },
+  "ml-course": {
+    "example": "CS229"
+  },
+  "ml-slang": {
+    "scope": "Community slang, not standard technical terms"
+  },
+  "nas": {
+    "example": "DARTS"
+  },
+  "nn-family": {
+    "example": "CNN",
+    "scope": "Broad families, not specific named models"
+  },
+  "numpy-function": {
+    "scope": "The np. prefix is optional"
+  },
+  "optimizer": {
+    "example": "SGD"
+  },
+  "probabilistic-model": {
+    "scope": "Models, not inference algorithms"
+  },
+  "regularization": {
+    "example": "L2 regularization"
+  },
+  "robot": {
+    "example": "Roomba"
+  },
+  "sequence-model-alt": {
+    "example": "Mamba"
+  },
+  "special-token": {
+    "scope": "Brackets are optional"
+  },
+  "torch-nn-module": {
+    "example": "Linear",
+    "scope": "Any class in torch.nn; the nn. prefix is optional"
+  },
+  "training-trick": {
+    "scope": "Not plain optimizers"
+  },
+  "turing-award": {
+    "scope": "Any field of computing. Surname is enough"
+  }
+}

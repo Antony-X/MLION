@@ -26,8 +26,10 @@ Look at `data/prompts/activation-function.json` for a finished example.
   former names, the PyTorch/Keras class name, and well-known nicknames. Optional.
 - `q`: a quip shown when someone lands the answer, at most 140 characters. Make it witty
   and factually right. Optional.
-- `note`: a short scope clarification shown under the prompt, at most 160 characters.
-  Use it whenever the boundaries could be argued about.
+- `note`: internal scope notes, at most 160 characters. Players never see it; it's context
+  for reviewers and for the Claude answer check. Use it whenever the boundaries could be argued about.
+  What players see is set in `data/display.json`: an `(e.g. …)` example, which defaults to the
+  first baseline answer, and an optional one-line `scope` that must not name any answers.
 - `strip`: words that get dropped from both the player's input and the answer keys before
   comparing. This lets "Huber loss" match `Huber` when `strip` contains `"loss"`.
   Only list generic words that never tell two answers apart.

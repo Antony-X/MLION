@@ -466,3 +466,4 @@ code { font-family: var(--font-ui); font-size: 0.9em; color: var(--ink-2); }
 }
 .chip:hover, .chip:focus-visible { background: rgba(71, 198, 255, 0.2); }
 [hidden] { display: none !important; }
+.prompt-text .eg { color: var(--muted); font-weight: 400; white-space: nowrap; }

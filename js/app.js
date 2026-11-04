@@ -421,8 +421,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     updateHead();
     $("#card").innerHTML = `
       <div class="prompt-num">prompt ${String(RUN.round + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")} · ${esc(PACKS.get(p.pack).name)}</div>
-      <div class="prompt-text" id="prompt-text">${esc(p.text)}</div>
-      ${p.note ? `<p class="prompt-note">${esc(p.note)}</p>` : ""}
+      <div class="prompt-text" id="prompt-text">${esc(p.text)}${p.example ? ` <span class="eg">(e.g. ${esc(p.example)})</span>` : ""}</div>
+      ${p.scope ? `<p class="prompt-note">${esc(p.scope)}</p>` : ""}
       <div class="timer" id="timer">
         <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
         <div class="timer-row"><span id="timer-label">clock starts in</span><b id="timer-num">25.0</b></div>

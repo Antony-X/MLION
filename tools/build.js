@@ -23,6 +23,8 @@ const lenient = args.includes("--lenient"); // dev only: bundle the valid files,
 const fileArgs = args.filter((a) => !a.startsWith("--"));
 
 const packs = JSON.parse(fs.readFileSync(PACKS_FILE, "utf8"));
+const DISPLAY_FILE = path.join(ROOT, "data", "display.json");
+const display = fs.existsSync(DISPLAY_FILE) ? JSON.parse(fs.readFileSync(DISPLAY_FILE, "utf8")) : {};
 const packIds = new Set(packs.map((p) => p.id));
 
 const RULES = {
@@ -74,6 +76,17 @@ function validatePrompt(p, file) {
   if (counts.indist < 2) warns.push(`indist only ${counts.indist}`);
   const { errors } = E.buildIndex(p);
   errs.push(...errors);
+  // What players see: "(e.g. <example>)" plus an optional scope line. Notes stay internal.
+  const d = display[p.id] || {};
+  const firstBase = p.answers.find((a) => a.t === "baseline");
+  const example = d.example || p.example || (firstBase && firstBase.a);
+  const m = example ? E.matchAnswer(p, example) : null;
+  if (!m || m.kind !== "exact") errs.push(`example "${example}" is not an accepted answer`);
+  else if (m.answer.t !== "baseline") warns.push(`example "${example}" is ${m.answer.t}, not baseline`);
+  delete p._index;
+  p.example = m && m.answer ? m.answer.a : example;
+  const scope = d.scope !== undefined ? d.scope : p.scope;
+  if (scope) p.scope = scope; else delete p.scope;
   return { errs, warns, counts };
 }
 
@@ -117,6 +130,9 @@ for (const file of files) {
   if (!errs.length) prompts.push(sortAnswers(p));
 }
 
+for (const id of Object.keys(display)) {
+  if (!id.startsWith("_") && !seenIds.has(id) && !fileArgs.length) console.warn(`  ! display.json: no prompt "${id}" yet`);
+}
 const total = prompts.reduce((s, p) => s + p.answers.length, 0);
 console.log(`${files.length} prompt files · ${prompts.length} valid · ${bad} invalid · ${warnCount} warnings · ${total} answers`);
 if (bad && !lenient) process.exit(1);
