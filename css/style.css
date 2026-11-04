@@ -701,3 +701,8 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .lv-check input { width: 22px; height: 22px; accent-color: var(--gold); }
 #rooms-list li .btn { margin-left: 8px; }
 #rooms-list li > span { margin-left: auto; }
+
+.lv-banner {
+  padding: 18px 20px; border-radius: var(--soft); background: var(--gold); color: var(--gold-ink);
+  font-size: var(--s3); font-weight: 600; animation: lv-in 420ms var(--ease-out) both;
+}
