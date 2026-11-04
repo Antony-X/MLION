@@ -49,6 +49,8 @@ assert.strictEqual(E.singular("gans"), "gan"); ok("plural");
   assert.strictEqual(m("recurent neural network").kind, "correction"); ok("single typo is a correction");
   assert.strictEqual(m("rellu").answer.a, "ReLU"); ok("tie goes to the more common answer");
   assert.strictEqual(m("banana").kind, "none"); ok("nonsense stays a miss");
+  assert.strictEqual(m("forest random").kind, "correction"); assert.strictEqual(m("forest random").answer.a, "Random forest"); ok("word order: a reversed name is a correction");
+  assert.strictEqual(m("anything segment").answer.a, "Segment Anything"); ok("word order: any multi-word answer");
 }
 
 // --- every answer and alias matches itself, in every prompt

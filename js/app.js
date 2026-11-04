@@ -968,7 +968,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       js.lastHost = Date.now(); js.warned = false;
       if (Number.isFinite(+d.now)) { const o = +d.now - Date.now(); LIVE.offset = LIVE.offset == null ? o : LIVE.offset * 0.7 + o * 0.3; }
       if (d.t === "hb") return;
-      if (d.t === "full") { leaveLive(); return renderLiveStatus("That room is full. Duo rooms take 2 players.", true); }
+      if (d.t === "full") { leaveLive(); return renderLiveStatus("That room is full. Open rooms take two players.", true); }
       if (!LIVE.active) {
         if (d.t !== "lobby" || !Array.isArray(d.players) || !d.players.some((p) => p && p.id === id)) return;
         js.joined = true;
@@ -1031,7 +1031,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p>${joining ? `Room ${esc(code)}. Same questions, same clock, scores live.` : "Make a room and send the link, or join an open room below. Same questions, same clock."}</p></div>
       <div class="vs-form">
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
-        ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms so anyone can join (2 players)</span></label>`}
+        ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms, so one stranger can join you</span></label>`}
         <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button></div>
       </div>
       ${joining ? "" : `<section class="lv-open"><h2 class="block-title">Open rooms</h2><p id="rooms-status" role="status">Looking for rooms…</p>
@@ -1076,7 +1076,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const host = ps.find((p) => p.host);
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>Room <span class="lv-code">${esc(LIVE.code)}</span></h1>
-        <p>${LIVE.isPublic ? "Public duo room · listed in Public rooms. " : ""}${ps.length < 2 ? "Waiting for someone to join…" : `${ps.length} players here.`}</p>
+        <p>${LIVE.isPublic ? "Open room for two, listed for anyone to join. " : ""}${ps.length < 2 ? "Waiting for someone to join…" : `${ps.length} players here.`}</p>
         ${LIVE.isHost ? `<p class="lv-note">Keep MLion open while friends join. If you switch apps, come back here and the room reconnects.</p>` : ""}</div>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
       <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#live" id="live-leave-lobby">Leave</a></div>
@@ -3015,7 +3015,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <dt>When does it reset?</dt>
         <dd>At local midnight. Everyone gets the same seven.</dd>
         <dt>Is anything tracked?</dt>
-        <dd>No. Runs, streaks and settings stay in this browser.</dd>
+        <dd>No analytics. Runs, streaks and settings stay in this browser. Log in with Discord and only your daily score and the name you pick go to the leaderboard.</dd>
       </dl></section>`;
   }
 

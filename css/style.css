@@ -1033,3 +1033,6 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 
 .quiz-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px; }
 @media (max-width: 420px) { .quiz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Keyboard hints mean nothing on a touch screen with no keyboard. */
+@media (hover: none) and (pointer: coarse) { .hint:has(kbd) { display: none; } }

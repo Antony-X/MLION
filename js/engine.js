@@ -118,6 +118,8 @@
   function contentWords(s, strip) {
     return without(without(dropArticle(tokens(s)), strip), SOFT_FILLER).filter((w) => !STOP.has(w));
   }
+  /** Words in a fixed order, so a name typed back to front finds its answer. */
+  function bagKey(w) { return [...w].sort().join(" "); }
   function singular(k) {
     if (k.length > 4 && k.endsWith("es") && !k.endsWith("ses")) return k.slice(0, -2);
     if (k.length > 3 && k.endsWith("s") && !k.endsWith("ss")) return k.slice(0, -1);
@@ -206,6 +208,9 @@
     const loose = softMap(keys.map((k) => [singular(k), exact.get(k)]));
     const soft = softMap(softPairs);
     const acro = softMap(acPairs.filter(([k]) => !exact.has(k)));
+    // Word order: "Knuth Donald", "Hastings Metropolis". Only names of two to four words, and only
+    // when no other answer has the same words.
+    const bag = softMap(words.filter(({ w }) => w.length <= 4).map(({ idx, w }) => [bagKey(w), idx]));
     // Character-trigram TF-IDF vectors: a small "embedding" for near-miss suggestions.
     const df = new Map();
     const grams = keys.map((k) => { const g = trigrams(k); for (const t of g.keys()) df.set(t, (df.get(t) || 0) + 1); return g; });
@@ -217,7 +222,7 @@
       for (const [t, c] of g) { const v = c * idf(t); w.set(t, v); norm += v * v; }
       return { w, norm: Math.sqrt(norm) || 1 };
     });
-    return { index: { strip, exact, loose, soft, acro, keys, vecs, idf, words }, errors };
+    return { index: { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words }, errors };
   }
 
   /**
@@ -229,7 +234,7 @@
    */
   /** True when an answer is listed under a name of two or more real words. */
   function hasLongForm(a) {
-    return [a.a].concat(a.aka || []).some((n) => tokens(n).filter((w) => w.length >= 3 && !/^d+$/.test(w)).length >= 2);
+    return [a.a].concat(a.aka || []).some((n) => tokens(n).filter((w) => w.length >= 3 && !/^\d+$/.test(w)).length >= 2);
   }
   // Every answer key in the game (set by the app with setLexicon). A player who types something that
   // is a real answer somewhere else meant that thing, not a typo of an answer here: a fuzzy match is
@@ -246,7 +251,7 @@
   }
   function matchRaw(prompt, raw) {
     if (!prompt._index) prompt._index = buildIndex(prompt).index;
-    const { strip, exact, loose, soft, acro, keys, vecs, idf, words } = prompt._index;
+    const { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
     const kf = fullKey(text);
     if (!kf) return { kind: "none" };
@@ -262,6 +267,9 @@
     }
     for (const k of [kso, singular(kso)]) if (soft.has(k)) return hit(soft.get(k));
     for (const k of [kf, ks]) if (acro.has(k)) return hit(acro.get(k));
+    for (const w of [contentWords(text, strip), contentWords(text, null)]) {
+      if (w.length >= 2 && w.length <= 4 && bag.has(bagKey(w))) return { kind: "correction", answer: answers[bag.get(bagKey(w))], from: text, confidence: 0.92, via: "order" };
+    }
     // The player typed the long form of an answer listed only as initials. Decided after the typo
     // check: "Binarized nural network" has the initials of BNN (Bayesian NN), but it is a typo.
     // Only for answers that have no long form of their own: "Prompt injection" is not PI when the
