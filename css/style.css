@@ -696,3 +696,8 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .lv-podium .nm b { font-weight: 400; font-size: var(--s3); }
 .lv-podium em { font-size: var(--s4); font-weight: 300; }
 .reduce-motion .lv-pulse { animation: none; }
+
+.lv-check { display: flex; gap: 12px; align-items: center; color: var(--ink); cursor: pointer; }
+.lv-check input { width: 22px; height: 22px; accent-color: var(--gold); }
+#rooms-list li .btn { margin-left: 8px; }
+#rooms-list li > span { margin-left: auto; }

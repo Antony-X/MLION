@@ -279,6 +279,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const WEB_URL = "https://antony-x.github.io/MLION/";
   const PEER_SRC = "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js";
   const LIVE_SIZES = [5, 7, 10];
+  const PUB_SLOTS = 10; // public rooms live at fixed codes pub01..pub10 so anyone can find them
+  const pubCode = (k) => `pub${String(k).padStart(2, "0")}`;
+  const AWAY_GRACE_MS = 15000;
   const REVEAL_MS = 4500;
   const CODE_ABC = "abcdefghjkmnpqrstuvwxyz23456789";
   const liveBlocked = () => !!SHARE_BASE; // only the artifact build sets SHARE_BASE
@@ -292,6 +295,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       s.src = PEER_SRC; s.async = true;
       s.onload = () => (window.Peer ? res(window.Peer) : rej(new Error("no Peer")));
       s.onerror = () => { peerLib = null; rej(new Error("load failed")); };
+      setTimeout(() => { if (!window.Peer) { peerLib = null; rej(new Error("timeout")); } }, 10000);
       document.head.appendChild(s);
     });
     return peerLib;
@@ -332,7 +336,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const p of m.players.slice(0, 12)) {
         if (!p || typeof p.id !== "string") continue;
         const old = LIVE.players.get(p.id);
-        next.set(p.id, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, ans: old ? old.ans : {} });
+        next.set(p.id, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ans: old ? old.ans : {} });
         if (!before.has(p.id) && p.id !== LIVE.myId && LIVE.phase === "lobby") { toast(`${cleanName(p.name) || "Someone"} joined`); Sound.tier("indist"); }
       }
       for (const id of before) if (!next.has(id) && LIVE.players.get(id)) toast(`${LIVE.players.get(id).name} left`);
@@ -382,10 +386,24 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     apply(m);
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, phase: LIVE.phase, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late })) };
+    return { t: "lobby", n: LIVE.n, phase: LIVE.phase, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
+    if (m.t === "info") {
+      const host = playerList().find((p) => p.host);
+      try { conn.send({ t: "info", host: host ? host.name : "Someone", players: LIVE.players.size, phase: LIVE.phase, n: LIVE.n }); } catch { /* ignore */ }
+      setTimeout(() => { try { conn.close(); } catch { /* ignore */ } }, 400);
+      return;
+    }
+    if (m.t === "hello" && LIVE.players.has(conn.peer)) { // came back within the grace period
+      const pl = LIVE.players.get(conn.peer);
+      clearTimeout(pl.awayTimer); pl.away = false;
+      LIVE.conns.set(conn.peer, conn);
+      broadcast(lobbyMsg());
+      if (LIVE.phase === "playing") try { conn.send({ t: "resume", seed: LIVE.seed, n: LIVE.n }); } catch { /* ignore */ }
+      return;
+    }
     if (m.t === "hello") {
       if (LIVE.players.size >= 8) { try { conn.send({ t: "full" }); } catch { /* ignore */ } return; }
       let name = cleanName(m.name) || "Player";
@@ -406,10 +424,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (everyone) liveLater(() => hostReveal(m.i), 700);
   }
   function hostDrop(id) {
-    if (!LIVE.players.has(id)) return;
+    const pl = LIVE.players.get(id);
+    if (!pl || pl.away) return;
     LIVE.conns.delete(id);
-    LIVE.players.delete(id);
+    pl.away = true; // keep their seat for a while: phones pause pages when you switch apps
     broadcast(lobbyMsg());
+    pl.awayTimer = setTimeout(() => {
+      if (!pl.away || !LIVE.players.has(id)) return;
+      LIVE.players.delete(id);
+      broadcast(lobbyMsg());
+      hostCheckRound();
+    }, AWAY_GRACE_MS);
+  }
+  function hostCheckRound() {
     if (LIVE.phase === "playing" && RUN && RUN.mode === "live") {
       const i = RUN.round;
       if (i > LIVE.revealed && inMatch().every((p) => p.ans[i])) liveLater(() => hostReveal(i), 700);
@@ -460,13 +487,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (document.visibilityState === "visible" && LIVE.active && !LIVE.isHost && LIVE.hostConn && !LIVE.hostConn.open) guestRejoin();
   });
 
-  async function liveCreate(name) {
+  async function liveCreate(name, isPublic) {
     LS.set("name", name);
     renderLiveStatus("Opening a room…");
     let Peer;
     try { Peer = await loadPeer(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
     const attempt = (tries) => {
-      const code = (tries === 0 && window.MLION_LIVE_CODE) || Array.from({ length: 5 }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join("");
+      const code = isPublic ? pubCode(tries + 1) : (tries === 0 && window.MLION_LIVE_CODE) || Array.from({ length: 5 }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join("");
       const peer = new Peer(`mlion-live-${code}`, peerOpts());
       let opened = false;
       peer.on("open", (id) => {
@@ -483,8 +510,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         conn.on("error", () => hostDrop(conn.peer));
       });
       peer.on("error", (err) => {
-        if (err && err.type === "unavailable-id" && !opened && tries < 4) { try { peer.destroy(); } catch { /* ignore */ } return attempt(tries + 1); }
-        if (!opened) renderLiveStatus("Couldn't open a room. Check your connection and try again.", true);
+        if (err && err.type === "unavailable-id" && !opened && tries < (isPublic ? PUB_SLOTS - 1 : 4)) { try { peer.destroy(); } catch { /* ignore */ } return attempt(tries + 1); }
+        if (!opened) renderLiveStatus(err && err.type === "unavailable-id" && isPublic ? "All public rooms are in use. Join one, or make a private room." : "Couldn't reach the live server. Check your connection and try again.", true);
         // once the room exists, network blips are handled by keepRegistered
       });
     };
@@ -517,6 +544,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!js || LIVE.active) return;
     js.trying = true;
     js.tries++;
+    if (js.tries > 1) renderJoinWait(js.code, `Trying again (attempt ${js.tries})…`);
     if (js.peer.disconnected) { try { js.peer.reconnect(); } catch { /* ignore */ } }
     const conn = js.peer.connect(`mlion-live-${js.code}`, { reliable: true });
     let opened = false;
@@ -524,12 +552,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     conn.on("iceStateChanged", (st) => { if (st === "failed" && !opened) { clearTimeout(stall); try { conn.close(); } catch { /* ignore */ } retryJoin("Your networks didn't connect. Retrying through a relay…"); } });
     conn.on("open", () => {
       opened = true; clearTimeout(stall); js.trying = false;
-      Object.assign(LIVE, { active: true, code: js.code, isHost: false, peer: js.peer, hostConn: conn, myId: js.peer.id, phase: LIVE.phase === "waiting" ? "waiting" : "lobby" });
+      Object.assign(LIVE, { active: true, code: js.code, isHost: false, peer: js.peer, hostConn: conn, myId: js.peer.id, phase: LIVE.phase === "waiting" || LIVE.phase === "playing" ? LIVE.phase : "lobby" });
       conn.send({ t: "hello", name: js.name, v: 1 });
     });
     conn.on("data", (d) => {
       if (d && d.t === "full") { renderLiveStatus("That room is full.", true); joinState = null; return liveReset(); }
       if (d && d.t === "busy") { LIVE.phase = "waiting"; renderLiveStatus("A match is in progress. You'll join the next one.", false); return; }
+      if (d && d.t === "resume") {
+        LIVE.phase = "playing";
+        toast("Back in the match");
+        if (RUN && RUN.mode === "live") {
+          if (descent) { descent.destroy(); descent = null; }
+          renderPlayShell();
+          $("#card").innerHTML = `<div class="intro-card"><div><h2>You're back</h2><p class="sub">The next question starts in a moment.</p></div></div>`;
+        }
+        return;
+      }
       if (d && d.t === "lobby" && LIVE.phase === "waiting" && d.phase !== "playing") LIVE.phase = "lobby";
       if (LIVE.phase === "waiting" && d && d.t !== "lobby") return;
       apply(d);
@@ -557,9 +595,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function guestRejoin() {
     if (!joinState) return;
     const keepPhase = LIVE.phase;
-    stopRun();
+    if (keepPhase !== "playing") stopRun(); else cancelAnimationFrame(runRaf);
     LIVE.active = false; LIVE.hostConn = null;
-    LIVE.phase = keepPhase === "playing" ? "waiting" : "lobby";
+    LIVE.phase = keepPhase === "playing" ? "playing" : "lobby";
     joinState.started = Date.now();
     retryJoin("Reconnecting to the room…");
   }
@@ -596,12 +634,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p>${joining ? `Room ${esc(code)}. Same questions, same clock, scores live.` : "Make a room, send the link, play the same questions at the same time."}</p></div>
       <div class="vs-form">
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
-        <button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button>
+        ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>Public room: anyone can find it in the room list</span></label>`}
+        <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button>${joining ? "" : `<a class="btn big" href="#rooms">Browse public rooms</a>`}</div>
       </div>
     </section>`;
     const go1 = () => {
       const name = cleanName($("#live-name").value) || "Player";
-      joining ? liveJoin(code, name) : liveCreate(name);
+      joining ? liveJoin(code, name) : liveCreate(name, !!($("#live-public") && $("#live-public").checked));
     };
     $("#live-go").addEventListener("click", go1);
     $("#live-name").addEventListener("keydown", (e) => { if (e.key === "Enter") go1(); });
@@ -618,7 +657,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p>${ps.length < 2 ? "Send the link. Friends appear here the moment they open it." : `${ps.length} players ready.`}</p>
         ${LIVE.isHost ? `<p class="lv-note">Keep MLion open while friends join. If you switch apps, come back here and the room reconnects.</p>` : ""}</div>
       <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button></div>
-      <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.host ? "Host" : ""}${p.id === LIVE.myId ? `${p.host ? " · " : ""}You` : ""}</span></li>`).join("")}
+      <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.host ? "Host" : ""}${p.id === LIVE.myId ? `${p.host ? " · " : ""}You` : ""}`}</span></li>`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
         <div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${LIVE_SIZES.map((n) => `<button type="button" class="vs-size${n === LIVE.n ? " on" : ""}" role="radio" aria-checked="${n === LIVE.n}" data-n="${n}">${n}</button>`).join("")}</div></div>
@@ -681,6 +720,43 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const again = $("#live-again");
     if (again) again.addEventListener("click", hostStart);
   }
+  /** Public rooms: ask each fixed public code who's there. */
+  let browsePeer = null;
+  async function renderRooms() {
+    if (liveBlocked()) return renderLiveBlocked("");
+    setMid("Public rooms");
+    app.innerHTML = `<section class="screen live">
+      <div class="page-head"><h1>Public rooms</h1><p id="rooms-status" role="status">Looking for open rooms…</p></div>
+      <ul class="lv-players" id="rooms-list"><li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Searching…</span></li></ul>
+      <div class="btn-row"><button class="btn big" id="rooms-refresh">Refresh</button><a class="btn primary big" href="#live">Create a room</a></div>
+    </section>`;
+    $("#rooms-refresh").addEventListener("click", renderRooms);
+    let Peer;
+    try { Peer = await loadPeer(); } catch { $("#rooms-status").textContent = "Couldn't reach the live server. Check your connection and tap Refresh."; return; }
+    try { if (browsePeer) browsePeer.destroy(); } catch { /* ignore */ }
+    const peer = new Peer(peerOpts());
+    browsePeer = peer;
+    const found = new Map();
+    const draw = (final) => {
+      const list = $("#rooms-list"), st = $("#rooms-status");
+      if (!list || browsePeer !== peer) return;
+      const rooms = [...found.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      st.textContent = rooms.length ? `${rooms.length} open ${rooms.length === 1 ? "room" : "rooms"}` : final ? "No public rooms right now. Create one and friends can find it here." : "Looking for open rooms…";
+      list.innerHTML = rooms.map(([code, r]) => `<li>${avatar(r.host)}<b>${esc(r.host)}'s room</b><span>${r.players}/8 · ${r.phase === "playing" ? "playing" : "in lobby"}</span><a class="btn sm primary" href="#live-${code}">Join</a></li>`).join("") ||
+        (final ? "" : `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Searching…</span></li>`);
+    };
+    peer.on("open", () => {
+      for (let k = 1; k <= PUB_SLOTS; k++) {
+        const code = pubCode(k);
+        const conn = peer.connect(`mlion-live-${code}`, { reliable: true });
+        conn.on("open", () => conn.send({ t: "info" }));
+        conn.on("data", (d) => { if (d && d.t === "info") { found.set(code, { host: cleanName(d.host) || "Someone", players: +d.players || 1, phase: d.phase }); draw(false); } });
+      }
+      setTimeout(() => { draw(true); setTimeout(() => { try { if (browsePeer === peer) { peer.destroy(); browsePeer = null; } } catch { /* ignore */ } }, 500); }, 7000);
+    });
+    peer.on("error", () => { /* missing public codes report here; they simply aren't listed */ });
+  }
+
   if (window.MLION_TEST) window.MLION_LIVE_STATE = LIVE;
   function openLive(code) {
     if (liveBlocked()) return renderLiveBlocked(code);
@@ -700,6 +776,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     stats: renderStats, how: renderHow, faq: renderFaq, prefs: renderSettings,
     challenge: renderChallenge,
     live: () => openLive(""),
+    rooms: renderRooms,
   };
   const slugFor = (key) => key.replace(/:/g, "-");
   function keyFromSlug(s) {
@@ -756,6 +833,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const modes = [
       ["#live", "Live match", "Play friends in real time"],
+      ["#rooms", "Public rooms", "Join anyone playing now"],
       ["#challenge", "Challenge a friend", "Same questions, one link"],
       ["#unlimited", "Unlimited", "Endless runs"],
       ["#packs", "Packs", `${DATA.packs.length} themes`],
