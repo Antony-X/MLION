@@ -1027,6 +1027,36 @@
         "AICC contest"
       ],
       "q": "The AI Community Contest."
+    },
+    {
+      "a": "IOAI",
+      "t": "outlier",
+      "aka": [
+        "International Olympiad in Artificial Intelligence",
+        "International Olympiad in AI",
+        "International AI Olympiad"
+      ],
+      "q": "The International Olympiad in Artificial Intelligence: national teams of high schoolers, first held in 2024."
+    },
+    {
+      "a": "IAIO",
+      "t": "longtail"
+    },
+    {
+      "a": "EUROAI",
+      "t": "longtail"
+    },
+    {
+      "a": "CEOAI",
+      "t": "longtail"
+    },
+    {
+      "a": "APOAI",
+      "t": "longtail"
+    },
+    {
+      "a": "NEOAI",
+      "t": "longtail"
     }
   ]
 }
