@@ -117,7 +117,7 @@ index.html            app shell; drawer nav; Google Fonts (Archivo); scripts wit
 css/style.css         all styles (taste-skill redesign: dark room, gold accent, Archivo only)
 js/engine.js          tiers, normalization, matching layers, scheduling, share text (UMD; used by Node tools too)
 js/data.js            GENERATED bundle: window.MLION_DATA = {version, packs, prompts, extras}
-js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas, tier glyphs, ∇-lion mark
+js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas, tier glyphs, lion mark (MARK: Leo's curve + the ball)
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
 data/packs.json       7 packs (id, name, emoji, tagline)
 data/prompts/*.json   134 prompt files, one per prompt (schema below)
@@ -125,6 +125,7 @@ data/display.json     per-prompt example / scope / offtopic overrides
 data/AUTHORING.md     authoring spec (schema, alias rules, tier calibration)
 tools/build.js        validate every prompt + write js/data.js + cache-bust index.html
 tools/build-single.js bundle everything into one HTML file (Artifact build)
+tools/icons.js        render img/ (favicon.svg, app icons, og.png share card) from MARK; needs Playwright + network for Archivo
 tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SUGGEST/NONE)
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
@@ -583,7 +584,7 @@ plus its references) and redesign the site minimally, with almost no text and de
   `--s2` 17, `--s3` 24, `--s4` `clamp(28px, 1.6vw+18px, 42px)`, `--s5` `clamp(84px, 13vw, 220px)`.
 
 **The idea:** the optimizer's descent becomes the dark room's one lit exhibit. A gem turns the
-ball into the ∇-lion and floods the stage gold.
+stage gold and grows the lion's curve (the sign of Leo) out of the ball.
 
 **House rules applied:** no monospace, no kickers or eyebrows, no 01/02 numbering, no hairline
 boxes, no gradients, no glows or resting shadows, no blur, no emoji in the UI, buttons fully

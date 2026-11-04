@@ -5,7 +5,8 @@
  *    1-D slice of that surface. One point = 10 world units, so a perfect day
  *    travels 7,000 units and lands in the global minimum.
  *  - glyph: the tier marks. Five are tiny charts of what the tier means, a
- *    curve and the ball on it; the gem is the lion, a mane around a nabla.
+ *    curve and the ball on it; the gem is the lion, the sign of Leo, which is
+ *    a curve and a ball too.
  *  - profileSvg: a finished run drawn on the same terrain. */
 (function () {
   "use strict";
@@ -42,16 +43,20 @@
     mlion: { d: "M2.5 5.5C7.2 5.5 7.8 19.5 12 19.5S16.8 5.5 21.5 5.5", ball: [12, 15.6, 2.9] },
     miss: { d: "", ring: [12, 12, 5] },
   };
-  // The lion: an 11-point mane around a nabla, the gradient's own symbol.
+  // The lion: the sign of Leo, drawn the way every tier is, a curve and the
+  // ball. The ball sits at the lowest point, where a descent ends; the curve
+  // climbs out of it as the mane and falls away as the tail. 64-unit box.
   const MARK = {
-    mane: "M0 -30L6.6 -22.5L16.2 -25.2L17.8 -15.4L27.3 -12.5L23.3 -3.3L29.7 4.3L21.4 9.8L22.7 19.6L12.7 19.8L8.5 28.8L0 23.5L-8.5 28.8L-12.7 19.8L-22.7 19.6L-21.4 9.8L-29.7 4.3L-23.3 -3.3L-27.3 -12.5L-17.8 -15.4L-16.2 -25.2L-6.6 -22.5Z",
-    face: "M-15.5 -8.5H15.5L0 16Z",
-    eyes: [[-5.2, -1.6], [5.2, -1.6]],
+    d: "M-20.71 13.44C-20.71 -0.08 -17.59 -10.48 -11.35 -16.72C-7.19 -20.88 -1.99 -22.44 2.69 -22.44C11.53 -22.44 17.77 -15.16 16.21 -5.28C14.97 2.52 10.49 9.8 13.09 15.52C15.17 20.2 21.41 20.72 24.01 16.04",
+    ball: [-20.71, 19.16, 6.1],
+    stroke: 5.6,
+    len: 108.17, // arc length of d, so the curve can be drawn growing out of the ball
   };
-  /** The lion mark. The mane takes currentColor, the face --mark-ink. */
+  /** The lion mark: one stroke and the ball, both in currentColor. */
   function mark(cls, label) {
     const a = label ? `role="img" aria-label="${label}"` : `aria-hidden="true"`;
-    return `<svg class="mark${cls ? " " + cls : ""}" viewBox="-32 -32 64 64" ${a} focusable="false"><path class="mk-mane" d="${MARK.mane}" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path class="mk-face" d="${MARK.face}" fill="none" stroke-width="5.5" stroke-linejoin="round"/>${MARK.eyes.map(([x, y]) => `<circle class="mk-eye" cx="${x}" cy="${y}" r="2.3"/>`).join("")}</svg>`;
+    const [cx, cy, r] = MARK.ball;
+    return `<svg class="mark${cls ? " " + cls : ""}" viewBox="-32 -32 64 64" ${a} focusable="false"><path class="mk-curve" d="${MARK.d}" fill="none" stroke="currentColor" stroke-width="${MARK.stroke}" stroke-linecap="round" stroke-linejoin="round"/><circle class="mk-ball" cx="${cx}" cy="${cy}" r="${r}" fill="currentColor"/></svg>`;
   }
   /** Inline SVG of a tier mark. `t` is a tier id or null for a miss. */
   function glyph(t, cls) {
@@ -417,15 +422,19 @@
         for (let rr = diag + band * 2 - phase; rr > R * 1.6; rr -= band * 2) {
           ctx.beginPath(); ctx.arc(bx, by, rr, 0, Math.PI * 2); ctx.arc(bx, by, Math.max(0, rr - band), 0, Math.PI * 2, true); ctx.fill();
         }
-        // the ball has become the lion
-        const ms = clamp((r - R) / (diag * 0.4), 0, 1) * (w < 560 ? 1.15 : 1.5) + R / 30;
+        // the ball becomes the lion: it stays put and Leo's curve grows out of it
+        const grow = clamp((r - R) / (diag * 0.4), 0, 1);
+        const [mx, my, mr] = MARK.ball;
+        const ms = R / mr + grow * (w < 560 ? 1 : 1.4);
         ctx.save();
-        ctx.translate(bx, by); ctx.scale(ms, ms);
-        ctx.fillStyle = COL.goldInk; ctx.strokeStyle = COL.goldInk; ctx.lineWidth = 3; ctx.lineJoin = "round";
-        const mane = new Path2D(MARK.mane); ctx.fill(mane); ctx.stroke(mane);
-        ctx.strokeStyle = COL.gold; ctx.lineWidth = 5.5; ctx.stroke(new Path2D(MARK.face));
-        ctx.fillStyle = COL.gold;
-        for (const [ex, ey] of MARK.eyes) { ctx.beginPath(); ctx.arc(ex, ey, 2.3, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = clamp(grow * 5, 0, 1); // the ball stays gold as the flood opens and closes
+        ctx.translate(bx, by); ctx.scale(ms, ms); ctx.translate(-mx, -my);
+        ctx.strokeStyle = COL.goldInk; ctx.lineWidth = MARK.stroke; ctx.lineCap = "round"; ctx.lineJoin = "round";
+        ctx.setLineDash([MARK.len * ease.out(grow), MARK.len + 1]);
+        ctx.stroke(new Path2D(MARK.d));
+        ctx.setLineDash([]);
+        ctx.fillStyle = COL.goldInk;
+        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
         ctx.restore();
       }
