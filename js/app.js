@@ -14,7 +14,15 @@
   const EXTRA_COUNT = WIDE.prompts.length - CORE.prompts.length;
   const CORE_DAILY_FROM = "2026-11-06"; // dailies before this keep the questions they were played with
   const soloPool = () => (settings.extraQuestions ? WIDE : CORE);
-  const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(CORE, "daily-v2", n, null, true) : E.dailyPromptIds(DATA, n));
+  // The prompts a day's daily deals from: those added on or before it, so adding prompts later
+  // never changes a day that has already been dealt (or is being played right now).
+  function asOf(data, date) {
+    const prompts = data.prompts.filter((p) => !p.added || p.added <= date);
+    if (prompts.length === data.prompts.length) return data;
+    const upTo = prompts.reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
+    return { version: `${data.version}:asof${upTo}`, packs: data.packs, prompts };
+  }
+  const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(asOf(CORE, date), "daily-v3", n, null, true) : E.dailyPromptIds(asOf(DATA, date), n));
   const PACKS = new Map(DATA.packs.map((p) => [p.id, p]));
   const T = E.TIERS;
   // Launch mode: the daily, endless Unlimited, live rooms and challenges. Packs and

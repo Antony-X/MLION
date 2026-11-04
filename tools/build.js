@@ -149,6 +149,12 @@ const extras = prompts.filter(isExtra);
 // Extra (outside the IOAI syllabus) prompts stay in the bundle's main list, flagged, so the
 // streams that deal past dailies are unchanged; the app keeps them out of shared modes.
 core.forEach((p) => { if (display[p.id] && display[p.id].extra) p.extra = true; else delete p.extra; });
+// A prompt added after launch carries its first day, so dailies dealt before then don't change.
+for (const p of prompts) {
+  const added = display[p.id] && display[p.id].added;
+  if (added && !/^\d{4}-\d{2}-\d{2}$/.test(added)) { console.error(`✗ display.json: ${p.id}.added must be YYYY-MM-DD`); process.exit(1); }
+  if (added) p.added = added; else delete p.added;
+}
 console.log(`${core.filter((p) => p.extra).length} prompts marked extra (off by default)`);
 for (const pk of packs) {
   if (!core.some((p) => p.pack === pk.id)) console.warn(`  ! pack "${pk.id}" has no prompts`);

@@ -542,7 +542,7 @@ it are dropped, answers carry `pid` so late answers to the old prompt are ignore
   (everything, off-topic included).
 - The daily, archive days from `CORE_DAILY_FROM` (2026-11-06) on, challenges (`#vs`, `#vq`) and
   live rooms always deal from `CORE`, so everyone shares the same questions. Dailies before that
-  date keep their old stream (`daily-v1` over the full list); new ones use `daily-v2` over core.
+  date keep their old stream (`daily-v1` over the full list); new ones use `daily-v3` over core, dealt flat (see below).
 - Settings → **Extra questions** (`settings.extraQuestions`, off by default) puts `WIDE` behind a
   player's own Unlimited and Quiz runs.
 - review.html (unlisted) shows which prompts are extra and lets the owner mark moves either way.

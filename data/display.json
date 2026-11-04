@@ -1,11 +1,20 @@
 {
-  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown. 'offtopic': true keeps a prompt out of the daily, Unlimited and packs; it stays in the Library as a practice-only extra. 'extra': true marks an on-topic prompt outside the IOAI syllabus: it stays out of the daily, challenges and live rooms, and joins a player's Unlimited and Quiz runs only when they switch on Extra questions in Settings. Off-topic prompts join those runs too when the switch is on.",
+  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown. 'offtopic': true keeps a prompt out of the daily, Unlimited and packs; it stays in the Library as a practice-only extra. 'extra': true marks an on-topic prompt outside the IOAI syllabus: it stays out of the daily, challenges and live rooms, and joins a player's Unlimited and Quiz runs only when they switch on Extra questions in Settings. Off-topic prompts join those runs too when the switch is on. 'added': YYYY-MM-DD marks a prompt added after launch; dailies before that day never deal it, so adding prompts never changes a day already dealt.",
   "accelerator": {
     "scope": "A specific chip or accelerator line, not just a vendor"
+  },
+  "agent-framework": {
+    "extra": true
   },
   "ai-book": {
     "example": "Deep Learning",
     "offtopic": true
+  },
+  "ai-coding-tool": {
+    "extra": true
+  },
+  "ai-lab": {
+    "extra": true
   },
   "ai-leader": {
     "scope": "Surname is enough"
@@ -16,8 +25,27 @@
   "ai-researcher": {
     "scope": "Surname is enough"
   },
+  "audio-feature": {
+    "scope": "Hand-crafted descriptors, transforms or learned embeddings of sound",
+    "added": "2026-11-06"
+  },
+  "automl": {
+    "extra": true
+  },
+  "bandit": {
+    "extra": true
+  },
   "bert-variant": {
     "scope": "Encoder-only transformers"
+  },
+  "boosting": {
+    "extra": true
+  },
+  "causal-inference": {
+    "extra": true
+  },
+  "cloud-ml": {
+    "extra": true
   },
   "cnn-architecture": {
     "example": "ResNet"
@@ -26,16 +54,42 @@
     "scope": "Models, not IDE products",
     "extra": true
   },
+  "cross-validation": {
+    "extra": true
+  },
+  "cv-library": {
+    "extra": true
+  },
+  "cv-metric": {
+    "scope": "Scores for boxes or masks, including speed and calibration",
+    "added": "2026-11-06"
+  },
   "decision-tree-algo": {
     "example": "CART",
     "scope": "Single trees, not ensembles",
     "extra": true
   },
+  "distributed-training": {
+    "extra": true
+  },
+  "dl-framework": {
+    "extra": true
+  },
   "dropout-variant": {
     "example": "DropConnect"
   },
+  "encoder-decoder-model": {
+    "scope": "An encoder feeding a decoder, not only text models",
+    "added": "2026-11-06"
+  },
   "eponym": {
     "scope": "Type the person's surname"
+  },
+  "face-recognition-model": {
+    "extra": true
+  },
+  "fairness-metric": {
+    "extra": true
   },
   "feature-selection": {
     "scope": "Keeps a subset of the original features"
@@ -44,8 +98,20 @@
     "scope": "From film, TV, books or games",
     "offtopic": true
   },
+  "game-ai": {
+    "extra": true
+  },
   "gan-variant": {
     "example": "DCGAN"
+  },
+  "gnn-architecture": {
+    "extra": true
+  },
+  "gradient-estimator": {
+    "extra": true
+  },
+  "hf-library": {
+    "extra": true
   },
   "historic-ai": {
     "scope": "Built before the year 2000",
@@ -54,6 +120,15 @@
   "hyperparameter": {
     "scope": "Anything chosen rather than learned"
   },
+  "image-dataset": {
+    "extra": true
+  },
+  "inference-engine": {
+    "extra": true
+  },
+  "info-theory": {
+    "extra": true
+  },
   "kernel-function": {
     "example": "RBF"
   },
@@ -61,135 +136,35 @@
     "example": "GPT-4",
     "scope": "Generations count separately; sizes don't"
   },
+  "llm-benchmark": {
+    "extra": true
+  },
+  "matrix-decomposition": {
+    "extra": true
+  },
   "ml-competition": {
     "example": "Netflix Prize"
   },
   "ml-course": {
     "example": "CS229"
   },
-  "ml-slang": {
-    "scope": "Community slang, not standard technical terms"
-  },
-  "nas": {
-    "example": "DARTS",
-    "extra": true
-  },
-  "nn-family": {
-    "example": "CNN",
-    "scope": "Broad families, not specific named models"
-  },
-  "numpy-function": {
-    "scope": "The np. prefix is optional"
-  },
-  "optimizer": {
-    "example": "SGD"
-  },
-  "probabilistic-model": {
-    "scope": "Models, not inference algorithms",
-    "extra": true
-  },
-  "regularization": {
-    "example": "L2 regularization"
-  },
-  "robot": {
-    "example": "Roomba",
-    "offtopic": true
-  },
-  "self-driving": {
-    "offtopic": true
-  },
-  "sequence-model-alt": {
-    "example": "Mamba"
-  },
-  "special-token": {
-    "scope": "Brackets are optional"
-  },
-  "torch-nn-module": {
-    "example": "Linear",
-    "scope": "Any class in torch.nn; the nn. prefix is optional"
-  },
-  "training-trick": {
-    "scope": "Not plain optimizers"
-  },
-  "turing-award": {
-    "scope": "Any field of computing. Surname is enough"
-  },
-  "face-recognition-model": {
-    "extra": true
-  },
-  "game-ai": {
-    "extra": true
-  },
-  "gnn-architecture": {
-    "extra": true
-  },
-  "science-model": {
-    "extra": true
-  },
-  "text-to-image-model": {
-    "extra": true
-  },
-  "time-series-model": {
-    "extra": true
-  },
-  "video-gen-model": {
-    "extra": true
-  },
-  "bandit": {
-    "extra": true
-  },
-  "boosting": {
-    "extra": true
-  },
-  "cross-validation": {
-    "extra": true
-  },
-  "recsys": {
-    "extra": true
-  },
-  "rl-algorithm": {
-    "extra": true
-  },
-  "agent-framework": {
-    "extra": true
-  },
-  "distributed-training": {
-    "extra": true
-  },
-  "inference-engine": {
-    "extra": true
-  },
-  "llm-benchmark": {
-    "extra": true
-  },
-  "moe": {
-    "extra": true
-  },
-  "ai-coding-tool": {
-    "extra": true
-  },
-  "ai-lab": {
-    "extra": true
-  },
-  "automl": {
-    "extra": true
-  },
-  "cloud-ml": {
-    "extra": true
-  },
-  "cv-library": {
-    "extra": true
-  },
-  "dl-framework": {
-    "extra": true
-  },
   "ml-language": {
     "extra": true
+  },
+  "ml-slang": {
+    "scope": "Community slang, not standard technical terms"
   },
   "mlops": {
     "extra": true
   },
   "model-format": {
+    "extra": true
+  },
+  "moe": {
+    "extra": true
+  },
+  "nas": {
+    "example": "DARTS",
     "extra": true
   },
   "nlp-dataset": {
@@ -198,40 +173,114 @@
   "nlp-library": {
     "extra": true
   },
-  "hf-library": {
-    "extra": true
+  "nlp-metric": {
+    "scope": "Text generation, translation, ASR, QA, parsing or language models",
+    "added": "2026-11-06"
   },
-  "image-dataset": {
-    "extra": true
+  "nn-family": {
+    "example": "CNN",
+    "scope": "Broad families, not specific named models"
   },
   "notebook": {
+    "extra": true
+  },
+  "numpy-function": {
+    "scope": "The np. prefix is optional"
+  },
+  "optimizer": {
+    "example": "SGD"
+  },
+  "pandas-method": {
+    "example": "read_csv",
+    "scope": "Functions and methods, not plain attributes like shape",
+    "added": "2026-11-06"
+  },
+  "plot-type": {
+    "example": "Scatter plot",
+    "scope": "A named kind of plot, not a library or function",
+    "added": "2026-11-06"
+  },
+  "probabilistic-model": {
+    "scope": "Models, not inference algorithms",
+    "extra": true
+  },
+  "python-stdlib-module": {
+    "example": "os",
+    "scope": "Ships with Python itself, no pip install",
+    "added": "2026-11-06"
+  },
+  "recsys": {
+    "extra": true
+  },
+  "regularization": {
+    "example": "L2 regularization"
+  },
+  "rl-algorithm": {
     "extra": true
   },
   "rl-env": {
     "extra": true
   },
-  "vector-db": {
-    "extra": true
-  },
-  "causal-inference": {
-    "extra": true
-  },
-  "fairness-metric": {
-    "extra": true
-  },
-  "gradient-estimator": {
-    "extra": true
-  },
-  "info-theory": {
-    "extra": true
-  },
-  "matrix-decomposition": {
-    "extra": true
+  "robot": {
+    "example": "Roomba",
+    "offtopic": true
   },
   "sampling-method": {
     "extra": true
   },
+  "science-model": {
+    "extra": true
+  },
+  "self-driving": {
+    "offtopic": true
+  },
+  "sequence-model-alt": {
+    "example": "Mamba"
+  },
+  "sklearn-utility": {
+    "example": "train_test_split",
+    "scope": "Not a model or a plain transformer class",
+    "added": "2026-11-06"
+  },
+  "special-token": {
+    "scope": "Brackets are optional"
+  },
   "stat-test": {
+    "extra": true
+  },
+  "text-augmentation": {
+    "scope": "Creates extra or perturbed training text, not images",
+    "added": "2026-11-06"
+  },
+  "text-to-image-model": {
+    "extra": true
+  },
+  "time-series-model": {
+    "extra": true
+  },
+  "torch-nn-module": {
+    "example": "Linear",
+    "scope": "Any class in torch.nn; the nn. prefix is optional"
+  },
+  "training-trick": {
+    "scope": "Not plain optimizers"
+  },
+  "transformer-component": {
+    "scope": "A part of a transformer layer or the stack around it",
+    "added": "2026-11-06"
+  },
+  "ts-feature": {
+    "example": "Lag features",
+    "scope": "Features or transforms computed from a series or its timestamps",
+    "added": "2026-11-06"
+  },
+  "turing-award": {
+    "scope": "Any field of computing. Surname is enough"
+  },
+  "vector-db": {
+    "extra": true
+  },
+  "video-gen-model": {
     "extra": true
   }
 }

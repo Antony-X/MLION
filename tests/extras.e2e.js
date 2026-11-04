@@ -38,6 +38,8 @@ async function runIds(b, base, hash, { extras, time }) {
   check(r.ids.join() === "sampling-method,retrieval,ml-course,probabilistic-model,training-pathology,sklearn-estimator,cnn-architecture", "dailies before the switch-over keep their questions");
   r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-06T12:00:00" });
   check(r.ids.length === 7 && !ex(r.ids).length, "from 2026-11-06 the daily is core only, even with extras on");
+  // pinned: prompts added later carry a later "added" date, so this day never changes
+  check(r.ids.join() === "imputation,rnn-variant,cv-metric,quantization,hyperparam-search,explainability,text-augmentation", "2026-11-06 deals its fixed questions (new prompts dated from that day)");
   console.log("extras e2e passed");
   await b.close(); srv.close();
 })();
