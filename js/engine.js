@@ -294,7 +294,7 @@
     const [i1, s1] = ranked[0];
     const s2 = ranked[1] ? ranked[1][1] : 0;
     if (s1 >= 0.8 && s1 - s2 >= 0.08) return { kind: "correction", answer: answers[i1], from: text, confidence: s1 };
-    const sugg = ranked.filter(([, s]) => s >= 0.45).slice(0, 3).map(([i]) => answers[i]);
+    const sugg = ranked.filter(([, s]) => s >= 0.55).slice(0, 3).map(([i]) => answers[i]);
     if (sugg.length) return { kind: "suggest", suggestions: sugg, confidence: s1 };
     return { kind: "none" };
   }

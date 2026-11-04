@@ -67,7 +67,7 @@
     { "a": "Bias initialization", "t": "outlier", "aka": ["output bias initialization", "prior initialization", "prior bias init", "bias init"], "q": "Set the output bias to log(pos/neg) so step one isn't wasted learning the base rate. RetinaNet does it too." },
     { "a": "Collect more data", "t": "outlier", "aka": ["gather more data", "more data", "get more data"], "q": "The technique every blog lists first and every deadline rules out." },
 
-    { "a": "Tomek links", "t": "indist", "aka": ["tomek link", "TomekLinks"], "q": "Two opposite-class points that are each other's nearest neighbor. Ivan Tomek, 1976." },
+    { "a": "Tomek links", "t": "indist", "aka": ["tomek link", "TomekLinks", "tomek"], "q": "Two opposite-class points that are each other's nearest neighbor. Ivan Tomek, 1976." },
     { "a": "Borderline-SMOTE", "t": "indist", "aka": ["borderline smote", "borderlinesmote"] },
     { "a": "Cost-sensitive learning", "t": "indist", "aka": ["cost-sensitive", "cost matrix", "misclassification costs", "cost-sensitive classification"], "q": "Elkan, 2001: given a cost matrix, the right decision threshold follows from the costs." },
     { "a": "Threshold moving", "t": "indist", "aka": ["threshold tuning", "threshold adjustment", "decision threshold", "cutoff tuning", "threshold optimization"], "q": "Nobody said the cutoff had to be 0.5." },
