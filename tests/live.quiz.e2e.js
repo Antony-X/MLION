@@ -20,7 +20,7 @@ global.window = {};
 require(path.join(ROOT, "js", "data.js"));
 const DATA = global.window.MLION_DATA;
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
-const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra) }; // live rooms deal from the core set
+const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra), reasoning: DATA.reasoning || [] }; // live rooms deal from the core set
 const kindOf = (id) => PROMPT.get(id).text.replace(/^Name\s+/i, "");
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };

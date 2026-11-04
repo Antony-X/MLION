@@ -138,7 +138,8 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
   assert.deepStrictEqual(a1, a2); ok("quiz: same seed, same questions");
   assert.notDeepStrictEqual(a1, b1); ok("quiz: another seed, other questions");
   assert.strictEqual(a1.length, 7); assert.strictEqual(new Set(a1.map((q) => q.promptId)).size, 7); ok("quiz: seven questions from seven prompts");
-  assert.deepStrictEqual(E.quizFor(DATA, "seed-a", 25).slice(0, 7).map((q) => q.promptId), a1.map((q) => q.promptId)); ok("quiz: a longer run starts with the shorter one's prompts");
+  const promptQs = (qs) => qs.filter((q) => !q.reasoning).map((q) => q.promptId);
+  assert.deepStrictEqual(promptQs(E.quizFor(DATA, "seed-a", 25)).slice(0, promptQs(a1).length), promptQs(a1)); ok("quiz: a longer run starts with the shorter one's prompts");
   assert.deepStrictEqual(E.quizQuestion(DATA, "seed-a", a1[3].promptId), a1[3]); ok("quiz: one question is rebuilt on its own (live skips rely on it)");
 
   // every on-topic prompt can make a question, across many seeds; each keeps every invariant
@@ -156,13 +157,42 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
   assert.ok(Math.min(...positions) > built * 0.18, "right option position is spread " + positions); ok("quiz: the right option lands in every slot " + positions.join("/"));
   // distractors are drawn from the question's own pack, from three different prompts
   let samePack = 0, distinct = 0;
-  for (const q of a1.concat(E.quizFor(DATA, "seed-c", 25))) {
+  let promptCount = 0;
+  for (const q of a1.concat(E.quizFor(DATA, "seed-c", 25)).filter((x) => !x.reasoning)) {
+    promptCount++;
     const p = byId.get(q.promptId);
     const ds = q.from.filter((_, i) => i !== q.correct);
     samePack += ds.every((id) => byId.get(id).pack === p.pack) ? 1 : 0;
     distinct += new Set(ds).size === 3 ? 1 : 0;
   }
-  assert.strictEqual(samePack, 32); assert.strictEqual(distinct, 32); ok("quiz: distractors come from three other prompts of the same pack");
+  assert.strictEqual(samePack, promptCount); assert.strictEqual(distinct, promptCount); ok("quiz: distractors come from three other prompts of the same pack");
+  // reasoning questions: two of every seven, never side by side, rebuilt exactly from the dealt ids
+  {
+    const R = DATA.reasoning || [];
+    assert.ok(R.length >= 40, "the bundle carries the reasoning questions");
+    for (const r of R) {
+      const q = E.quizQuestion(DATA, "any", r.id);
+      assert.ok(q.reasoning && q.options.join("|") === r.options.join("|") && q.correct === r.answer, `${r.id} keeps its options and answer`);
+    }
+    for (let s = 0; s < 30; s++) {
+      const qs = E.quizFor(DATA, `mix-${s}`, 7);
+      const at = qs.map((q, i) => (q.reasoning ? i : -1)).filter((i) => i >= 0);
+      assert.strictEqual(qs.length, 7); assert.strictEqual(at.length, 2, "two reasoning questions in seven");
+      assert.ok(at[1] - at[0] > 1, "reasoning questions side by side");
+      const again = E.quizFor(DATA, `mix-${s}`, 7, { promptIds: qs.map((q) => q.promptId) });
+      assert.deepStrictEqual(again, qs, "a live guest rebuilds the host's questions exactly");
+    }
+    assert.strictEqual(E.quizFor(DATA, "five", 5).filter((q) => q.reasoning).length, 1);
+    assert.strictEqual(E.quizFor(DATA, "one", 1).filter((q) => q.reasoning).length, 0);
+    const seen = new Set();
+    const runs = Math.floor(R.length / 2);
+    for (let n = 1; n <= runs; n++) for (const q of E.quizRun(DATA, n).filter((x) => x.reasoning)) {
+      assert.ok(!seen.has(q.promptId), `solo run ${n} repeats a reasoning question before the bank is used up`);
+      seen.add(q.promptId);
+    }
+    assert.strictEqual(seen.size, runs * 2);
+    ok(`quiz: reasoning questions (${R.length}): 2 of 7, apart, rebuilt exactly, solo runs use the bank before repeating`);
+  }
 
   // off-topic prompts never appear: not as the question, not as a source
   const extraIds = new Set((DATA.extras || []).map((p) => p.id));

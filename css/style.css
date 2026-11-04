@@ -911,3 +911,8 @@ html:not(.reduce-motion) .feedback .mcq-key { transition: opacity 500ms var(--ea
 .drawer-acct { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--raised-2); }
 .drawer-acct .acct-who { color: var(--muted); font-size: var(--s1); margin: 0 0 10px; }
 .drawer-acct .acct-who b { color: var(--ink); }
+
+/* reasoning questions in Quiz mode: a paragraph, not a one-line prompt */
+.rq-eyebrow { color: var(--gold); font-size: var(--s1); letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 8px; }
+.prompt-text.rq-text { font-size: var(--s2); line-height: 1.45; letter-spacing: 0; max-width: 62ch; text-wrap: pretty; }
+@media (min-width: 760px) { .prompt-text.rq-text { font-size: calc(var(--s2) * 1.08); } }

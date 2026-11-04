@@ -19,9 +19,10 @@ const E = require("../js/engine.js");
 global.window = {};
 require(path.join(ROOT, "js", "data.js"));
 const DATA = global.window.MLION_DATA;
-const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
+// reasoning questions are looked up like prompts: the stem is the text, the right option carries the why
+const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]).concat((DATA.reasoning || []).map((r) => [r.id, { id: r.id, text: r.q, reasoning: true, answers: [{ a: r.options[r.answer], q: r.why }] }])));
 // the app deals solo quiz runs and challenges from the core set unless Extra questions is on
-const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra) };
+const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra), reasoning: DATA.reasoning || [] };
 const kindOf = (id) => PROMPT.get(id).text.replace(/^Name\s+/i, "");
 const explain = (id, name) => (PROMPT.get(id).answers.find((a) => a.a === name) || {}).q || null;
 
@@ -98,13 +99,21 @@ const hexName = (s) => Buffer.from(s).toString("hex");
       check(await page.$$eval(".mcq-opt", (els) => els.every((e) => e.getBoundingClientRect().bottom <= window.innerHeight)), "all four options fit on the screen without scrolling");
       await page.screenshot({ path: path.join(OUT, "42-quiz-round.png") });
     }
+    if (q.reasoning && !expectHits.some((_, k) => run1[k].reasoning)) { // the first reasoning question of the run
+      check((await page.textContent(".rq-eyebrow")).startsWith("Reasoning · "), "a reasoning question shows its topic above the paragraph");
+      await page.waitForFunction(() => parseFloat(document.querySelector("#timer-num").textContent) > 12, null, { timeout: 5000 });
+      check(parseFloat(await page.textContent("#timer-num")) <= 24, "a reasoning question gets 2.4x the clock (24 s on a 10 s setting)");
+      check(await page.$$eval(".mcq-opt", (els) => els.every((e) => e.getBoundingClientRect().bottom <= window.innerHeight)), "a reasoning question's options fit on the screen too");
+      check(await noSideScroll(page), "no horizontal scroll on a reasoning question");
+      await page.screenshot({ path: path.join(OUT, "42b-quiz-reasoning.png") });
+    }
     const wrong = (q.correct + 1) % 4;
     let pick = -1;
     if (how === "key-right") { pick = q.correct; await page.keyboard.press(String(pick + 1)); }
     else if (how === "key-wrong") { pick = wrong; await page.keyboard.press(String(pick + 1)); }
     else if (how === "tap-right") { pick = q.correct; await page.click(`.mcq-opt[data-i="${pick}"]`); }
     else if (how === "tap-wrong") { pick = wrong; await page.click(`.mcq-opt[data-i="${pick}"]`); }
-    else { await page.waitForSelector(".feedback", { timeout: 20000 }); } // time runs out (10 s)
+    else { await page.waitForSelector(".feedback", { timeout: 40000 }); } // time runs out (10 s; 24 s on a reasoning question)
     await page.waitForSelector(".feedback");
     const ok = pick === q.correct;
     expectHits.push(ok);
@@ -117,7 +126,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
     const x = explain(q.promptId, right);
     check(x ? (await page.textContent(".mcq-key li.right .mcq-x")) === x : !(await page.$(".mcq-key li.right .mcq-x")), `question ${i + 1}: ${x ? "the explanation shows" : "no explanation to show"}`);
     const froms = await page.$$eval(".mcq-key li:not(.right) .mcq-from", (els) => els.map((e) => e.textContent));
-    const wantFroms = q.options.map((_, k) => k).filter((k) => k !== q.correct).map((k) => `That's ${kindOf(q.from[k])}`);
+    const wantFroms = q.options.map((_, k) => k).filter((k) => k !== q.correct && q.from[k]).map((k) => `That's ${kindOf(q.from[k])}`);
     check(JSON.stringify(froms) === JSON.stringify(wantFroms), `question ${i + 1}: each wrong option says where it belongs (${froms[0]})`);
     if (pick >= 0 && !ok) check((await page.textContent(".mcq-key li.mine:not(.right) b")) === q.options[pick], `question ${i + 1}: your wrong pick is marked`);
     if (how === "timeout") check(!(await page.$(".mcq-key li.mine")), "a timeout marks no pick");

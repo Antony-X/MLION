@@ -1,0 +1,635 @@
+{
+  "_comment": "Reasoning questions for Quiz mode: each has four options, one right (answer is its index) and a one-line why shown after answering. Written for the IOAI community; ids are stable, so never renumber them.",
+  "questions": [
+    {
+      "id": "rq-01",
+      "title": "Midnight Classification",
+      "cat": "Data & validation",
+      "q": "You are training logistic regression to predict whether a shop is busy. It is busy at 23:00, 00:00, and 01:00, but quiet at other hours. Which representation lets logistic regression express this exact pattern with a linear decision boundary?",
+      "options": [
+        "Raw hour as an integer from 0 to 23",
+        "Hour standardized to mean 0 and variance 1",
+        "sin(2πh/24) and cos(2πh/24)",
+        "Squared hour h²"
+      ],
+      "answer": 2,
+      "why": "On the unit circle, the three busy hours are adjacent and can be separated from all other integer hours by a linear threshold on cosine."
+    },
+    {
+      "id": "rq-02",
+      "title": "The Time Zone Trap",
+      "cat": "Data & validation",
+      "q": "You are predicting when people sleep using data from 20 countries. Sleep patterns depend primarily on local hour, but timestamps are stored in UTC. Which preprocessing most directly represents this pattern?",
+      "options": [
+        "Convert timestamps to local time, then make cyclic hour features",
+        "Standardize UTC hour",
+        "Remove the time zone and retain UTC hour unchanged",
+        "Convert timestamps to Unix seconds"
+      ],
+      "answer": 0,
+      "why": "Local time aligns the human activity pattern across countries; cyclic encoding handles midnight adjacency."
+    },
+    {
+      "id": "rq-03",
+      "title": "The Surprisingly Accurate Medical Model",
+      "cat": "Data & validation",
+      "q": "A dataset contains 10 images from each patient. A random image split gives 97% accuracy, but deployment will involve entirely new patients. Which validation split best estimates deployment performance?",
+      "options": [
+        "Stratify individual images by diagnosis",
+        "Increase validation fraction from 20% to 40%",
+        "Shuffle images more thoroughly",
+        "Put all images from each patient into only one split"
+      ],
+      "answer": 3,
+      "why": "A patient group split prevents identity and correlated imaging conditions leaking between training and validation."
+    },
+    {
+      "id": "rq-04",
+      "title": "Predicting Tomorrow",
+      "cat": "Data & validation",
+      "q": "You predict electricity consumption at 14:00 tomorrow from past hourly consumption. Which candidate feature uses unavailable future information?",
+      "options": [
+        "Consumption at 14:00 yesterday",
+        "A centered moving average around tomorrow at 14:00",
+        "Average consumption over the previous seven days",
+        "The hour of day"
+      ],
+      "answer": 1,
+      "why": "A centered window around the forecast time contains tomorrow's target and later values."
+    },
+    {
+      "id": "rq-05",
+      "title": "The Perfect Identifier",
+      "cat": "Data & validation",
+      "q": "A categorical device_id is nearly unique per row. You replace IDs with their average target computed on all training rows, and a classifier gets 100% training accuracy but chance validation accuracy. Which change most directly prevents this encoding from giving each training row its own label?",
+      "options": [
+        "Use labels from other folds to encode each training row",
+        "Increase the number of epochs",
+        "Standardize encoded values",
+        "Add raw device_id as a numerical feature"
+      ],
+      "answer": 0,
+      "why": "Out of fold target encoding prevents a row's own label from entering its encoded input."
+    },
+    {
+      "id": "rq-06",
+      "title": "Missing Values as Information",
+      "cat": "Data & validation",
+      "q": "A lab sensor sometimes returns NaN. Whether a value is missing remains predictive of the label even after accounting for all observed values. What should you add?",
+      "options": [
+        "Impute zero and do nothing else",
+        "Discard every incomplete row",
+        "Impute and add a binary missingness indicator",
+        "Replace every value with its rank"
+      ],
+      "answer": 2,
+      "why": "A missingness flag preserves the information in the observation process itself."
+    },
+    {
+      "id": "rq-07",
+      "title": "PCA’s Hidden Failure",
+      "cat": "Data & validation",
+      "q": "You have independent features x₁ (variance 100, unrelated to the label) and x₂ (variance 0.01, perfectly determines the label). You apply unstandardized PCA and retain one component. In the population limit, what is retained?",
+      "options": [
+        "x₂, because PCA is label aware",
+        "x₁, losing the label information",
+        "An equal mixture of x₁ and x₂",
+        "Whichever has greater mutual information with the label"
+      ],
+      "answer": 1,
+      "why": "PCA is unsupervised and prioritizes variance, not predictive relevance."
+    },
+    {
+      "id": "rq-08",
+      "title": "A Distance Problem",
+      "cat": "Data & validation",
+      "q": "You train KNN with two equally relevant measurements. One numerical column has values around 1; the other has values around 10,000 solely because of its units. You use Euclidean distance. What is the most appropriate first change?",
+      "options": [
+        "Increase k until the unit difference disappears",
+        "Apply PCA without scaling",
+        "Switch to a regression estimator",
+        "Scale features using statistics fitted only on training data"
+      ],
+      "answer": 3,
+      "why": "Raw Euclidean distance is sensitive to feature units; training only scaling avoids validation leakage."
+    },
+    {
+      "id": "rq-09",
+      "title": "The Miraculous Image Validation",
+      "cat": "Data & validation",
+      "q": "You create five crops of every labeled photograph, then randomly split the crops into train and validation. The validation score jumps sharply. What is the cleanest correction?",
+      "options": [
+        "Split the original photographs first, then augment the training originals",
+        "Apply more aggressive augmentation to validation crops",
+        "Use a larger validation fraction after augmentation",
+        "Keep the split and add dropout"
+      ],
+      "answer": 0,
+      "why": "Crops from one photograph are highly correlated; split at the source image level before augmentation."
+    },
+    {
+      "id": "rq-10",
+      "title": "A Category That Has Never Appeared",
+      "cat": "Data & validation",
+      "q": "A model uses one hot encoded country codes. At inference, a previously unseen country appears. Which pipeline is robust without learning preprocessing from validation or test labels?",
+      "options": [
+        "Refit the encoder on the test set alone",
+        "Assign the new country the label of the most common training country",
+        "Fit the encoder on training data with unknown categories ignored during transform",
+        "Replace all country names by their alphabetical positions"
+      ],
+      "answer": 2,
+      "why": "An encoder fit on training categories with explicit unknown category handling keeps the feature space stable."
+    },
+    {
+      "id": "rq-11",
+      "title": "AUC Without Better Predictions",
+      "cat": "Evaluation",
+      "q": "A binary model outputs distinct real valued scores. You replace every score s with sigmoid(5s). In exact arithmetic, what is guaranteed?",
+      "options": [
+        "ROC AUC increases but log loss stays fixed",
+        "ROC AUC is unchanged; probability calibration may change",
+        "ROC AUC and log loss are both unchanged",
+        "ROC AUC decreases because sigmoid compresses large scores"
+      ],
+      "answer": 1,
+      "why": "A strictly increasing function preserves all score rankings, so it preserves binary ROC AUC but not probability values."
+    },
+    {
+      "id": "rq-12",
+      "title": "The Rare Disease Shift",
+      "cat": "Evaluation",
+      "q": "A classifier has unchanged true positive rate and false positive rate in two populations. The disease becomes much rarer, and both rates are strictly between 0 and 1. What happens to precision?",
+      "options": [
+        "It must increase",
+        "It stays unchanged because recall stayed unchanged",
+        "It equals the false positive rate",
+        "It decreases"
+      ],
+      "answer": 3,
+      "why": "With a lower positive base rate, false positives occupy a larger share of predicted positives."
+    },
+    {
+      "id": "rq-13",
+      "title": "The 95% Accuracy Trap",
+      "cat": "Evaluation",
+      "q": "A test set has 95 negative and 5 positive examples. Model A predicts every example negative. Model B gets 4 positives right, misses 1 positive, and wrongly flags 6 negatives. Which has the higher positive class F1?",
+      "options": [
+        "Model A, because its accuracy is higher",
+        "Both have F1 = 0.5",
+        "Model B, even though its accuracy is lower",
+        "Both have equal F1 because the test set is fixed"
+      ],
+      "answer": 2,
+      "why": "Model A has positive F1 = 0; Model B has F1 = 2·4/(2·4+6+1) = 8/15."
+    },
+    {
+      "id": "rq-14",
+      "title": "The Batch Metric Bug",
+      "cat": "Evaluation",
+      "q": "You report test set F1 by computing F1 separately for each minibatch and averaging the batch F1 values. Batches have different class proportions. What computes the true F1 of the complete test set?",
+      "options": [
+        "Take the median batch F1",
+        "Concatenate all predictions and targets, then compute F1 once",
+        "Weight each batch F1 by the number of examples",
+        "Use the mean batch F1 only if batch size is constant"
+      ],
+      "answer": 1,
+      "why": "F1 is a nonlinear function of total TP, FP, and FN; averaging batch F1 generally gives a different result."
+    },
+    {
+      "id": "rq-15",
+      "title": "The Best of 100 Models",
+      "cat": "Evaluation",
+      "q": "You train 100 configurations and pick the one with highest accuracy on one fixed validation set. The winning validation score is unusually high. What is the main statistical concern?",
+      "options": [
+        "The model always has too many parameters",
+        "Using a fixed validation set causes training gradients to vanish",
+        "Validation accuracy is always an underestimate",
+        "Selecting the maximum over noisy validation estimates gives an optimistic winning score"
+      ],
+      "answer": 3,
+      "why": "Trying many configurations can overfit the validation set even without directly training on its labels."
+    },
+    {
+      "id": "rq-16",
+      "title": "The Overconfident Group",
+      "cat": "Evaluation",
+      "q": "Among 1,000 examples receiving predicted probability 0.8, only 500 are actually positive. What can you directly conclude about calibration for this group?",
+      "options": [
+        "The model is overconfident at 0.8",
+        "The model has ROC AUC = 0.5",
+        "The classifier has recall 50%",
+        "The model is underconfident at 0.8"
+      ],
+      "answer": 0,
+      "why": "For calibrated 0.8 predictions, approximately 80% should be positive; only 50% are."
+    },
+    {
+      "id": "rq-17",
+      "title": "Expensive False Negatives",
+      "cat": "Evaluation",
+      "q": "A calibrated model outputs P(y=1|x)=p. A false positive costs 1 unit, a false negative costs 100 units, and correct decisions cost 0. With no other constraints, when should you predict positive?",
+      "options": [
+        "When p > 0.5",
+        "When p > 1/101",
+        "When p > 100/101",
+        "Only when p = 1"
+      ],
+      "answer": 1,
+      "why": "Predict positive when expected FP cost 1−p is less than expected FN cost 100p, hence p > 1/101."
+    },
+    {
+      "id": "rq-18",
+      "title": "Lowering the Threshold",
+      "cat": "Evaluation",
+      "q": "For a fixed set of binary classifier scores, you lower the threshold used to predict positive. Which statement is guaranteed, assuming the positive class is present?",
+      "options": [
+        "Recall cannot decrease",
+        "Precision must decrease",
+        "Accuracy must increase",
+        "F1 must increase"
+      ],
+      "answer": 0,
+      "why": "Lowering the threshold never turns a predicted positive into negative, so the number of true positives cannot fall."
+    },
+    {
+      "id": "rq-19",
+      "title": "The Log Transform That Does Nothing",
+      "cat": "Classical ML",
+      "q": "You fit an exact greedy decision tree using all candidate threshold partitions. Every value of one positive numerical feature is replaced by its logarithm, which preserves their strict order. What is true about the possible splits on that feature?",
+      "options": [
+        "The best split must move to a different subset",
+        "No threshold split is possible after logging",
+        "The feature must become less useful",
+        "The same training subsets remain achievable by thresholds"
+      ],
+      "answer": 3,
+      "why": "Strict monotonic transforms preserve ordering; a decision tree threshold still separates the same subsets."
+    },
+    {
+      "id": "rq-20",
+      "title": "XOR with Logistic Regression",
+      "cat": "Classical ML",
+      "q": "Two binary inputs x₁ and x₂ have label 1 exactly when one, but not both, is 1. Ordinary logistic regression cannot classify all four possible pairs perfectly. Which extra feature makes linear separation possible?",
+      "options": [
+        "x₁ + x₂",
+        "x₁ − x₂",
+        "x₁·x₂",
+        "A constant bias feature"
+      ],
+      "answer": 2,
+      "why": "An interaction term permits a decision rule based on x₁+x₂−2x₁x₂, which is 1 only when the inputs differ."
+    },
+    {
+      "id": "rq-21",
+      "title": "Two Rings",
+      "cat": "Classical ML",
+      "q": "Unlabeled 2D points form two thin concentric rings separated by a clear empty gap. Which method is naturally suited to recover the two ring shaped clusters?",
+      "options": [
+        "DBSCAN with suitable parameters",
+        "Standard KMeans with k=2",
+        "One principal component followed by KMeans",
+        "A linear separator"
+      ],
+      "answer": 0,
+      "why": "Density based clustering can identify nonconvex connected regions separated by empty space; centroid methods favor convex groups."
+    },
+    {
+      "id": "rq-22",
+      "title": "One Thousand Copies of the Same Tree",
+      "cat": "Classical ML",
+      "q": "You ensemble 1,000 trees. Each tree is identical, trained on the same data, and makes exactly the same predictions. What is the main limitation?",
+      "options": [
+        "Voting reduces errors by a factor of 1,000",
+        "Their mistakes are perfectly correlated, so averaging gives no improvement",
+        "Ensembling identical models changes the decision boundary dramatically",
+        "Identical trees cannot be combined by majority voting"
+      ],
+      "answer": 1,
+      "why": "If every model outputs the same value, their average and vote equal one tree's output."
+    },
+    {
+      "id": "rq-23",
+      "title": "Units Change the Regularized Model",
+      "cat": "Classical ML",
+      "q": "A logistic regression model uses L2 regularization with a fixed penalty coefficient. You convert one input feature from meters to millimeters and retrain without rescaling features. Why might predictions change?",
+      "options": [
+        "Logistic regression cannot accept values above 100",
+        "Conversion changes which labels are positive",
+        "The L2 penalty acts on coefficients and is not invariant to rescaling one feature",
+        "All sigmoid activations become zero on large inputs"
+      ],
+      "answer": 2,
+      "why": "The coefficient compensates for units, but its squared penalty changes relative to other coefficients."
+    },
+    {
+      "id": "rq-24",
+      "title": "Duplicating a Neighbor",
+      "cat": "Classical ML",
+      "q": "For a test point, the three nearest training examples are (distance 0.1, class 1), (0.2, class 0), and (0.3, class 0). A 3NN classifier predicts 0. You add an exact duplicate of the first training example. What does 3NN now predict?",
+      "options": [
+        "Class 1",
+        "Class 0",
+        "An error because identical points are forbidden",
+        "The prediction remains unchanged by definition"
+      ],
+      "answer": 0,
+      "why": "The three nearest are now two class 1 examples at 0.1 and one class 0 example at 0.2."
+    },
+    {
+      "id": "rq-25",
+      "title": "Which Penalty Can Discard a Feature?",
+      "cat": "Classical ML",
+      "q": "You want a linear model to perform feature selection by making some learned coefficients exactly zero. Which penalty is specifically associated with this sparse behavior?",
+      "options": [
+        "An L2 penalty only",
+        "An L1 penalty",
+        "Neither L1 nor L2 can produce zero coefficients",
+        "Increasing batch size"
+      ],
+      "answer": 1,
+      "why": "L1's nonsmooth penalty at zero encourages exact zeros; L2 typically shrinks coefficients continuously."
+    },
+    {
+      "id": "rq-26",
+      "title": "The Invisible Batch Matrix",
+      "cat": "PyTorch & deep learning",
+      "q": "In PyTorch, predictions have shape (B, 1) and regression labels have shape (B,), with B>1. You pass both directly to nn.MSELoss. What happens?",
+      "options": [
+        "PyTorch always raises a hard shape error",
+        "PyTorch silently reshapes labels to (B,1) before the loss",
+        "The arrays broadcast to (B,B), producing a wrong pairwise loss (typically with a warning)",
+        "The loss uses only the first prediction"
+      ],
+      "answer": 2,
+      "why": "Broadcasting aligns trailing dimensions, expanding (B,1) and (B,) to (B,B)."
+    },
+    {
+      "id": "rq-27",
+      "title": "Four Steps, One Update",
+      "cat": "PyTorch & deep learning",
+      "q": "You accumulate gradients from four equally sized minibatches and take one SGD step. Loss on each minibatch is its mean. Assume no batch dependent layers or other stochastic effects. What is needed to match the full batch mean gradient?",
+      "options": [
+        "Divide each minibatch loss by 4 before backward",
+        "Multiply each loss by 4",
+        "Call optimizer.step() after every backward",
+        "Set every gradient to zero between minibatches"
+      ],
+      "answer": 0,
+      "why": "Each minibatch mean must contribute one quarter to the average gradient over four equal minibatches."
+    },
+    {
+      "id": "rq-28",
+      "title": "Why Accumulation Is Not Quite a Large Batch",
+      "cat": "PyTorch & deep learning",
+      "q": "You accumulate gradients over four minibatches instead of processing one large batch. Loss scaling is correct, but results still differ when the model uses BatchNorm in training mode. Why?",
+      "options": [
+        "The optimizer is unable to add gradients",
+        "The learning rate is automatically divided by four",
+        "BatchNorm disables backpropagation during accumulation",
+        "BatchNorm computes normalization statistics separately on each small minibatch"
+      ],
+      "answer": 3,
+      "why": "Gradient accumulation cannot reproduce large batch BatchNorm statistics merely by rescaling losses."
+    },
+    {
+      "id": "rq-29",
+      "title": "A Head That Never Trains",
+      "cat": "PyTorch & deep learning",
+      "q": "You create an optimizer, then replace model.fc with a new nn.Linear layer. The new parameters have requires_grad=True and receive gradients, but they never update. What is the most likely reason?",
+      "options": [
+        "The backbone is in eval mode",
+        "The optimizer does not contain the newly created layer's parameters",
+        "A new nn.Linear cannot be trained by SGD",
+        "requires_grad=True prevents optimizer updates"
+      ],
+      "answer": 1,
+      "why": "Optimizers retain parameter references from construction time and do not automatically discover replacement layers."
+    },
+    {
+      "id": "rq-30",
+      "title": "Frozen But Still Changing",
+      "cat": "PyTorch & deep learning",
+      "q": "You set requires_grad=False on every parameter of a pretrained BatchNorm backbone, but leave model.train() active while training a new head. Which backbone state can still change?",
+      "options": [
+        "The frozen convolution weights",
+        "The frozen BatchNorm affine gamma parameters",
+        "BatchNorm running mean and running variance",
+        "All requires_grad=False parameters"
+      ],
+      "answer": 2,
+      "why": "BatchNorm running statistics are buffers that update in training mode even when its parameters are frozen."
+    },
+    {
+      "id": "rq-31",
+      "title": "Two Inference Switches",
+      "cat": "PyTorch & deep learning",
+      "q": "You want standard Dropout disabled, BatchNorm to use stored statistics, and PyTorch not to construct an autograd graph for inference. Which combination achieves all three?",
+      "options": [
+        "model.eval() and torch.no_grad()",
+        "model.eval() alone",
+        "torch.no_grad() alone",
+        "optimizer.zero_grad() and model.train()"
+      ],
+      "answer": 0,
+      "why": "eval controls module behavior, while no_grad separately disables gradient recording."
+    },
+    {
+      "id": "rq-32",
+      "title": "A Confident Numerical Disaster",
+      "cat": "PyTorch & deep learning",
+      "q": "A binary classifier produces an extremely negative logit for a positive label. You want to compute stable binary cross entropy directly from logits. Which PyTorch option is designed for this?",
+      "options": [
+        "torch.nn.MSELoss on logits",
+        "sigmoid followed by torch.log manually",
+        "torch.nn.CrossEntropyLoss applied to a single logit",
+        "torch.nn.BCEWithLogitsLoss on the raw logits"
+      ],
+      "answer": 3,
+      "why": "BCEWithLogitsLoss combines sigmoid and the loss in a numerically stable computation."
+    },
+    {
+      "id": "rq-33",
+      "title": "Two Independent Lookups",
+      "cat": "Attention & transformers",
+      "q": "One attention layer must retrieve a color description from one token and a position description from a different token, with independently chosen attention weights. Which design most directly provides two separate attention distributions?",
+      "options": [
+        "Increase only the value dimension of a single head",
+        "Use two attention heads with separately learned queries and keys",
+        "Remove the softmax from one head",
+        "Apply the same attention weights twice"
+      ],
+      "answer": 1,
+      "why": "Each head can learn its own query/key attention matrix, unlike a single softmax shared across all value channels."
+    },
+    {
+      "id": "rq-34",
+      "title": "Patch Order Without Position",
+      "cat": "Attention & transformers",
+      "q": "A Transformer image classifier has a fixed CLS token, tokenwise operations, full self attention, and no positional information. At inference, you permute all patch tokens but leave CLS in place. What happens to the final CLS embedding?",
+      "options": [
+        "It stays identical in exact arithmetic",
+        "It becomes a corresponding permutation of itself",
+        "It necessarily changes because attention is order sensitive",
+        "All attention probabilities become uniform"
+      ],
+      "answer": 0,
+      "why": "Without positional information, permuting patch inputs only permutes patch outputs; the fixed CLS output is invariant."
+    },
+    {
+      "id": "rq-35",
+      "title": "A Smaller Patch, a Larger Bill",
+      "cat": "Attention & transformers",
+      "q": "A vision Transformer processes 224×224 images with nonoverlapping 16×16 patches. You change the patch size to 8×8. Ignoring CLS and other special tokens, how does the number of patch to patch attention scores change?",
+      "options": [
+        "2×",
+        "4×",
+        "16×",
+        "64×"
+      ],
+      "answer": 2,
+      "why": "Patch count grows from 14²=196 to 28²=784 (4×); pairwise attention scores grow by 4²=16×."
+    },
+    {
+      "id": "rq-36",
+      "title": "The Cheating Language Model",
+      "cat": "Attention & transformers",
+      "q": "An autoregressive language model gets nearly perfect training next token accuracy but fails at generating text. You discover that during training each position could attend to later positions containing target tokens. What should have prevented this?",
+      "options": [
+        "Layer normalization",
+        "A larger vocabulary",
+        "Dropout on the output head",
+        "A causal attention mask"
+      ],
+      "answer": 3,
+      "why": "Causal masking blocks access to future tokens, preserving the intended next token prediction task."
+    },
+    {
+      "id": "rq-37",
+      "title": "Segmentation Masks That Invent Classes",
+      "cat": "Computer vision",
+      "q": "You resize a semantic segmentation image and its integer class mask. After resizing, the mask contains values between class IDs that never existed originally. What is the likely error?",
+      "options": [
+        "You used nearest neighbor interpolation for the mask",
+        "You used bilinear interpolation for the class mask instead of nearest neighbor",
+        "You normalized RGB channels",
+        "You set the image size to a multiple of 32"
+      ],
+      "answer": 1,
+      "why": "Bilinear interpolation blends class IDs; nearest neighbor interpolation preserves discrete labels."
+    },
+    {
+      "id": "rq-38",
+      "title": "The Flipped Bounding Box",
+      "cat": "Computer vision",
+      "q": "An image uses continuous horizontal coordinates from 0 to W=100. A bounding box spans x₁=10 to x₂=30. You flip the image horizontally. What should its new horizontal bounds be?",
+      "options": [
+        "(10,30)",
+        "(30,70)",
+        "(70,90)",
+        "(90,70)"
+      ],
+      "answer": 2,
+      "why": "Under a horizontal flip x becomes W−x, so (x₁,x₂) maps to (W−x₂,W−x₁)."
+    },
+    {
+      "id": "rq-39",
+      "title": "A Nearly Perfect Segmenter",
+      "cat": "Computer vision",
+      "q": "Exactly 98% of pixels in a test image are background and 2% are foreground objects. A model predicts every pixel as background. Which statement is correct?",
+      "options": [
+        "Pixel accuracy is 98%, but foreground IoU is 0",
+        "Pixel accuracy is 100% because background dominates",
+        "Foreground IoU is 98%",
+        "Foreground recall is 98%"
+      ],
+      "answer": 0,
+      "why": "All background pixels are correct, but no foreground pixel is correctly predicted."
+    },
+    {
+      "id": "rq-40",
+      "title": "An Augmentation That Lies",
+      "cat": "Computer vision",
+      "q": "You classify cropped handwritten digits, including 6 and 9. Some rotations turn a valid 6 into an apparent 9, but the augmentation preserves the original label. What is the risk?",
+      "options": [
+        "Rotation never affects digit identity",
+        "It only changes the normalization statistics",
+        "It guarantees invariance and higher accuracy",
+        "It creates contradictory labels, potentially hurting learning"
+      ],
+      "answer": 3,
+      "why": "Not every image transformation preserves the semantic label; label violating augmentation introduces supervision noise."
+    },
+    {
+      "id": "rq-41",
+      "title": "Same Words, Different Meaning",
+      "cat": "NLP & audio",
+      "q": "A classifier using only unordered word counts receives \"the cat chased the dog\" and \"the dog chased the cat\". The intended labels differ according to who chased whom. What is its fundamental limitation?",
+      "options": [
+        "It cannot count the total number of words",
+        "Unigram counts discard word order, so both inputs have the same representation",
+        "It lacks enough training epochs",
+        "It cannot process repeated words"
+      ],
+      "answer": 1,
+      "why": "Bag of words is invariant to token permutations; ngrams or an order aware encoder can preserve the distinction."
+    },
+    {
+      "id": "rq-42",
+      "title": "Short Texts Look Small",
+      "cat": "NLP & audio",
+      "q": "A text encoder pads every sequence to 128 tokens with zero padding vectors, then simply averages all 128 embeddings. Short documents produce much smaller average vector magnitudes than long ones. What is the most direct correction?",
+      "options": [
+        "Add more padding tokens",
+        "Train a larger tokenizer vocabulary",
+        "Average only over real tokens using a padding mask",
+        "Sort all tokens alphabetically before pooling"
+      ],
+      "answer": 2,
+      "why": "Masked pooling divides the sum by the actual number of real tokens, not the padded length."
+    },
+    {
+      "id": "rq-43",
+      "title": "The Resampling Shortcut",
+      "cat": "NLP & audio",
+      "q": "An audio clip contains 16,000 PCM samples captured at 16,000 samples per second. A model expects 8,000 samples per second. You change only the sample rate metadata to 8,000, leaving the sample array unchanged. What happens on playback?",
+      "options": [
+        "Duration stays 1 second and pitch stays the same",
+        "Duration stays 1 second but pitch doubles",
+        "Duration halves to 0.5 seconds",
+        "Duration becomes 2 seconds and pitch is halved"
+      ],
+      "answer": 3,
+      "why": "16,000 samples at 8,000 samples/second play for two seconds; correct resampling changes the sample data."
+    },
+    {
+      "id": "rq-44",
+      "title": "The Crop That Removes the Label",
+      "cat": "Computer vision",
+      "q": "In a binary vision task, y=1 means the target object is visible somewhere in the image. You crop a positive image so the object is completely excluded, but keep y=1. What is wrong?",
+      "options": [
+        "The crop is now mislabeled for the stated task",
+        "Cropping positive images can never be used",
+        "The crop becomes a valid positive because the original image was positive",
+        "Only the learning rate must change"
+      ],
+      "answer": 0,
+      "why": "An augmentation that removes the target object violates the labeling rule unless the label is updated."
+    },
+    {
+      "id": "rq-45",
+      "title": "The Speaker and the Room",
+      "cat": "NLP & audio",
+      "q": "You recognize known speakers from short audio clips. Every recording session contains many clips, and room acoustics stay constant within a session. Deployment will use new sessions in new rooms. Which validation design is most revealing, assuming each speaker has recordings in multiple rooms?",
+      "options": [
+        "Randomly split individual frames from every clip",
+        "Hold out whole sessions and rooms while keeping the speakers represented in training",
+        "Randomly split clips from the same sessions",
+        "Duplicate rare speakers' clips before making a random split"
+      ],
+      "answer": 1,
+      "why": "Whole session and room holdouts test speaker identity rather than memorizing recording conditions."
+    }
+  ]
+}

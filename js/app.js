@@ -5,12 +5,14 @@
   const V = window.MLION_VISUALS;
   const DATA = window.MLION_DATA;
   const EXTRAS = DATA.extras || []; // off-topic prompts: practice only, never in a run
-  const PROMPTS = new Map(DATA.prompts.concat(EXTRAS).map((p) => [p.id, p]));
+  const REASONING = (DATA.reasoning || []).map((r) => ({ id: r.id, text: r.q, title: r.title, cat: r.cat, reasoning: true,
+    answers: [{ a: r.options[r.answer], t: "baseline", q: r.why }] }));
+  const PROMPTS = new Map(DATA.prompts.concat(EXTRAS, REASONING).map((p) => [p.id, p]));
   // Core questions follow the IOAI syllabus. Extra ones (display.json `extra`, plus the off-topic
   // extras) join only a player's own Unlimited and Quiz runs, when Settings → Extra questions is on.
   // The daily, challenges and live rooms always deal from the core set, so everyone shares it.
-  const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra) };
-  const WIDE = { version: `${DATA.version}:wide`, packs: DATA.packs, prompts: DATA.prompts.concat(EXTRAS) };
+  const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra), reasoning: DATA.reasoning || [] };
+  const WIDE = { version: `${DATA.version}:wide`, packs: DATA.packs, prompts: DATA.prompts.concat(EXTRAS), reasoning: DATA.reasoning || [] };
   const EXTRA_COUNT = WIDE.prompts.length - CORE.prompts.length;
   const CORE_DAILY_FROM = "2026-11-06"; // dailies before this keep the questions they were played with
   const soloPool = () => (settings.extraQuestions ? WIDE : CORE);
@@ -57,6 +59,9 @@
   const isQuizMode = (m) => m === "quiz" || m === "vq";
   /** "a loss function": what a prompt asks for, for labelling a wrong option by where it belongs. */
   const kindOf = (id) => { const p = PROMPTS.get(id); return p ? p.text.replace(/^Name\s+/i, "") : "something else"; };
+  const fromLabel = (q, k) => (q.from && q.from[k] ? `<span class="mcq-from">That's ${esc(kindOf(q.from[k]))}</span>` : "");
+  /** The clock for a quiz question: a reasoning one gets E.REASONING_CLOCK times the base. */
+  const qMs = (q, base) => (q && q.reasoning ? Math.round(base * E.REASONING_CLOCK) : base);
   const qmark = (ok, cls = "") => `<svg class="glyph qm ${ok ? "t-" + QUIZ_TIER : "t-miss"} ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ok ? `<path d="M4.5 12.5l4.8 4.8L19.5 6.8"/>` : `<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>`}</svg>`;
   const qmarksRow = (oks, cls = "") => `<span class="tiers ${cls}" role="img" aria-label="${oks.filter(Boolean).length} of ${oks.length} right">${oks.map((ok) => qmark(ok)).join("")}</span>`;
   /** What a quiz result card says in one word. */
@@ -293,7 +298,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const TIME_PRESETS = [10, 15, 25, 40, 60];
   const DEFAULT_SECS = E.ANSWER_MS / 1000;
   const validSecs = (x) => TIME_PRESETS.includes(x);
-  const answerMs = () => (RUN && RUN.answerMs) || E.ANSWER_MS; // runs saved before this setting existed get 25 s
+  const baseMs = () => (RUN && RUN.answerMs) || E.ANSWER_MS; // runs saved before this setting existed get 25 s
+  /** The clock for question `i` (default: the current one); a reasoning question gets longer. */
+  const answerMs = (i) => qMs(RUN && RUN.quiz && RUN.quiz[i === undefined ? RUN.round : i], baseMs());
+  const liveMs = (i) => qMs(LIVE.quiz && LIVE.quiz[i], (LIVE.secs || DEFAULT_SECS) * 1000);
   function timePicker(secs) {
     return `<div class="vs-field"><span>Time per question</span><div class="vs-sizes" role="radiogroup" aria-label="Seconds per question">${TIME_PRESETS.map((k) => `<button type="button" class="vs-size t-size${k === secs ? " on" : ""}" role="radio" aria-checked="${k === secs}" data-s="${k}">${k} s</button>`).join("")}</div></div>`;
   }
@@ -470,7 +478,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // quiz matches keep each verdict back until the reveal, so a total counts revealed rounds only
   const shownTotal = (pl) => { let s = 0; for (const k in pl.ans) if (!liveQuiz() || +k <= LIVE.revealed) s += roundPts(pl, +k); return s; };
   /** A player's whole answer time in a quiz match; a question they never answered counts as the full clock. */
-  const liveTotalMs = (pl) => { let s = 0; for (let k = 0; k < LIVE.n; k++) s += pl.ans[k] ? pl.ans[k].ms : (LIVE.secs || DEFAULT_SECS) * 1000; return s; };
+  const liveTotalMs = (pl) => { let s = 0; for (let k = 0; k < LIVE.n; k++) s += pl.ans[k] ? pl.ans[k].ms : liveMs(k); return s; };
   /** Standing order: points, then (quiz) the faster total time. */
   const rankCmp = (a, b) => shownTotal(b) - shownTotal(a) || (liveQuiz() ? liveTotalMs(a) - liveTotalMs(b) : 0);
   const hostNow = () => Date.now() + (LIVE.isHost ? 0 : LIVE.offset || 0); // clocks synced to the host
@@ -524,7 +532,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       cancelAnimationFrame(runRaf);
       while (RUN.results.length < m.i) { // missed a round (lag or tab asleep): count it as a miss
         const p = PROMPTS.get(RUN.promptIds[RUN.results.length]);
-        RUN.results.push({ promptId: p.id, promptText: p.text, raw: null, answer: null, tier: null, score: 0, quip: null, corrected: false, timeout: true, ...(RUN.fmt === "quiz" ? { picked: -1, correct: RUN.quiz[RUN.results.length].correct, ms: answerMs() } : {}) });
+        RUN.results.push({ promptId: p.id, promptText: p.text, raw: null, answer: null, tier: null, score: 0, quip: null, corrected: false, timeout: true, ...(RUN.fmt === "quiz" ? { picked: -1, correct: RUN.quiz[RUN.results.length].correct, ms: answerMs(RUN.results.length) } : {}) });
       }
       RUN.round = m.i;
       const go1 = () => { if (RUN && RUN.mode === "live" && RUN.round === m.i) { startRound(); renderStrip(); } };
@@ -539,7 +547,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         const q = LIVE.quiz && LIVE.quiz[m.i];
         if (!q || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
         const ok = m.pick >= 0 && m.pick === q.correct;
-        const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, (LIVE.secs || DEFAULT_SECS) * 1000));
+        const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, liveMs(m.i)));
         pl.ans[m.i] = { pick: m.pick, ok, ms, answer: m.pick >= 0 ? q.options[m.pick] : null, tier: ok ? QUIZ_TIER : null, score: ok ? E.QUIZ_POINTS : 0 };
         renderStrip();
         renderLiveWait();
@@ -651,7 +659,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (m.pid && RUN && RUN.mode === "live" && RUN.promptIds[m.i] !== m.pid) return; // answered a question that was skipped
     if (liveQuiz()) { // the host decides what counts: a real option index (or none), a time inside the clock
       if (!LIVE.quiz || !LIVE.quiz[m.i] || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
-      const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, (LIVE.secs || DEFAULT_SECS) * 1000));
+      const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, liveMs(m.i)));
       broadcast({ t: "ans", id, i: m.i, pick: m.pick, ms });
     } else broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier });
     const everyone = inMatch().every((p) => p.ans[m.i]);
@@ -714,7 +722,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function hostRound(i) {
     broadcast({ t: "round", i, at: Date.now() + 1500 });
     // nobody moves on until everyone has answered; this cap only covers a player who vanished
-    liveLater(() => hostReveal(i), 1500 + E.PREVIEW_MS + (LIVE.secs || DEFAULT_SECS) * 1000 + 12000);
+    liveLater(() => hostReveal(i), 1500 + E.PREVIEW_MS + (liveQuiz() ? liveMs(i) : (LIVE.secs || DEFAULT_SECS) * 1000) + 12000);
   }
   function hostReveal(i) {
     if (LIVE.revealed >= i || LIVE.phase !== "playing") return;
@@ -835,7 +843,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (LIVE.phase === "playing" && RUN && RUN.mode === "live") {
       const i = RUN.round;
       if (LIVE.revealed >= i) liveLater(() => { if (i + 1 < LIVE.n) hostRound(i + 1); else { broadcast({ t: "end" }); LIVE.phase = "done"; broadcast(lobbyMsg()); } }, 1500);
-      else { hostCheckRound(); liveLater(() => hostReveal(i), E.PREVIEW_MS + (LIVE.secs || DEFAULT_SECS) * 1000 + 8000); }
+      else { hostCheckRound(); liveLater(() => hostReveal(i), E.PREVIEW_MS + (liveQuiz() ? liveMs(i) : (LIVE.secs || DEFAULT_SECS) * 1000) + 8000); }
     }
   }
 
@@ -1182,7 +1190,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="mq-opts">${q.options.map((o, k) => {
         const who = ps.filter((pl) => pl.ans[i] && pl.ans[i].pick === k);
         return `<li class="${k === q.correct ? "right" : ""}"><span class="mcq-k">${k === q.correct ? qmark(true) : k + 1}</span>
-          <span class="mcq-t"><b>${esc(o)}</b>${k === q.correct ? (x ? `<span class="mcq-x">${esc(x)}</span>` : "") : `<span class="mcq-from">That's ${esc(kindOf(q.from[k]))}</span>`}</span>
+          <span class="mcq-t"><b>${esc(o)}</b>${k === q.correct ? (x ? `<span class="mcq-x">${esc(x)}</span>` : "") : fromLabel(q, k)}</span>
           <span class="mcq-who">${who.map((pl) => `<i class="${pl.id === LIVE.myId ? "me" : ""}">${esc(pl.name)}</i>`).join("")}</span></li>`;
       }).join("")}</ul>
       ${silent.length ? `<p class="lv-note">No answer: ${esc(silent.map((pl) => pl.name).join(", "))}</p>` : ""}
@@ -1232,7 +1240,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </section>
       <section>
         <h2 class="block-title">Answer keys</h2>
-        ${ids.map((pid, i) => answerKey(PROMPTS.get(pid), quiz ? rightOf(i) : me && me.ans[i] && me.ans[i].answer, openKeys.has(pid))).join("")}
+        ${ids.map((pid, i) => (PROMPTS.get(pid).reasoning ? "" : answerKey(PROMPTS.get(pid), quiz ? rightOf(i) : me && me.ans[i] && me.ans[i].answer, openKeys.has(pid)))).join("")}
       </section>` : "";
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>${winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${LIVE.n} questions${quiz ? " · Quiz" : ""} · Room ${esc(LIVE.code)}${timeNote}</p></div>
@@ -1659,7 +1667,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="beats">
         <li><b>${n}</b><span>${n === 1 ? "prompt" : "prompts"}</span></li>
         <li><b>3 s</b><span>to read</span></li>
-        <li><b>${answerMs() / 1000} s</b><span>to answer</span></li>
+        <li><b>${baseMs() / 1000} s</b><span>to answer</span></li>
       </ul>
       <p class="rule">${quiz ? "Four answers, one fits. Tap one before the clock runs out. A wrong answer or no answer scores nothing." : "Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more."}</p>
       ${vsLike ? `<label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So ${RUN.opp ? esc(RUN.opp.name) : "your friend"} knows who played" value="${esc(myName())}"></label>` : ""}
@@ -1673,7 +1681,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (sendNow) sendNow.addEventListener("click", () => {
       const nm = $("#vs-name");
       if (nm) LS.set("name", nm.value.trim().slice(0, 16));
-      const link = quiz ? vqLink(RUN.seed, RUN.n, [], answerMs() / 1000) : challengeLink(RUN.seed, RUN.n, [], answerMs() / 1000);
+      const link = quiz ? vqLink(RUN.seed, RUN.n, [], baseMs() / 1000) : challengeLink(RUN.seed, RUN.n, [], baseMs() / 1000);
       shareLink(`Play MLion with me: the same ${RUN.n} ${quiz ? "quiz" : "ML"} questions. Send me your score when you're done:\n${link}`);
     });
     $("#begin").addEventListener("click", async () => {
@@ -1706,8 +1714,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (descent) descent.calm();
     $("#card").innerHTML = `<div class="round quiz">
       <div class="ask">
-        <p class="prompt-text" id="prompt-text">${esc(p.text)}</p>
-        <p class="prompt-note">${p.scope ? `${esc(p.scope)}. ` : ""}Which one fits?</p>
+        ${p.reasoning ? `<p class="rq-eyebrow">Reasoning · ${esc(p.cat)}</p>` : ""}
+        <p class="prompt-text${p.reasoning ? " rq-text" : ""}" id="prompt-text">${esc(p.text)}</p>
+        <p class="prompt-note">${p.reasoning ? "Pick the best answer." : `${p.scope ? `${esc(p.scope)}. ` : ""}Which one fits?`}</p>
       </div>
       <div class="act">
         <div class="timer" id="timer">
@@ -2024,7 +2033,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const right = k === q.correct, mine = k === res.picked;
       const x = right ? explainOf(res.promptId, o) : null;
       return `<li class="${right ? "right" : ""}${mine ? " mine" : ""}"><span class="mcq-k">${right ? qmark(true) : mine ? qmark(false) : k + 1}</span>
-        <span class="mcq-t"><b>${esc(o)}</b>${right ? (x ? `<span class="mcq-x">${esc(x)}</span>` : "") : `<span class="mcq-from">That's ${esc(kindOf(q.from[k]))}</span>`}</span>${mine ? `<span class="mcq-you">You</span>` : ""}</li>`;
+        <span class="mcq-t"><b>${esc(o)}</b>${right ? (x ? `<span class="mcq-x">${esc(x)}</span>` : "") : fromLabel(q, k)}</span>${mine ? `<span class="mcq-you">You</span>` : ""}</li>`;
     };
     card.innerHTML = `
       <div class="feedback ${ok ? QUIZ_TIER : "miss"} t-${ok ? QUIZ_TIER : "miss"}${animate ? "" : " landed"}" id="fb" aria-live="polite">
@@ -2116,7 +2125,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const rec = {
       key: RUN.key, mode: RUN.mode, number: RUN.number, date: RUN.date || null, pack: RUN.pack || null,
       label: RUN.label, promptIds: RUN.promptIds, results: RUN.results, score,
-      tiers: RUN.results.map((r) => r.tier || "miss"), completedAt: Date.now(), secs: answerMs() / 1000,
+      tiers: RUN.results.map((r) => r.tier || "miss"), completedAt: Date.now(), secs: baseMs() / 1000,
     };
     if (RUN.mode === "vs") Object.assign(rec, { seed: RUN.seed, n: RUN.n, opp: RUN.opp || null, name: myName() || "You" });
     if (isQuizMode(RUN.mode)) { // keep the questions with the record, so old runs still read right if the generator changes
@@ -2524,7 +2533,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         </section>
         <section>
           <h2 class="block-title">Answer keys</h2>
-          ${rec.promptIds.map((id, i) => PROMPTS.has(id) ? answerKey(PROMPTS.get(id), rec.results[i] && rec.results[i].answer, rec.mode === "practice") : "").join("")}
+          ${rec.promptIds.map((id, i) => PROMPTS.has(id) && !PROMPTS.get(id).reasoning ? answerKey(PROMPTS.get(id), rec.results[i] && rec.results[i].answer, rec.mode === "practice") : "").join("")}
         </section>
         <div class="btn-row">
           <a class="btn" href="#home">Home</a>
@@ -2722,7 +2731,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
-        <div class="page-head"><h1>Quiz</h1><p>Seven questions a run. Four answers each, one fits. ${E.QUIZ_POINTS} a right answer.</p></div>
+        <div class="page-head"><h1>Quiz</h1><p>Seven questions a run, four answers each. Most ask which answer fits a prompt; two a run are reasoning questions with a longer clock and an explanation after. ${E.QUIZ_POINTS} a right answer.</p></div>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
         <div class="btn-row"><a class="btn primary big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
       </div>

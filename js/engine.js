@@ -434,6 +434,28 @@
   const QUIZ_POINTS = 100;
   const QUIZ_ROUNDS = 7;
   const QUIZ_HIT_EMOJI = "🟩";
+  // Reasoning questions (data.reasoning, ids rq-NN): hand-written, four options, one right. They
+  // take two of every seven quiz slots and get a longer clock, since there is a paragraph to read.
+  const REASONING_SHARE = 2 / 7;
+  const REASONING_CLOCK = 2.4; // a reasoning question gets 2.4x the clock: 25 s becomes 60 s
+  const isReasoningId = (id) => typeof id === "string" && id.startsWith("rq-");
+  const reasoningCount = (data, n) => Math.min((data.reasoning || []).length, Math.round(n * REASONING_SHARE));
+  function reasoningQuestion(data, id) {
+    const r = (data.reasoning || []).find((x) => x.id === id);
+    return r ? { promptId: r.id, options: r.options.slice(), correct: r.answer, from: r.options.map(() => null), reasoning: true } : null;
+  }
+  function reasoningStream(data, label) {
+    return makeStream({ packs: [{ id: "rq" }], prompts: (data.reasoning || []).map((r) => ({ id: r.id, pack: "rq" })) }, label, null, true);
+  }
+  const _reasonRuns = new Map();
+  /** The reasoning ids for solo quiz run `n`: dealt in order from one stream, so runs don't repeat until the bank is used up. */
+  function reasoningRun(data, n, per) {
+    const key = `${(data.reasoning || []).map((r) => r.id).join()}|${per}`;
+    let c = _reasonRuns.get(key);
+    if (!c) { c = { stream: reasoningStream(data, "reason-v1"), runs: [] }; _reasonRuns.set(key, c); }
+    while (c.runs.length < n) c.runs.push(c.stream.take(per));
+    return c.runs[n - 1];
+  }
   const _quizCtx = new WeakMap();
   /** On-topic prompts of a data bundle (never an `offtopic` one), indexed once. */
   function quizContext(data) {
@@ -459,6 +481,7 @@
    * as the right answer, 1 any familiar tier, 2 any tier).
    */
   function quizQuestion(data, seedKey, promptId, trace) {
+    if (isReasoningId(promptId)) return reasoningQuestion(data, promptId);
     const ctx = quizContext(data);
     const p = ctx.byId.get(promptId);
     if (!p) return null;
@@ -516,21 +539,40 @@
    */
   function quizFor(data, seedKey, n, opts) {
     const ctx = quizContext(data);
+    const given = (opts && opts.promptIds) || [];
+    // a list that already holds reasoning ids is a finished deal (a live guest rebuilding the
+    // host's questions): build exactly that. Otherwise mix reasoning questions in by the seed.
+    const exact = given.some(isReasoningId);
+    const rIds = exact ? [] : (opts && opts.reasoningIds) || reasoningStream(data, `rq-${seedKey}`).take(reasoningCount(data, n));
     const dealt = ctx.prompts.filter((p) => data.packs.some((pk) => pk.id === p.pack)).length; // the stream only deals listed packs
-    const want = Math.min(n, ctx.prompts.length);
+    const want = Math.min(n - rIds.length, ctx.prompts.length + (exact ? given.filter(isReasoningId).length : 0));
     const stream = makeStream({ packs: data.packs, prompts: ctx.prompts }, `quiz-${seedKey}`, null, true);
-    const ids = [...new Set(((opts && opts.promptIds) || []).concat(stream.take(dealt)))];
+    const ids = [...new Set(given.concat(stream.take(dealt)))];
     const out = [];
     for (const id of ids) {
       if (out.length >= want) break;
       const q = quizQuestion(data, seedKey, id);
       if (q) out.push(q);
     }
-    return out;
+    if (!rIds.length) return out;
+    // reasoning questions go into seeded slots, never two in a row when there's room
+    const rng = mulberry32(hashString(`rq-slots:${seedKey}`));
+    const total = out.length + rIds.length;
+    let slots;
+    for (let tries = 0; tries < 50; tries++) {
+      slots = shuffled([...Array(total).keys()], rng).slice(0, rIds.length).sort((a, b) => a - b);
+      if (slots.every((s, k) => k === 0 || s - slots[k - 1] > 1) || rIds.length * 2 > total) break;
+    }
+    const mixed = [], rq = rIds.map((id) => reasoningQuestion(data, id)).filter(Boolean);
+    for (let i = 0, a = 0, b = 0; i < total; i++) {
+      if (slots.includes(i) && b < rq.length) mixed.push(rq[b++]);
+      else if (a < out.length) mixed.push(out[a++]);
+    }
+    return mixed;
   }
   /** Solo quiz run `n` (1-based): seven questions, the prompts dealt like Unlimited's so runs don't repeat. */
   function quizRun(data, n) {
-    return quizFor(data, `quiz-v2:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v2", n, null, true) });
+    return quizFor(data, `quiz-v2:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v2", n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS)) });
   }
 
   // -------------------------------------------------------------- share
@@ -555,6 +597,7 @@
     EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun,
+    REASONING_CLOCK, isReasoningId, reasoningQuestion,
     tierEmoji, shareText,
   };
 });
