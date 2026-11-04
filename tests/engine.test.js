@@ -53,7 +53,7 @@ assert.strictEqual(E.singular("gans"), "gan"); ok("plural");
 
 // --- every answer and alias matches itself, in every prompt
 let names = 0;
-for (const p of DATA.prompts) {
+for (const p of DATA.prompts.concat(DATA.extras || [])) {
   for (const a of p.answers) {
     for (const name of [a.a].concat(a.aka || [])) {
       const m = E.matchAnswer(p, name);

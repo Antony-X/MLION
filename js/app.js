@@ -4,7 +4,8 @@
   const E = window.MLION_ENGINE;
   const V = window.MLION_VISUALS;
   const DATA = window.MLION_DATA;
-  const PROMPTS = new Map(DATA.prompts.map((p) => [p.id, p]));
+  const EXTRAS = DATA.extras || []; // off-topic prompts: practice only, never in a run
+  const PROMPTS = new Map(DATA.prompts.concat(EXTRAS).map((p) => [p.id, p]));
   const PACKS = new Map(DATA.packs.map((p) => [p.id, p]));
   const T = E.TIERS;
   const REPO_URL = "https://github.com/Antony-X/MLION";
@@ -885,18 +886,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
     const draw = () => {
       const q = E.fullKey($("#lib-q").value);
-      $("#lib").innerHTML = DATA.packs.map((pk) => {
-        const ps = DATA.prompts.filter((p) => p.pack === pk.id && (!q || E.fullKey(p.text).includes(q)));
-        if (!ps.length) return "";
-        return `<section class="lib-pack"><h2>${esc(pk.name)}</h2><ul class="list">${ps.map((p) => {
-          const best = practiceBest[p.id];
-          const unlocked = seen.has(p.id);
-          return `<li class="list-item lib-row">
+      const hit = (p) => !q || E.fullKey(p.text).includes(q);
+      const row = (p) => {
+        const best = practiceBest[p.id];
+        const unlocked = seen.has(p.id);
+        return `<li class="list-item lib-row">
             <span class="main"><span class="title">${esc(p.text)}</span><span class="sub">${fmt(p.answers.length)} answers${best ? ` · best ${G(best)}` : ""}</span></span>
             <span class="row"><a class="btn sm" href="#practice-${p.id}">Play</a>${unlocked ? `<a class="btn sm" href="#answers-${p.id}">Key</a>` : `<span class="locked" title="Play it once to unlock the key" aria-label="Key locked">${LOCK}</span>`}</span>
           </li>`;
-        }).join("")}</ul></section>`;
-      }).join("") || `<p class="muted">No prompts match.</p>`;
+      };
+      const extras = EXTRAS.filter(hit);
+      $("#lib").innerHTML = (DATA.packs.map((pk) => {
+        const ps = DATA.prompts.filter((p) => p.pack === pk.id && hit(p));
+        if (!ps.length) return "";
+        return `<section class="lib-pack"><h2>${esc(pk.name)}</h2><ul class="list">${ps.map(row).join("")}</ul></section>`;
+      }).join("") + (extras.length ? `<section class="lib-pack"><h2>Off-topic extras</h2><p class="muted">AI trivia, not ML. Practice only; never in a run.</p><ul class="list">${extras.map(row).join("")}</ul></section>` : "")) || `<p class="muted">No prompts match.</p>`;
     };
     $("#lib-q").addEventListener("input", draw);
     draw();

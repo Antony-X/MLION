@@ -1,13 +1,17 @@
 {
-  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown.",
+  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown. 'offtopic': true keeps a prompt out of the daily, Unlimited and packs; it stays in the Library as a practice-only extra.",
   "accelerator": {
     "scope": "A specific chip or accelerator line, not just a vendor"
   },
   "ai-book": {
-    "example": "Deep Learning"
+    "example": "Deep Learning",
+    "offtopic": true
   },
   "ai-leader": {
     "scope": "Surname is enough"
+  },
+  "ai-movie": {
+    "offtopic": true
   },
   "ai-researcher": {
     "scope": "Surname is enough"
@@ -35,13 +39,15 @@
     "scope": "Keeps a subset of the original features"
   },
   "fictional-ai": {
-    "scope": "From film, TV, books or games"
+    "scope": "From film, TV, books or games",
+    "offtopic": true
   },
   "gan-variant": {
     "example": "DCGAN"
   },
   "historic-ai": {
-    "scope": "Built before the year 2000"
+    "scope": "Built before the year 2000",
+    "offtopic": true
   },
   "hyperparameter": {
     "scope": "Anything chosen rather than learned"
@@ -82,7 +88,11 @@
     "example": "L2 regularization"
   },
   "robot": {
-    "example": "Roomba"
+    "example": "Roomba",
+    "offtopic": true
+  },
+  "self-driving": {
+    "offtopic": true
   },
   "sequence-model-alt": {
     "example": "Mamba"
