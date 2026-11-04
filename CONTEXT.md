@@ -299,18 +299,34 @@ use `#/…`, and never `#settings`, which claude.ai reserves.
 | `#home` | home |
 | `#daily` | today's daily |
 | `#unlimited`, `#unlimited-N` | Unlimited hub, run N |
-| `#packs`, `#pack-<id>`, `#pack-<id>-N` | packs, pack detail, pack run |
+| `#packs`, `#pack-<id>`, `#pack-<id>-N` | packs, pack detail, pack run (hidden in launch mode) |
 | `#archive`, `#archive-YYYY-MM-DD` | archive, a past day |
-| `#library`, `#practice-<id>`, `#answers-<id>` | library, practice one prompt, its answer key |
+| `#library`, `#practice-<id>`, `#answers-<id>` | library, practice one prompt, its answer key (hidden in launch mode) |
 | `#results-<key-with-dashes>` | a run's results |
 | `#stats`, `#how`, `#faq`, `#prefs` | stats, how to play, FAQ, settings |
 | `#challenge`, `#vs-…` | challenge setup, a challenge link |
 | `#live`, `#live-<code>` | live match setup, a room |
 | `#rooms` | public room list |
 
+**Launch mode** (`const BROWSE = false` near the top of app.js): Packs and the Library are
+hidden (home tiles, drawer links), their routes redirect home, and `#unlimited-N` beyond the
+next unplayed run redirects to it. This stops people choosing questions or reading a key and
+replaying. It is client-side only: `js/data.js` and the public repo still contain every
+answer. Real protection would need a server. `BROWSE = true` restores everything.
+
 ### Round state machine
 
-intro → preview (3 s, input locked) → answering (25 s) → feedback → next.
+intro → preview (3 s, input locked) → answering (default 25 s) → feedback → next.
+
+- Time per question: presets 10/15/25/40/60 s (`TIME_PRESETS`, `answerMs()`). Set in
+  Settings (`settings.answerSecs`), in challenge setup (link suffix `tNN`), and by the live
+  host (`LIVE.secs`, sent in lobby/start messages). The run spec's `secs` wins over settings.
+- Solo: an empty box makes the Step button read "Skip" (not primary); Skip ends the round
+  with no points (`res.skipped`). Live mode has a vote-to-skip instead.
+- When the match came through an alias, feedback says “raw” counts as <answer>.
+- Explanations (`explainOf`) show in solo results, answer keys, the live reveal and the
+  podium recap. Coverage is about 25% of answers: all gems and Overfit picks, 74% Baseline,
+  9% Long Tail.
 
 - The run is saved to `localStorage` (`mlion:run:<key>`). The timer is absolute, so reloading
   doesn't reset it.
@@ -337,7 +353,8 @@ intro → preview (3 s, input locked) → answering (25 s) → feedback → next
 
 - The link is `#vs-<seed>-<n>[-<tiers>-<nameHex>][-<tiers>-<nameHex>]`. Tiers are digits 0–6,
   and names are UTF-8 hex.
-- Sizes: 3, 5, 7 or 10.
+- Sizes: presets 3, 5, 7, 10 or any count up to 25 (`Q_PRESETS`, `Q_MAX`). Optional `tNN`
+  after the count sets seconds per question (`#vs-<seed>-8t40…`).
 - "Send link now" lets both players start at once; otherwise one plays first and sends.
 - The friend sees the challenger's result after each answer, then a head-to-head board and
   "Send result back".
@@ -415,6 +432,13 @@ intro → preview (3 s, input locked) → answering (25 s) → feedback → next
 - The join screen shows every step and retry, with 2 minutes of patience.
 
 ---
+
+**Later additions (2026-11-04/05):** in-room chat (spoiler filter holds messages naming an
+answer until the reveal; rate limits 5/8 s client, 6/8 s host); rivals' drafts and wrong
+guesses shown in clear once you've answered; host-chosen question count (3–25) and time per
+question; **vote to skip** (`hostSkipVote`/`hostSkip`): a majority of present players
+(`floor(n/2)+1`) replaces the question with a fresh one (no-repeat honoured), points for
+it are dropped, answers carry `pid` so late answers to the old prompt are ignored.
 
 ## 8. Visual design (taste-skill redesign)
 
@@ -580,16 +604,20 @@ rounded.
 4. Enrichment never reached most theory, stack, lore and llm prompts beyond the 9 Sonnet
    batches.
 5. Design polish noted in §8.
-6. Optional: a proper `main` branch. Pages currently serves from `claude/mlion-game`, so moving
+6. Multiplayer formats: private rooms already allow up to 8 players free-for-all; public
+   rooms are duos. 2v2 teams is a future request from the user.
+7. Explanation coverage is about 25%; filling it is a content job (mind cost).
+8. Launch mode hides question picking only on the client (see §7 Routes).
+9. Optional: a proper `main` branch. Pages currently serves from `claude/mlion-game`, so moving
    it means changing the Pages source.
-7. `.taste-skill/` was meant to be gitignored, but that edit never ran.
+10. `.taste-skill/` was meant to be gitignored, but that edit never ran.
 
 ---
 
 ## 12. Running locally
 
 ```bash
-git clone https://github.com/Antony-X/MLION && cd MLION
+git clone https://github.com/Antony-X/MLION && cd MLION   # user's copy: ~/Desktop/MLion
 # Windows with core.autocrlf=true: use LF here, or every build rewrites all ?v= stamps
 git config core.autocrlf false && git config core.eol lf && git rm -rq --cached . && git reset -q --hard
 git checkout claude/mlion-game
