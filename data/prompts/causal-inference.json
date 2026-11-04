@@ -50,11 +50,11 @@
     { "a": "Convergent cross mapping", "t": "longtail", "aka": ["CCM"] },
     { "a": "PCMCI", "t": "longtail" },
 
-    { "a": "TMLE", "t": "outlier", "aka": ["targeted maximum likelihood estimation", "targeted learning"] },
+    { "a": "TMLE", "t": "outlier", "aka": ["targeted maximum likelihood estimation", "targeted learning"], "q": "van der Laan's targeted update: nudge an ML fit until it solves the efficient influence equation." },
     { "a": "G-computation", "t": "outlier", "aka": ["g-formula", "g computation", "standardization", "parametric g-formula"] },
     { "a": "Marginal structural models", "t": "outlier", "aka": ["MSM", "marginal structural model"] },
     { "a": "LATE", "t": "outlier", "aka": ["local average treatment effect", "CACE", "complier average causal effect"] },
-    { "a": "Heckman correction", "t": "outlier", "aka": ["heckman", "heckit", "heckman selection model"] },
+    { "a": "Heckman correction", "t": "outlier", "aka": ["heckman", "heckit", "heckman selection model"], "q": "Model who gets selected into the sample, then correct for it. Nobel in economics, 2000." },
     { "a": "E-value", "t": "outlier", "aka": ["e value"], "q": "How strong would an unmeasured confounder have to be to explain this away? VanderWeele & Ding, 2017." },
     { "a": "Sensitivity analysis", "t": "outlier", "aka": ["sensitivity"] },
     { "a": "Coarsened exact matching", "t": "outlier", "aka": ["CEM"] },
@@ -78,15 +78,15 @@
 
     { "a": "Regression discontinuity", "t": "indist", "aka": ["RDD", "regression discontinuity design", "RD", "fuzzy RDD", "sharp RDD"], "q": "Compare people just above and just below a cutoff. Thistlethwaite & Campbell, 1960." },
     { "a": "Synthetic control", "t": "indist", "aka": ["synthetic control method", "abadie"], "q": "Build a weighted 'fake California' from other states to see what Prop 99 did to smoking." },
-    { "a": "Inverse probability weighting", "t": "indist", "aka": ["IPW", "IPTW", "inverse propensity weighting", "inverse probability of treatment weighting", "horvitz-thompson"] },
-    { "a": "Doubly robust", "t": "indist", "aka": ["AIPW", "augmented inverse probability weighting", "doubly robust estimation"] },
+    { "a": "Inverse probability weighting", "t": "indist", "aka": ["IPW", "IPTW", "inverse propensity weighting", "inverse probability of treatment weighting", "horvitz-thompson"], "q": "Weight each unit by one over its chance of the treatment it got. Horvitz & Thompson, 1952." },
+    { "a": "Doubly robust", "t": "indist", "aka": ["AIPW", "augmented inverse probability weighting", "doubly robust estimation"], "q": "Right if either the outcome model or the propensity model is right. A two-for-one." },
     { "a": "Structural causal models", "t": "indist", "aka": ["SCM", "structural causal model", "causal DAG", "causal graph", "causal graphs", "DAGs"] },
-    { "a": "Backdoor adjustment", "t": "indist", "aka": ["backdoor criterion", "back-door adjustment", "adjustment formula"] },
-    { "a": "Front-door adjustment", "t": "indist", "aka": ["front-door criterion", "frontdoor", "front door"] },
+    { "a": "Backdoor adjustment", "t": "indist", "aka": ["backdoor criterion", "back-door adjustment", "adjustment formula"], "q": "Block every backdoor path from treatment to outcome, then adjust for that set." },
+    { "a": "Front-door adjustment", "t": "indist", "aka": ["front-door criterion", "frontdoor", "front door"], "q": "Identify the effect through a mediator even with unmeasured confounding. Pearl's trick." },
     { "a": "Potential outcomes", "t": "indist", "aka": ["rubin causal model", "neyman-rubin", "RCM", "potential outcomes framework"] },
     { "a": "Matching", "t": "indist", "aka": ["nearest neighbor matching", "exact matching", "mahalanobis matching", "covariate matching"] },
     { "a": "Causal forest", "t": "indist", "aka": ["causal forests", "generalized random forests", "GRF"], "q": "Wager & Athey: random forests split to maximize treatment-effect heterogeneity, with honest CIs." },
-    { "a": "Uplift modeling", "t": "indist", "aka": ["uplift", "uplift modelling", "true lift"] },
+    { "a": "Uplift modeling", "t": "indist", "aka": ["uplift", "uplift modelling", "true lift"], "q": "Predict who is persuaded by the treatment, not who converts anyway." },
     { "a": "Mediation analysis", "t": "indist", "aka": ["mediation", "baron and kenny", "causal mediation"] },
     { "a": "Granger causality", "t": "indist", "aka": ["granger"], "q": "Does X's past help predict Y? Predictive, not interventional, whatever the name says." },
     { "a": "Interrupted time series", "t": "indist", "aka": ["ITS", "segmented regression"] },
@@ -97,9 +97,9 @@
     { "a": "Do-calculus", "t": "overfit", "aka": ["do calculus", "do-operator", "pearl's do-calculus", "do"], "q": "Pearl's three rules for turning P(y | do(x)) into things you can actually estimate." },
     { "a": "Double machine learning", "t": "overfit", "aka": ["DML", "double ML", "debiased machine learning", "double/debiased machine learning"], "q": "Chernozhukov et al.: residualize with any ML model, cross-fit, and get √n inference anyway." },
 
-    { "a": "Randomized controlled trial", "t": "baseline", "aka": ["RCT", "A/B test", "A/B testing", "randomized experiment", "randomization", "randomised controlled trial"] },
-    { "a": "Propensity score matching", "t": "baseline", "aka": ["PSM", "propensity score", "propensity scores", "propensity matching"] },
-    { "a": "Instrumental variables", "t": "baseline", "aka": ["IV", "instrumental variable", "2SLS", "two-stage least squares"] },
-    { "a": "Difference-in-differences", "t": "baseline", "aka": ["DiD", "diff-in-diff", "difference in differences", "DD"] }
+    { "a": "Randomized controlled trial", "t": "baseline", "aka": ["RCT", "A/B test", "A/B testing", "randomized experiment", "randomization", "randomised controlled trial"], "q": "Flip coins to assign treatment and confounding goes away. Fisher's gift to science." },
+    { "a": "Propensity score matching", "t": "baseline", "aka": ["PSM", "propensity score", "propensity scores", "propensity matching"], "q": "Rosenbaum & Rubin 1983: match on one number, the probability of treatment." },
+    { "a": "Instrumental variables", "t": "baseline", "aka": ["IV", "instrumental variable", "2SLS", "two-stage least squares"], "q": "Find something that moves the treatment but touches the outcome only through it." },
+    { "a": "Difference-in-differences", "t": "baseline", "aka": ["DiD", "diff-in-diff", "difference in differences", "DD"], "q": "Compare the change in treated units to the change in controls. Parallel trends required." }
   ]
 }

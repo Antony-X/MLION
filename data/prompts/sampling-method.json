@@ -50,17 +50,17 @@
 
     { "a": "MALA", "t": "outlier", "aka": ["metropolis-adjusted langevin", "metropolis adjusted langevin algorithm"] },
     { "a": "SGLD", "t": "outlier", "aka": ["stochastic gradient langevin dynamics", "SG-MCMC", "stochastic gradient mcmc"], "q": "Welling & Teh 2011: SGD plus the right amount of noise is a posterior sampler." },
-    { "a": "Parallel tempering", "t": "outlier", "aka": ["replica exchange", "replica exchange MCMC", "exchange monte carlo"] },
+    { "a": "Parallel tempering", "t": "outlier", "aka": ["replica exchange", "replica exchange MCMC", "exchange monte carlo"], "q": "Run hot and cold chains side by side and swap states, so the cold one escapes local modes." },
     { "a": "Annealed importance sampling", "t": "outlier", "aka": ["AIS"], "q": "Neal's bridge from prior to posterior. The standard way to estimate a VAE's log-likelihood." },
     { "a": "Reversible jump MCMC", "t": "outlier", "aka": ["RJMCMC", "reversible jump", "trans-dimensional mcmc"] },
     { "a": "Elliptical slice sampling", "t": "outlier", "aka": ["ESS", "elliptical slice"], "q": "Murray, Adams & MacKay: slice sampling along an ellipse for Gaussian priors. No step size to tune." },
     { "a": "Collapsed Gibbs", "t": "outlier", "aka": ["collapsed gibbs sampling"] },
     { "a": "Affine-invariant ensemble sampler", "t": "outlier", "aka": ["emcee", "stretch move", "goodman-weare", "ensemble sampler"], "q": "Goodman & Weare's stretch move, shipped by emcee to every astronomer." },
-    { "a": "Stein variational gradient descent", "t": "outlier", "aka": ["SVGD"] },
+    { "a": "Stein variational gradient descent", "t": "outlier", "aka": ["SVGD"], "q": "Particles repel each other while following the score. Liu & Wang 2016." },
     { "a": "Contrastive divergence", "t": "outlier", "aka": ["CD-k", "persistent contrastive divergence", "PCD"] },
-    { "a": "Quasi-Monte Carlo", "t": "outlier", "aka": ["QMC", "low-discrepancy sequence", "low discrepancy"] },
+    { "a": "Quasi-Monte Carlo", "t": "outlier", "aka": ["QMC", "low-discrepancy sequence", "low discrepancy"], "q": "Swap random points for low-discrepancy sequences and the error falls nearly as 1/N." },
     { "a": "Sobol sequence", "t": "outlier", "aka": ["sobol"] },
-    { "a": "Latin hypercube sampling", "t": "outlier", "aka": ["LHS", "latin hypercube"] },
+    { "a": "Latin hypercube sampling", "t": "outlier", "aka": ["LHS", "latin hypercube"], "q": "One sample per row and column of every stratum grid. A sudoku for experimental design." },
     { "a": "Antithetic variates", "t": "outlier", "aka": ["antithetic sampling", "antithetic"] },
     { "a": "Nested sampling", "t": "outlier", "q": "Skilling 2004: shrink the prior volume inside rising likelihood contours. Built for evidence." },
     { "a": "Approximate Bayesian computation", "t": "outlier", "aka": ["ABC", "ABC rejection", "likelihood-free inference"] },
@@ -79,7 +79,7 @@
 
     { "a": "Slice sampling", "t": "indist", "aka": ["slice"], "q": "Neal 2003: sample uniformly under the density's curve, one horizontal slice at a time." },
     { "a": "Langevin dynamics", "t": "indist", "aka": ["langevin", "langevin monte carlo", "ULA", "unadjusted langevin", "annealed langevin dynamics"] },
-    { "a": "Particle filter", "t": "indist", "aka": ["sequential monte carlo", "SMC", "particle filtering", "bootstrap filter", "sequential importance resampling"] },
+    { "a": "Particle filter", "t": "indist", "aka": ["sequential monte carlo", "SMC", "particle filtering", "bootstrap filter", "sequential importance resampling"], "q": "A cloud of weighted samples tracks a hidden state. Resample when the weights collapse." },
     { "a": "Monte Carlo", "t": "indist", "aka": ["monte carlo sampling", "monte carlo integration", "crude monte carlo"], "q": "Named by Ulam and Metropolis after the casino where Ulam's uncle gambled." },
     { "a": "Inverse transform sampling", "t": "indist", "aka": ["inverse cdf", "inverse transform", "inversion sampling", "smirnov transform"] },
     { "a": "Stratified sampling", "t": "indist", "aka": ["stratified"] },
@@ -91,11 +91,11 @@
 
     { "a": "NUTS", "t": "overfit", "aka": ["no-u-turn sampler", "no u-turn", "no u turn"], "q": "HMC that stops when the trajectory starts doubling back. Stan's default, so everyone knows it." },
 
-    { "a": "Metropolis–Hastings", "t": "baseline", "aka": ["MH", "metropolis hastings", "metropolis", "random walk metropolis", "RWM", "metropolis algorithm"] },
-    { "a": "Gibbs sampling", "t": "baseline", "aka": ["gibbs"] },
-    { "a": "Hamiltonian Monte Carlo", "t": "baseline", "aka": ["HMC", "hybrid monte carlo"] },
+    { "a": "Metropolis–Hastings", "t": "baseline", "aka": ["MH", "metropolis hastings", "metropolis", "random walk metropolis", "RWM", "metropolis algorithm"], "q": "Propose, then accept with a ratio of densities. Normalizing constants cancel, which is the point." },
+    { "a": "Gibbs sampling", "t": "baseline", "aka": ["gibbs"], "q": "Sample each variable from its conditional, in turn. The Gemans named it after Gibbs in 1984." },
+    { "a": "Hamiltonian Monte Carlo", "t": "baseline", "aka": ["HMC", "hybrid monte carlo"], "q": "Give the sample momentum and let physics carry it far. Born as 'hybrid Monte Carlo' in lattice QCD." },
     { "a": "MCMC", "t": "baseline", "aka": ["markov chain monte carlo"] },
-    { "a": "Importance sampling", "t": "baseline", "aka": ["importance"] },
-    { "a": "Rejection sampling", "t": "baseline", "aka": ["acceptance-rejection", "accept-reject", "rejection"] }
+    { "a": "Importance sampling", "t": "baseline", "aka": ["importance"], "q": "Sample from q, reweight by p/q. Great until q misses where p lives." },
+    { "a": "Rejection sampling", "t": "baseline", "aka": ["acceptance-rejection", "accept-reject", "rejection"], "q": "Draw under an envelope, keep what lands under the curve. Wasteful in high dimensions." }
   ]
 }
