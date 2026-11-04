@@ -174,6 +174,7 @@ const reasoning = fs.existsSync(REASONING_FILE) ? JSON.parse(fs.readFileSync(REA
     if (!Array.isArray(r.options) || r.options.length !== E.QUIZ_OPTIONS || r.options.some((o) => typeof o !== "string" || !o.trim())) errs.push(`${at}: needs ${E.QUIZ_OPTIONS} options`);
     else if (new Set(r.options.map((o) => o.trim().toLowerCase())).size !== r.options.length) errs.push(`${at}: two options are the same`);
     if (!Number.isInteger(r.answer) || r.answer < 0 || r.answer >= E.QUIZ_OPTIONS) errs.push(`${at}: answer must be an option index`);
+    if (r.added !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(r.added)) errs.push(`${at}: added must be YYYY-MM-DD`);
   }
   if (errs.length) { errs.forEach((e) => console.error(`✗ reasoning.json: ${e}`)); process.exit(1); }
   console.log(`${reasoning.length} reasoning questions`);

@@ -958,3 +958,16 @@ details.key.inline .body { padding: 8px 0 4px; }
 .chip { min-height: 40px; padding: 0 16px; border: 0; border-radius: var(--round); background: var(--raised); color: var(--ink); font: inherit; font-size: var(--s1); cursor: pointer; transition: background-color 160ms ease; }
 .chip.on { background: var(--gold); color: var(--gold-ink); }
 @media (hover: hover) and (pointer: fine) { .chip:not(.on):hover { background: var(--raised-2); } }
+
+/* daily quiz */
+.dq-card { display: grid; gap: 16px; padding: 20px; border-radius: var(--soft); background: var(--surface); justify-items: start; }
+.dq-card p { display: grid; gap: 4px; margin: 0; }
+.dq-card p b { font-weight: 500; font-size: var(--s3); }
+.dq-card p span { color: var(--muted); }
+.dq-practice { margin-top: 8px; }
+/* leaderboard tabs */
+.tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--round); background: var(--raised); justify-self: start; }
+.tabs a { min-height: 40px; padding: 0 20px; display: inline-flex; align-items: center; border-radius: var(--round); color: var(--muted); text-decoration: none; }
+.tabs a.on { background: var(--ink); color: var(--bg); }
+@media (hover: hover) and (pointer: fine) { .tabs a:not(.on):hover { color: var(--ink); } }
+.board-list .nm-t { color: var(--muted); font-size: var(--s1); margin-left: 10px; font-variant-numeric: tabular-nums; }

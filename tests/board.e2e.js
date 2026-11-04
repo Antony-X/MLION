@@ -30,7 +30,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.log("  ✓ " + msg); }
 
 // ---- the fake project: tiny in-memory tables that follow the real rules in supabase/schema.sql
-const db = { profiles: new Map(), scores: [] };
+const db = { profiles: new Map(), scores: [], quiz: [], quizTable: false }; // the quiz table arrives with supabase/daily_quiz.sql
 const calls = [];
 const providers = { google: false, discord: true }; // what the dashboard has switched on
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -44,10 +44,10 @@ function session() {
 }
 function filters(u) {
   const f = {};
-  for (const [k, v] of u.searchParams) { const m = v.match(/^(eq|gt)\.(.*)$/); if (m) f[k] = [m[1], m[2]]; }
+  for (const [k, v] of u.searchParams) { const m = v.match(/^(eq|gt|lt)\.(.*)$/); if (m) f[k] = [m[1], m[2]]; }
   return f;
 }
-const pass = (row, f) => Object.entries(f).every(([k, [op, v]]) => (op === "eq" ? String(row[k]) === v : Number(row[k]) > Number(v)));
+const pass = (row, f) => Object.entries(f).every(([k, [op, v]]) => (op === "eq" ? String(row[k]) === v : op === "lt" ? Number(row[k]) < Number(v) : Number(row[k]) > Number(v)));
 
 async function mockRoute(route) {
   const req = route.request();
@@ -114,6 +114,27 @@ async function mockRoute(route) {
     }
     if (method === "GET") {
       const out = rows.slice().sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at))
+        .map((s) => ({ ...s, profiles: db.profiles.get(s.user_id) ? { name: db.profiles.get(s.user_id).name } : null }));
+      return reply(out);
+    }
+  }
+  if (u.pathname === "/rest/v1/daily_quiz_scores") {
+    if (!db.quizTable) return json(404, { code: "PGRST205", message: "Could not find the table 'public.daily_quiz_scores' in the schema cache" });
+    const f = filters(u);
+    if (method === "POST") {
+      const r = JSON.parse(req.postData());
+      const row = Array.isArray(r) ? r[0] : r;
+      if (row.user_id !== me || "score" in row || !/^[01]{7}$/.test(row.marks)) return json(403, { code: "42501", message: "rls" });
+      if (db.quiz.some((s) => s.user_id === row.user_id && s.day === row.day)) return json(409, { code: "23505", message: "duplicate key" });
+      db.quiz.push({ user_id: row.user_id, day: row.day, marks: row.marks, tenths: row.tenths, score: 100 * [...row.marks].filter((c) => c === "1").length, created_at: new Date().toISOString() });
+      return json(201);
+    }
+    const rows = db.quiz.filter((s) => pass(s, f));
+    if (method === "HEAD" || /count=exact/.test(hdr.prefer || "")) {
+      return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "content-range", "content-range": `*/${rows.length}` }, body: method === "HEAD" ? "" : "[]" });
+    }
+    if (method === "GET") {
+      const out = rows.slice().sort((a, b) => b.score - a.score || a.tenths - b.tenths || a.created_at.localeCompare(b.created_at))
         .map((s) => ({ ...s, profiles: db.profiles.get(s.user_id) ? { name: db.profiles.get(s.user_id).name } : null }));
       return reply(out);
     }
@@ -218,8 +239,37 @@ async function mockRoute(route) {
   await page.waitForFunction(() => /Countess b/.test(document.querySelector(".board-acct")?.textContent || ""), null, { timeout: 8000 });
   check(db.profiles.get(UID).name === "Countess b", "you can change your public name (markup is stripped)");
 
+  // the quiz board: a calm note until the table exists, then posting, ranking and the time tie-break
+  await page.click('.tabs a[href="#board-quiz"]');
+  await page.waitForFunction(() => /opens soon/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 8000 });
+  check(true, "before the quiz table exists, the Quiz tab says it opens soon (no error)");
+  check((await page.textContent("#app .side")).includes("Play today's quiz"), "the Quiz tab points at today's quiz");
+  db.quizTable = true;
+  await page.goto(base + "#quiz");
+  await page.click('.dq-card a[href="#daily-quiz"]');
+  await page.waitForSelector("#begin");
+  await page.click("#begin");
+  for (let i = 0; i < 7; i++) {
+    await page.waitForSelector(".mcq:not(.locked) .mcq-opt:not([disabled])", { timeout: 10000 });
+    await page.keyboard.press("1");
+    await page.waitForSelector("#next:not([disabled])", { timeout: 6000 });
+    await page.click("#next");
+  }
+  await page.waitForFunction(() => /#1<\/b> of 1 today as Countess b/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
+  const mineQ = db.quiz.find((s) => s.user_id === UID);
+  check(!!mineQ && /^[01]{7}$/.test(mineQ.marks) && mineQ.tenths > 0 && mineQ.tenths < 7 * 250, `the daily quiz posts its marks and total time (${mineQ && mineQ.marks}, ${mineQ && mineQ.tenths / 10} s)`);
+  db.quiz.push({ user_id: RIVAL, day: today, marks: mineQ.marks, tenths: Math.max(0, mineQ.tenths - 5), score: mineQ.score, created_at: new Date(Date.now() + 1000).toISOString() });
+  await page.goto(base + "#board-quiz");
+  await page.waitForSelector(".board-list .list-item.me");
+  const qrows = await page.$$eval(".board-list .list-item", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+  check(qrows.length === 2 && /^1 Grace/.test(qrows[0]) && /^2 Countess b · you/.test(qrows[1]), "equal quiz scores rank by total time (Grace was faster)");
+  check(db.scores.length === 2 && db.quiz.length === 2, "the two boards keep separate tables");
+  await page.screenshot({ path: path.join(OUT, "board-03-quiz.png"), fullPage: true });
+  await page.click('.tabs a[href="#board"]');
+  await page.waitForSelector(".board-list .list-item.me");
+
   // previous day, then log out
-  await page.click('a[href^="#board-"]');
+  await page.click('.board-days a[href^="#board-"]');
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 8000 });
   check(/^#board-\d{4}-\d{2}-\d{2}$/.test(await page.evaluate(() => location.hash)), "past days have their own board");
   await page.goto(base + "#board");

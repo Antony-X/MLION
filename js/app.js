@@ -20,9 +20,11 @@
   // never changes a day that has already been dealt (or is being played right now).
   function asOf(data, date) {
     const prompts = data.prompts.filter((p) => !p.added || p.added <= date);
-    if (prompts.length === data.prompts.length) return data;
-    const upTo = prompts.reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
-    return { version: `${data.version}:asof${upTo}`, packs: data.packs, prompts };
+    const all = data.reasoning || [];
+    const reasoning = all.filter((r) => !r.added || r.added <= date);
+    if (prompts.length === data.prompts.length && reasoning.length === all.length) return data;
+    const upTo = prompts.concat(reasoning).reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
+    return { version: `${data.version}:asof${upTo}`, packs: data.packs, prompts, reasoning };
   }
   const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(asOf(CORE, date), "daily-v3", n, null, true) : E.dailyPromptIds(asOf(DATA, date), n));
   const PACKS = new Map(DATA.packs.map((p) => [p.id, p]));
@@ -56,7 +58,7 @@
   // ---- quiz marks: a right answer in a quiz run carries one neutral tier, only to colour the
   // descent; it says nothing about rarity (every right answer scores the same 100).
   const QUIZ_TIER = "indist";
-  const isQuizMode = (m) => m === "quiz" || m === "vq";
+  const isQuizMode = (m) => m === "quiz" || m === "vq" || m === "dquiz";
   /** "a loss function": what a prompt asks for, for labelling a wrong option by where it belongs. */
   const kindOf = (id) => { const p = PROMPTS.get(id); return p ? p.text.replace(/^Name\s+/i, "") : "something else"; };
   const fromLabel = (q, k) => (q.from && q.from[k] ? `<span class="mcq-from">That's ${esc(kindOf(q.from[k]))}</span>` : "");
@@ -259,6 +261,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
+  // The daily quiz: everyone's same seven questions, on the fixed 25 s clock so the board compares.
+  const DQUIZ_FROM = "2026-11-05";
+  const dquizNumber = (date) => E.dayNumberFor(date) - E.dayNumberFor(DQUIZ_FROM) + 1;
+  function dquizSpec(date) {
+    const n = E.dayNumberFor(date), num = dquizNumber(date); // deal by the day number; count from the quiz's own first day
+    const quiz = E.dailyQuiz(asOf(CORE, date), n);
+    return { key: `dquiz:${date}`, mode: "dquiz", fmt: "quiz", number: num, date, label: `Daily Quiz #${num}`, promptIds: quiz.map((q) => q.promptId), quiz, secs: DEFAULT_SECS };
+  }
   function quizSpec(n) {
     const quiz = E.quizRun(soloPool(), n);
     return { key: `quiz:${n}`, mode: "quiz", fmt: "quiz", number: n, label: `Quiz #${n}`, promptIds: quiz.map((q) => q.promptId), quiz };
@@ -1471,6 +1481,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     live: () => openLive(""),
     rooms: () => go("live"), // old links: the room list is part of #live now
     board: () => renderBoard(""),
+    "board-quiz": () => renderBoard("", "quiz"),
+    "daily-quiz": () => openRun(dquizSpec(today())),
   };
   const slugFor = (key) => key.replace(/:/g, "-");
   function keyFromSlug(s) {
@@ -1481,6 +1493,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((m = s.match(/^vs-([a-z0-9]+)$/))) return `vs:${m[1]}`;
     if ((m = s.match(/^quiz-(\d+)$/))) return `quiz:${m[1]}`;
     if ((m = s.match(/^vq-([a-z0-9]+)$/))) return `vq:${m[1]}`;
+    if ((m = s.match(/^dquiz-(\d{4}-\d{2}-\d{2})$/))) return `dquiz:${m[1]}`;
     return s;
   }
   function go(name) {
@@ -1517,6 +1530,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((m = h.match(/^answers-(.+)$/))) return PROMPTS.has(m[1]) ? renderAnswersPage(m[1]) : go("library");
     if ((m = h.match(/^results-(.+)$/))) return renderResults(keyFromSlug(m[1]));
     if ((m = h.match(/^board-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= E.EPOCH && m[1] <= today() ? renderBoard(m[1]) : go("board");
+    if ((m = h.match(/^board-quiz-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= DQUIZ_FROM && m[1] <= today() ? renderBoard(m[1], "quiz") : go("board-quiz");
     renderHome();
   }
   window.addEventListener("hashchange", route);
@@ -1685,11 +1699,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       RUN.mode === "archive" ? `${prettyDate(RUN.date)} · no streak` :
       RUN.mode === "practice" ? "Answers shown after" :
       vsLike ? (RUN.opp ? `Score to beat: ${quiz ? quizPts(RUN.quiz, RUN.opp.picks) : tierPoints(RUN.opp.tiers)}. You'll see their ${quiz ? "pick" : "result"} after each answer.` : "Send the link now to play at the same time, or play first and send your score.") :
-      RUN.mode === "quiz" ? `Pick the one that fits. ${E.QUIZ_POINTS} a right answer.` : "";
+      RUN.mode === "quiz" ? `Pick the one that fits. ${E.QUIZ_POINTS} a right answer.` :
+      RUN.mode === "dquiz" ? `${prettyDate(RUN.date, { weekday: "long", month: "long", day: "numeric" })} · the same questions for everyone` : "";
     $("#card").innerHTML = `<div class="intro-card">
       <div><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
       <ul class="beats">
-        <li><b>${n}</b><span>${n === 1 ? "prompt" : "prompts"}</span></li>
+        <li><b>${n}</b><span>${quiz ? "questions" : n === 1 ? "prompt" : "prompts"}</span></li>
         <li><b>3 s</b><span>to read</span></li>
         <li><b>${baseMs() / 1000} s</b><span>to answer</span></li>
       </ul>
@@ -2279,12 +2294,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // Post today's daily once per account. 23505 means it's already there (the first post counts).
+  const BOARDS = { daily: { table: "daily_scores", mode: "daily" }, quiz: { table: "daily_quiz_scores", mode: "dquiz" } };
+  const missingTable = (error) => !!error && (error.code === "PGRST205" || error.code === "42P01" || /schema cache|does not exist/i.test(error.message || ""));
   async function postDaily(rec) {
-    if (!sbClient || !AUTH.user || !AUTH.profile || !rec || rec.mode !== "daily" || rec.date !== today() || rec.tiers.length !== E.ROUNDS) return false;
-    if (boardPosted[rec.date] === AUTH.user.id) return true;
-    const { error } = await sbClient.from("daily_scores").insert({ user_id: AUTH.user.id, day: rec.date, tiers: encTiers(rec.tiers) });
+    if (!sbClient || !AUTH.user || !AUTH.profile || !rec || rec.date !== today() || rec.tiers.length !== E.ROUNDS) return false;
+    if (rec.mode !== "daily" && rec.mode !== "dquiz") return false;
+    const quiz = rec.mode === "dquiz", mark = quiz ? `q:${rec.date}` : rec.date;
+    if (boardPosted[mark] === AUTH.user.id) return true;
+    const { error } = quiz
+      ? await sbClient.from("daily_quiz_scores").insert({ user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)) })
+      : await sbClient.from("daily_scores").insert({ user_id: AUTH.user.id, day: rec.date, tiers: encTiers(rec.tiers) });
     if (error && error.code !== "23505") return false;
-    boardPosted[rec.date] = AUTH.user.id;
+    boardPosted[mark] = AUTH.user.id;
     LS.set("boardPosted", boardPosted);
     return true;
   }
@@ -2324,9 +2345,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function boardRedraw() {
     drawAccount();
     const h = location.hash.replace(/^#/, "");
-    if (/^board(-\d{4}-\d{2}-\d{2})?$/.test(h)) return route();
+    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h)) return route();
     const box = $("#board-box");
-    if (box) fillBoardBox(box, records[`daily:${today()}`]);
+    if (box) fillBoardBox(box, records[box.dataset.key || `daily:${today()}`]);
   }
 
   // Only the providers switched on in the Supabase dashboard get a button, read from the
@@ -2365,56 +2386,63 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     });
   }
 
-  async function rankFor(day, uid) {
-    const mine = await sbClient.from("daily_scores").select("score").eq("day", day).eq("user_id", uid).maybeSingle();
+  async function rankFor(day, uid, kind = "daily") {
+    const table = BOARDS[kind].table, quiz = kind === "quiz";
+    const mine = await sbClient.from(table).select(quiz ? "score,tenths" : "score").eq("day", day).eq("user_id", uid).maybeSingle();
     if (!mine.data) return null;
     const head = { count: "exact", head: true };
-    const [above, all] = await Promise.all([
-      sbClient.from("daily_scores").select("user_id", head).eq("day", day).gt("score", mine.data.score),
-      sbClient.from("daily_scores").select("user_id", head).eq("day", day),
+    const [above, tied, all] = await Promise.all([
+      sbClient.from(table).select("user_id", head).eq("day", day).gt("score", mine.data.score),
+      quiz ? sbClient.from(table).select("user_id", head).eq("day", day).eq("score", mine.data.score).lt("tenths", mine.data.tenths) : Promise.resolve({ count: 0 }),
+      sbClient.from(table).select("user_id", head).eq("day", day),
     ]);
-    return { rank: (above.count || 0) + 1, total: all.count || 0 };
+    return { rank: (above.count || 0) + (tied.count || 0) + 1, total: all.count || 0 };
   }
 
   // The box under today's results: log in to post, or where you placed.
   async function fillBoardBox(box, rec) {
     if (!BOARD_ON || !rec) return;
+    const kind = rec.mode === "dquiz" ? "quiz" : "daily", href = kind === "quiz" ? "#board-quiz" : "#board";
     if (!AUTH.ready) { box.innerHTML = `<p class="muted small">Checking the leaderboard…</p>`; return; }
     if (!AUTH.user) {
-      box.innerHTML = `<p class="board-pitch">Put this score on today's <a href="#board">leaderboard</a>.</p>${loginButtons()}`;
+      box.innerHTML = `<p class="board-pitch">Put this score on today's <a href="${href}">leaderboard</a>.</p>${loginButtons()}`;
       return wireLogin(box);
     }
     box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
     const ok = await postDaily(rec).catch(() => false);
-    const r = ok ? await rankFor(rec.date, AUTH.user.id).catch(() => null) : null;
+    const r = ok ? await rankFor(rec.date, AUTH.user.id, kind).catch(() => null) : null;
     if (!box.isConnected) return;
-    box.innerHTML = r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="#board">Leaderboard</a></p>`
-      : `<p class="muted small">Couldn't post your score. <a href="#board">Leaderboard</a></p>`;
+    box.innerHTML = r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
+      : kind === "quiz" ? "" // the quiz board isn't open on this server yet
+      : `<p class="muted small">Couldn't post your score. <a href="${href}">Leaderboard</a></p>`;
   }
 
-  async function renderBoard(date) {
+  async function renderBoard(date, kind = "daily") {
+    const quizBoard = kind === "quiz";
     const day = date || today();
     const n = E.dayNumberFor(day);
+    const base = quizBoard ? "board-quiz" : "board";
     setMid("Leaderboard");
     if (!BOARD_ON) {
       app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Leaderboard</h1><p>The leaderboard isn't switched on yet.</p></div></section>`;
       return;
     }
-    const prev = day > E.EPOCH ? E.addDays(day, -1) : null;
+    const prev = day > (quizBoard ? DQUIZ_FROM : E.EPOCH) ? E.addDays(day, -1) : null;
     const next = day < today() ? E.addDays(day, 1) : null;
     const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
       : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>`
       : `<p class="board-acct">Log in and your daily score shows up here. Only the name you pick is shown.</p>${loginButtons()}`;
-    const played = records[`daily:${today()}`];
-    const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? "board" : `board-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
+    const played = records[`${quizBoard ? "dquiz" : "daily"}:${today()}`];
+    const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? base : `${base}-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
     app.innerHTML = `<section class="screen split">
       <div class="side">
         <div class="page-head"><h1>Leaderboard</h1></div>
-        <div class="board-days">${arrow(prev, -1)}<p><b>${esc(prettyDate(day, { weekday: "long", month: "short", day: "numeric" }))}</b><span>MLion #${n}</span></p>${arrow(next, 1)}</div>
-        ${day === today() && !played ? `<div><a class="btn primary big" href="#daily">Play today's daily</a></div>` : ""}
+        <nav class="tabs" aria-label="Which leaderboard"><a href="#${day === today() ? "board" : `board-${day}`}" class="${quizBoard ? "" : "on"}" ${quizBoard ? "" : 'aria-current="page"'}>Daily</a><a href="#${day === today() || day < DQUIZ_FROM ? "board-quiz" : `board-quiz-${day}`}" class="${quizBoard ? "on" : ""}" ${quizBoard ? 'aria-current="page"' : ""}>Quiz</a></nav>
+        <div class="board-days">${arrow(prev, -1)}<p><b>${esc(prettyDate(day, { weekday: "long", month: "short", day: "numeric" }))}</b><span>${quizBoard ? `Daily Quiz #${dquizNumber(day)}` : `MLion #${n}`}</span></p>${arrow(next, 1)}</div>
+        ${day === today() && !played ? `<div><a class="btn primary big" href="#${quizBoard ? "daily-quiz" : "daily"}">Play today's ${quizBoard ? "quiz" : "daily"}</a></div>` : ""}
       </div>
       <div class="main"><ol class="list big board-list" id="board-list"><li class="muted">Loading…</li></ol>
-        <div class="board-side">${acct}<p class="muted small">One score per person per day: the first daily you finish while logged in, on the 25 s clock.</p></div>
+        <div class="board-side">${acct}<p class="muted small">One score per person per day: the first ${quizBoard ? "daily quiz" : "daily"} you finish while logged in, on the 25 s clock.${quizBoard ? " Equal scores rank by total time." : ""}</p></div>
       </div>
     </section>`;
     wireLogin(app);
@@ -2423,18 +2451,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     try {
       const sb = await loadSupabase();
       if (AUTH.user && day === today()) await postDaily(played).catch(() => false);
-      const { data, error } = await sb.from("daily_scores").select("user_id,score,tiers,created_at,profiles(name)")
-        .eq("day", day).order("score", { ascending: false }).order("created_at", { ascending: true }).limit(100);
+      let q = sb.from(BOARDS[kind].table).select(`user_id,score,${quizBoard ? "marks,tenths" : "tiers"},created_at,profiles(name)`).eq("day", day).order("score", { ascending: false });
+      if (quizBoard) q = q.order("tenths", { ascending: true });
+      const { data, error } = await q.order("created_at", { ascending: true }).limit(100);
+      if (missingTable(error)) { if (list.isConnected) list.innerHTML = `<li class="muted">The quiz leaderboard opens soon.</li>`; return; }
       if (error) throw error;
       if (!list.isConnected) return;
       if (!data.length) { list.innerHTML = `<li class="muted">No scores yet${day === today() ? ". Be the first" : ""}.</li>`; return; }
       let rank = 0, last = null;
       list.innerHTML = data.map((row, i) => {
-        if (row.score !== last) { rank = i + 1; last = row.score; }
+        const tie = quizBoard ? `${row.score}|${row.tenths}` : row.score; // the quiz board breaks ties on time
+        if (tie !== last) { rank = i + 1; last = tie; }
         const me = AUTH.user && row.user_id === AUTH.user.id;
         return `<li><div class="list-item${me ? " me" : ""}">
           <span class="rank">${rank}</span>
-          <span class="main"><span class="title">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><span class="sub">${tiersRow(decTiers(row.tiers))}</span></span>
+          <span class="main"><span class="title">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><span class="sub">${quizBoard ? `${qmarksRow(String(row.marks || "").split("").map((c) => c === "1"))}<span class="nm-t">${fmtSecs(row.tenths || 0)}</span>` : tiersRow(decTiers(row.tiers))}</span></span>
           <span class="right"><b>${row.score}</b>/700</span></div></li>`;
       }).join("");
     } catch {
@@ -2500,13 +2531,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const band = !isQ && n === 7 ? E.bandFor(rec.score) : null;
     setMid(rec.label);
     const share = E.shareText({ mode: rec.mode, number: rec.number, score: rec.score, tiers: rec.tiers, secs: rec.secs, label: rec.mode === "pack" ? PACKS.get(rec.pack).name : rec.label });
-    const isDailyToday = rec.mode === "daily" && rec.date === today();
+    const isDailyToday = (rec.mode === "daily" || rec.mode === "dquiz") && rec.date === today();
     const picked = !BROWSE && (rec.mode === "pack" || rec.mode === "practice"); // those pages are hidden
     const nextHref = picked ? "#unlimited" : rec.mode === "unlimited" ? `#unlimited-${nextUnlimited()}` :
-      rec.mode === "quiz" ? `#quiz-${nextQuiz()}` :
+      rec.mode === "quiz" || rec.mode === "dquiz" ? `#quiz-${nextQuiz()}` :
       rec.mode === "pack" ? `#pack-${rec.pack}-${nextPackRun(rec.pack) > E.packRunCount(DATA, rec.pack) ? 1 : nextPackRun(rec.pack)}` :
       rec.mode === "practice" ? "#library" : "#unlimited";
-    const nextLabel = picked ? "Play Unlimited" : rec.mode === "unlimited" || rec.mode === "quiz" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
+    const nextLabel = picked ? "Play Unlimited" : rec.mode === "dquiz" ? "Practice quiz" : rec.mode === "unlimited" || rec.mode === "quiz" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
     const isVs = rec.mode === "vs" || rec.mode === "vq";
     const meQ = isQ ? { name: rec.name || "You", picks: rec.picks || [], tenths: rec.tenths || 0, you: true } : null;
@@ -2527,8 +2558,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
               <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
-          ${isDailyToday && BOARD_ON ? `<div class="board-box" id="board-box"></div>` : ""}
-          ${isDailyToday ? `<p class="countdown">Next descent in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
+          ${isDailyToday && BOARD_ON ? `<div class="board-box" id="board-box" data-key="${esc(rec.key)}"></div>` : ""}
+          ${isDailyToday ? `<p class="countdown">${rec.mode === "dquiz" ? "Next quiz in" : "Next descent in"} <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
         </div>
       </div>
       <div class="main">
@@ -2749,8 +2780,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
         <div class="page-head"><h1>Quiz</h1><p>Seven questions a run, four answers each. Most ask which answer fits a prompt; two a run are reasoning questions with a longer clock and an explanation after. ${E.QUIZ_POINTS} a right answer.</p></div>
+        ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
+        <h2 class="block-title dq-practice">Practice runs</h2>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
-        <div class="btn-row"><a class="btn primary big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
+        <div class="btn-row"><a class="btn big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
       </div>
       ${runs.length ? `<div class="main"><ul class="list">${runs.slice(0, 50).map((r) => `
         <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Run ${r.number}</span><span class="sub">${qmarksRow(r.results.map((x) => x.score > 0))}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}

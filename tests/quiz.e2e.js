@@ -69,14 +69,15 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   check(!!(await page.$('.modes a[href="#quiz"]')), "home has a Quiz tile");
   check(!!(await page.$('#drawer a.nav[href="#quiz"]')), "the drawer has a Quiz link");
   await page.click('.modes a[href="#quiz"]');
-  await page.waitForSelector('a.btn.primary[href="#quiz-1"]');
+  await page.waitForSelector('a.btn[href="#quiz-1"]');
   check((await page.textContent(".page-head")).includes("Seven questions a run"), "the hub explains the mode");
   await page.screenshot({ path: path.join(OUT, "40-quiz-hub.png") });
 
   // ---- a solo run: 7 questions, key / tap / wrong / timeout
   const run1 = E.quizRun(CORE, 1);
   assert.strictEqual(run1.length, 7);
-  await page.click('a.btn.primary[href="#quiz-1"]');
+  check(!!(await page.$('.dq-card a.btn.primary[href="#daily-quiz"]')), "the hub leads with today's quiz");
+  await page.click('a.btn[href="#quiz-1"]');
   await page.waitForSelector("#begin");
   check((await page.textContent("#card")).includes("Quiz #1") && (await page.textContent(".beats li b")) === "7", "run 1 opens on an intro of seven questions");
   check((await page.textContent(".beats")).includes("10 s"), "the question time from Settings applies");
@@ -156,7 +157,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.waitForSelector("#app .page-head");
   check(!(await page.$(".stat-grid")) && (await page.textContent("#app")).includes("Play today's daily"), "quiz runs stay out of the daily stats (no daily played: stats still invite the first one)");
   await page.goto(base + "#quiz");
-  await page.waitForSelector('a.btn.primary[href="#quiz-2"]');
+  await page.waitForSelector('.btn-row a.btn[href="#quiz-2"]');
   check((await page.textContent(".main .list")).includes(String(hits * 100)), "the hub lists the finished run");
   await page.goto(base + "#quiz-1");
   await page.waitForSelector(".score-big");
@@ -255,6 +256,40 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await ben.page.waitForSelector(".duel-head");
   check((await ben.page.textContent(".duel-scores")).includes("Ben (you)"), "Ben opening the full link sees himself marked");
   await ben.ctx.close();
+
+  // ---- the daily quiz: the same seven for everyone, one go a day, on the fixed 25 s clock
+  {
+    const dq = await phone("dq");
+    const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const asOf = { ...CORE, prompts: CORE.prompts.filter((p) => !p.added || p.added <= day), reasoning: CORE.reasoning.filter((r) => !r.added || r.added <= day) };
+    if (asOf.prompts.length !== CORE.prompts.length || asOf.reasoning.length !== CORE.reasoning.length) {
+      const upTo = asOf.prompts.concat(asOf.reasoning).reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
+      asOf.version = `${CORE.version}:asof${upTo}`;
+    }
+    const want = E.dailyQuiz(asOf, E.dayNumberFor(day));
+    check(want.length === 7 && want.filter((q) => q.reasoning).length === 2, "the engine deals today's quiz: five prompt questions and two reasoning ones");
+    await dq.page.goto(base + "#quiz");
+    await dq.page.click('.dq-card a[href="#daily-quiz"]');
+    await dq.page.waitForSelector("#begin");
+    check((await dq.page.textContent("#card")).includes(`Daily Quiz #${E.dayNumberFor(day) - E.dayNumberFor("2026-11-05") + 1}`) && (await dq.page.textContent(".beats")).includes("25 s"), "the daily quiz opens on its own intro, on the 25 s clock whatever Settings says");
+    await dq.page.click("#begin");
+    for (let i = 0; i < 7; i++) {
+      const shown = await readQuestion(dq.page);
+      check(JSON.stringify(shown.opts) === JSON.stringify(want[i].options), `daily quiz question ${i + 1}: the browser deals the engine's question`);
+      await dq.page.keyboard.press(String((i % 2 ? (want[i].correct + 1) % 4 : want[i].correct) + 1));
+      await dq.page.waitForSelector("#next:not([disabled])", { timeout: 6000 });
+      await dq.page.click("#next");
+    }
+    await dq.page.waitForSelector(".grid-tiers");
+    check(dq.page.url().endsWith(`#results-dquiz-${day}`) && (await dq.page.textContent("#app")).includes("Next quiz in"), "the results count down to the next daily quiz");
+    check((await dq.page.textContent(".loss-line")).includes("4 of 7 right"), "four of seven right");
+    await dq.page.goto(base + "#daily-quiz");
+    await dq.page.waitForFunction((t) => location.hash === `#results-dquiz-${t}`, day, { timeout: 5000 });
+    check(true, "one go a day: opening it again shows your result");
+    await dq.page.goto(base + "#quiz");
+    check((await dq.page.textContent(".dq-card")).includes("Your score · 400"), "the hub shows today's score instead of the play button");
+    await dq.ctx.close();
+  }
 
   // ---- level on points: the faster total time wins (a link made by hand, opened by a stranger)
   const eve = await phone("eve");

@@ -469,10 +469,10 @@
   }
   const _reasonRuns = new Map();
   /** The reasoning ids for solo quiz run `n`: dealt in order from one stream, so runs don't repeat until the bank is used up. */
-  function reasoningRun(data, n, per) {
-    const key = `${(data.reasoning || []).map((r) => r.id).join()}|${per}`;
+  function reasoningRun(data, n, per, label = "reason-v1") {
+    const key = `${label}|${(data.reasoning || []).map((r) => r.id).join()}|${per}`;
     let c = _reasonRuns.get(key);
-    if (!c) { c = { stream: reasoningStream(data, "reason-v1"), runs: [] }; _reasonRuns.set(key, c); }
+    if (!c) { c = { stream: reasoningStream(data, label), runs: [] }; _reasonRuns.set(key, c); }
     while (c.runs.length < n) c.runs.push(c.stream.take(per));
     return c.runs[n - 1];
   }
@@ -590,6 +590,10 @@
     }
     return mixed;
   }
+  /** Daily quiz for day number `n`: the same seven questions for everyone, dealt like the daily so days don't repeat. */
+  function dailyQuiz(data, n) {
+    return quizFor(data, `dquiz-v1:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "dquiz-v1", n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), "dquiz-reason-v1") });
+  }
   /** Solo quiz run `n` (1-based): seven questions, the prompts dealt like Unlimited's so runs don't repeat. */
   function quizRun(data, n) {
     return quizFor(data, `quiz-v2:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v2", n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS)) });
@@ -598,12 +602,13 @@
   // -------------------------------------------------------------- share
   function tierEmoji(t) { return t && TIERS[t] ? TIERS[t].emoji : MISS_EMOJI; }
   function shareText({ mode = "daily", number, score, tiers, label, secs }) {
-    const quiz = mode === "quiz" || mode === "vq";
+    const quiz = mode === "quiz" || mode === "vq" || mode === "dquiz";
     const grid = quiz ? tiers.map((t) => (t && t !== "miss" ? QUIZ_HIT_EMOJI : MISS_EMOJI)).join("") : tiers.map(tierEmoji).join("");
     const tag = mode === "daily" ? `MLion #${number}` :
       mode === "archive" ? `MLion ⟲ #${number}` :
       mode === "unlimited" ? `MLion ∞ #${number}` :
-      mode === "quiz" ? `MLion Quiz #${number}` : `MLion · ${label || mode} #${number}`;
+      mode === "quiz" ? `MLion Quiz #${number}` :
+      mode === "dquiz" ? `MLion Daily Quiz #${number}` : `MLion · ${label || mode} #${number}`;
     const loss = (tiers.length * 100 - score) / 100;
     const clock = secs && secs * 1000 !== ANSWER_MS ? ` · ${secs} s` : ""; // a different clock isn't the same game
     return `${tag} 🦁\n${score}/${tiers.length * 100} · loss ${loss.toFixed(2)}${clock}\n\n${grid}`;
@@ -617,7 +622,7 @@
     EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun,
-    REASONING_CLOCK, isReasoningId, reasoningQuestion,
+    REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
   };
 });
