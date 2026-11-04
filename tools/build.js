@@ -57,6 +57,7 @@ function validatePrompt(p, file) {
     if (!E.TIERS[a.t]) errs.push(`${at}: bad tier "${a.t}"`);
     else counts[a.t]++;
     if (a.aka !== undefined && (!Array.isArray(a.aka) || !a.aka.every((s) => typeof s === "string" && s.trim()))) errs.push(`${at}: aka must be an array of non-empty strings`);
+    else if (a.aka) for (const s of a.aka) if (!E.fullKey(s)) errs.push(`${at}: alias "${s}" normalizes to nothing and can never match`);
     if (a.q !== undefined && (typeof a.q !== "string" || !a.q.trim() || a.q.length > RULES.quipMax)) errs.push(`${at}: quip must be a non-empty string ≤ ${RULES.quipMax} chars`);
     const extra = Object.keys(a).filter((k) => !["a", "t", "aka", "q"].includes(k));
     if (extra.length) errs.push(`${at}: unknown fields ${extra.join(",")}`);
