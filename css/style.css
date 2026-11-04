@@ -816,3 +816,14 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .live-skip .btn.on { background: var(--raised-2); box-shadow: inset 0 0 0 2px var(--muted); }
 .skip-who { color: var(--muted); font-size: var(--s1); }
 .vs-size.t-size { font-size: var(--s2); padding: 0 16px; min-width: 0; }
+
+/* leaderboard */
+.board-list .list-item { display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 12px; }
+.board-list .rank { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
+.board-list .list-item.me { box-shadow: inset 3px 0 0 var(--gold); }
+.board-list .list-item.me .title { color: var(--gold); }
+.board-box { margin-top: 18px; }
+.board-box .board-login, .board-side .board-login { margin-top: 10px; }
+.board-pitch a, .board-box a { color: var(--gold); }
+.board-side > * + * { margin-top: 12px; }
+.board-days { margin-top: 16px; }

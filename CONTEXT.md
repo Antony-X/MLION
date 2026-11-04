@@ -440,6 +440,47 @@ question; **vote to skip** (`hostSkipVote`/`hostSkip`): a majority of present pl
 (`floor(n/2)+1`) replaces the question with a fresh one (no-repeat honoured), points for
 it are dropped, answers carry `pid` so late answers to the old prompt are ignored.
 
+### Daily leaderboard (Supabase)
+
+- Supabase project **MLion** (ref , user's org). URL and publishable key are
+  in  in js/app.js (public by design; RLS protects the data). Schema, rules and
+  grants:  (already applied; safe to re-run).
+- Opt-in: only players who log in appear. Login is OAuth with PKCE via supabase-js (UMD from
+  jsdelivr, loaded only for people who have logged in or are returning from login). Buttons show
+  only for providers enabled in the dashboard (read from ). Discord is on;
+  Google needs an OAuth client from Google Cloud Console (user hasn't done it yet).
+- Auth URL config: site URL https://antony-x.github.io/MLION/, redirect allowlist includes
+  localhost:8000 and 127.0.0.1:8000. A new host (custom domain, Cloudflare Pages) must be added there.
+- The database recomputes the score from the 7 tier digits, takes one row per account per day,
+  only for today ±1 UTC day, no edits or deletes. Verified with role-switching SQL checks.
+  Answers still ship in js/data.js, so a reader of the data can post a top score; real fix is
+  server-side answer checking.
+- The daily always runs at 25 s ( sets ) so scores compare.
+- Routes , . Results of today's daily show a post/rank box.
+- Test:   ✓ home and the menu link to the leaderboard
+  ✓ nothing extra loads for players who never logged in
+  ✓ the daily keeps the 25 s clock even when Settings says 40 s
+  ✓ only providers switched on in Supabase get a button (Discord)
+  ✓ switching Google on in the dashboard adds its button, no code change
+  ✓ the board points at today's daily when you haven't played
+  ✓ today's results invite you to post the score
+  ✓ login goes to Google with PKCE and comes back to the site
+  ✓ the returned code is swapped for a session
+  ✓ you land back on the page you left, with the code gone from the address bar
+  ✓ after login the score posts and the rank shows (#1 of 1 as Ada)
+  ✓ the public name defaults to a first name only
+  ✓ the database got the tier digits (and scored them 300)
+  ✓ the board ranks by score and marks your row
+  ✓ the board says who you're logged in as
+  ✓ a second post the same day is refused; the first score stays
+  ✓ you can change your public name (markup is stripped)
+  ✓ past days have their own board
+  ✓ log out brings the login buttons back
+  ✓ a board before day 1 redirects to today's
+  ✓ no page errors
+board e2e passed runs against a stand-in project (route-mocked), including the
+  PKCE round trip. A real Discord login has to be done by a person.
+
 ## 8. Visual design (taste-skill redesign)
 
 The user asked to ingest https://github.com/leonxlnx/taste-skill (`skills/taste-skill/SKILL.md`

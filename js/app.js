@@ -204,7 +204,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ----------------------------------------------------------- run specs
   function dailySpec(date) {
     const n = E.dayNumberFor(date);
-    return { key: `daily:${date}`, mode: "daily", number: n, date, label: `MLion #${n}`, promptIds: E.dailyPromptIds(DATA, n) };
+    return { key: `daily:${date}`, mode: "daily", number: n, date, label: `MLion #${n}`, promptIds: E.dailyPromptIds(DATA, n), secs: DEFAULT_SECS }; // fixed clock: the leaderboard compares dailies
   }
   function archiveSpec(date) {
     const n = E.dayNumberFor(date);
@@ -1256,6 +1256,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     challenge: renderChallenge,
     live: () => openLive(""),
     rooms: renderRooms,
+    board: () => renderBoard(""),
   };
   const slugFor = (key) => key.replace(/:/g, "-");
   function keyFromSlug(s) {
@@ -1296,6 +1297,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((m = h.match(/^practice-(.+)$/))) return PROMPTS.has(m[1]) ? openRun(practiceSpec(m[1])) : go("library");
     if ((m = h.match(/^answers-(.+)$/))) return PROMPTS.has(m[1]) ? renderAnswersPage(m[1]) : go("library");
     if ((m = h.match(/^results-(.+)$/))) return renderResults(keyFromSlug(m[1]));
+    if ((m = h.match(/^board-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= E.EPOCH && m[1] <= today() ? renderBoard(m[1]) : go("board");
     renderHome();
   }
   window.addEventListener("hashchange", route);
@@ -1321,11 +1323,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ["#challenge", "Challenge a friend", "Same questions, one link"],
       ["#unlimited", "Unlimited", "Endless runs"],
       ["#packs", "Packs", `${DATA.packs.length} themes`],
+      ["#board", "Leaderboard", "Today's top scores"],
       ["#archive", "Archive", "Past days"],
       ["#library", "Library", `${DATA.prompts.length} prompts`],
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
       ["#how", "How to play", ""],
-    ].filter(([href]) => BROWSE || (href !== "#packs" && href !== "#library"));
+    ].filter(([href]) => (BROWSE || (href !== "#packs" && href !== "#library")) && (BOARD_ON || href !== "#board"));
     app.innerHTML = `<section class="screen home">
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
@@ -1797,6 +1800,252 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (e.key === "Escape") { closeDrawer(); closeModal(); if (CHAT.open) setChatOpen(false); }
   });
 
+  // ========================================================= leaderboard
+  // Daily leaderboard on Supabase. Opt-in: only players who log in (Google or Discord)
+  // appear, under a name they choose. The database recomputes the score from the tier
+  // digits and only takes today's daily (supabase/schema.sql), so nobody can post a
+  // typed-in number. Answers still ship in js/data.js, so it can't stop a determined
+  // cheater who reads them; that needs answer checking on a server.
+  // Fill these two in from Supabase → Project Settings → API. The anon key is public.
+  const BOARD_CONFIG = { url: "https://ozqnznvxxxnefeetidwq.supabase.co", key: "sb_publishable_xztj1Nx4sRbgltpd0u3XWg_2cASIAG5" };
+  const BOARD_CFG = window.MLION_BOARD || BOARD_CONFIG; // tests inject a fake project
+  const BOARD_ON = !!(BOARD_CFG.url && BOARD_CFG.key) && /^https?:$/.test(location.protocol) && window.top === window;
+  const SB_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js";
+  const SB_STORE = "mlion:sb";
+  const PROVIDERS = [["google", "Google"], ["discord", "Discord"]];
+  const AUTH = { uid: null, user: null, profile: null, ready: !BOARD_ON };
+  const boardPosted = LS.get("boardPosted", {}) || {};
+  let sbClient = null, sbLoading = null;
+
+  function loadSupabase() {
+    if (sbClient) return Promise.resolve(sbClient);
+    if (!sbLoading) sbLoading = new Promise((res, rej) => {
+      const make = () => {
+        if (!window.supabase || !window.supabase.createClient) { sbLoading = null; return rej(new Error("no supabase")); }
+        sbClient = window.supabase.createClient(BOARD_CFG.url, BOARD_CFG.key, {
+          auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: SB_STORE },
+        });
+        res(sbClient);
+      };
+      if (window.supabase) return make();
+      const el = document.createElement("script");
+      el.src = SB_SRC; el.async = true;
+      el.onload = make;
+      el.onerror = () => { sbLoading = null; rej(new Error("load failed")); };
+      document.head.appendChild(el);
+    });
+    return sbLoading;
+  }
+
+  // Load the client only for people who have logged in (or are coming back from login),
+  // so everyone else downloads nothing extra.
+  async function boardBoot() {
+    if (!BOARD_ON) return;
+    const q = new URLSearchParams(location.search);
+    const returning = q.has("code") || q.has("error");
+    let stored = false;
+    try { stored = Object.keys(localStorage).some((k) => k.startsWith(SB_STORE)); } catch { /* storage blocked */ }
+    if (!returning && !stored) { AUTH.ready = true; return; }
+    try {
+      const sb = await loadSupabase();
+      sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => onSession(session), 0); }); // no awaits inside the callback
+      const { data } = await sb.auth.getSession(); // also swaps ?code= for a session
+      if (returning) {
+        if (q.has("error")) toast(`Login didn't work: ${q.get("error_description") || q.get("error")}`);
+        let back = "";
+        try { back = sessionStorage.getItem("mlion:back") || ""; sessionStorage.removeItem("mlion:back"); } catch { /* ignore */ }
+        history.replaceState(null, "", location.pathname + (back || location.hash || "#board"));
+        route();
+      }
+      await onSession(data && data.session);
+    } catch { if (returning) toast("Couldn't reach the leaderboard. Try again later."); }
+    AUTH.ready = true;
+    boardRedraw();
+  }
+
+  async function onSession(session) {
+    const user = (session && session.user) || null;
+    const uid = user ? user.id : null;
+    if (uid === AUTH.uid) return;
+    AUTH.uid = uid; AUTH.user = user; AUTH.profile = null;
+    if (user) {
+      try {
+        AUTH.profile = await loadProfile(user);
+        if (AUTH.uid !== uid) return;
+        await postDaily(records[`daily:${today()}`]);
+      } catch { /* offline: the board page retries */ }
+    }
+    boardRedraw();
+  }
+
+  function defaultBoardName(user) {
+    const own = cleanName(myName());
+    if (own) return own;
+    const m = (user && user.user_metadata) || {};
+    const raw = (m.custom_claims && m.custom_claims.global_name) || m.full_name || m.name || m.user_name || "";
+    return cleanName(String(raw).split(/\s+/)[0]) || "Player"; // first name only: the board is public
+  }
+  async function loadProfile(user) {
+    const got = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle();
+    if (got.data) return got.data;
+    const ins = await sbClient.from("profiles").insert({ id: user.id, name: defaultBoardName(user) }).select("id,name").maybeSingle();
+    if (ins.data) return ins.data;
+    const again = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle(); // another tab won the race
+    return again.data || null;
+  }
+
+  // Post today's daily once per account. 23505 means it's already there (the first post counts).
+  async function postDaily(rec) {
+    if (!sbClient || !AUTH.user || !AUTH.profile || !rec || rec.mode !== "daily" || rec.date !== today() || rec.tiers.length !== E.ROUNDS) return false;
+    if (boardPosted[rec.date] === AUTH.user.id) return true;
+    const { error } = await sbClient.from("daily_scores").insert({ user_id: AUTH.user.id, day: rec.date, tiers: encTiers(rec.tiers) });
+    if (error && error.code !== "23505") return false;
+    boardPosted[rec.date] = AUTH.user.id;
+    LS.set("boardPosted", boardPosted);
+    return true;
+  }
+
+  async function boardLogin(provider) {
+    try { sessionStorage.setItem("mlion:back", location.hash); } catch { /* ignore */ }
+    try {
+      const sb = await loadSupabase();
+      const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin + location.pathname } });
+      if (error) toast(`Login didn't work: ${error.message}`);
+    } catch { toast("Couldn't reach the leaderboard. Try again later."); }
+  }
+  async function boardLogout() {
+    try { if (sbClient) await sbClient.auth.signOut(); } catch { /* ignore */ }
+    AUTH.uid = null; AUTH.user = null; AUTH.profile = null;
+    boardRedraw();
+  }
+  function boardRename() {
+    if (!AUTH.profile) return;
+    showModal("Leaderboard name", `<p class="muted">Everyone can see this name. Up to 16 letters or digits.</p>
+      <form id="bn-form" class="vs-form"><input class="search" id="bn-input" maxlength="16" value="${esc(AUTH.profile.name)}" aria-label="Leaderboard name">
+      <div class="btn-row"><button class="btn primary" type="submit">Save</button></div></form>`);
+    const inp = $("#bn-input"); inp.focus(); inp.select();
+    $("#bn-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = cleanName(inp.value);
+      if (!name) return toast("Pick a name with letters or digits");
+      const { data, error } = await sbClient.from("profiles").update({ name }).eq("id", AUTH.user.id).select("id,name").maybeSingle();
+      if (error || !data) return toast("Couldn't save the name. Try again.");
+      AUTH.profile = data;
+      closeModal();
+      boardRedraw();
+    });
+  }
+
+  // Redraw whatever leaderboard UI is on screen after a login change.
+  function boardRedraw() {
+    const h = location.hash.replace(/^#/, "");
+    if (/^board(-\d{4}-\d{2}-\d{2})?$/.test(h)) return route();
+    const box = $("#board-box");
+    if (box) fillBoardBox(box, records[`daily:${today()}`]);
+  }
+
+  // Only the providers switched on in the Supabase dashboard get a button, read from the
+  // project's public auth settings, so turning Google on later needs no code change.
+  let providersOn = null;
+  function loadProviders() {
+    if (!providersOn) providersOn = fetch(`${BOARD_CFG.url}/auth/v1/settings`, { headers: { apikey: BOARD_CFG.key } })
+      .then((r) => r.json())
+      .then((j) => PROVIDERS.filter(([id]) => j && j.external && j.external[id]))
+      .catch(() => { providersOn = null; return []; });
+    return providersOn;
+  }
+  function loginButtons() { return `<div class="btn-row board-login"></div>`; }
+  async function wireLogin(root) {
+    const list = await loadProviders();
+    $$(".board-login", root).forEach((row) => {
+      row.innerHTML = list.length ? list.map(([id, label]) => `<button class="btn" data-login="${id}">Log in with ${label}</button>`).join("")
+        : `<p class="muted small">Login isn't available right now.</p>`;
+      $$("[data-login]", row).forEach((b) => b.addEventListener("click", () => boardLogin(b.dataset.login)));
+    });
+  }
+
+  async function rankFor(day, uid) {
+    const mine = await sbClient.from("daily_scores").select("score").eq("day", day).eq("user_id", uid).maybeSingle();
+    if (!mine.data) return null;
+    const head = { count: "exact", head: true };
+    const [above, all] = await Promise.all([
+      sbClient.from("daily_scores").select("user_id", head).eq("day", day).gt("score", mine.data.score),
+      sbClient.from("daily_scores").select("user_id", head).eq("day", day),
+    ]);
+    return { rank: (above.count || 0) + 1, total: all.count || 0 };
+  }
+
+  // The box under today's results: log in to post, or where you placed.
+  async function fillBoardBox(box, rec) {
+    if (!BOARD_ON || !rec) return;
+    if (!AUTH.ready) { box.innerHTML = `<p class="muted small">Checking the leaderboard…</p>`; return; }
+    if (!AUTH.user) {
+      box.innerHTML = `<p class="board-pitch">Put this score on today's <a href="#board">leaderboard</a>.</p>${loginButtons()}`;
+      return wireLogin(box);
+    }
+    box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
+    const ok = await postDaily(rec).catch(() => false);
+    const r = ok ? await rankFor(rec.date, AUTH.user.id).catch(() => null) : null;
+    if (!box.isConnected) return;
+    box.innerHTML = r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="#board">Leaderboard</a></p>`
+      : `<p class="muted small">Couldn't post your score. <a href="#board">Leaderboard</a></p>`;
+  }
+
+  async function renderBoard(date) {
+    const day = date || today();
+    const n = E.dayNumberFor(day);
+    setMid("Leaderboard");
+    if (!BOARD_ON) {
+      app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Leaderboard</h1><p>The leaderboard isn't switched on yet.</p></div></section>`;
+      return;
+    }
+    const prev = day > E.EPOCH ? E.addDays(day, -1) : null;
+    const next = day < today() ? E.addDays(day, 1) : null;
+    const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
+      : AUTH.user ? `<p class="board-acct">On the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b></p>
+        <div class="btn-row"><button class="btn" id="bn-edit">Change name</button><button class="btn" id="bn-out">Log out</button></div>`
+      : `<p class="board-acct">Log in to put your daily score here. Only the name you pick is shown.</p>${loginButtons()}`;
+    const played = records[`daily:${today()}`];
+    app.innerHTML = `<section class="screen split">
+      <div class="side">
+        <div class="page-head"><h1>Leaderboard</h1><p>MLion #${n} · ${esc(prettyDate(day, { weekday: "long", month: "long", day: "numeric" }))}</p></div>
+        <div class="btn-row board-days">
+          ${prev ? `<a class="btn" href="#board-${prev}">Previous day</a>` : ""}
+          ${next ? `<a class="btn" href="#${next === today() ? "board" : `board-${next}`}">Next day</a>` : ""}
+        </div>
+        <div class="board-side">${acct}
+          ${day === today() && !played ? `<p><a class="btn primary" href="#daily">Play today's daily</a></p>` : ""}
+          <p class="muted small">One score per person per day: the first daily you finish while logged in. Every daily uses the 25 s clock.</p>
+        </div>
+      </div>
+      <div class="main"><ol class="list big board-list" id="board-list"><li class="muted">Loading…</li></ol></div>
+    </section>`;
+    wireLogin(app);
+    const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
+    const lo = $("#bn-out"); if (lo) lo.addEventListener("click", boardLogout);
+    const list = $("#board-list");
+    try {
+      const sb = await loadSupabase();
+      if (AUTH.user && day === today()) await postDaily(played).catch(() => false);
+      const { data, error } = await sb.from("daily_scores").select("user_id,score,tiers,created_at,profiles(name)")
+        .eq("day", day).order("score", { ascending: false }).order("created_at", { ascending: true }).limit(100);
+      if (error) throw error;
+      if (!list.isConnected) return;
+      if (!data.length) { list.innerHTML = `<li class="muted">No scores yet${day === today() ? ". Be the first" : ""}.</li>`; return; }
+      let rank = 0, last = null;
+      list.innerHTML = data.map((row, i) => {
+        if (row.score !== last) { rank = i + 1; last = row.score; }
+        const me = AUTH.user && row.user_id === AUTH.user.id;
+        return `<li><div class="list-item${me ? " me" : ""}">
+          <span class="rank">${rank}</span>
+          <span class="main"><span class="title">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><span class="sub">${tiersRow(decTiers(row.tiers))}</span></span>
+          <span class="right"><b>${row.score}</b>/700</span></div></li>`;
+      }).join("");
+    } catch {
+      if (list.isConnected) list.innerHTML = `<li class="muted">Couldn't load the leaderboard. Check your connection and try again.</li>`;
+    }
+  }
+
   // ============================================================ results
   function answerKey(p, yourAnswer, open) {
     const counts = Object.fromEntries(E.TIER_IDS.map((t) => [t, 0]));
@@ -1874,6 +2123,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
               <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
+          ${isDailyToday && BOARD_ON ? `<div class="board-box" id="board-box"></div>` : ""}
           ${isDailyToday ? `<p class="countdown">Next descent in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
         </div>
       </div>
@@ -1902,6 +2152,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
     </section>`;
     wireAnswerKeys(app);
+    const bbox = $("#board-box");
+    if (bbox) fillBoardBox(bbox, rec);
     const sb = $("#share");
     if (sb) sb.addEventListener("click", async () => {
       const url = settings.shareLink ? siteUrl() : "";
@@ -2201,7 +2453,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen split">
       <div class="side"><div class="page-head"><h1>Settings</h1></div></div>
       <div class="main">
-        <div class="vs-form">${timePicker(validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS)}<p class="muted small">For your own runs. A run already in progress keeps its time. Live rooms and challenges use the time their host or link sets.</p></div>
+        <div class="vs-form">${timePicker(validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS)}<p class="muted small">For your own runs. The daily always uses 25 s so leaderboard scores compare. A run already in progress keeps its time. Live rooms and challenges use the time their host or link sets.</p></div>
         <div class="settings-list">${items.map(([k, t, d]) => `
           <label class="setting" ${k === "aiCheck" ? `id="ai-setting" ${aiUsable() ? "" : "hidden"}` : ""}><span class="txt"><span class="t">${esc(t)}</span>${d ? `<span>${esc(d)}</span>` : ""}</span>
             <span class="switch"><input type="checkbox" role="switch" data-k="${k}" ${settings[k] ? "checked" : ""}><i></i></span></label>`).join("")}</div>
@@ -2278,5 +2530,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   V.initBackdrop();
+  if (!BOARD_ON) $$('#drawer a[href="#board"]').forEach((a) => a.remove());
+  boardBoot();
   route();
 })();
