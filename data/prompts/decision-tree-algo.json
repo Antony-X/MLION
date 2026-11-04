@@ -5,7 +5,7 @@
   "note": "Algorithms that grow or prune a single decision, regression or model tree. Ensembles of trees (random forest, boosting) don't count",
   "strip": ["algorithm", "tree", "trees", "decision"],
   "answers": [
-    { "a": "Hoeffding tree", "t": "mlion", "aka": ["VFDT", "very fast decision tree"], "q": "Splits once the Hoeffding bound says it's sure. Learns from an endless stream, keeps none of it. Domingos & Hulten, 2000." },
+    { "a": "Hoeffding tree", "t": "mlion", "aka": ["VFDT", "very fast decision tree", "VFDTc", "streaming decision tree"], "q": "Splits once the Hoeffding bound says it's sure. Learns from an endless stream, keeps none of it. Domingos & Hulten, 2000." },
 
     { "a": "AID", "t": "longtail", "aka": ["automatic interaction detection", "automatic interaction detector"], "q": "Morgan & Sonquist, 1963: the first regression tree, grown on survey data." },
     { "a": "THAID", "t": "longtail", "aka": ["theta aid"] },
@@ -15,7 +15,7 @@
     { "a": "Exhaustive CHAID", "t": "longtail" },
     { "a": "ID4", "t": "longtail" },
     { "a": "ID5R", "t": "longtail", "aka": ["ID5"] },
-    { "a": "ITI", "t": "longtail", "aka": ["incremental tree inducer"], "q": "Utgoff's tree that restructures itself as new examples arrive." },
+    { "a": "ITI", "t": "longtail", "aka": ["incremental tree inducer", "incremental tree induction"], "q": "Utgoff's tree that restructures itself as new examples arrive." },
     { "a": "CVFDT", "t": "longtail", "aka": ["concept-adapting very fast decision tree"] },
     { "a": "Hoeffding Adaptive Tree", "t": "longtail", "aka": ["HAT", "HAT-ADWIN"] },
     { "a": "EFDT", "t": "longtail", "aka": ["extremely fast decision tree", "Hoeffding anytime tree", "HATT"], "q": "Very Fast wasn't fast enough. It splits early and revisits its decisions later." },
@@ -35,7 +35,7 @@
     { "a": "OSDT", "t": "longtail", "aka": ["optimal sparse decision trees"] },
     { "a": "NBDT", "t": "longtail", "aka": ["neural-backed decision tree"] },
     { "a": "TAO", "t": "longtail", "aka": ["tree alternating optimization"] },
-    { "a": "Deep Neural Decision Tree", "t": "longtail", "aka": ["DNDT"] },
+    { "a": "Deep Neural Decision Tree", "t": "longtail", "aka": ["DNDT", "neural decision tree"] },
     { "a": "Credal decision tree", "t": "longtail", "aka": ["credal tree"] },
     { "a": "Fuzzy decision tree", "t": "longtail", "aka": ["fuzzy id3", "fuzzy tree"] },
     { "a": "HHCART", "t": "longtail", "aka": ["householder cart"] },
@@ -75,7 +75,22 @@
     { "a": "C5.0", "t": "overfit", "aka": ["See5", "C5"], "q": "Quinlan's commercial sequel, sold as See5 on Windows. Smaller trees, faster, with boosting built in." },
 
     { "a": "ID3", "t": "baseline", "aka": ["iterative dichotomiser 3", "iterative dichotomizer 3"] },
-    { "a": "C4.5", "t": "baseline", "aka": ["J48", "C45"], "q": "Weka calls it J48. Ranked #1 in 2008's 'Top 10 Algorithms in Data Mining.'" },
-    { "a": "CART", "t": "baseline", "aka": ["classification and regression trees", "classification and regression tree", "rpart", "DecisionTreeClassifier", "DecisionTreeRegressor"] }
+    { "a": "C4.5", "t": "baseline", "aka": ["J48", "C45", "Weka J48", "Quinlan C4.5", "C4.5rules"], "q": "Weka calls it J48. Ranked #1 in 2008's 'Top 10 Algorithms in Data Mining.'" },
+    { "a": "CART", "t": "baseline", "aka": ["classification and regression trees", "classification and regression tree", "rpart", "DecisionTreeClassifier", "DecisionTreeRegressor"] },
+    { "a": "Extremely randomized tree", "t": "outlier", "aka": ["ExtraTreeClassifier", "ExtraTreeRegressor", "extra tree", "single extra tree"] },
+    { "a": "Causal tree", "t": "longtail", "aka": ["honest tree", "honest causal tree", "causal trees"] },
+    { "a": "Uplift tree", "t": "longtail", "aka": ["uplift decision tree", "treatment effect tree"] },
+    { "a": "Oblivious decision tree", "t": "longtail", "aka": ["oblivious tree", "symmetric tree"] },
+    { "a": "Decision DAG", "t": "longtail", "aka": ["decision graph", "decision directed acyclic graph"] },
+    { "a": "Lookahead decision tree", "t": "longtail", "aka": ["look-ahead decision tree", "lookahead tree", "look-ahead tree"] },
+    { "a": "Linear machine decision tree", "t": "longtail", "aka": ["perceptron tree", "linear machine tree"] },
+    { "a": "Interaction trees", "t": "longtail" },
+    { "a": "SUPPORT", "t": "longtail" },
+    { "a": "STreeD", "t": "longtail" },
+    { "a": "SADT", "t": "longtail", "aka": ["simulated annealing decision tree"] },
+    { "a": "Assistant-86", "t": "longtail", "aka": ["Assistant", "Assistant 86"] },
+    { "a": "MDL pruning", "t": "longtail", "aka": ["minimum description length pruning"] },
+    { "a": "Pre-pruning", "t": "outlier", "aka": ["early stopping tree", "prepruning", "pre pruning"] },
+    { "a": "Post-pruning", "t": "indist", "aka": ["postpruning", "post pruning", "tree pruning", "pruning"] }
   ]
 }
