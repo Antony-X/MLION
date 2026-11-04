@@ -277,7 +277,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // claude.ai blocks WebRTC inside artifacts, so there live mode points to the
   // web version.
   const WEB_URL = "https://antony-x.github.io/MLION/";
-  const PEER_SRC = "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js";
+  const MQTT_SRC = "https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js";
+  const BROKER = "wss://public.cloud.shiftr.io";
+  const TOPIC = "mlion/v2";
   const LIVE_SIZES = [5, 7, 10];
   const PUB_SLOTS = 10; // public rooms live at fixed codes pub01..pub10 so anyone can find them
   const pubCode = (k) => `pub${String(k).padStart(2, "0")}`;
@@ -285,40 +287,42 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const REVEAL_MS = 4500;
   const CODE_ABC = "abcdefghjkmnpqrstuvwxyz23456789";
   const liveBlocked = () => !!SHARE_BASE; // only the artifact build sets SHARE_BASE
-  const LIVE = { active: false, code: "", isHost: false, peer: null, conns: new Map(), hostConn: null, myId: "",
-    players: new Map(), n: 7, seed: "", phase: "lobby", revealed: -1, timers: [], status: "" };
-  let peerLib = null;
-  function loadPeer() {
-    if (window.Peer) return Promise.resolve(window.Peer);
-    if (!peerLib) peerLib = new Promise((res, rej) => {
-      const s = document.createElement("script");
-      s.src = PEER_SRC; s.async = true;
-      s.onload = () => (window.Peer ? res(window.Peer) : rej(new Error("no Peer")));
-      s.onerror = () => { peerLib = null; rej(new Error("load failed")); };
-      setTimeout(() => { if (!window.Peer) { peerLib = null; rej(new Error("timeout")); } }, 10000);
-      document.head.appendChild(s);
+  const LIVE = { active: false, code: "", isHost: false, client: null, conns: new Map(), myId: "",
+    players: new Map(), n: 7, seed: "", phase: "lobby", revealed: -1, timers: [], intervals: [], status: "" };
+  let mqttLib = null;
+  function loadMqtt() {
+    if (window.mqtt) return Promise.resolve(window.mqtt);
+    if (!mqttLib) mqttLib = new Promise((res, rej) => {
+      const el = document.createElement("script");
+      el.src = MQTT_SRC; el.async = true;
+      el.onload = () => (window.mqtt ? res(window.mqtt) : rej(new Error("no mqtt")));
+      el.onerror = () => { mqttLib = null; rej(new Error("load failed")); };
+      setTimeout(() => { if (!window.mqtt) { mqttLib = null; rej(new Error("timeout")); } }, 12000);
+      document.head.appendChild(el);
     });
-    return peerLib;
+    return mqttLib;
   }
-  // STUN finds a direct route; the TURN relay (UDP and TCP) carries the match
-  // when phone networks block direct connections.
-  const ICE = [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-    { urls: ["turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478",
-      "turn:eu-0.turn.peerjs.com:3478?transport=tcp", "turn:us-0.turn.peerjs.com:3478?transport=tcp"],
-    username: "peerjs", credential: "peerjsp" },
-  ];
-  const peerOpts = () => Object.assign({ debug: 0, config: { iceServers: ICE } }, window.MLION_PEER_OPTS || {});
   const cleanName = (s) => String(s || "").replace(/[^\p{L}\p{N} _.'-]/gu, "").trim().slice(0, 16);
   const liveLater = (fn, ms) => { const id = setTimeout(fn, ms); LIVE.timers.push(id); return id; };
   function liveReset() {
     LIVE.timers.forEach(clearTimeout); LIVE.timers = [];
-    try { if (LIVE.peer) LIVE.peer.destroy(); } catch { /* already gone */ }
-    Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", peer: null, conns: new Map(), hostConn: null, myId: "",
+    LIVE.intervals.forEach(clearInterval); LIVE.intervals = [];
+    const c = LIVE.client;
+    if (c) {
+      try { if (LIVE.isHost) pubJSON(c, `${roomTopic(LIVE.code)}/down`, { t: "closed" }); } catch { /* ignore */ }
+      try { if (LIVE.isHost && LIVE.isPublic) c.publish(infoTopic(LIVE.code), "", { retain: true, qos: 1 }); } catch { /* ignore */ }
+      setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
+    }
+    Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", client: null, conns: new Map(), myId: "",
       players: new Map(), seed: "", phase: "lobby", revealed: -1, status: "" });
   }
   function leaveLive() {
-    if (joinState) { clearTimeout(joinState.timer); try { joinState.peer.destroy(); } catch { /* ignore */ } joinState = null; }
+    if (joinState) {
+      clearInterval(joinState.helloTimer);
+      const c = joinState.client;
+      if (!LIVE.active || LIVE.client !== c) setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
+      joinState = null;
+    }
     if (LIVE.active) liveReset();
   }
   const liveHash = () => `live-${LIVE.code}`;
@@ -379,6 +383,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (RUN && RUN.mode === "live" && RUN.results.length <= m.i && (RUN.phase === "preview" || RUN.phase === "answering")) submit(true);
       renderStrip();
       renderReveal(m.i);
+    } else if (m.t === "closed" && !LIVE.isHost) {
+      leaveLive();
+      renderLiveStatus("The host closed the room.", true);
     } else if (m.t === "end") {
       LIVE.phase = "done";
       LIVE.revealed = LIVE.n - 1;
@@ -387,7 +394,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
   }
   function broadcast(m) {
-    for (const c of LIVE.conns.values()) { try { c.send(m); } catch { /* dropped peer */ } }
+    if (LIVE.client) pubJSON(LIVE.client, `${roomTopic(LIVE.code)}/down`, m);
+    if (m.t === "lobby") publishInfo();
     apply(m);
   }
   function lobbyMsg() {
@@ -468,102 +476,144 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function liveLocalAnswer(res) {
     const m = { t: "ans", i: RUN.round, answer: res.answer, tier: res.tier };
     if (LIVE.isHost) hostAnswer(LIVE.myId, m);
-    else if (LIVE.hostConn) { try { LIVE.hostConn.send(m); } catch { /* host gone */ } }
+    else guestSend(m);
   }
 
   // ---- connecting
-  /** Re-register with the handshake server after the phone paused this page. */
-  function keepRegistered(peer) {
-    let backoff = 1000;
-    const again = () => {
-      if (peer.destroyed || !peer.disconnected) return;
-      try { peer.reconnect(); } catch { /* retry below */ }
-      backoff = Math.min(backoff * 2, 8000);
-      liveLater(again, backoff);
-    };
-    peer.on("disconnected", () => liveLater(again, 500));
-    peer.on("open", () => { backoff = 1000; });
+  // ---- transport: a public MQTT broker over WebSocket on port 443.
+  // Works on any network (no peer-to-peer); public rooms announce themselves
+  // with retained messages so the room list is instant.
+  const rid = (n) => Array.from({ length: n }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join("");
+  async function mqttConnect(extra) {
+    const m = await loadMqtt();
+    return m.connect(BROKER, Object.assign({ username: "public", password: "public", clientId: "mlion-" + rid(12),
+      keepalive: 15, reconnectPeriod: 1500, connectTimeout: 9000, clean: true }, extra || {}));
   }
-  document.addEventListener("visibilitychange", () => {
-    const peer = LIVE.peer;
-    if (document.visibilityState === "visible" && peer && !peer.destroyed && peer.disconnected) {
-      try { peer.reconnect(); } catch { /* the disconnected handler keeps trying */ }
-    }
-    if (document.visibilityState === "visible" && LIVE.active && !LIVE.isHost && LIVE.hostConn && !LIVE.hostConn.open) guestRejoin();
-  });
+  const roomTopic = (code) => `${TOPIC}/r/${code}`;
+  const infoTopic = (code) => `${TOPIC}/pub/${code}`;
+  const pubJSON = (client, topic, m, opts) => { try { client.publish(topic, JSON.stringify(m), opts || {}); } catch { /* offline: mqtt queues */ } };
+  const hostSendTo = (id, m) => LIVE.client && pubJSON(LIVE.client, `${roomTopic(LIVE.code)}/to/${id}`, m);
+  const guestSend = (m) => LIVE.client && pubJSON(LIVE.client, `${roomTopic(LIVE.code)}/up`, Object.assign({ from: LIVE.myId }, m));
+  function publishInfo() {
+    if (!LIVE.isHost || !LIVE.isPublic || !LIVE.client) return;
+    const host = playerList().find((p) => p.host);
+    pubJSON(LIVE.client, infoTopic(LIVE.code), { host: host ? host.name : "Someone", players: LIVE.players.size, max: 2, phase: LIVE.phase, at: Date.now() }, { retain: true, qos: 1 });
+  }
+  const liveEvery = (fn, ms) => { const id = setInterval(fn, ms); LIVE.intervals.push(id); return id; };
+  function fakeConn(id) { return { peer: id, send: (x) => hostSendTo(id, x), close() {} }; }
+
+  /** Read the public room list once (or keep listening with onUpdate). */
+  async function scanPublic(ms, onUpdate) {
+    const client = await mqttConnect();
+    const rooms = new Map();
+    client.on("connect", () => client.subscribe(`${TOPIC}/pub/+`));
+    client.on("message", (topic, payload) => {
+      const code = topic.split("/").pop();
+      let d = null; try { d = payload.length ? JSON.parse(payload.toString()) : null; } catch { d = null; }
+      if (!d || Date.now() - (+d.at || 0) > 45000) rooms.delete(code); else rooms.set(code, d);
+      if (onUpdate) onUpdate(rooms);
+    });
+    if (!ms) return { client, rooms };
+    await new Promise((r) => setTimeout(r, ms));
+    try { client.end(true); } catch { /* ignore */ }
+    return { rooms };
+  }
 
   async function liveCreate(name, isPublic) {
     LS.set("name", name);
     renderLiveStatus("Opening a room…");
-    let Peer;
-    try { Peer = await loadPeer(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
-    const attempt = (tries) => {
-      const code = isPublic ? pubCode(tries + 1) : (tries === 0 && window.MLION_LIVE_CODE) || Array.from({ length: 5 }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join("");
-      const peer = new Peer(`mlion-live-${code}`, peerOpts());
-      let opened = false;
-      peer.on("open", (id) => {
-        if (opened) return; // a reconnect fires open again
-        opened = true;
-        Object.assign(LIVE, { active: true, code, isHost: true, isPublic: !!isPublic, peer, myId: id, phase: "lobby" });
-        LIVE.players.set(id, { id, name, host: true, ans: {} });
-        keepRegistered(peer);
+    let code = window.MLION_LIVE_CODE || rid(5);
+    try {
+      if (isPublic) {
+        renderLiveStatus("Finding a free public room…");
+        const { rooms } = await scanPublic(1800);
+        code = "";
+        for (let k = 1; k <= PUB_SLOTS && !code; k++) if (!rooms.has(pubCode(k))) code = pubCode(k);
+        if (!code) return renderLiveStatus("All public rooms are in use. Join one, or make a private room.", true);
+      }
+      renderLiveStatus("Connecting to the live server…");
+      const client = await mqttConnect(isPublic ? { will: { topic: infoTopic(code), payload: "", retain: true, qos: 1 } } : {});
+      const id = "h" + rid(8);
+      let ready = false;
+      const fail = setTimeout(() => { if (!ready) { try { client.end(true); } catch { /* ignore */ } renderLiveStatus("Couldn't reach the live server. Check your connection and try again.", true); } }, 15000);
+      client.on("connect", () => {
+        client.subscribe(`${roomTopic(code)}/up`);
+        if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
+        ready = true; clearTimeout(fail);
+        Object.assign(LIVE, { active: true, code, isHost: true, isPublic: !!isPublic, client, myId: id, phase: "lobby" });
+        LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
+        publishInfo();
+        liveEvery(() => { pubJSON(client, `${roomTopic(code)}/down`, { t: "hb" }); publishInfo(); }, 4000);
+        liveEvery(() => { // a guest that went quiet: hold the seat, then free it
+          const now = Date.now();
+          for (const p of LIVE.players.values()) if (!p.host && !p.away && now - (p.seen || now) > 9000) hostDrop(p.id);
+        }, 2000);
         go(liveHash());
       });
-      peer.on("connection", (conn) => {
-        conn.on("data", (d) => hostHandle(conn, d));
-        conn.on("close", () => hostDrop(conn.peer));
-        conn.on("error", () => hostDrop(conn.peer));
+      client.on("message", (topic, payload) => {
+        let m; try { m = JSON.parse(payload.toString()); } catch { return; }
+        if (!m || typeof m.from !== "string" || m.from.length > 20) return;
+        const pl = LIVE.players.get(m.from);
+        if (pl) pl.seen = Date.now();
+        if (m.t === "hb") { if (pl && pl.away) hostHandle(fakeConn(m.from), { t: "hello" }); return; }
+        hostHandle(fakeConn(m.from), m);
       });
-      peer.on("error", (err) => {
-        if (err && err.type === "unavailable-id" && !opened && tries < (isPublic ? PUB_SLOTS - 1 : 4)) { try { peer.destroy(); } catch { /* ignore */ } return attempt(tries + 1); }
-        if (!opened) renderLiveStatus(err && err.type === "unavailable-id" && isPublic ? "All public rooms are in use. Join one, or make a private room." : "Couldn't reach the live server. Check your connection and try again.", true);
-        // once the room exists, network blips are handled by keepRegistered
-      });
-    };
-    attempt(0);
+    } catch {
+      renderLiveStatus("Couldn't load live play. Check your connection and try again.", true);
+    }
   }
 
-  // ---- joining: keep trying while the host is away (switched apps, slow network)
   const JOIN_PATIENCE_MS = 120000;
-  let joinState = null; // { code, name, peer, started, tries, timer }
+  let joinState = null; // { code, name, client, id, started, joined, lastHost }
   async function liveJoin(code, name) {
     LS.set("name", name);
-    if (joinState) { clearTimeout(joinState.timer); try { joinState.peer.destroy(); } catch { /* ignore */ } }
-    renderJoinWait(code, "Connecting…");
-    let Peer;
-    try { Peer = await loadPeer(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
-    const peer = new Peer(peerOpts());
-    joinState = { code, name, peer, started: Date.now(), tries: 0, timer: 0 };
-    keepRegistered(peer);
-    peer.on("open", () => { if (!LIVE.active && joinState && joinState.peer === peer && !joinState.trying) tryConnect(); });
-    peer.on("error", (err) => {
-      if (!joinState || joinState.peer !== peer || LIVE.active) return;
-      const t = err && err.type;
-      if (t === "peer-unavailable") return retryJoin("Waiting for the host. If they switched apps, ask them to go back to MLion.");
-      if (t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed" || t === "disconnected") return retryJoin("Connection hiccup. Retrying…");
-      retryJoin("Couldn't connect yet. Retrying…");
+    leaveLive();
+    renderJoinWait(code, "Connecting to the live server…");
+    let client;
+    try { client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
+    const id = "g" + rid(8);
+    const js = joinState = { code, name, client, id, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
+    const hello = () => pubJSON(client, `${roomTopic(code)}/up`, { from: id, t: "hello", name, v: 2 });
+    client.on("connect", () => {
+      client.subscribe([`${roomTopic(code)}/down`, `${roomTopic(code)}/to/${id}`]);
+      if (!js.joined) { renderJoinWait(code, "Connected. Asking the host to let you in…"); hello(); }
     });
-  }
-  function tryConnect() {
-    const js = joinState;
-    if (!js || LIVE.active) return;
-    js.trying = true;
-    js.tries++;
-    if (js.tries > 1) renderJoinWait(js.code, `Trying again (attempt ${js.tries})…`);
-    if (js.peer.disconnected) { try { js.peer.reconnect(); } catch { /* ignore */ } }
-    const conn = js.peer.connect(`mlion-live-${js.code}`, { reliable: true });
-    let opened = false;
-    const stall = setTimeout(() => { if (!opened) { try { conn.close(); } catch { /* ignore */ } retryJoin("Still reaching the room…"); } }, 12000);
-    conn.on("iceStateChanged", (st) => { if (st === "failed" && !opened) { clearTimeout(stall); try { conn.close(); } catch { /* ignore */ } retryJoin("Your networks didn't connect. Retrying through a relay…"); } });
-    conn.on("open", () => {
-      opened = true; clearTimeout(stall); js.trying = false;
-      Object.assign(LIVE, { active: true, code: js.code, isHost: false, peer: js.peer, hostConn: conn, myId: js.peer.id, phase: LIVE.phase === "waiting" || LIVE.phase === "playing" ? LIVE.phase : "lobby" });
-      conn.send({ t: "hello", name: js.name, v: 1 });
-    });
-    conn.on("data", (d) => {
-      if (d && d.t === "full") { renderLiveStatus("That room is full.", true); joinState = null; return liveReset(); }
-      if (d && d.t === "busy") { LIVE.phase = "waiting"; renderLiveStatus("A match is in progress. You'll join the next one.", false); return; }
-      if (d && d.t === "resume") {
+    client.on("offline", () => { if (js.joined) toast("Connection lost. Reconnecting…"); });
+    js.helloTimer = setInterval(() => {
+      if (joinState !== js) return clearInterval(js.helloTimer);
+      if (js.joined) {
+        pubJSON(client, `${roomTopic(code)}/up`, { from: id, t: "hb" });
+        const quiet = Date.now() - js.lastHost;
+        if (quiet > 60000) { clearInterval(js.helloTimer); leaveLive(); renderLiveStatus("The host left the room.", true); }
+        else if (quiet > 12000 && !js.warned) { js.warned = true; toast("Lost the host. Waiting for them to come back…"); }
+        return;
+      }
+      if (Date.now() - js.started > JOIN_PATIENCE_MS) {
+        clearInterval(js.helloTimer); leaveLive();
+        return renderLiveStatus("The host didn't answer. Check they still have MLion open, then try again.", true);
+      }
+      js.tries++;
+      if (client.connected) {
+        renderJoinWait(code, js.lastHost ? `Room found. Joining… (try ${js.tries})` : `Waiting for the host to answer… (try ${js.tries}). If they switched apps, ask them to go back to MLion.`);
+        hello();
+      } else renderJoinWait(code, "Reaching the live server…");
+    }, 3000);
+    client.on("message", (topic, payload) => {
+      let d; try { d = JSON.parse(payload.toString()); } catch { return; }
+      if (joinState !== js || !d || typeof d !== "object") return;
+      js.lastHost = Date.now(); js.warned = false;
+      if (d.t === "hb") return;
+      if (d.t === "full") { leaveLive(); return renderLiveStatus("That room is full. Duo rooms take 2 players.", true); }
+      if (!LIVE.active) {
+        if (d.t !== "lobby" || !Array.isArray(d.players) || !d.players.some((p) => p && p.id === id)) return;
+        js.joined = true;
+        const me = d.players.find((p) => p.id === id);
+        Object.assign(LIVE, { active: true, code, isHost: false, client, myId: id, phase: me.late && d.phase === "playing" ? "waiting" : "lobby" });
+        if (LIVE.phase === "waiting") { renderLiveStatus("You're in. A match is in progress, so you'll play the next one.", false); return; }
+      }
+      if (d.t === "lobby" && Array.isArray(d.players) && !d.players.some((p) => p && p.id === id)) { hello(); return; } // our seat expired: ask again
+      if (d.t === "busy") { LIVE.phase = "waiting"; renderLiveStatus("You're in. A match is in progress, so you'll play the next one.", false); return; }
+      if (d.t === "resume") {
         LIVE.phase = "playing";
         toast("Back in the match");
         if (RUN && RUN.mode === "live") {
@@ -573,39 +623,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         }
         return;
       }
-      if (d && d.t === "lobby" && LIVE.phase === "waiting" && d.phase !== "playing") LIVE.phase = "lobby";
-      if (LIVE.phase === "waiting" && d && d.t !== "lobby") return;
+      if (d.t === "lobby" && LIVE.phase === "waiting" && d.phase !== "playing") LIVE.phase = "lobby";
+      if (LIVE.phase === "waiting" && d.t !== "lobby" && d.t !== "start") return;
       apply(d);
     });
-    conn.on("close", () => {
-      clearTimeout(stall);
-      if (!opened) return;
-      if (LIVE.active && LIVE.hostConn === conn) guestRejoin();
-    });
   }
-  function retryJoin(msg) {
-    const js = joinState;
-    if (!js || LIVE.active) return;
-    js.trying = false;
-    clearTimeout(js.timer);
-    if (Date.now() - js.started > JOIN_PATIENCE_MS) {
-      try { js.peer.destroy(); } catch { /* ignore */ }
-      joinState = null;
-      return renderLiveStatus("Couldn't reach that room. Check that the host still has MLion open, then try the link again.", true);
-    }
-    renderJoinWait(js.code, msg);
-    js.timer = setTimeout(tryConnect, 2500);
-  }
-  /** The link to the host dropped (either phone paused): try to get back in. */
-  function guestRejoin() {
-    if (!joinState) return;
-    const keepPhase = LIVE.phase;
-    if (keepPhase !== "playing") stopRun(); else cancelAnimationFrame(runRaf);
-    LIVE.active = false; LIVE.hostConn = null;
-    LIVE.phase = keepPhase === "playing" ? "playing" : "lobby";
-    joinState.started = Date.now();
-    retryJoin("Reconnecting to the room…");
-  }
+  document.addEventListener("visibilitychange", () => {
+    const c = LIVE.client || (joinState && joinState.client);
+    if (document.visibilityState === "visible" && c && !c.connected) { try { c.reconnect(); } catch { /* auto-reconnect continues */ } }
+  });
 
   // ---- screens
   function renderLiveBlocked(code) {
@@ -622,7 +648,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="lv-players"><li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Looking for the host…</span></li></ul>
       <div class="btn-row"><a class="btn big" href="#live" id="live-cancel">Cancel</a></div>
     </section>`;
-    $("#live-cancel").addEventListener("click", () => { if (joinState) { clearTimeout(joinState.timer); try { joinState.peer.destroy(); } catch { /* ignore */ } joinState = null; } });
+    $("#live-cancel").addEventListener("click", () => leaveLive());
   }
   function renderLiveStatus(text, retry) {
     setMid("Live");
@@ -727,45 +753,37 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (again) again.addEventListener("click", hostStart);
   }
   /** Public rooms: ask each fixed public code who's there. */
-  let browsePeer = null;
+  let roomsWatch = null;
   async function renderRooms() {
     if (liveBlocked()) return renderLiveBlocked("");
     setMid("Public rooms");
     app.innerHTML = `<section class="screen live">
-      <div class="page-head"><h1>Public rooms</h1><p>Duo rooms anyone can join. Updates every 15 seconds.</p><p id="rooms-status" role="status">Looking for open rooms…</p></div>
-      <ul class="lv-players" id="rooms-list"><li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Searching…</span></li></ul>
-      <div class="btn-row"><button class="btn big" id="rooms-refresh">Refresh</button><a class="btn primary big" href="#live">Create a room</a></div>
+      <div class="page-head"><h1>Public rooms</h1><p>Duo rooms anyone can join. This list updates live.</p><p id="rooms-status" role="status">Connecting…</p></div>
+      <ul class="lv-players" id="rooms-list"><li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Looking for rooms…</span></li></ul>
+      <div class="btn-row"><a class="btn primary big" href="#live">Create a room</a></div>
     </section>`;
-    $("#rooms-refresh").addEventListener("click", renderRooms);
-    clearScreenTimers();
-    every(15000, () => { if (location.hash === "#rooms") renderRooms(); });
-    let Peer;
-    try { Peer = await loadPeer(); } catch { $("#rooms-status").textContent = "Couldn't reach the live server. Check your connection and tap Refresh."; return; }
-    try { if (browsePeer) browsePeer.destroy(); } catch { /* ignore */ }
-    const peer = new Peer(peerOpts());
-    browsePeer = peer;
-    const found = new Map();
-    const draw = (final) => {
+    if (roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
+    let latest = new Map(), settled = false;
+    const draw = () => {
       const list = $("#rooms-list"), st = $("#rooms-status");
-      if (!list || browsePeer !== peer) return;
-      const rooms = [...found.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      st.textContent = rooms.length ? `${rooms.length} open ${rooms.length === 1 ? "room" : "rooms"}` : final ? "No public rooms right now. Create one and friends can find it here." : "Looking for open rooms…";
+      if (!list || location.hash !== "#rooms") return;
+      const rooms = [...latest.entries()].filter(([, r]) => Date.now() - (+r.at || 0) < 45000).sort((a, b) => a[0].localeCompare(b[0]));
+      st.textContent = rooms.length ? `${rooms.length} open ${rooms.length === 1 ? "room" : "rooms"}` : settled ? "No public rooms right now. Create one and it shows up here for everyone." : "Looking for rooms…";
       list.innerHTML = rooms.map(([code, r]) => {
-        const full = r.players >= r.max;
-        return `<li>${avatar(r.host)}<b>${esc(r.host)}'s room</b><span>${r.players}/${r.max} · ${full ? "full" : r.phase === "playing" ? "playing" : "open"}</span>${full ? "" : `<a class="btn sm primary" href="#live-${code}">Join</a>`}</li>`;
-      }).join("") ||
-        (final ? "" : `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Searching…</span></li>`);
+        const max = +r.max || 2, n = +r.players || 1, full = n >= max;
+        return `<li>${avatar(r.host)}<b>${esc(cleanName(r.host) || "Someone")}'s room</b><span>${n}/${max} · ${full ? "full" : r.phase === "playing" ? "playing" : "open"}</span>${full ? "" : `<a class="btn sm primary" href="#live-${code}">Join</a>`}</li>`;
+      }).join("") || (settled ? "" : `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Looking for rooms…</span></li>`);
     };
-    peer.on("open", () => {
-      for (let k = 1; k <= PUB_SLOTS; k++) {
-        const code = pubCode(k);
-        const conn = peer.connect(`mlion-live-${code}`, { reliable: true });
-        conn.on("open", () => conn.send({ t: "info" }));
-        conn.on("data", (d) => { if (d && d.t === "info") { found.set(code, { host: cleanName(d.host) || "Someone", players: +d.players || 1, max: +d.max || 8, phase: d.phase }); draw(false); } });
-      }
-      setTimeout(() => { draw(true); setTimeout(() => { try { if (browsePeer === peer) { peer.destroy(); browsePeer = null; } } catch { /* ignore */ } }, 500); }, 7000);
-    });
-    peer.on("error", () => { /* missing public codes report here; they simply aren't listed */ });
+    try {
+      const { client, rooms } = await scanPublic(0, (r) => { latest = r; draw(); });
+      roomsWatch = client;
+      latest = rooms;
+      client.on("connect", () => { const st = $("#rooms-status"); if (st && !latest.size) st.textContent = "Looking for rooms…"; });
+      setTimeout(() => { settled = true; draw(); }, 2000);
+      every(5000, draw);
+    } catch {
+      const st = $("#rooms-status"); if (st) st.textContent = "Couldn't reach the live server. Check your connection and reload.";
+    }
   }
 
   if (window.MLION_TEST) window.MLION_LIVE_STATE = LIVE;
@@ -810,6 +828,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     window.scrollTo(0, 0);
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
     if ((LIVE.active && h !== liveHash()) || (joinState && h !== `live-${joinState.code}`)) leaveLive();
+    if (h !== "rooms" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
     if (RUN && RUN.mode === "live" && !LIVE.active) stopRun();
     scene("page");
     $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + (h || "home")));

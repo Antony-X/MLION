@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /* Live match end to end: two separate browsers connect through PeerJS and
  * play 5 questions on the same clock.  node tests/live.e2e.js
- * Needs network access to cdn.jsdelivr.net and 0.peerjs.com (the handshake);
- * the match itself runs browser to browser over WebRTC. */
+ * Needs network access to unpkg.com and public.cloud.shiftr.io (the MQTT relay). */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
@@ -34,7 +33,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}/`;
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
-  const browser = await chromium.launch({ proxy, args: ["--disable-features=WebRtcHideLocalIpsWithMdns"] });
+  const browser = await chromium.launch({ proxy, });
   const errors = [];
   const forced = "t" + Math.random().toString(36).slice(2, 6).replace(/[^a-z0-9]/g, "x");
   async function player(tag, init) {
@@ -70,7 +69,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(true, "the waiting friend gets in as soon as the room is back");
 
   // The host's phone drops its server connection; a third player must still get in.
-  await ana.evaluate(() => window.MLION_LIVE_STATE.peer.disconnect());
+  await ana.evaluate(() => window.MLION_LIVE_STATE.client.stream.end());
   await cy.goto(base + `#live-${code}`);
   await cy.fill("#live-name", "Cy");
   await cy.click("#live-go");
