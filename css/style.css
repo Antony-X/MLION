@@ -916,3 +916,30 @@ html:not(.reduce-motion) .feedback .mcq-key { transition: opacity 500ms var(--ea
 .rq-eyebrow { color: var(--gold); font-size: var(--s1); letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 8px; }
 .prompt-text.rq-text { font-size: var(--s2); line-height: 1.45; letter-spacing: 0; max-width: 62ch; text-wrap: pretty; }
 @media (min-width: 760px) { .prompt-text.rq-text { font-size: calc(var(--s2) * 1.08); } }
+
+/* pass 1: the page title is the heading; the top bar names only games in progress */
+body[data-view="page"] .topbar-mid { visibility: hidden; }
+/* the fixed line landscape belongs to home; on reading pages it sat behind text */
+body[data-view="page"] #landscape { opacity: 0; }
+/* a hub's side column always spaces its parts */
+.screen > .side { display: grid; gap: 28px; }
+/* leaderboard date stepper */
+.board-days { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; max-width: 420px; }
+.board-days p { display: grid; gap: 2px; text-align: center; margin: 0; }
+.board-days p b { font-weight: 500; font-size: var(--s2); }
+.board-days p span { color: var(--muted); font-size: var(--s1); }
+.board-days .icon-btn.off { visibility: hidden; }
+.chev.go-l { transform: rotate(90deg); }
+.chev.go-r { transform: rotate(-90deg); }
+.board-days .chev { width: 20px; height: 20px; }
+.main > .board-side { margin-top: 32px; display: grid; gap: 14px; justify-items: start; }
+
+/* pass 2: an answer key folded under its results row */
+details.key.inline { background: none; margin-top: 6px; }
+details.key.inline summary { padding: 4px 0; gap: 6px; display: inline-flex; border-radius: 0; }
+details.key.inline summary .grow { flex: none; }
+details.key.inline summary .cnt-s { color: var(--muted); text-decoration: underline; text-decoration-color: var(--raised-2); text-underline-offset: 0.25em; }
+details.key.inline summary .chev { width: 16px; height: 16px; }
+@media (hover: hover) and (pointer: fine) { details.key.inline summary:hover { background: none; } details.key.inline summary:hover .cnt-s { color: var(--ink); } }
+details.key.inline .body { padding: 8px 0 4px; }
+.run-item > span:nth-child(2) { min-width: 0; }

@@ -1056,12 +1056,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
-        <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Rarity"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
+        <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         ${LIVE.fmt === "quiz" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>No repeat questions across matches</span></label>
         ${qPicker(LIVE.n)}
         ${timePicker(LIVE.secs || DEFAULT_SECS)}
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each · ${LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Rarity format.`}</p>`}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each · ${LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -2379,27 +2379,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const prev = day > E.EPOCH ? E.addDays(day, -1) : null;
     const next = day < today() ? E.addDays(day, 1) : null;
     const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
-      : AUTH.user ? `<p class="board-acct">On the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b></p>
-        <div class="btn-row"><button class="btn" id="bn-edit">Change name</button><button class="btn" id="bn-out">Log out</button></div>`
-      : `<p class="board-acct">Log in to put your daily score here. Only the name you pick is shown.</p>${loginButtons()}`;
+      : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>`
+      : `<p class="board-acct">Log in and your daily score shows up here. Only the name you pick is shown.</p>${loginButtons()}`;
     const played = records[`daily:${today()}`];
+    const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? "board" : `board-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
     app.innerHTML = `<section class="screen split">
       <div class="side">
-        <div class="page-head"><h1>Leaderboard</h1><p>MLion #${n} · ${esc(prettyDate(day, { weekday: "long", month: "long", day: "numeric" }))}</p></div>
-        <div class="btn-row board-days">
-          ${prev ? `<a class="btn" href="#board-${prev}">Previous day</a>` : ""}
-          ${next ? `<a class="btn" href="#${next === today() ? "board" : `board-${next}`}">Next day</a>` : ""}
-        </div>
-        <div class="board-side">${acct}
-          ${day === today() && !played ? `<p><a class="btn primary" href="#daily">Play today's daily</a></p>` : ""}
-          <p class="muted small">One score per person per day: the first daily you finish while logged in. Every daily uses the 25 s clock.</p>
-        </div>
+        <div class="page-head"><h1>Leaderboard</h1></div>
+        <div class="board-days">${arrow(prev, -1)}<p><b>${esc(prettyDate(day, { weekday: "long", month: "short", day: "numeric" }))}</b><span>MLion #${n}</span></p>${arrow(next, 1)}</div>
+        ${day === today() && !played ? `<div><a class="btn primary big" href="#daily">Play today's daily</a></div>` : ""}
       </div>
-      <div class="main"><ol class="list big board-list" id="board-list"><li class="muted">Loading…</li></ol></div>
+      <div class="main"><ol class="list big board-list" id="board-list"><li class="muted">Loading…</li></ol>
+        <div class="board-side">${acct}<p class="muted small">One score per person per day: the first daily you finish while logged in, on the 25 s clock.</p></div>
+      </div>
     </section>`;
     wireLogin(app);
     const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
-    const lo = $("#bn-out"); if (lo) lo.addEventListener("click", boardLogout);
     const list = $("#board-list");
     try {
       const sb = await loadSupabase();
@@ -2424,13 +2419,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // ============================================================ results
-  function answerKey(p, yourAnswer, open) {
+  /** An answer key folded under a results row: the row already names the prompt. */
+  const inlineKey = (pid, yourAnswer) => { const p = PROMPTS.get(pid); return p && !p.reasoning ? answerKey(p, yourAnswer, false, true) : ""; };
+  function answerKey(p, yourAnswer, open, inline) {
     const counts = Object.fromEntries(E.TIER_IDS.map((t) => [t, 0]));
     p.answers.forEach((a) => counts[a.t]++);
     const gem = p.answers.find((a) => a.t === "mlion");
     const you = yourAnswer ? E.fullKey(yourAnswer) : "";
-    return `<details class="key" ${open ? "open" : ""} data-pid="${esc(p.id)}">
-      <summary><span class="grow"><b>${esc(p.text)}</b><span class="cnt-s">${fmt(p.answers.length)} answers</span></span>${CHEV}</summary>
+    return `<details class="key${inline ? " inline" : ""}" ${open ? "open" : ""} data-pid="${esc(p.id)}">
+      <summary>${inline ? `<span class="grow"><span class="cnt-s">All ${fmt(p.answers.length)} answers</span></span>` : `<span class="grow"><b>${esc(p.text)}</b><span class="cnt-s">${fmt(p.answers.length)} answers</span></span>`}${CHEV}</summary>
       <div class="body">
         ${gem ? `<div class="gem-line">${G("mlion")}<span><b>${esc(gem.a)}</b>${gem.q ? `<span class="gq">${esc(gem.q)}</span>` : ""}</span></div>` : ""}
         <div class="tier-counts">${E.TIERS_BY_SCORE.map((t) => `<span title="${esc(t.name)}">${G(t.id)}${counts[t.id]}</span>`).join("")}</div>
@@ -2521,19 +2518,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
               <span><span class="q">${esc(r.promptText)}</span>
                 <span class="a">${esc(right || "")}</span>
                 ${ok ? "" : `<span class="qp">${r.raw ? `You picked ${esc(r.raw)}` : r.timeout ? "Out of time" : "No answer"}</span>`}
-                ${x ? `<span class="qp">${esc(x)}</span>` : ""}</span>
+                ${x ? `<span class="qp">${esc(x)}</span>` : ""}${inlineKey(r.promptId, right)}</span>
               <span class="pts">+${r.score}</span>
             </li>`; }).join("") : rec.results.map((r) => `
             <li class="run-item t-${tierOf(r.tier)}">${G(r.tier)}
               <span><span class="q">${esc(r.promptText)}</span>
                 <span class="a ${r.answer ? "" : "missed"}">${r.answer ? esc(r.answer) : r.raw ? `“${esc(r.raw)}”` : r.skipped ? "Skipped" : "No answer"}</span>
-                ${(() => { const x = r.answer && (explainOf(r.promptId, r.answer) || r.quip); return x ? `<span class="qp">${esc(x)}</span>` : ""; })()}</span>
+                ${(() => { const x = r.answer && (explainOf(r.promptId, r.answer) || r.quip); return x ? `<span class="qp">${esc(x)}</span>` : ""; })()}${inlineKey(r.promptId, r.answer)}</span>
               <span class="pts">+${r.score}</span>
             </li>`).join("")}</ul>
-        </section>
-        <section>
-          <h2 class="block-title">Answer keys</h2>
-          ${rec.promptIds.map((id, i) => PROMPTS.has(id) && !PROMPTS.get(id).reasoning ? answerKey(PROMPTS.get(id), rec.results[i] && rec.results[i].answer, rec.mode === "practice") : "").join("")}
         </section>
         <div class="btn-row">
           <a class="btn" href="#home">Home</a>
@@ -2671,7 +2664,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen challenge">
       <div class="page-head"><h1>Challenge a friend</h1><p>Play first, then send one link. Your friend plays the same questions and sees who won. No accounts.</p></div>
       <div class="vs-form">
-        <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Rarity"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size fmt-size${fmt === k ? " on" : ""}" role="radio" aria-checked="${fmt === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
+        <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size fmt-size${fmt === k ? " on" : ""}" role="radio" aria-checked="${fmt === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         <label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So your friend knows" value="${esc(myName())}"></label>
         ${qPicker(size)}
         ${timePicker(secs)}
@@ -2846,6 +2839,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const tierMax = Math.max(1, ...Object.values(s.tierCounts));
     const bandMax = Math.max(1, ...s.bands.map((b) => b.n));
     const figs = [["Played", s.played], ["Average", s.avg || "—"], ["Best", s.best || "—"], ["Streak", s.cur], ["Max streak", s.max], ["Gems", s.gems]];
+    if (!s.played) {
+      app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Stats</h1><p>Your streak, best score and tier counts start with your first daily. They stay in this browser.</p></div>
+        <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div></section>`;
+      return;
+    }
     app.innerHTML = `<section class="screen split">
       <div class="side">
         <div class="page-head"><h1>Stats</h1><p>Daily descents, kept in this browser.</p></div>

@@ -158,7 +158,7 @@ async function mockRoute(route) {
   await page.goto(base + "#board");
   await page.waitForSelector('#app [data-login="google"]', { timeout: 15000 });
   check((await page.$$("#app [data-login]")).length === 2, "switching Google on in the dashboard adds its button, no code change");
-  check((await page.textContent(".board-side")).includes("Play today's daily"), "the board points at today's daily when you haven't played");
+  check((await page.textContent("#app .side")).includes("Play today's daily"), "the board points at today's daily when you haven't played");
   await page.waitForSelector('#drawer-acct [data-login="discord"]', { state: "attached" });
   check(true, "the menu offers Discord login on every page");
 
@@ -223,8 +223,9 @@ async function mockRoute(route) {
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 8000 });
   check(/^#board-\d{4}-\d{2}-\d{2}$/.test(await page.evaluate(() => location.hash)), "past days have their own board");
   await page.goto(base + "#board");
-  await page.waitForSelector("#bn-out");
-  await page.click("#bn-out");
+  await page.click("#menu-btn");
+  await page.waitForSelector("#acct-out", { state: "visible" });
+  await page.click("#acct-out");
   await page.waitForSelector(".board-side [data-login]");
   check(true, "log out brings the login buttons back");
   await page.goto(base + "#board-2000-01-01");
