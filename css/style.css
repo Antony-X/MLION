@@ -1017,3 +1017,6 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 @keyframes boot-in { to { opacity: 1; } }
 @keyframes boot-roll { from { transform: translate(-28px, -6px); } to { transform: translate(28px, 6px); } }
 @media (prefers-reduced-motion: reduce) { .boot span { animation: none; } }
+/* page intros stay a readable measure on wide screens */
+.page-head p { max-width: 62ch; }
+.dq-card { max-width: 620px; }

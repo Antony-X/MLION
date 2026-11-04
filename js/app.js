@@ -1554,7 +1554,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const modes = [
       ["#unlimited", "Unlimited", "Endless runs"],
-      ["#quiz", "Quiz", "Four answers, one fits"],
+      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Today's quiz and practice runs"],
       ["#board", "Leaderboard", "Today's top scores"],
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
     ].filter(([href]) => BOARD_ON || href !== "#board");
