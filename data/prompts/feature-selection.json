@@ -31,7 +31,7 @@
     {"a": "Missing value ratio", "t": "longtail", "aka": ["missing values ratio", "missingness filter", "missing values threshold"]},
     {"a": "SPEC", "t": "longtail", "aka": ["spectral feature selection"]},
     {"a": "MCFS", "t": "longtail", "aka": ["multi-cluster feature selection"]},
-    {"a": "Concrete autoencoder", "t": "longtail", "aka": ["concrete selector", "CAE", "autoencoder feature selection"], "q": "Abid et al., 2019: an encoder that's a set of Concrete (Gumbel-softmax) picks over the input features."},
+    {"a": "Concrete autoencoder", "t": "longtail", "aka": ["concrete selector", "CAE"], "q": "Abid et al., 2019: an encoder that's a set of Concrete (Gumbel-softmax) picks over the input features."},
     {"a": "Plus-l take-away-r", "t": "longtail", "aka": ["plus l minus r", "LRS", "plus-l minus-r"]},
     {"a": "Branch and bound", "t": "longtail", "aka": ["narendra-fukunaga"], "q": "Narendra & Fukunaga, 1977: exact subset search, provided the criterion only goes up as you add features."},
     {"a": "Ant colony optimization", "t": "longtail", "aka": ["ACO"]},
