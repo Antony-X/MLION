@@ -80,8 +80,8 @@
 
     { "a": "AdaBoost", "t": "baseline", "aka": ["adaptive boosting", "AdaBoost.M1", "discrete adaboost", "AdaBoostClassifier", "AdaBoostM1"], "q": "Freund & Schapire's Gödel Prize winner. Reweights the examples you keep getting wrong." },
     { "a": "Gradient boosting", "t": "baseline", "aka": ["GBM", "GBDT", "GBRT", "gradient boosting machine", "gradient boosted trees", "gradient boosted decision trees", "gradient boosted regression trees", "gradient tree boosting", "MART", "multiple additive regression trees", "boosted regression trees", "BRT", "boosted trees", "GradientBoostingClassifier", "GradientBoostingRegressor"] },
-    { "a": "XGBoost", "t": "baseline", "aka": ["extreme gradient boosting", "xgb"] },
-    { "a": "LightGBM", "t": "baseline", "aka": ["light gradient boosting machine", "lgbm", "lgb"] },
-    { "a": "CatBoost", "t": "baseline", "aka": ["categorical boosting", "ordered boosting"] }
+    { "a": "XGBoost", "t": "baseline", "aka": ["extreme gradient boosting", "xgb"], "q": "Chen & Guestrin's 2016 paper: 17 of the 29 winning Kaggle solutions in 2015 used it." },
+    { "a": "LightGBM", "t": "baseline", "aka": ["light gradient boosting machine", "lgbm", "lgb"], "q": "Microsoft, 2017: leaf-wise growth, histograms, GOSS and exclusive feature bundling." },
+    { "a": "CatBoost", "t": "baseline", "aka": ["categorical boosting", "ordered boosting"], "q": "Yandex, 2017: ordered boosting and target statistics, so categorical features don't leak the label." }
   ]
 }

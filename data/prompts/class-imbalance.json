@@ -69,7 +69,7 @@
 
     { "a": "Tomek links", "t": "indist", "aka": ["tomek link", "TomekLinks"], "q": "Two opposite-class points that are each other's nearest neighbor. Ivan Tomek, 1976." },
     { "a": "Borderline-SMOTE", "t": "indist", "aka": ["borderline smote", "borderlinesmote"] },
-    { "a": "Cost-sensitive learning", "t": "indist", "aka": ["cost-sensitive", "cost matrix", "misclassification costs", "cost-sensitive classification"] },
+    { "a": "Cost-sensitive learning", "t": "indist", "aka": ["cost-sensitive", "cost matrix", "misclassification costs", "cost-sensitive classification"], "q": "Elkan, 2001: given a cost matrix, the right decision threshold follows from the costs." },
     { "a": "Threshold moving", "t": "indist", "aka": ["threshold tuning", "threshold adjustment", "decision threshold", "cutoff tuning", "threshold optimization"], "q": "Nobody said the cutoff had to be 0.5." },
     { "a": "Data augmentation", "t": "indist", "aka": ["augmentation", "augment minority class"] },
     { "a": "Stratified sampling", "t": "indist", "aka": ["stratified k-fold", "stratified split", "stratification", "StratifiedKFold"] },
@@ -83,9 +83,9 @@
     { "a": "ADASYN", "t": "overfit", "aka": ["adaptive synthetic sampling", "adaptive synthetic"], "q": "SMOTE that spends its synthetic budget on minority points stranded among the majority. He et al., 2008." },
 
     { "a": "SMOTE", "t": "baseline", "aka": ["synthetic minority oversampling technique", "synthetic minority over-sampling technique"], "q": "Pick two neighboring minority points and invent one on the line between them. Chawla et al., 2002." },
-    { "a": "Random oversampling", "t": "baseline", "aka": ["oversampling", "over-sampling", "upsampling", "ROS", "RandomOverSampler", "minority oversampling"] },
-    { "a": "Random undersampling", "t": "baseline", "aka": ["undersampling", "under-sampling", "downsampling", "RUS", "RandomUnderSampler", "majority undersampling"] },
-    { "a": "Class weighting", "t": "baseline", "aka": ["class weights", "class weight", "class_weight", "weighted loss", "weighted cross-entropy", "inverse frequency weighting", "loss weighting", "reweighting", "sample weights"] },
-    { "a": "Focal loss", "t": "baseline", "aka": ["focal"] }
+    { "a": "Random oversampling", "t": "baseline", "aka": ["oversampling", "over-sampling", "upsampling", "ROS", "RandomOverSampler", "minority oversampling"], "q": "Duplicate minority examples until the classes match. Easy, and easy to overfit." },
+    { "a": "Random undersampling", "t": "baseline", "aka": ["undersampling", "under-sampling", "downsampling", "RUS", "RandomUnderSampler", "majority undersampling"], "q": "Throw away majority examples until the classes match. Fast, but you lose data." },
+    { "a": "Class weighting", "t": "baseline", "aka": ["class weights", "class weight", "class_weight", "weighted loss", "weighted cross-entropy", "inverse frequency weighting", "loss weighting", "reweighting", "sample weights"], "q": "Make minority mistakes cost more. In sklearn it's one argument: class_weight='balanced'." },
+    { "a": "Focal loss", "t": "baseline", "aka": ["focal"], "q": "Lin et al., 2017: multiply by (1−p)^γ so easy negatives stop drowning out the rare positives." }
   ]
 }

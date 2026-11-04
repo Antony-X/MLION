@@ -90,7 +90,7 @@
 
     { "a": "Item-based collaborative filtering", "t": "indist", "aka": ["item-based CF", "item-item CF", "item-item collaborative filtering", "item-to-item collaborative filtering", "item-based", "item-item", "item knn"], "q": "Amazon's 2003 engine behind 'customers who bought this also bought.'" },
     { "a": "User-based collaborative filtering", "t": "indist", "aka": ["user-based CF", "user-user CF", "user-user collaborative filtering", "user-based", "user knn"] },
-    { "a": "ALS", "t": "indist", "aka": ["alternating least squares"] },
+    { "a": "ALS", "t": "indist", "aka": ["alternating least squares"], "q": "Fix the users, solve for the items in closed form, swap. Parallelizes nicely, which is why Spark ships it." },
     { "a": "Hybrid recommender", "t": "indist", "aka": ["hybrid", "hybrid filtering"] },
     { "a": "Knowledge-based recommender", "t": "indist", "aka": ["knowledge-based", "constraint-based recommender"] },
     { "a": "Popularity baseline", "t": "indist", "aka": ["most popular", "popularity", "top popular", "popularity-based", "toppop"], "q": "The baseline your fancy model has to beat, and sometimes doesn't." },
@@ -99,13 +99,13 @@
     { "a": "SVD++", "t": "indist", "aka": ["svdpp", "svd plus plus"] },
     { "a": "NMF", "t": "indist", "aka": ["non-negative matrix factorization", "nonnegative matrix factorization"] },
     { "a": "BPR", "t": "indist", "aka": ["bayesian personalized ranking"], "q": "Rendle et al., 2009: rank what each user clicked above what they didn't." },
-    { "a": "Factorization machines", "t": "indist", "aka": ["FM", "factorization machine"] },
+    { "a": "Factorization machines", "t": "indist", "aka": ["FM", "factorization machine"], "q": "Rendle, 2010: pairwise interactions through factorized weights, so even sparse features interact." },
     { "a": "Two-tower model", "t": "indist", "aka": ["two tower", "dual encoder", "two-tower retrieval", "dual tower"], "q": "A user tower and an item tower, scored by dot product, served by approximate nearest neighbor search." },
     { "a": "Wide & Deep", "t": "indist", "aka": ["wide and deep", "wide&deep"], "q": "Google Play, 2016: a wide linear part memorizes and a deep net generalizes." },
-    { "a": "DeepFM", "t": "indist" },
+    { "a": "DeepFM", "t": "indist", "q": "Huawei, 2017: an FM and a deep net share one embedding layer." },
     { "a": "DLRM", "t": "indist", "aka": ["deep learning recommendation model"] },
     { "a": "GRU4Rec", "t": "indist" },
-    { "a": "SASRec", "t": "indist", "aka": ["self-attentive sequential recommendation"] },
+    { "a": "SASRec", "t": "indist", "aka": ["self-attentive sequential recommendation"], "q": "Kang & McAuley, 2018: self-attention over a user's history. Still a stubbornly strong baseline." },
     { "a": "BERT4Rec", "t": "indist" },
     { "a": "LightGCN", "t": "indist", "q": "He et al., 2020: drop NGCF's weights and nonlinearities, and it gets better." },
     { "a": "Contextual bandits", "t": "indist", "aka": ["contextual bandit", "multi-armed bandit", "bandits", "MAB"] },
@@ -113,9 +113,9 @@
 
     { "a": "Neural Collaborative Filtering", "t": "overfit", "aka": ["NCF", "NeuMF", "neural matrix factorization"], "q": "He et al., 2017. In Rendle's 2020 rematch, a well-tuned dot product beat the MLP." },
 
-    { "a": "Collaborative filtering", "t": "baseline", "aka": ["CF"] },
-    { "a": "Content-based filtering", "t": "baseline", "aka": ["content-based", "content based recommendation", "content filtering"] },
-    { "a": "Matrix factorization", "t": "baseline", "aka": ["MF", "latent factor model", "latent factor models", "matrix completion", "low-rank factorization"] },
-    { "a": "SVD", "t": "baseline", "aka": ["singular value decomposition", "truncated svd"] }
+    { "a": "Collaborative filtering", "t": "baseline", "aka": ["CF"], "q": "Coined by Xerox PARC's Tapestry in 1992, for filtering email by what colleagues thought of it." },
+    { "a": "Content-based filtering", "t": "baseline", "aka": ["content-based", "content based recommendation", "content filtering"], "q": "Recommend items like the ones you liked. Great, until you want something new." },
+    { "a": "Matrix factorization", "t": "baseline", "aka": ["MF", "latent factor model", "latent factor models", "matrix completion", "low-rank factorization"], "q": "Koren, Bell & Volinsky's 2009 article made it the Netflix Prize default." },
+    { "a": "SVD", "t": "baseline", "aka": ["singular value decomposition", "truncated svd"], "q": "Real SVD needs a full matrix. Ratings matrices are mostly missing, hence Funk's workaround." }
   ]
 }

@@ -56,7 +56,7 @@
     { "a": "OPTICS-OF", "t": "longtail", "aka": ["OPTICS"] },
 
     { "a": "Extended Isolation Forest", "t": "outlier", "aka": ["EIF", "extended iforest"], "q": "Random hyperplanes instead of axis-aligned cuts. No more ghostly cross-shaped score maps." },
-    { "a": "HBOS", "t": "outlier", "aka": ["histogram-based outlier score", "histogram-based outlier detection"] },
+    { "a": "HBOS", "t": "outlier", "aka": ["histogram-based outlier score", "histogram-based outlier detection"], "q": "One histogram per feature, multiply the densities. Fast, because it assumes the features are independent." },
     { "a": "COPOD", "t": "outlier", "aka": ["copula-based outlier detection"] },
     { "a": "ECOD", "t": "outlier", "aka": ["empirical cumulative distribution-based outlier detection"] },
     { "a": "ABOD", "t": "outlier", "aka": ["angle-based outlier detection", "FastABOD"] },
@@ -102,8 +102,8 @@
 
     { "a": "IQR", "t": "indist", "aka": ["interquartile range", "Tukey's fences", "tukey fences", "box plot", "boxplot", "1.5 iqr rule", "boxplot rule"], "q": "Anything past 1.5 IQRs from the box is a whisker-jumper. Tukey, 1977." },
     { "a": "Gaussian density estimation", "t": "indist", "aka": ["multivariate gaussian", "gaussian distribution", "gaussian model", "univariate gaussian"], "q": "Fit a Gaussian, flag p(x) < ε. Andrew Ng's anomaly-detection lecture in one line." },
-    { "a": "Mahalanobis distance", "t": "indist", "aka": ["mahalanobis"] },
-    { "a": "k-NN distance", "t": "indist", "aka": ["kNN", "k-nearest neighbors", "k nearest neighbours", "knn outlier", "distance-based outlier", "nearest neighbor distance"] },
+    { "a": "Mahalanobis distance", "t": "indist", "aka": ["mahalanobis"], "q": "P. C. Mahalanobis, 1936: Euclidean distance after whitening by the covariance." },
+    { "a": "k-NN distance", "t": "indist", "aka": ["kNN", "k-nearest neighbors", "k nearest neighbours", "knn outlier", "distance-based outlier", "nearest neighbor distance"], "q": "Ramaswamy et al., 2000: your outlier score is the distance to your k-th nearest neighbor." },
     { "a": "PCA", "t": "indist", "aka": ["principal component analysis", "pca reconstruction error"] },
     { "a": "k-means", "t": "indist", "aka": ["kmeans", "distance to centroid", "k-means clustering"] },
     { "a": "Kernel density estimation", "t": "indist", "aka": ["KDE", "kernel density", "parzen window"] },
@@ -112,7 +112,7 @@
     { "a": "Modified z-score", "t": "indist", "aka": ["MAD", "median absolute deviation", "robust z-score", "mad z-score"] },
     { "a": "SVDD", "t": "indist", "aka": ["support vector data description"] },
     { "a": "Deep SVDD", "t": "indist", "aka": ["deep support vector data description"], "q": "Ruff et al., 2018: squeeze normal data into the smallest hypersphere possible. Watch out for collapse." },
-    { "a": "CUSUM", "t": "indist", "aka": ["cumulative sum", "cumulative sum control chart", "page's cusum"] },
+    { "a": "CUSUM", "t": "indist", "aka": ["cumulative sum", "cumulative sum control chart", "page's cusum"], "q": "E. S. Page, 1954: accumulate small deviations until they add up to an alarm." },
     { "a": "Shewhart control chart", "t": "indist", "aka": ["control chart", "shewhart chart", "statistical process control", "SPC"] },
     { "a": "HDBSCAN", "t": "indist", "aka": ["GLOSH"] },
     { "a": "Maximum softmax probability", "t": "indist", "aka": ["MSP", "softmax baseline", "max softmax"], "q": "Hendrycks & Gimpel, 2017: low confidence might mean out-of-distribution. Every OOD paper's first baseline." },
@@ -120,10 +120,10 @@
     { "a": "Elliptic envelope", "t": "overfit", "aka": ["EllipticEnvelope", "robust covariance"], "q": "Assume inliers form one Gaussian blob, fit it robustly, flag whatever falls outside. sklearn's quietest detector." },
 
     { "a": "Isolation Forest", "t": "baseline", "aka": ["iForest", "IsolationForest", "isolation tree"], "q": "Anomalies are few and different, so random splits isolate them in fewer cuts. Liu, Ting & Zhou, 2008." },
-    { "a": "Local Outlier Factor", "t": "baseline", "aka": ["LOF", "LocalOutlierFactor"] },
-    { "a": "One-class SVM", "t": "baseline", "aka": ["OCSVM", "one-class support vector machine", "OneClassSVM", "one class svm"] },
-    { "a": "Autoencoder", "t": "baseline", "aka": ["AE", "reconstruction error", "autoencoder reconstruction error"] },
+    { "a": "Local Outlier Factor", "t": "baseline", "aka": ["LOF", "LocalOutlierFactor"], "q": "Breunig et al., 2000: compare a point's local density to its neighbors'. Outliers sit in sparser pockets." },
+    { "a": "One-class SVM", "t": "baseline", "aka": ["OCSVM", "one-class support vector machine", "OneClassSVM", "one class svm"], "q": "Schölkopf et al., 2001: separate the data from the origin with maximum margin in feature space." },
+    { "a": "Autoencoder", "t": "baseline", "aka": ["AE", "reconstruction error", "autoencoder reconstruction error"], "q": "If it can't rebuild the input, the input probably wasn't normal." },
     { "a": "DBSCAN", "t": "baseline", "aka": ["density-based spatial clustering of applications with noise"], "q": "Points that fit no dense cluster get labeled noise. Free anomalies." },
-    { "a": "Z-score", "t": "baseline", "aka": ["standard score", "three sigma", "3-sigma", "3 sigma rule", "three-sigma rule", "68-95-99.7 rule", "standard deviation"] }
+    { "a": "Z-score", "t": "baseline", "aka": ["standard score", "three sigma", "3-sigma", "3 sigma rule", "three-sigma rule", "68-95-99.7 rule", "standard deviation"], "q": "More than three standard deviations out? Suspicious, as long as your data is actually Gaussian." }
   ]
 }

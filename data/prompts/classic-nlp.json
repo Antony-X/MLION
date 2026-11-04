@@ -101,13 +101,13 @@
     { "a": "Spelling correction", "t": "outlier", "aka": ["spell checking", "spellcheck", "norvig spelling corrector"] },
 
     { "a": "Stop word removal", "t": "indist", "aka": ["stopword removal", "stop words", "stopwords", "stop-word filtering"] },
-    { "a": "Part-of-speech tagging", "t": "indist", "aka": ["POS tagging", "POS", "part of speech tagging", "pos tagger"] },
-    { "a": "Named entity recognition", "t": "indist", "aka": ["NER", "entity extraction", "named entity extraction"] },
+    { "a": "Part-of-speech tagging", "t": "indist", "aka": ["POS tagging", "POS", "part of speech tagging", "pos tagger"], "q": "The Penn Treebank's 45 tags made it a benchmark. Taggers passed 97% accuracy decades ago." },
+    { "a": "Named entity recognition", "t": "indist", "aka": ["NER", "entity extraction", "named entity extraction"], "q": "MUC-6 named the task in 1995. CoNLL-2003 gave it the benchmark everyone still quotes." },
     { "a": "Hidden Markov model", "t": "indist", "aka": ["HMM"] },
     { "a": "Naive Bayes", "t": "indist", "aka": ["multinomial naive bayes", "naive bayes classifier"], "q": "The spam filter that conquered the inbox in 2002, thanks to Paul Graham's 'A Plan for Spam.'" },
-    { "a": "Word2vec", "t": "indist", "aka": ["word2vec", "skip-gram", "CBOW", "continuous bag of words", "SGNS", "word embeddings"] },
-    { "a": "GloVe", "t": "indist", "aka": ["global vectors"] },
-    { "a": "fastText", "t": "indist", "aka": ["fast text"] },
+    { "a": "Word2vec", "t": "indist", "aka": ["word2vec", "skip-gram", "CBOW", "continuous bag of words", "SGNS", "word embeddings"], "q": "Mikolov et al., 2013: king − man + woman ≈ queen." },
+    { "a": "GloVe", "t": "indist", "aka": ["global vectors"], "q": "Pennington, Socher & Manning, 2014: factorize global co-occurrence counts with a weighted log loss." },
+    { "a": "fastText", "t": "indist", "aka": ["fast text"], "q": "Bojanowski et al., 2017: word vectors built from character n-grams, so even misspellings get one." },
     { "a": "Doc2vec", "t": "indist", "aka": ["paragraph vector", "paragraph vectors"] },
     { "a": "Latent Dirichlet allocation", "t": "indist", "aka": ["LDA", "topic modeling", "topic model", "topic modelling"] },
     { "a": "Edit distance", "t": "indist", "aka": ["levenshtein distance", "levenshtein", "minimum edit distance"], "q": "Vladimir Levenshtein, 1965. Every spell checker's yardstick." },
@@ -116,10 +116,10 @@
     { "a": "Cosine similarity", "t": "indist", "aka": ["cosine distance", "cosine"] },
     { "a": "One-hot encoding", "t": "indist", "aka": ["one-hot", "one hot vectors"] },
     { "a": "N-gram language model", "t": "indist", "aka": ["n-gram lm", "ngram language model", "markov language model", "bigram model", "trigram model", "statistical language model"] },
-    { "a": "Laplace smoothing", "t": "indist", "aka": ["add-one smoothing", "add-one", "laplace", "additive smoothing"] },
+    { "a": "Laplace smoothing", "t": "indist", "aka": ["add-one smoothing", "add-one", "laplace", "additive smoothing"], "q": "Add one to every count. Laplace used it to estimate whether the sun would rise tomorrow." },
     { "a": "Viterbi algorithm", "t": "indist", "aka": ["viterbi", "viterbi decoding"], "q": "Andrew Viterbi, 1967, decoding convolutional codes. He went on to co-found Qualcomm." },
-    { "a": "Conditional random field", "t": "indist", "aka": ["CRF", "linear-chain CRF"] },
-    { "a": "Dependency parsing", "t": "indist", "aka": ["dependency parser", "dependency grammar"] },
+    { "a": "Conditional random field", "t": "indist", "aka": ["CRF", "linear-chain CRF"], "q": "Lafferty, McCallum & Pereira, 2001: a discriminative sequence model without the MEMM's label bias." },
+    { "a": "Dependency parsing", "t": "indist", "aka": ["dependency parser", "dependency grammar"], "q": "Every word gets exactly one head. Tesnière's 1959 grammar, parsed greedily by shift-reduce." },
     { "a": "Constituency parsing", "t": "indist", "aka": ["constituency parser", "phrase structure parsing", "syntactic parsing", "parse tree"] },
     { "a": "Chunking", "t": "indist", "aka": ["shallow parsing", "noun phrase chunking", "NP chunking"] },
     { "a": "Lowercasing", "t": "indist", "aka": ["case folding", "lowercase", "lower casing"] },
@@ -130,10 +130,10 @@
     { "a": "Porter stemmer", "t": "overfit", "aka": ["porter", "porter stemming algorithm", "porter's algorithm"], "q": "Martin Porter, 1980: five steps of suffix stripping that turn 'generalizations' into 'gener.'" },
 
     { "a": "TF-IDF", "t": "baseline", "aka": ["term frequency-inverse document frequency", "tfidf", "term frequency inverse document frequency", "IDF"], "q": "Karen Spärck Jones introduced IDF in 1972: the rarer the word, the more it tells you." },
-    { "a": "Bag of words", "t": "baseline", "aka": ["BoW", "bag-of-words", "CountVectorizer", "count vectorization", "word counts"] },
-    { "a": "N-grams", "t": "baseline", "aka": ["n-gram", "bigrams", "trigrams", "bag of n-grams", "character n-grams", "unigrams"] },
-    { "a": "Stemming", "t": "baseline", "aka": ["stemmer", "suffix stripping"] },
-    { "a": "Lemmatization", "t": "baseline", "aka": ["lemmatisation", "lemmatizer", "lemmas"] },
-    { "a": "Tokenization", "t": "baseline", "aka": ["tokenisation", "tokenizer", "word tokenization"] }
+    { "a": "Bag of words", "t": "baseline", "aka": ["BoW", "bag-of-words", "CountVectorizer", "count vectorization", "word counts"], "q": "Throw away word order, keep the counts. Zellig Harris used the phrase back in 1954." },
+    { "a": "N-grams", "t": "baseline", "aka": ["n-gram", "bigrams", "trigrams", "bag of n-grams", "character n-grams", "unigrams"], "q": "Shannon approximated English with letter and word n-grams in his 1948 paper." },
+    { "a": "Stemming", "t": "baseline", "aka": ["stemmer", "suffix stripping"], "q": "Chop off suffixes and hope. 'University' and 'universe' both come out as 'univers'." },
+    { "a": "Lemmatization", "t": "baseline", "aka": ["lemmatisation", "lemmatizer", "lemmas"], "q": "Uses a dictionary and the part of speech, so 'better' can become 'good'." },
+    { "a": "Tokenization", "t": "baseline", "aka": ["tokenisation", "tokenizer", "word tokenization"], "q": "Splitting on spaces works until you meet 'don't', 'New York' or Chinese." }
   ]
 }
