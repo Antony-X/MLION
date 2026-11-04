@@ -84,6 +84,114 @@ if (DATA.prompts.length >= 14) assert.ok(Math.max(...counts) - Math.min(...count
 ok("365 dailies valid & balanced");
 assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); ok("deterministic");
 
+// --- quiz: multiple choice built from the same data
+{
+  const byId = new Map(DATA.prompts.map((p) => [p.id, p]));
+  const accepted = (prompt, name) => ["exact", "correction"].includes(E.matchAnswer(prompt, name).kind);
+  /** The invariants every question must keep, whatever the data. */
+  function checkQuestion(q, data, label) {
+    const prompts = new Map(data.prompts.map((p) => [p.id, p]));
+    const p = prompts.get(q.promptId);
+    assert.ok(p && !p.offtopic, `${label}: question prompt is on topic`);
+    assert.strictEqual(q.options.length, 4, `${label}: four options`);
+    assert.strictEqual(q.from.length, 4, `${label}: a source prompt per option`);
+    assert.ok(Number.isInteger(q.correct) && q.correct >= 0 && q.correct < 4, `${label}: correct index`);
+    assert.strictEqual(new Set(q.options.map(E.fullKey)).size, 4, `${label}: no two options share a key`);
+    // the right option is a familiar answer of the question's own prompt
+    const right = p.answers.find((a) => a.a === q.options[q.correct]);
+    assert.ok(right && E.QUIZ_TIERS.includes(right.t), `${label}: right option is a baseline/overfit/indist/outlier answer`);
+    assert.strictEqual(q.from[q.correct], q.promptId, `${label}: right option comes from the question's prompt`);
+    // exactly one option is accepted by the question's matcher: the right one
+    q.options.forEach((o, i) => {
+      if (i === q.correct) return assert.ok(accepted(p, o), `${label}: right option is accepted`);
+      const src = prompts.get(q.from[i]);
+      assert.ok(src && !src.offtopic && src.id !== p.id, `${label}: distractor ${i} comes from another on-topic prompt`);
+      const a = src.answers.find((x) => x.a === o);
+      assert.ok(a, `${label}: distractor "${o}" is an answer of ${src.id}`);
+      for (const name of [a.a].concat(a.aka || [])) {
+        assert.strictEqual(E.matchAnswer(p, name).kind, "none", `${label}: distractor name "${name}" must not match ${p.id}`);
+      }
+    });
+  }
+
+  // deterministic, and the seed matters
+  const a1 = E.quizFor(DATA, "seed-a", 7), a2 = E.quizFor(DATA, "seed-a", 7), b1 = E.quizFor(DATA, "seed-b", 7);
+  assert.deepStrictEqual(a1, a2); ok("quiz: same seed, same questions");
+  assert.notDeepStrictEqual(a1, b1); ok("quiz: another seed, other questions");
+  assert.strictEqual(a1.length, 7); assert.strictEqual(new Set(a1.map((q) => q.promptId)).size, 7); ok("quiz: seven questions from seven prompts");
+  assert.deepStrictEqual(E.quizFor(DATA, "seed-a", 25).slice(0, 7).map((q) => q.promptId), a1.map((q) => q.promptId)); ok("quiz: a longer run starts with the shorter one's prompts");
+  assert.deepStrictEqual(E.quizQuestion(DATA, "seed-a", a1[3].promptId), a1[3]); ok("quiz: one question is rebuilt on its own (live skips rely on it)");
+
+  // every on-topic prompt can make a question, across many seeds; each keeps every invariant
+  let built = 0, positions = [0, 0, 0, 0];
+  const t0 = Date.now();
+  for (const p of DATA.prompts) {
+    for (let s = 0; s < 6; s++) {
+      const q = E.quizQuestion(DATA, `all-${s}`, p.id);
+      assert.ok(q, `${p.id} seed ${s} should make a question`);
+      checkQuestion(q, DATA, `${p.id}/${s}`);
+      positions[q.correct]++; built++;
+    }
+  }
+  ok(`quiz: ${built} questions over every prompt: one right option, three options the matcher turns down (${Date.now() - t0} ms)`);
+  assert.ok(Math.min(...positions) > built * 0.18, "right option position is spread " + positions); ok("quiz: the right option lands in every slot " + positions.join("/"));
+  // distractors are drawn from the question's own pack, from three different prompts
+  let samePack = 0, distinct = 0;
+  for (const q of a1.concat(E.quizFor(DATA, "seed-c", 25))) {
+    const p = byId.get(q.promptId);
+    const ds = q.from.filter((_, i) => i !== q.correct);
+    samePack += ds.every((id) => byId.get(id).pack === p.pack) ? 1 : 0;
+    distinct += new Set(ds).size === 3 ? 1 : 0;
+  }
+  assert.strictEqual(samePack, 32); assert.strictEqual(distinct, 32); ok("quiz: distractors come from three other prompts of the same pack");
+
+  // off-topic prompts never appear: not as the question, not as a source
+  const extraIds = new Set((DATA.extras || []).map((p) => p.id));
+  assert.ok(extraIds.size > 0, "the bundle ships off-topic extras");
+  for (let s = 0; s < 40; s++) for (const q of E.quizFor(DATA, `off-${s}`, 10)) {
+    assert.ok(!extraIds.has(q.promptId) && q.from.every((id) => !extraIds.has(id)), "an off-topic prompt reached a quiz");
+  }
+  const copy = (p) => JSON.parse(JSON.stringify(p, (k, v) => (k === "_index" ? undefined : v))); // the matcher's cached index is a Map
+  const flagged = { ...copy(byId.get("activation-function")), id: "off-topic-copy", offtopic: true };
+  const withFlag = { ...DATA, prompts: DATA.prompts.concat([flagged]), version: "flagged" };
+  assert.strictEqual(E.quizQuestion(withFlag, "x", "off-topic-copy"), null);
+  for (let s = 0; s < 40; s++) for (const q of E.quizFor(withFlag, `flag-${s}`, 10, { promptIds: ["off-topic-copy"] })) {
+    assert.ok(q.promptId !== "off-topic-copy" && !q.from.includes("off-topic-copy"), "a prompt flagged offtopic reached a quiz");
+  }
+  ok("quiz: off-topic prompts are excluded (extras and flagged prompts)");
+
+  // a solo run: seven questions; later runs don't repeat earlier ones until the deck is used up
+  const r1 = E.quizRun(DATA, 1), r2 = E.quizRun(DATA, 2);
+  assert.strictEqual(r1.length, 7); assert.deepStrictEqual(E.quizRun(DATA, 1), r1);
+  assert.ok(r1.every((q) => !r2.some((x) => x.promptId === q.promptId)), "runs 1 and 2 share a prompt");
+  ok("quiz: solo runs are seven questions each and don't repeat a prompt run to run");
+
+  // small bundles: the same pack lacks candidates, so the search widens to other packs
+  const pick = (ids, packOf) => ids.map((id) => ({ ...byId.get(id), pack: packOf(id) }));
+  const packsOf = (ids) => [...new Set(ids)].map((id) => ({ id, name: id }));
+  const small = ["activation-function", "loss-function", "optimizer", "classifier", "clustering", "llm", "dim-reduction", "cnn-architecture", "tokenizer"].filter((id) => byId.has(id));
+  assert.ok(small.length >= 6, "fixture prompts exist: " + small);
+  const solo = { packs: packsOf(small), prompts: pick(small, (id) => id), version: "solo-packs" }; // one prompt per pack
+  const qs = E.quizFor(solo, "tiny", 7);
+  assert.strictEqual(qs.length, 7); qs.forEach((q, i) => checkQuestion(q, solo, `solo-pack/${i}`));
+  const trace = {}; E.quizQuestion(solo, "tiny", small[0], trace);
+  assert.ok(trace.slots.every((s) => s.stage === 1), "with one prompt per pack every distractor comes from another pack");
+  const nine = { packs: [{ id: "a", name: "a" }, { id: "b", name: "b" }, { id: "c", name: "c" }], prompts: pick(small.slice(0, 9), (id) => "abc"[small.indexOf(id) % 3]), version: "nine" };
+  const q9 = E.quizFor(nine, "nine", 7); assert.strictEqual(q9.length, Math.min(7, nine.prompts.length)); q9.forEach((q, i) => checkQuestion(q, nine, `nine/${i}`));
+  assert.ok(E.quizFor({ packs: nine.packs, prompts: nine.prompts.slice(0, 2), version: "two" }, "two", 7).length <= 2);
+  assert.deepStrictEqual(E.quizFor({ packs: nine.packs, prompts: nine.prompts.slice(0, 1), version: "one" }, "one", 7), []);
+  ok(`quiz: bundles of ${small.length} prompts (one per pack), 9 prompts in 3 packs, 2 and 1 prompts all cope`);
+
+  // a bundle whose prompts all share one answer list has no fair wrong option: no question, no hang
+  const base = byId.get("activation-function");
+  const clones = { packs: [{ id: "blocks", name: "b" }], prompts: [0, 1, 2].map((j) => ({ ...copy(base), id: `clone-${j}`, pack: "blocks" })), version: "clones" };
+  assert.deepStrictEqual(E.quizFor(clones, "c", 7), []); ok("quiz: identical prompts can't make a question (matcher turns every candidate in) and nothing hangs");
+
+  // the share text keeps the usual shape with a quiz grid
+  const sh = E.shareText({ mode: "quiz", number: 3, score: 500, tiers: ["indist", "miss", "indist", "indist", "indist", "indist", "miss"] });
+  assert.strictEqual(sh, "MLion Quiz #3 🦁\n500/700 · loss 2.00\n\n🟩⬛🟩🟩🟩🟩⬛"); ok("quiz: share text");
+}
+
 // --- dates
 assert.strictEqual(E.dayNumberFor(E.EPOCH), 1); ok("epoch is day 1");
 assert.strictEqual(E.dateForDay(E.dayNumberFor("2027-03-14")), "2027-03-14"); ok("day <-> date roundtrip");
