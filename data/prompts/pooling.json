@@ -38,7 +38,7 @@
     { "a": "ASAPool", "t": "longtail", "aka": ["ASAP", "adaptive structure aware pooling", "ASAPooling", "ASA pooling"] },
     { "a": "Set2Set", "t": "longtail", "aka": ["Set2Set readout", "Order matters set2set", "Vinyals set2set"], "q": "Vinyals et al.'s order-invariant LSTM-attention readout, borrowed for graph-level pooling." },
     { "a": "Graclus pooling", "t": "longtail" },
-    { "a": "Statistics pooling", "t": "longtail", "aka": ["stats pooling", "attentive statistics pooling", "mean and standard deviation pooling", "mean-std pooling", "statistical pooling", "temporal statistics pooling", "x-vector pooling", "mean+std pooling", "StatsPool", "attentive statistical pooling"] },
+    { "a": "Statistics pooling", "t": "longtail", "aka": ["stats pooling", "attentive statistics pooling", "mean and standard deviation pooling", "mean-std pooling", "statistical pooling", "temporal statistics pooling", "x-vector pooling", "mean+std pooling", "StatsPool", "attentive statistical pooling", "standard deviation pooling", "std pooling"] },
     { "a": "Concat pooling", "t": "longtail", "aka": ["AdaptiveConcatPool2d", "concat max and average pooling", "AdaptiveCatAvgMaxPool2d", "catavgmax", "avg-max pooling", "average-max pooling", "mean-max pooling", "max-avg pooling", "AdaptiveAvgMaxPool2d", "AvgMaxPool", "concat avg max pooling", "max+avg pooling", "avg+max pooling"] },
     { "a": "Global weighted rank pooling", "t": "longtail", "aka": ["GWRP"] },
     { "a": "Noisy-OR pooling", "t": "longtail" },
@@ -57,7 +57,7 @@
     { "a": "Max-over-time pooling", "t": "outlier", "aka": ["temporal max pooling", "1-max pooling", "max pooling over time", "global max-over-time", "max over time"] },
     { "a": "Max unpooling", "t": "outlier", "aka": ["MaxUnpool2d", "unpooling", "nn.MaxUnpool1d", "nn.MaxUnpool2d", "nn.MaxUnpool3d", "MaxUnpool1d", "MaxUnpool3d", "F.max_unpool1d", "F.max_unpool2d", "F.max_unpool3d", "bed of nails unpooling", "SegNet unpooling", "switch unpooling"] },
     { "a": "DiffPool", "t": "outlier", "aka": ["differentiable pooling", "dense_diff_pool", "differentiable pooling GNN", "hierarchical differentiable pooling"], "q": "Learns a soft cluster assignment to coarsen graphs level by level." },
-    { "a": "PMA", "t": "outlier", "aka": ["pooling by multihead attention", "multihead attention pooling", "MAP head", "Set Transformer pooling", "PMA pooling", "pooling by multihead attention (Set Transformer)", "SigLIP MAP head"] },
+    { "a": "PMA", "t": "outlier", "aka": ["pooling by multihead attention", "multihead attention pooling", "MAP head", "Set Transformer pooling", "PMA pooling", "pooling by multihead attention (Set Transformer)", "SigLIP MAP head", "Perceiver resampler"] },
     { "a": "Last-token pooling", "t": "outlier", "aka": ["EOS pooling", "last pooling", "last token pooling", "final token pooling", "decoder last token pooling", "EOS token pooling"] },
     { "a": "Overlapping pooling", "t": "outlier", "aka": ["overlapping max pooling"], "q": "AlexNet's 3×3 windows at stride 2, credited with slightly reducing overfitting." },
 
@@ -68,12 +68,12 @@
     { "a": "Spatial pyramid pooling", "t": "indist", "aka": ["SPP", "SPPF", "SPP-net", "spatial pyramid matching", "SPM", "SPP layer", "spatial pyramid pool"], "q": "He et al. 2014: pool at several grid sizes and concatenate, so a CNN can take any image size." },
     { "a": "RoI pooling", "t": "indist", "aka": ["RoIPool", "region of interest pooling", "torchvision.ops.roi_pool", "torchvision.ops.RoIPool", "roi_pool", "Fast R-CNN pooling", "ROI max pooling"], "q": "Fast R-CNN: max-pool every region proposal to a fixed grid. RoIAlign later fixed the rounding." },
     { "a": "Attention pooling", "t": "indist", "aka": ["attentive pooling", "attention-based pooling", "attention-based MIL pooling", "global attention pooling", "AttentionalAggregation", "GlobalAttention", "attentional aggregation", "AttentionPool2d", "RotAttentionPool2d", "attention pool", "attentional pooling", "self-attentive pooling", "self-attention pooling", "learned query pooling", "attention probe", "attentive probe", "gated attention pooling", "ABMIL pooling", "Perceiver pooling"] },
-    { "a": "CLS token pooling", "t": "indist", "aka": ["CLS pooling", "class token pooling", "first token pooling", "[CLS] pooling", "class token readout", "CLS embedding"] },
+    { "a": "CLS token pooling", "t": "indist", "aka": ["CLS pooling", "class token pooling", "first token pooling", "[CLS] pooling", "class token readout", "CLS embedding", "pooler output", "BERT pooler", "pooler_output"] },
 
     { "a": "Min pooling", "t": "overfit", "aka": ["minimum pooling"], "q": "Real, if rare: it's just −maxpool(−x). The answer everyone thinks only they came up with." },
 
-    { "a": "Max pooling", "t": "baseline", "aka": ["MaxPool", "MaxPool2d", "MaxPool1d", "MaxPool3d", "maximum pooling"] },
-    { "a": "Average pooling", "t": "baseline", "aka": ["avg pooling", "mean pooling", "AvgPool2d", "AvgPool1d", "AvgPool3d", "AvgPool", "mean pooling over tokens", "mean pooling of token embeddings", "sentence embedding mean pooling", "SBERT mean pooling", "mean pooling for sentence embeddings", "masked mean pooling", "token mean pooling"] },
+    { "a": "Max pooling", "t": "baseline", "aka": ["MaxPool", "MaxPool2d", "MaxPool1d", "MaxPool3d", "maximum pooling", "max aggregation"] },
+    { "a": "Average pooling", "t": "baseline", "aka": ["avg pooling", "mean pooling", "AvgPool2d", "AvgPool1d", "AvgPool3d", "AvgPool", "mean pooling over tokens", "mean pooling of token embeddings", "sentence embedding mean pooling", "SBERT mean pooling", "mean pooling for sentence embeddings", "masked mean pooling", "token mean pooling", "subsampling", "mean aggregation"] },
     { "a": "Global average pooling", "t": "baseline", "aka": ["GAP", "global avg pooling", "global mean pooling", "global pooling", "GlobalAveragePooling2D", "GlobalAveragePooling1D", "GlobalAveragePooling3D", "GlobalAvgPool", "GlobalAvgPool2d", "GlobalAvgPool1d", "GlobalAveragePooling", "AdaptiveAvgPool2d(1)", "adaptive average pool to 1x1", "spatial average pooling", "global spatial average", "global_mean_pool", "global mean readout", "mean readout", "tf.keras.layers.GlobalAveragePooling2D", "global average pool"], "q": "Network in Network (2013): average each feature map to a single number and drop the FC layers." },
     { "a": "PSRoIAlign", "t": "longtail", "aka": ["torchvision.ops.ps_roi_align", "ps_roi_align", "position-sensitive RoI align"] },
     { "a": "Deformable RoI pooling", "t": "longtail", "aka": ["deformable PS RoI pooling", "Deformable ConvNets RoI pooling", "DeformRoIPool"] },
@@ -100,6 +100,10 @@
     { "a": "Median pooling", "t": "longtail", "aka": ["median filter pooling", "median pool"] },
     { "a": "Rank pooling", "t": "longtail", "aka": ["approximate rank pooling", "dynamic image", "video rank pooling", "dynamic images"] },
     { "a": "Spatial softmax", "t": "longtail", "aka": ["spatial soft-argmax", "spatial soft argmax", "soft argmax keypoints", "spatial softmax keypoints", "deep spatial autoencoder softmax"] },
-    { "a": "Masked average pooling", "t": "longtail", "aka": ["mask pooling", "masked pooling", "MAP prototype pooling", "mask average pooling", "prototype pooling", "masked mean pooling segmentation"] }
+    { "a": "Masked average pooling", "t": "longtail", "aka": ["mask pooling", "masked pooling", "MAP prototype pooling", "mask average pooling", "prototype pooling", "masked mean pooling segmentation"] },
+    { "a": "Token merging", "t": "longtail", "aka": ["ToMe", "token merging pooling"], "q": "ToMe (Bolya et al. 2023): bipartite-match similar tokens and average them, shrinking a ViT without training." },
+    { "a": "Principal neighbourhood aggregation", "t": "longtail", "aka": ["PNA", "principal neighborhood aggregation", "PNA aggregation"] },
+    { "a": "LSTM aggregation", "t": "longtail", "aka": ["LSTM aggregator", "GraphSAGE LSTM aggregator"] },
+    { "a": "Softmax aggregation", "t": "longtail", "aka": ["SoftmaxAggregation", "generalized message aggregation"] }
   ]
 }

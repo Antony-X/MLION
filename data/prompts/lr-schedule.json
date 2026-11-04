@@ -7,7 +7,7 @@
   "answers": [
     { "a": "Bold driver", "t": "mlion", "aka": ["bold driver heuristic"], "q": "Loss fell? Step on it by 5%. Loss rose? Undo the step and halve the rate. A 1980s heuristic with road rage." },
 
-    { "a": "Flat cosine", "t": "longtail", "aka": ["flat and anneal", "fit_flat_cos", "flat-cos"] },
+    { "a": "Flat cosine", "t": "longtail", "aka": ["flat and anneal", "fit_flat_cos", "flat-cos", "flat then anneal", "flat then cosine"] },
     { "a": "Linear cosine decay", "t": "longtail" },
     { "a": "Noisy linear cosine decay", "t": "longtail", "q": "Found by RL-driven neural optimizer search (Bello et al. 2017), then shipped in TF1." },
     { "a": "Search-then-converge", "t": "longtail", "aka": ["STC"], "q": "Darken & Moody, 1990: hold the rate steady while searching, then decay like 1/t to converge." },
@@ -32,13 +32,13 @@
     { "a": "Linear decay", "t": "indist", "aka": ["LinearLR", "linear decay to zero", "D2Z", "linear schedule with warmup", "budgeted training", "budget-aware linear decay", "LinearWithWarmupScheduler", "get_linear_schedule_with_warmup", "optax.linear_schedule", "linear_schedule", "linear warmup linear decay"], "q": "Straight to zero. Bergsma et al. 2025 argue it beats cosine for LLM pretraining." },
     { "a": "Constant", "t": "indist", "aka": ["ConstantLR", "fixed", "constant with warmup", "no schedule", "get_constant_schedule", "get_constant_schedule_with_warmup", "constant_with_warmup schedule", "ConstantWithWarmupScheduler", "optax.constant_schedule", "constant_schedule"] },
     { "a": "Reduce on plateau", "t": "indist", "aka": ["ReduceLROnPlateau", "plateau", "plateau decay", "performance scheduling", "PlateauLRScheduler", "optax.contrib.reduce_on_plateau", "reduce_on_plateau", "get_reduce_on_plateau_schedule", "adaptive plateau"], "q": "Waits for you to stop improving, then cuts the LR. Patience is a hyperparameter." },
-    { "a": "Polynomial decay", "t": "indist", "aka": ["PolynomialLR", "poly", "get_polynomial_decay_schedule_with_warmup", "PolyLRScheduler", "PolynomialWithWarmupScheduler", "PolynomialWarmUp", "optax.polynomial_schedule", "polynomial_schedule", "linear warmup polynomial decay"] },
+    { "a": "Polynomial decay", "t": "indist", "aka": ["PolynomialLR", "poly", "get_polynomial_decay_schedule_with_warmup", "PolyLRScheduler", "PolynomialWithWarmupScheduler", "PolynomialWarmUp", "optax.polynomial_schedule", "polynomial_schedule", "linear warmup polynomial decay", "PolyLR"] },
     { "a": "Multi-step decay", "t": "indist", "aka": ["MultiStepLR", "piecewise constant", "PiecewiseConstantDecay", "milestones", "stagewise", "stage-wise", "stagewise step", "MultiStepLRScheduler", "MultiStepWithWarmupScheduler", "Caffe multistep", "optax.piecewise_constant_schedule", "piecewise_constant_schedule"], "q": "÷10 at epochs 30, 60 and 90: the classic ResNet-on-ImageNet ritual." },
     { "a": "Cyclical learning rate", "t": "indist", "aka": ["CLR", "CyclicLR", "cyclic learning rate", "triangular", "triangular2", "exp_range", "sawtooth", "cyclic LR"], "q": "Leslie Smith 2015: bounce between two bounds in triangles instead of only decaying." },
-    { "a": "Inverse square root", "t": "indist", "aka": ["inverse sqrt", "rsqrt", "rsqrt decay", "sqrt decay", "Noam", "Noam schedule", "transformer schedule", "reciprocal square root", "square root decay", "linear warmup inverse sqrt"], "q": "Linear warmup, then 1/√step, straight from \"Attention Is All You Need\". tensor2tensor named it after Noam Shazeer." },
+    { "a": "Inverse square root", "t": "indist", "aka": ["inverse sqrt", "rsqrt", "rsqrt decay", "sqrt decay", "Noam", "Noam schedule", "transformer schedule", "reciprocal square root", "square root decay", "linear warmup inverse sqrt"], "q": "Linear warmup, then 1/√step, straight from \"Attention Is All You Need\". Many codebases call it Noam, after co-author Noam Shazeer." },
 
     { "a": "One-cycle", "t": "overfit", "aka": ["OneCycleLR", "super-convergence", "fit_one_cycle", "optax.cosine_onecycle_schedule", "optax.linear_onecycle_schedule", "cosine_onecycle_schedule", "linear_onecycle_schedule", "1cycle"], "q": "Leslie Smith's up-then-down LR cycle with inverted momentum. Super-convergence, and fast.ai's default." },
-    { "a": "Cosine annealing with warm restarts", "t": "overfit", "aka": ["SGDR", "warm restarts", "CosineAnnealingWarmRestarts", "cosine with restarts", "cosine with hard restarts", "CosineDecayRestarts", "cyclic cosine", "optax.sgdr_schedule", "sgdr_schedule", "fit_sgdr", "snapshot ensembles", "CosineLRScheduler", "get_cosine_with_hard_restarts_schedule_with_warmup", "LinearWarmupCosineAnnealingLR", "restarts", "SGDR with warm restarts", "restart"], "q": "Loshchilov & Hutter 2016: decay along a cosine, then jump back up. Restarts as a feature." },
+    { "a": "Cosine annealing with warm restarts", "t": "overfit", "aka": ["SGDR", "warm restarts", "CosineAnnealingWarmRestarts", "cosine with restarts", "cosine with hard restarts", "CosineDecayRestarts", "cyclic cosine", "optax.sgdr_schedule", "sgdr_schedule", "fit_sgdr", "snapshot ensembles", "CosineLRScheduler", "get_cosine_with_hard_restarts_schedule_with_warmup", "LinearWarmupCosineAnnealingLR", "restarts", "SGDR with warm restarts", "restart", "snapshot ensemble"], "q": "Loshchilov & Hutter 2016: decay along a cosine, then jump back up. Restarts as a feature." },
 
     { "a": "Cosine annealing", "t": "baseline", "aka": ["cosine decay", "CosineAnnealingLR", "half-cosine", "warmup cosine", "cosine with warmup", "linear warmup with cosine decay", "get_cosine_with_min_lr_schedule_with_warmup", "cosine with min lr", "cosine_with_min_lr", "CosineAnnealingWithWarmupScheduler", "cosine anneal", "cosine annealing with linear warmup", "WarmupCosineDecay", "warmup_cosine_decay_schedule", "cosine_decay_schedule", "cosine_schedule", "optax.cosine_decay_schedule", "optax.warmup_cosine_decay_schedule", "cosine to zero", "cosine min", "linear warmup cosine decay", "cosine decay alpha"] },
     { "a": "Step decay", "t": "baseline", "aka": ["StepLR", "staircase", "step-wise decay", "Caffe step", "StepLRScheduler", "step policy", "fixed step"] },
@@ -48,9 +48,13 @@
     { "a": "Layer-wise learning rate decay", "t": "outlier", "aka": ["LLRD", "layer-wise LR decay", "discriminative learning rates", "discriminative fine-tuning", "differential learning rates", "layer decay"] },
     { "a": "LR range test", "t": "outlier", "aka": ["learning rate finder", "LR finder", "lr_find", "LR range finder", "learning rate range test"] },
     { "a": "Linear scaling rule", "t": "outlier", "aka": ["square-root scaling rule", "sqrt scaling", "LR scaling", "linear scaling", "batch size scaling rule"] },
-    { "a": "Learning rate rewinding", "t": "longtail", "aka": ["LR rewinding"] },
+    { "a": "Learning rate rewinding", "t": "longtail", "aka": ["LR rewinding", "LR rewind"] },
     { "a": "Backtracking line search", "t": "longtail", "aka": ["Armijo", "Armijo line search", "line search", "backtracking"] },
     { "a": "SWALR", "t": "longtail", "aka": ["SWA learning rate", "SWA schedule", "stochastic weight averaging learning rate"] },
-    { "a": "Tri-stage schedule", "t": "longtail", "aka": ["tri_stage", "three-stage schedule", "tri-stage learning rate"] }
+    { "a": "Tri-stage schedule", "t": "longtail", "aka": ["tri_stage", "three-stage schedule", "tri-stage learning rate"] },
+    { "a": "Schedule-Free", "t": "longtail", "aka": ["schedule free learning", "Schedule-Free AdamW", "Schedule-Free SGD"], "q": "Defazio et al. 2024: no decay and no stopping time, just averaging plus interpolation. Won AlgoPerf's self-tuning track." },
+    { "a": "D-Adaptation", "t": "longtail", "aka": ["DAdapt", "D-Adapt"] },
+    { "a": "Prodigy", "t": "longtail", "aka": ["ProdigyPlus"] },
+    { "a": "DoG", "t": "longtail", "aka": ["distance over gradients"] }
   ]
 }
