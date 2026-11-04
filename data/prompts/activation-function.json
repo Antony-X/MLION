@@ -16,7 +16,7 @@
     { "a": "Softshrink", "t": "longtail", "aka": ["soft shrink", "soft shrinkage", "soft thresholding"] },
     { "a": "Hardshrink", "t": "longtail", "aka": ["hard shrink", "hard shrinkage"] },
     { "a": "Threshold", "t": "longtail", "aka": ["nn.Threshold", "thresholded relu", "thresholded linear", "TRec", "truncated rectified"], "q": "PyTorch's ReLU with a configurable floor." },
-    { "a": "Squared ReLU", "t": "longtail", "aka": ["ReLU²", "ReLU^2", "relu squared", "squaredrelu"], "q": "Found by architecture search in Primer. Just square it." },
+    { "a": "Squared ReLU", "t": "longtail", "aka": ["ReLU²", "ReLU^2", "relu squared", "squaredrelu", "primer relu"], "q": "Found by architecture search in Primer. Just square it." },
     { "a": "ReGLU", "t": "longtail", "aka": ["relu glu", "gated relu"] },
     { "a": "Gaussian", "t": "longtail", "aka": ["gaussian activation", "rbf activation", "radial basis activation", "radbas"] },
     { "a": "TanhExp", "t": "longtail", "aka": ["tanh exp", "tanh exponential activation"] },
@@ -154,7 +154,7 @@
     { "a": "Leaky ReLU", "t": "indist", "aka": ["lrelu", "leakyrelu", "leaky rectified linear unit"] },
     { "a": "GELU", "t": "indist", "aka": ["gaussian error linear unit", "gelu tanh", "tanh gelu", "gelu new", "new gelu", "gelu fast", "fast gelu", "approximate gelu", "gelu approximate", "gelu pytorch tanh", "accurate gelu", "gelu accurate", "clipped gelu"], "q": "The transformer default. BERT, GPT, ViT all swore by it." },
     { "a": "ELU", "t": "indist", "aka": ["exponential linear unit"] },
-    { "a": "SELU", "t": "indist", "aka": ["scaled exponential linear unit", "scaled elu"], "q": "Self-normalizing networks: the 100-page-appendix activation." },
+    { "a": "SELU", "t": "indist", "aka": ["scaled exponential linear unit", "scaled elu"], "q": "Self-normalizing networks: the activation with a 90-page appendix." },
     { "a": "PReLU", "t": "indist", "aka": ["parametric relu", "parametric rectified linear unit", "parameterized relu", "parametric leaky relu"] },
     { "a": "Softplus", "t": "indist", "aka": ["soft plus", "smooth relu", "soft relu"] },
     { "a": "Linear", "t": "indist", "aka": ["identity", "identity function", "purelin"] },
@@ -167,6 +167,12 @@
     { "a": "ReLU", "t": "baseline", "aka": ["rectified linear unit", "rectifier", "rectified linear", "ramp", "ramp function", "positive part", "poslin", "max(0, x)"] },
     { "a": "Sigmoid", "t": "baseline", "aka": ["logistic", "logistic function", "logistic sigmoid", "sigmoid function", "expit", "soft step", "logsig", "standard logistic", "logistic curve"] },
     { "a": "Tanh", "t": "baseline", "aka": ["hyperbolic tangent", "tansig"] },
-    { "a": "Softmax", "t": "baseline", "aka": ["soft max", "normalized exponential", "softargmax", "soft argmax", "softmax2d", "softmax with temperature", "temperature softmax"] }
+    { "a": "Softmax", "t": "baseline", "aka": ["soft max", "normalized exponential", "softargmax", "soft argmax", "softmax2d", "softmax with temperature", "temperature softmax"] },
+    { "a": "Cube", "t": "longtail", "aka": ["cubic", "cube activation", "cubic activation"], "q": "x³. Chen & Manning's 2014 neural dependency parser swapped tanh and sigmoid for it." },
+    { "a": "Sigsoftmax", "t": "longtail", "aka": ["sig-softmax", "sigmoid softmax"], "q": "exp(z)·σ(z), normalized. Kanai et al. 2018 used it to break the softmax bottleneck." },
+    { "a": "Softmax1", "t": "longtail", "aka": ["softmax_1", "softmax+1", "off-by-one softmax", "off by one softmax", "quiet softmax", "quietsoftmax", "softmax one"], "q": "exp(x)/(1 + Σexp). Evan Miller's 'Attention Is Off By One' lets a head vote for nothing." },
+    { "a": "Arcsinh", "t": "longtail", "aka": ["asinh", "arsinh", "inverse hyperbolic sine"] },
+    { "a": "Morlet", "t": "longtail", "aka": ["morlet wavelet"] },
+    { "a": "Dice", "t": "longtail", "aka": ["data adaptive activation function", "dice activation"], "q": "PReLU with a data-driven switch, from Alibaba's Deep Interest Network (Zhou et al., 2018)." }
   ]
 }

@@ -7,12 +7,12 @@
   "answers": [
     { "a": "Zoneout", "t": "mlion", "aka": ["zone out", "zone-out", "Zoneout RNN", "Zoneout: regularizing RNNs", "stochastic identity RNN"], "q": "RNN units randomly keep last step's value instead of updating. Your network, quietly zoning out." },
 
-    { "a": "Dropout", "t": "baseline", "aka": ["standard dropout", "vanilla dropout", "Bernoulli dropout", "unit dropout", "nn.Dropout", "F.dropout", "torch.nn.functional.dropout", "tf.keras.layers.Dropout", "keras.layers.Dropout", "tf.nn.dropout", "hidden dropout", "binary dropout", "Hinton dropout", "naive dropout", "classic dropout", "original dropout", "hidden_dropout_prob", "pointwise dropout", "nn.Dropout(p)"] },
-    { "a": "DropConnect", "t": "baseline", "aka": ["drop connect", "weight dropout"], "q": "Wan et al. 2013: drop weights, not activations. Dropout's sibling." },
+    { "a": "Dropout", "t": "baseline", "aka": ["standard dropout", "vanilla dropout", "Bernoulli dropout", "unit dropout", "nn.Dropout", "F.dropout", "torch.nn.functional.dropout", "tf.keras.layers.Dropout", "keras.layers.Dropout", "tf.nn.dropout", "hidden dropout", "binary dropout", "Hinton dropout", "naive dropout", "classic dropout", "original dropout", "hidden_dropout_prob", "pointwise dropout", "nn.Dropout(p)", "neuron dropout"] },
+    { "a": "DropConnect", "t": "baseline", "aka": ["drop connect", "weight dropout", "connection dropout"], "q": "Wan et al. 2013: drop weights, not activations. Dropout's sibling." },
     { "a": "Spatial Dropout", "t": "baseline", "aka": ["SpatialDropout2D", "SpatialDropout1D", "Dropout2d", "Dropout1d", "Dropout3d", "channel dropout", "feature map dropout", "channel-wise dropout", "SpatialDropout3D", "F.dropout1d", "F.dropout2d", "F.dropout3d", "nn.Dropout1d", "nn.Dropout2d", "nn.Dropout3d", "DropChannel", "ChannelDrop", "feature-wise dropout", "spatial-shared dropout", "2D dropout", "1D dropout"] },
     { "a": "MC Dropout", "t": "baseline", "aka": ["Monte Carlo dropout", "MCDropout", "Bayesian dropout", "dropout at inference", "test-time dropout", "Dropout as a Bayesian Approximation", "dropout as Bayesian approximation", "Gal dropout uncertainty", "dropout uncertainty estimation", "stochastic forward passes", "MC-Dropout", "dropout sampling at test time"], "q": "Leave dropout on at test time, sample many passes, call the spread uncertainty. Gal & Ghahramani, 2016." },
 
-    { "a": "DropBlock", "t": "overfit", "aka": ["drop block", "DropBlock2d", "DropBlock3d", "torchvision.ops.DropBlock2d", "torchvision.ops.DropBlock3d", "drop_block_2d", "drop_block", "dropblock regularization"], "q": "Plain dropout barely hurts convnets, so drop contiguous squares of the feature map instead." },
+    { "a": "DropBlock", "t": "overfit", "aka": ["drop block", "DropBlock2d", "DropBlock3d", "torchvision.ops.DropBlock2d", "torchvision.ops.DropBlock3d", "drop_block_2d", "drop_block", "dropblock regularization"], "q": "Plain dropout barely helps convnets, so drop contiguous squares of the feature map instead." },
     { "a": "Stochastic Depth", "t": "overfit", "aka": ["DropPath", "drop path", "layer dropout", "random layer dropping", "local and global drop-path"], "q": "Randomly skip whole residual blocks. Huang et al. trained a 1202-layer ResNet with it." },
 
     { "a": "Gaussian Dropout", "t": "indist", "aka": ["multiplicative Gaussian noise", "GaussianDropout", "gaussian multiplicative noise", "tf.keras.layers.GaussianDropout", "keras GaussianDropout", "Gaussian multiplicative dropout", "gaussian dropout noise", "fast dropout gaussian approximation"] },
@@ -21,7 +21,7 @@
     { "a": "Inverted Dropout", "t": "indist", "aka": ["inverted", "scaled dropout"], "q": "Scale up the survivors during training so inference needs no rescaling. What every framework does." },
     { "a": "Attention Dropout", "t": "indist", "aka": ["attention probability dropout", "attn dropout", "attention weights dropout", "attn_drop", "attn_drop_rate", "attention_probs_dropout_prob", "attention_dropout", "softmax dropout", "dropout on attention scores", "attention dropout rate"] },
     { "a": "Recurrent Dropout", "t": "indist", "aka": ["recurrent", "recurrent dropout without memory loss", "Semeniuta dropout"] },
-    { "a": "Concrete Dropout", "t": "indist", "aka": ["concrete", "learned dropout rate", "Concrete Relaxation dropout", "relaxed Bernoulli dropout", "Bernoulli relaxation dropout"], "q": "Learn the dropout rate itself through a continuous relaxation. No more grid search over p." },
+    { "a": "Concrete Dropout", "t": "indist", "aka": ["concrete", "learned dropout rate", "Concrete Relaxation dropout", "relaxed Bernoulli dropout", "Bernoulli relaxation dropout", "learned dropout"], "q": "Learn the dropout rate itself through a continuous relaxation. No more grid search over p." },
     { "a": "Embedding Dropout", "t": "indist", "aka": ["embedding", "word embedding dropout", "embed dropout", "embedding_dropout", "dropout on embeddings", "vocabulary dropout"] },
 
     { "a": "Word Dropout", "t": "indist", "aka": ["word-level dropout", "word", "word drop", "word dropping", "token replacement dropout", "unk dropout", "word-level dropout (Iyyer)"], "q": "Replace whole input words with UNK. Bowman's VAE used it to make the decoder lean on the latent." },
@@ -37,7 +37,7 @@
 
     { "a": "Swapout", "t": "longtail", "aka": ["swap out"], "q": "Per unit, randomly pick identity, residual, both or neither. Dropout and stochastic depth as special cases." },
     { "a": "Standout", "t": "longtail", "aka": ["adaptive dropout", "standout network"] },
-    { "a": "Curriculum Dropout", "t": "longtail", "aka": ["curriculum"] },
+    { "a": "Curriculum Dropout", "t": "longtail", "aka": ["curriculum", "scheduled dropout", "dropout schedule"] },
     { "a": "Annealed Dropout", "t": "longtail", "aka": ["annealed"] },
     { "a": "ScheduledDropPath", "t": "outlier", "aka": ["scheduled drop path", "scheduled droppath"] },
     { "a": "Fast Dropout", "t": "outlier", "aka": ["fast"], "q": "Skip the sampling: approximate dropout's effect with a Gaussian in closed form." },
@@ -80,6 +80,8 @@
     { "a": "DropCluster", "t": "longtail", "aka": ["drop cluster", "DropCluster structured dropout"] },
     { "a": "DropoutNet", "t": "longtail", "aka": ["Dropout Net", "dropout net", "DropoutNet cold start", "input view dropout recommender"] },
     { "a": "Activation Dropout", "t": "longtail", "aka": ["activation_dropout", "ReLU dropout", "relu_dropout", "FFN dropout", "MLP dropout", "feed-forward dropout", "intermediate dropout"] },
-    { "a": "Classifier Dropout", "t": "longtail", "aka": ["classifier_dropout", "output layer dropout", "pre-classifier dropout", "dropout before classifier", "final dropout"] }
+    { "a": "Classifier Dropout", "t": "longtail", "aka": ["classifier_dropout", "output layer dropout", "pre-classifier dropout", "dropout before classifier", "final dropout"] },
+    { "a": "Stochastic Activation Pruning", "t": "longtail", "aka": ["SAP"] },
+    { "a": "Whiteout", "t": "longtail", "aka": ["Whiteout Gaussian adaptive noise regularization"] }
   ]
 }

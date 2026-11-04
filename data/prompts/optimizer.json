@@ -103,14 +103,14 @@
     { "a": "FedAvg", "t": "outlier", "aka": ["federated averaging"] },
     { "a": "Genetic algorithm", "t": "outlier", "aka": ["GA", "neuroevolution"] },
 
-    { "a": "SGD with momentum", "t": "indist", "aka": ["momentum", "momentum SGD", "heavy ball", "Polyak momentum", "classical momentum", "Polyak heavy ball", "SGDM", "SGD-M", "Heavy ball momentum"], "q": "Polyak's heavy ball (1964): let the gradient roll downhill with inertia." },
-    { "a": "Nesterov accelerated gradient", "t": "indist", "aka": ["NAG", "Nesterov momentum", "Nesterov", "Nesterov's accelerated gradient", "SGD-Nesterov", "SGD with Nesterov", "Accelerated gradient descent"], "q": "Peek ahead along the momentum, then take the gradient. Optimal O(1/k²) for smooth convex problems." },
+    { "a": "SGD with momentum", "t": "indist", "aka": ["momentum", "momentum SGD", "heavy ball", "Polyak momentum", "classical momentum", "Polyak heavy ball", "SGDM", "SGD-M", "Heavy ball momentum", "SGD momentum"], "q": "Polyak's heavy ball (1964): let the gradient roll downhill with inertia." },
+    { "a": "Nesterov accelerated gradient", "t": "indist", "aka": ["NAG", "Nesterov momentum", "Nesterov", "Nesterov's accelerated gradient", "SGD-Nesterov", "SGD with Nesterov", "Accelerated gradient descent", "SGD with Nesterov momentum", "Nesterov SGD"], "q": "Peek ahead along the momentum, then take the gradient. Optimal O(1/k²) for smooth convex problems." },
     { "a": "Adagrad", "t": "indist", "aka": ["adaptive gradient", "AdaGrad-Norm", "AdaGradNorm", "Full-matrix Adagrad", "Adagrad8bit"], "q": "Per-parameter learning rates that only ever shrink. Great for sparse features, fatal on long runs." },
     { "a": "Adadelta", "t": "indist" },
     { "a": "Adamax", "t": "indist", "aka": ["optax.adamaxw", "AdaMaxW"] },
     { "a": "Nadam", "t": "indist", "aka": ["Nesterov-accelerated Adam", "Adam with Nesterov", "Nesterov Adam", "NAdamW"] },
     { "a": "AMSGrad", "t": "indist", "aka": ["Adam amsgrad"] },
-    { "a": "L-BFGS", "t": "indist", "aka": ["limited-memory BFGS"], "q": "Quasi-Newton with a short memory. Beloved by style transfer and full-batch diehards." },
+    { "a": "L-BFGS", "t": "indist", "aka": ["limited-memory BFGS", "L-BFGS-B"], "q": "Quasi-Newton with a short memory. Beloved by style transfer and full-batch diehards." },
     { "a": "Newton's method", "t": "indist", "aka": ["Newton method", "Newton-Raphson"] },
     { "a": "Adafactor", "t": "indist", "q": "Factorizes Adam's second moment into row and column statistics. How T5 fit in memory." },
     { "a": "LAMB", "t": "indist", "aka": ["NVLAMB", "LAMBC", "SLAMB", "FusedLAMB", "Nvidia LAMB", "Lamb8bit"], "q": "Layer-wise trust ratios on top of Adam. Took BERT pretraining from 3 days to 76 minutes." },
@@ -118,7 +118,7 @@
     { "a": "RAdam", "t": "indist", "aka": ["rectified Adam"] },
     { "a": "SAM", "t": "indist", "aka": ["sharpness-aware minimization", "sharpness-aware minimisation"], "q": "Minimize the worst loss in a small ball around the weights. Two gradient passes per step, flatter minima." },
     { "a": "Rprop", "t": "indist", "aka": ["resilient backpropagation", "iRprop", "iRprop+", "Rprop-"] },
-    { "a": "Conjugate gradient", "t": "indist", "aka": ["CG", "nonlinear conjugate gradient"] },
+    { "a": "Conjugate gradient", "t": "indist", "aka": ["CG", "nonlinear conjugate gradient", "Fletcher-Reeves", "Polak-Ribière", "Hestenes-Stiefel"] },
 
     { "a": "Lion", "t": "overfit", "aka": ["EvoLved Sign Momentum", "Lion-K", "OpenAI Lion", "Lion8bit", "Lion 8-bit"], "q": "EvoLved Sign Momentum: found by Google's program search in 2023. Just the sign of an interpolated momentum." },
     { "a": "Muon", "t": "overfit", "aka": ["MomentUm Orthogonalized by Newton-Schulz", "Moonlight", "MuonSGD", "Kimi Muon", "Muon-NS"], "q": "Newton-Schulz-orthogonalized momentum, born in the NanoGPT speedruns. Now it trains trillion-parameter models." },
@@ -230,6 +230,9 @@
     { "a": "PowerSGD", "t": "longtail" },
     { "a": "QSGD", "t": "longtail", "aka": ["quantized SGD"] },
     { "a": "TernGrad", "t": "longtail" },
-    { "a": "Deep gradient compression", "t": "longtail", "aka": ["top-k SGD", "DGC"] }
+    { "a": "Deep gradient compression", "t": "longtail", "aka": ["top-k SGD", "DGC"] },
+    { "a": "Quasi-Newton method", "t": "outlier", "aka": ["quasi-Newton", "quasi-Newton methods"] },
+    { "a": "Exponential moving average", "t": "longtail", "aka": ["EMA", "EMA weights", "model EMA", "weight EMA"] },
+    { "a": "Perceptron learning rule", "t": "longtail", "aka": ["perceptron algorithm", "perceptron training rule"] }
   ]
 }
