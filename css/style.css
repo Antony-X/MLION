@@ -815,3 +815,4 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .live-skip:empty { display: none; }
 .live-skip .btn.on { background: var(--raised-2); box-shadow: inset 0 0 0 2px var(--muted); }
 .skip-who { color: var(--muted); font-size: var(--s1); }
+.vs-size.t-size { font-size: var(--s2); padding: 0 16px; min-width: 0; }

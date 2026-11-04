@@ -154,12 +154,20 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.waitForSelector(".stat-grid");
   check((await page.textContent(".stat-grid")).includes("1"), "stats count the run");
   await page.screenshot({ path: path.join(OUT, "09-stats.png"), fullPage: true });
-  for (const r of ["packs", "unlimited", "archive", "library", "faq", "prefs", "how", "pack-blocks", "practice-activation-function"]) {
+  for (const r of ["unlimited", "archive", "faq", "prefs", "how"]) {
     await page.goto(base + "#" + r);
     await page.waitForSelector(".screen");
     await page.screenshot({ path: path.join(OUT, `10-${r}.png`), fullPage: true });
   }
   check(true, "all secondary screens render");
+  for (const r of ["packs", "library", "pack-blocks", "pack-blocks-1", "practice-activation-function", "answers-activation-function"]) {
+    await page.goto(base + "#" + r);
+    await page.waitForFunction(() => location.hash === "#home", null, { timeout: 5000 });
+  }
+  check(!(await page.$('#drawer a[href="#packs"], #drawer a[href="#library"]')) && !(await page.$('.home a[href="#packs"], .home a[href="#library"]')), "packs and the library are gone: no picking questions");
+  await page.goto(base + "#unlimited-9");
+  await page.waitForFunction(() => location.hash === "#unlimited-1", null, { timeout: 5000 });
+  check(true, "Unlimited can't jump ahead to a later run");
 
   // ---- custom question count: any number up to 25
   await page.goto(base + "#challenge");
@@ -170,15 +178,18 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.fill("#q-custom", "40");
   await page.press("#q-custom", "Enter");
   check((await page.inputValue("#q-custom")) === "8", "counts over 25 are refused");
+  await page.click('.t-size[data-s="40"]');
   await page.click("#vs-go");
   await page.waitForSelector("#begin");
-  check(/#vs-[a-z0-9]+-8$/.test(await page.evaluate(() => location.hash)) && (await page.textContent(".beats li b")) === "8", "an 8-question challenge starts");
+  check(/#vs-[a-z0-9]+-8t40$/.test(await page.evaluate(() => location.hash)) && (await page.textContent(".beats li b")) === "8", "an 8-question challenge starts");
+  check((await page.$$eval(".beats li b", (els) => els.map((e) => e.textContent))).includes("40 s"), "the challenge link carries its 40 s clock");
 
   // ---- challenge a friend: Ana plays 3, sends a link; Ben opens it on his own phone
   await page.goto(base + "#challenge");
   await page.waitForSelector("#vs-go");
   await page.fill("#vs-name", "Ana");
   await page.click('.vs-size[data-n="3"]');
+  await page.click('.t-size[data-s="25"]');
   await page.click("#vs-go");
   await page.waitForSelector("#vs-send-now");
   await page.click("#vs-send-now");
@@ -231,6 +242,31 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.goto(base);
   await page.waitForSelector(".wordmark");
   await page.screenshot({ path: path.join(OUT, "11-home-desktop.png") });
+
+  // ---- time per question (Settings) and Skip on an empty box
+  await page.goto(base + "#prefs");
+  await page.click('.t-size[data-s="40"]');
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:settings")).answerSecs === 40), "the time setting is saved");
+  await page.goto(base + "#unlimited-1");
+  await page.waitForSelector("#begin");
+  check((await page.$$eval(".beats li b", (els) => els.map((e) => e.textContent))).includes("40 s"), "a new run uses the chosen time");
+  await page.click("#begin");
+  await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
+  check(parseFloat(await page.textContent("#timer-num")) > 30, "the clock counts down from 40");
+  check((await page.textContent("#step")).trim() === "Skip" && !(await page.$("#step.primary")), "an empty box offers Skip");
+  await page.fill("#answer", "re");
+  check((await page.textContent("#step")).trim() === "Step" && !!(await page.$("#step.primary")), "typing turns it back into Step");
+  await page.fill("#answer", "");
+  await page.click("#step");
+  await page.waitForSelector(".feedback", { timeout: 5000 });
+  check((await page.textContent(".feedback")).includes("Skipped."), "Skip moves on with no points");
+  await page.screenshot({ path: path.join(OUT, "12-skipped.png") });
+  await page.click("#next");
+  await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
+  await page.fill("#answer", "rectified linear unit");
+  await page.press("#answer", "Enter");
+  await page.waitForSelector(".feedback", { timeout: 5000 });
+  check((await page.textContent(".fb-note")).includes("counts as ReLU"), "an answer given by another name says what it counted as");
 
   check(errors.length === 0, `no console errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();

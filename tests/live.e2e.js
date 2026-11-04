@@ -104,8 +104,9 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ana.click('.lv-assist[data-a="full"]');
   await ana.fill("#q-custom", "4");
   await ana.press("#q-custom", "Enter");
-  await ben.waitForFunction(() => /picks the settings. 4 questions · autocorrect full/.test(document.body.textContent), null, { timeout: 8000 });
-  check(true, "guests see the host's custom question count and autocorrect choice");
+  await ana.click('.t-size[data-s="40"]');
+  await ben.waitForFunction(() => /picks the settings. 4 questions · 40 s each · autocorrect full/.test(document.body.textContent), null, { timeout: 8000 });
+  check(true, "guests see the host's question count, time and autocorrect choice");
   for (const pg of [ana, ben, cy]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
   check(true, "everyone taps Ready; match starts by itself");
   await ana.click("#chat-btn"); // left open while the match starts
@@ -115,6 +116,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     if (i === 1) { // Cy answers, then Ana and Ben vote the question out: a new one starts and Cy's points from it are gone
       for (const pg of [ana, ben, cy]) await pg.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
       check(i === 1 && (await ana.evaluate(() => window.MLION_LIVE_STATE.n)) === 4, "the match runs the custom count, even after changing autocorrect help");
+      check(parseFloat(await ben.textContent("#timer-num")) > 30, "guests answer on the host's 40 s clock");
       const before = await ana.textContent("#prompt-text");
       await cy.fill("#answer", "gelu");
       await cy.press("#answer", "Enter");

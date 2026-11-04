@@ -421,13 +421,14 @@
 
   // -------------------------------------------------------------- share
   function tierEmoji(t) { return t && TIERS[t] ? TIERS[t].emoji : MISS_EMOJI; }
-  function shareText({ mode = "daily", number, score, tiers, label }) {
+  function shareText({ mode = "daily", number, score, tiers, label, secs }) {
     const grid = tiers.map(tierEmoji).join("");
     const tag = mode === "daily" ? `MLion #${number}` :
       mode === "archive" ? `MLion ⟲ #${number}` :
       mode === "unlimited" ? `MLion ∞ #${number}` : `MLion · ${label || mode} #${number}`;
     const loss = (tiers.length * 100 - score) / 100;
-    return `${tag} 🦁\n${score}/${tiers.length * 100} · loss ${loss.toFixed(2)}\n\n${grid}`;
+    const clock = secs && secs * 1000 !== ANSWER_MS ? ` · ${secs} s` : ""; // a different clock isn't the same game
+    return `${tag} 🦁\n${score}/${tiers.length * 100} · loss ${loss.toFixed(2)}${clock}\n\n${grid}`;
   }
 
   return {
