@@ -29,7 +29,7 @@
   --s1: 14px;
   --s2: 17px;
   --s3: 24px;
-  --s4: clamp(28px, 1.2vw + 20px, 34px);
+  --s4: clamp(28px, 1.6vw + 18px, 42px);
   --s5: clamp(84px, 13vw, 220px);
 
   --side-l: max(16px, env(safe-area-inset-left, 0px));
@@ -277,7 +277,7 @@ body[data-view="play"] #app { max-width: none; }
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 0 var(--edge-r) 0 var(--edge-l); color: var(--muted); font-size: var(--s1);
 }
-@media (min-width: 1000px) { .stage { height: clamp(300px, 42vh, 460px); } }
+@media (min-width: 1000px) { .stage { height: clamp(320px, 56vh, 640px); } }
 .dots { display: flex; gap: 8px; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; background: var(--raised-2); transition: background-color 240ms ease, transform 240ms var(--ease-out); }
 .dots i.cur { background: var(--ink); transform: scale(1.2); }

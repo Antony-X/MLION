@@ -103,7 +103,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
     }
     if (ans === "__chips__") {
       // several near misses: tap the one you meant
-      await page.fill("#answer", "xelu");
+      await page.fill("#answer", "gel");
       await page.press("#answer", "Enter");
       await page.waitForSelector(".chip");
       const chips = await page.$$eval(".chip", (els) => els.map((e) => e.textContent));
