@@ -78,7 +78,7 @@
     // target on screen: phone, under the copy, then up out of the text's way;
     // wide, right of the copy
     const lift = still ? 0.3 : smooth(clamp(t / 0.3, 0, 1));
-    const fx = tall ? 0.5 : 0.66, fy = tall ? lerp(0.68, 0.4, lift) : lerp(0.76, 0.55, lift); // wide: the ball starts beside the buttons, clear of the wordmark
+    const fx = tall ? 0.5 : 0.66, fy = tall ? lerp(0.76, 0.4, lift) : lerp(0.76, 0.55, lift); // wide: the ball starts beside the buttons, clear of the wordmark
     const f = 1 / Math.tan((tall ? 1 : 0.66) / 2), n = 0.1, far = 40;
     // view basis: forward, side, up
     let F = tg.map((v, i) => v - eye[i]), l = Math.hypot(...F);

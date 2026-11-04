@@ -572,7 +572,8 @@
     const ground = `${line(0, END)}L${X(END)} ${H}L${X(0)} ${H}Z`;
     const bx = X(x), by = Y(terrain(x)) - 15;
     return `<svg class="profile" viewBox="0 0 ${W} ${H}" role="img" aria-label="${label || "Your descent"}">
-      <path d="${ground}" fill="#13110e"/>
+      <defs><linearGradient id="profile-ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0.35" stop-color="#13110e"/><stop offset="1" stop-color="#13110e" stop-opacity="0"/></linearGradient></defs>
+      <path d="${ground}" fill="url(#profile-ground)"/>
       <path d="${line(0, END)}" fill="none" stroke="${COL.line}" stroke-width="3"/>
       <g fill="none" stroke-linecap="round" stroke-linejoin="round">${segs.join("")}</g>
       ${marks.join("")}
