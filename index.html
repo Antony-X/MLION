@@ -4,24 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MLion · the daily descent</title>
-  <meta name="description" content="Seven machine-learning prompts a day. Name an activation function, a loss, a model… Rare answers descend deeper. Obvious ones barely count. One in a MLion.">
-  <meta name="theme-color" content="#090b10">
+  <meta name="description" content="A daily machine-learning word game. Seven prompts, 25 seconds each. Rarer answers roll deeper. One in a MLion.">
+  <meta name="theme-color" content="#0b0a08">
   <meta property="og:title" content="MLion · the daily descent">
-  <meta property="og:description" content="Seven ML prompts a day. Rarer answers descend deeper. One in a MLion.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23090b10'/%3E%3Cpath d='M10 18 C24 20 30 40 54 46' stroke='%23f5b942' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='46' cy='42' r='7' fill='%23ffd23f'/%3E%3C/svg%3E">
+  <meta property="og:description" content="A daily ML word game. Rarer answers roll deeper.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-32 -32 64 64'%3E%3Cpath d='M0 -30L6.6 -22.5L16.2 -25.2L17.8 -15.4L27.3 -12.5L23.3 -3.3L29.7 4.3L21.4 9.8L22.7 19.6L12.7 19.8L8.5 28.8L0 23.5L-8.5 28.8L-12.7 19.8L-22.7 19.6L-21.4 9.8L-29.7 4.3L-23.3 -3.3L-27.3 -12.5L-17.8 -15.4L-16.2 -25.2L-6.6 -22.5Z' fill='%23f2b53c' stroke='%23f2b53c' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M-15.5 -8.5H15.5L0 16Z' fill='none' stroke='%230b0a08' stroke-width='5.5' stroke-linejoin='round'/%3E%3Ccircle cx='-5.2' cy='-1.6' r='2.3' fill='%230b0a08'/%3E%3Ccircle cx='5.2' cy='-1.6' r='2.3' fill='%230b0a08'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <canvas id="landscape" aria-hidden="true"></canvas>
 
   <header class="topbar">
-    <button class="brand" id="brand" aria-label="MLion home"><span class="ml">ML</span><span class="ion">ION</span></button>
+    <button class="brand" id="brand" aria-label="MLion home"><svg class="mark" viewBox="-32 -32 64 64" aria-hidden="true" focusable="false"><path class="mk-mane" d="M0 -30L6.6 -22.5L16.2 -25.2L17.8 -15.4L27.3 -12.5L23.3 -3.3L29.7 4.3L21.4 9.8L22.7 19.6L12.7 19.8L8.5 28.8L0 23.5L-8.5 28.8L-12.7 19.8L-22.7 19.6L-21.4 9.8L-29.7 4.3L-23.3 -3.3L-27.3 -12.5L-17.8 -15.4L-16.2 -25.2L-6.6 -22.5Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path class="mk-face" d="M-15.5 -8.5H15.5L0 16Z" fill="none" stroke-width="5.5" stroke-linejoin="round"/><circle class="mk-eye" cx="-5.2" cy="-1.6" r="2.3"/><circle class="mk-eye" cx="5.2" cy="-1.6" r="2.3"/></svg><span>MLion</span></button>
     <div class="topbar-mid" id="topbar-mid"></div>
     <button class="icon-btn" id="menu-btn" aria-label="Open menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg>
     </button>
   </header>
 
@@ -29,20 +29,20 @@
 
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
   <nav class="drawer" id="drawer" aria-hidden="true" aria-label="Menu">
-    <div class="row spread" style="margin-bottom:6px">
-      <span class="brand" style="cursor:default"><span class="ml">ML</span><span class="ion">ION</span></span>
-      <button class="icon-btn" id="drawer-close" aria-label="Close menu">✕</button>
+    <div class="drawer-head">
+      <span class="brand" aria-hidden="true">MLion</span>
+      <button class="icon-btn" id="drawer-close" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <a href="#daily"><span class="gi">▼</span>Daily descent</a>
-    <a href="#unlimited"><span class="gi">∞</span>Unlimited</a>
-    <a href="#packs"><span class="gi">◆</span>Themed packs</a>
-    <a href="#archive"><span class="gi">⟲</span>Archive</a>
-    <a href="#library"><span class="gi">≡</span>Library</a>
-    <a href="#stats"><span class="gi">↗</span>Stats</a>
-    <a href="#how"><span class="gi">?</span>How to play</a>
-    <a href="#faq"><span class="gi">i</span>FAQ</a>
-    <a href="#prefs"><span class="gi">⚙</span>Settings</a>
-    <div class="foot">one in a mlion.<br><a href="https://github.com/Antony-X/MLION" target="_blank" rel="noopener">source &amp; answer sets ↗</a></div>
+    <a class="nav" href="#daily">Today</a>
+    <a class="nav" href="#unlimited">Unlimited</a>
+    <a class="nav" href="#packs">Packs</a>
+    <a class="nav" href="#archive">Archive</a>
+    <a class="nav" href="#library">Library</a>
+    <a class="nav" href="#stats">Stats</a>
+    <a class="nav" href="#how">How to play</a>
+    <a class="nav" href="#faq">FAQ</a>
+    <a class="nav" href="#prefs">Settings</a>
+    <p class="foot">One in a MLion. <a href="https://github.com/Antony-X/MLION" target="_blank" rel="noopener">Source and answer sets</a></p>
   </nav>
 
   <div id="modal"></div>

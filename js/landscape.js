@@ -4,7 +4,8 @@
  *  - Descent: the play stage, where each answer rolls the optimizer down a
  *    1-D slice of that surface. One point = 10 world units, so a perfect day
  *    travels 7,000 units and lands in the global minimum.
- *  - glyph: the six tier marks, each a tiny chart of what the tier means.
+ *  - glyph: the tier marks. Five are tiny charts of what the tier means, a
+ *    curve and the ball on it; the gem is the lion, a mane around a nabla.
  *  - profileSvg: a finished run drawn on the same terrain. */
 (function () {
   "use strict";
@@ -13,10 +14,10 @@
     bg: "#0b0a08", ink: "#f2ede4", muted: "#a39b90", line: "#5c544a",
     gold: "#f2b53c", goldBand: "#e6a52c", goldInk: "#1a1306",
   };
-  // Rarity is depth, and depth is light: the ramp brightens toward the gem.
+  // Rarity is depth, and depth is light: grey at the surface, warming to gold.
   const TIER_COLORS = {
-    baseline: "#8a8379", overfit: "#a69e92", indist: "#c3bcb0",
-    outlier: "#ddd7cc", longtail: "#f2ede4", mlion: "#f2b53c", miss: "#6c665d",
+    baseline: "#857f76", overfit: "#a59a88", indist: "#c4ae88", outlier: "#dfbf7e",
+    longtail: "#f5d999", mlion: "#f2b53c", miss: "#6c665d",
   };
   const prefersReduced = () => document.documentElement.classList.contains("reduce-motion");
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -41,14 +42,26 @@
     mlion: { d: "M2.5 5.5C7.2 5.5 7.8 19.5 12 19.5S16.8 5.5 21.5 5.5", ball: [12, 15.6, 2.9] },
     miss: { d: "", ring: [12, 12, 5] },
   };
+  // The lion: an 11-point mane around a nabla, the gradient's own symbol.
+  const MARK = {
+    mane: "M0 -30L6.6 -22.5L16.2 -25.2L17.8 -15.4L27.3 -12.5L23.3 -3.3L29.7 4.3L21.4 9.8L22.7 19.6L12.7 19.8L8.5 28.8L0 23.5L-8.5 28.8L-12.7 19.8L-22.7 19.6L-21.4 9.8L-29.7 4.3L-23.3 -3.3L-27.3 -12.5L-17.8 -15.4L-16.2 -25.2L-6.6 -22.5Z",
+    face: "M-15.5 -8.5H15.5L0 16Z",
+    eyes: [[-5.2, -1.6], [5.2, -1.6]],
+  };
+  /** The lion mark. The mane takes currentColor, the face --mark-ink. */
+  function mark(cls, label) {
+    const a = label ? `role="img" aria-label="${label}"` : `aria-hidden="true"`;
+    return `<svg class="mark${cls ? " " + cls : ""}" viewBox="-32 -32 64 64" ${a} focusable="false"><path class="mk-mane" d="${MARK.mane}" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path class="mk-face" d="${MARK.face}" fill="none" stroke-width="5.5" stroke-linejoin="round"/>${MARK.eyes.map(([x, y]) => `<circle class="mk-eye" cx="${x}" cy="${y}" r="2.3"/>`).join("")}</svg>`;
+  }
   /** Inline SVG of a tier mark. `t` is a tier id or null for a miss. */
   function glyph(t, cls) {
     const id = GLYPHS[t] ? t : "miss";
+    if (id === "mlion") return mark(`glyph g-mlion t-mlion${cls ? " " + cls : ""}`);
     const g = GLYPHS[id];
     const body = g.ring
       ? `<circle cx="${g.ring[0]}" cy="${g.ring[1]}" r="${g.ring[2]}" fill="none"/>`
       : `<path d="${g.d}" fill="none"/><circle cx="${g.ball[0]}" cy="${g.ball[1]}" r="${g.ball[2]}" stroke="none" fill="currentColor"/>`;
-    return `<svg class="glyph g-${id}${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+    return `<svg class="glyph g-${id} t-${id}${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   }
 
   // ------------------------------------------------------- the surface
@@ -106,8 +119,6 @@
     const Znear = 2.4, Zfar = 21;
     const Hc = ((h * 1.02 - horizon) * Znear) / f;
     const cam = { horizon, f, cx, Znear, Zfar, Hc, amp: 1 };
-    const o = window.__MLCAM; // TUNING
-    if (o) { Object.assign(cam, o.fixed || {}); if (o.hz != null) cam.horizon = h * o.hz; if (o.fw) cam.f = w * o.fw; if (o.cxw) cam.cx = w * o.cxw; cam.Hc = ((h * (o.bot || 1.02) - cam.horizon) * cam.Znear) / cam.f; }
     return cam;
   }
   function project(cam, X, Z, Y) {
@@ -403,8 +414,16 @@
         for (let rr = diag + band * 2 - phase; rr > R * 1.6; rr -= band * 2) {
           ctx.beginPath(); ctx.arc(bx, by, rr, 0, Math.PI * 2); ctx.arc(bx, by, Math.max(0, rr - band), 0, Math.PI * 2, true); ctx.fill();
         }
-        ctx.fillStyle = COL.goldInk;
-        ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.fill();
+        // the ball has become the lion
+        const ms = clamp((r - R) / (diag * 0.4), 0, 1) * (w < 560 ? 1.15 : 1.5) + R / 30;
+        ctx.save();
+        ctx.translate(bx, by); ctx.scale(ms, ms);
+        ctx.fillStyle = COL.goldInk; ctx.strokeStyle = COL.goldInk; ctx.lineWidth = 3; ctx.lineJoin = "round";
+        const mane = new Path2D(MARK.mane); ctx.fill(mane); ctx.stroke(mane);
+        ctx.strokeStyle = COL.gold; ctx.lineWidth = 5.5; ctx.stroke(new Path2D(MARK.face));
+        ctx.fillStyle = COL.gold;
+        for (const [ex, ey] of MARK.eyes) { ctx.beginPath(); ctx.arc(ex, ey, 2.3, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
         ctx.restore();
       }
       ctx.restore();
@@ -468,7 +487,7 @@
       if (tier === "miss") { st.texts.push({ x, text: "NaN", color: COL.muted, size: 16, life: 1300, max: 1300 }); return; }
       if (tier === "mlion") {
         if (prefersReduced()) return;
-        st.flood = { t: 0, grow: 700, hold: 1100, shrink: 650, inkOn: false };
+        st.flood = { t: 0, grow: 600, hold: 900, shrink: 500, inkOn: false };
         return;
       }
       const [size, rings] = RIPPLE[tier] || [30, 1];
@@ -476,7 +495,7 @@
     }
     function durationFor(tier) {
       if (prefersReduced()) return 250;
-      return { miss: 900, baseline: 900, overfit: 1400, indist: 1200, outlier: 1500, longtail: 1800, mlion: 2000 }[tier] || 1000;
+      return { miss: 650, baseline: 600, overfit: 1000, indist: 800, outlier: 950, longtail: 1150, mlion: 1300 }[tier] || 800;
     }
     function calm() {
       if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
@@ -547,5 +566,5 @@
     </svg>`;
   }
 
-  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, glyph, profileSvg, GLYPHS };
+  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, glyph, mark, MARK, profileSvg, GLYPHS };
 })();

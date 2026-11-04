@@ -16,6 +16,22 @@
   const tierVar = (t) => `--tc: var(--t-${t || "miss"})`;
   const fmt = (n) => Number(n).toLocaleString("en-US");
 
+  // ------------------------------------------------- presentation helpers
+  const G = (t, cls) => V.glyph(t && T[t] ? t : null, cls);
+  const tierOf = (t) => (t && T[t] ? t : "miss");
+  /** The share grid as marks: one per prompt, shaped and lit by its tier. */
+  const tiersRow = (tiers, cls = "") => `<span class="tiers ${cls}" role="img" aria-label="${esc(tiers.map((t) => (T[t] ? T[t].name : "Miss")).join(", "))}">${tiers.map((t) => G(t)).join("")}</span>`;
+  const CHEV = `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+  const LOCK = `<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
+  const XICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+  /** What the page backdrop shows: the full surface at home, a horizon elsewhere. */
+  function scene(view, opts) { document.body.dataset.view = view; if (V.scene) V.scene(view, opts); }
+  /** The six tiers, each set as deep as it scores. */
+  function depthList() {
+    const order = E.TIERS_BY_SCORE.slice().reverse();
+    return `<ol class="depths" aria-label="Rarity tiers">${order.map((t, i) => `<li class="t-${t.id}" style="--d:${(i / (order.length - 1)).toFixed(2)}">${G(t.id)}<span class="n">${esc(t.name)}</span><span class="p">+${t.score}</span></li>`).join("")}</ol>`;
+  }
+
   // ------------------------------------------------------------ storage
   const LS = {
     get(k, d) { try { const v = localStorage.getItem("mlion:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -224,6 +240,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     clearScreenTimers();
     window.scrollTo(0, 0);
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
+    scene("page");
+    $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + (h || "home")));
     if (SIMPLE[h]) return SIMPLE[h]();
     let m;
     if ((m = h.match(/^unlimited-(\d+)$/))) return openRun(unlimitedSpec(Math.max(1, +m[1])));
@@ -238,52 +256,44 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   window.addEventListener("hashchange", route);
 
   // ============================================================== home
-  function tierLegend() {
-    return `<ul class="tier-list">${E.TIERS_BY_SCORE.slice().reverse().map((t) => `
-      <li class="tier-row ${t.id}" style="${tierVar(t.id)}">
-        <span class="e" aria-hidden="true">${t.emoji}</span>
-        <span class="n">${esc(t.name)}<span class="b">${esc(t.blurb)}</span></span>
-        <span class="p">+${t.score}</span>
-      </li>`).join("")}</ul>`;
-  }
   function renderHome() {
-    setMid("the daily descent");
     const date = today(), n = todayNumber();
+    setMid(`#${n} · ${prettyDate(date, { weekday: "short", month: "short", day: "numeric" })}`);
     const rec = records[`daily:${date}`];
     const inProg = !rec && LS.get(`run:daily:${date}`);
     const s = statsSummary();
     let cta;
-    if (rec) cta = `<a class="btn primary big block" href="#results-${slugFor(rec.key)}">View today's run · ${rec.score}/700</a>
-      <div class="countdown">next descent in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></div>`;
-    else if (inProg) cta = `<a class="btn primary big block" href="#daily">Resume · prompt ${Math.min(inProg.results.length + 1, 7)} of 7 ▶</a>`;
-    else cta = `<a class="btn primary big block" href="#daily">▶ Start training</a>`;
-    app.innerHTML = `<section class="screen">
-      <div class="hero">
-        <div class="wordmark" aria-label="MLion">${"MLION".split("").map((c, i) => `<span class="${i < 2 ? "ml" : ""}" style="animation-delay:${i * 0.18}s">${c}</span>`).join("")}</div>
-        <div class="tagline">THE DAILY DESCENT</div>
-        <div class="subline">7 prompts · 25 seconds each · rarer answers descend deeper</div>
-        <div class="daytag">MLion #${n} · ${esc(prettyDate(date, { weekday: "long", month: "short", day: "numeric" }))}</div>
+    if (rec) cta = `<a class="btn primary big" href="#results-${slugFor(rec.key)}">Today's run · ${rec.score}</a>
+      <span class="countdown">Next in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></span>`;
+    else if (inProg) cta = `<a class="btn primary big" href="#daily">Resume · ${Math.min(inProg.results.length + 1, 7)} of 7</a>`;
+    else cta = `<a class="btn primary big" href="#daily">Start training</a>`;
+    const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
+    const modes = [
+      ["#unlimited", "Unlimited", "Endless runs"],
+      ["#packs", "Packs", `${DATA.packs.length} themes`],
+      ["#archive", "Archive", "Past days"],
+      ["#library", "Library", `${DATA.prompts.length} prompts`],
+      ["#stats", "Stats", s.played ? `${s.played} played` : ""],
+      ["#how", "How to play", ""],
+    ];
+    app.innerHTML = `<section class="screen home">
+      <div class="home-hero arrive">
+        <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
+        <p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>
         <div class="hero-cta">${cta}</div>
-        <div class="quick-stats">
-          <div class="qs"><b>${s.cur}</b><span>streak</span></div>
-          <div class="qs"><b>${s.best || "—"}</b><span>best</span></div>
-          <div class="qs"><b>${s.gems}</b><span>🦁 found</span></div>
-        </div>
+        ${s.played ? `<div class="figures">
+          <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
+          <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
+          <div class="figure"><b>${s.gems}</b><span>Gems</span></div>
+        </div>` : ""}
       </div>
-      <div class="panel" style="margin-top:22px">
-        <p class="kicker">rarity tiers · <span class="hl">fixed, hand-curated</span></p>
-        ${tierLegend()}
-        <p class="small muted" style="margin:12px 0 0">Every prompt has thousands of possible answers but exactly one 🦁 gem. Misses score 0 and leave the loss at NaN.</p>
-      </div>
-      <div class="nav-grid" style="margin-top:14px">
-        <a class="nav-card" href="#unlimited"><span class="t"><span class="g">∞</span>Unlimited</span><span class="d">Endless runs from all ${DATA.prompts.length} prompts.</span></a>
-        <a class="nav-card" href="#packs"><span class="t"><span class="g">◆</span>Themed packs</span><span class="d">${DATA.packs.length} packs: blocks, models, LLMs, theory…</span></a>
-        <a class="nav-card" href="#archive"><span class="t"><span class="g">⟲</span>Archive</span><span class="d">Replay any past daily descent.</span></a>
-        <a class="nav-card" href="#library"><span class="t"><span class="g">≡</span>Library</span><span class="d">Every prompt, practice mode & answer keys.</span></a>
-        <a class="nav-card" href="#stats"><span class="t"><span class="g">↗</span>Stats</span><span class="d">Streaks, averages and tier counts.</span></a>
-        <a class="nav-card" href="#how"><span class="t"><span class="g">?</span>How to play</span><span class="d">Rules, scoring and autocorrect.</span></a>
+      <div class="home-rest">
+        <section><h2>Six depths</h2>${depthList()}</section>
+        <section><h2>More ways to play</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        <p class="home-close"><span>One in a MLion</span><a href="${REPO_URL}" target="_blank" rel="noopener">Source</a></p>
       </div>
     </section>`;
+    scene("home", { progress, animate: true });
     if (rec) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); if (today() !== date) route(); });
     if (!LS.get("seenHow")) { LS.set("seenHow", true); setTimeout(() => showHowModal(), 400); }
   }
@@ -339,17 +349,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderPlayShell() {
     setMid(RUN.label);
     app.innerHTML = `<section class="screen play">
-      <div class="play-head">
-        <div class="dots" id="dots" aria-label="progress"></div>
-        <div class="play-meta" id="play-meta"></div>
-      </div>
-      <div class="descent-wrap">
+      <div class="stage" id="stage">
         <canvas id="descent" aria-hidden="true"></canvas>
-        <div class="hud"><span>loss</span><b id="hud-loss">7.00</b></div>
-        <div class="hud hud-r"><span>score</span><b id="hud-score">0</b></div>
+        <div class="hud"><span>Loss</span><b id="hud-loss">7.00</b></div>
+        <div class="hud hud-r"><span>Score</span><b id="hud-score">0</b></div>
+        <div class="play-head">
+          <div class="dots" id="dots" aria-label="progress"></div>
+          <div class="play-meta" id="play-meta"></div>
+        </div>
       </div>
-      <div class="panel prompt-card" id="card"></div>
+      <div class="prompt-card" id="card"></div>
     </section>`;
+    scene("play");
     descent = V.Descent($("#descent"), {
       onFrame: (x) => {
         if (!RUN) return;
@@ -359,6 +370,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (l) l.textContent = ((RUN.promptIds.length * 100 - pts) / 100).toFixed(2);
         if (sc) sc.textContent = pts;
       },
+      onFlood: (on) => { const st = $("#stage"); if (st) st.classList.toggle("flood", on); },
     });
     descent.set(RUN.results);
     updateHead();
@@ -369,10 +381,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const n = RUN.promptIds.length;
     $("#dots").innerHTML = RUN.promptIds.map((_, i) => {
       const r = RUN.results[i];
-      if (r) return r.tier ? `<i class="done" style="${tierVar(r.tier)}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="miss"></i>`;
+      if (r) return r.tier ? `<i class="done t-${r.tier}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="Miss"></i>`;
       return `<i class="${i === RUN.round && RUN.phase !== "intro" ? "cur" : ""}"></i>`;
     }).join("");
-    $("#play-meta").innerHTML = `prompt <b>${Math.min(RUN.round + 1, n)}</b>/${n}`;
+    $("#play-meta").innerHTML = `<b>${Math.min(RUN.round + 1, n)}</b> of ${n}`;
   }
   function setHud(score) {
     hudRange = [score, score];
@@ -385,18 +397,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const n = RUN.promptIds.length;
     const title = RUN.mode === "daily" ? `MLion #${RUN.number}` : RUN.label;
     const sub = RUN.mode === "daily" ? prettyDate(RUN.date, { weekday: "long", month: "long", day: "numeric" }) :
-      RUN.mode === "archive" ? `${prettyDate(RUN.date)} · doesn't affect your streak` :
-      RUN.mode === "practice" ? "one prompt · answers revealed after" : `${n} prompts`;
+      RUN.mode === "archive" ? `${prettyDate(RUN.date)} · no streak` :
+      RUN.mode === "practice" ? "Answers shown after" : "";
     $("#card").innerHTML = `<div class="intro-card">
-      <p class="kicker"><span class="hl">${esc(title)}</span> · ${esc(sub)}</p>
-      <h2>Ready to descend?</h2>
-      <ul class="rules">
-        <li>${n === 1 ? "One prompt" : `${n} prompts`}, each shown for 3 seconds before a 25-second clock</li>
-        <li>Wrong answers just bounce. Keep trying until time runs out</li>
-        <li>Rarer accepted answers descend deeper</li>
+      <div><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
+      <ul class="beats">
+        <li><b>${n}</b><span>${n === 1 ? "prompt" : "prompts"}</span></li>
+        <li><b>3 s</b><span>to read</span></li>
+        <li><b>25 s</b><span>to answer</span></li>
       </ul>
-      <button class="btn primary big block" id="begin">▶ Begin descent</button>
-      <p class="small muted" style="margin:10px 0 0">Tip: press <kbd>Enter</kbd> to submit and to continue.</p>
+      <p class="rule">Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more.</p>
+      <button class="btn primary big" id="begin">Begin</button>
+      <p class="hint"><kbd>Enter</kbd> submits and continues</p>
     </div>`;
     $("#begin").addEventListener("click", async () => { $("#begin").disabled = true; await aiConsentUpFront(); startRound(); });
     $("#begin").focus();
@@ -417,26 +429,30 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function renderRound() {
     const p = currentPrompt();
-    const n = RUN.promptIds.length;
     updateHead();
-    $("#card").innerHTML = `
-      <div class="prompt-num">prompt ${String(RUN.round + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")} · ${esc(PACKS.get(p.pack).name)}</div>
-      <div class="prompt-text" id="prompt-text">${esc(p.text)}${p.example ? ` <span class="eg">(e.g. ${esc(p.example)})</span>` : ""}</div>
-      ${p.scope ? `<p class="prompt-note">${esc(p.scope)}</p>` : ""}
-      <div class="timer" id="timer">
-        <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
-        <div class="timer-row"><span id="timer-label">clock starts in</span><b id="timer-num">25.0</b></div>
+    if (descent) descent.calm();
+    $("#card").innerHTML = `<div class="round">
+      <div class="ask">
+        <p class="prompt-text" id="prompt-text">${esc(p.text)}${p.example ? ` <span class="eg">(e.g. ${esc(p.example)})</span>` : ""}</p>
+        ${p.scope ? `<p class="prompt-note">${esc(p.scope)}</p>` : ""}
       </div>
-      <div class="input-zone">
-        <form class="answer-form" id="answer-form" autocomplete="off">
-          <input class="answer-input" id="answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer" placeholder="type an answer…">
-          <button class="btn primary step-btn" id="step" type="submit">Step ▼</button>
-        </form>
-        <div class="preview-veil" id="veil"><div>the clock starts in<b id="veil-n">3</b></div></div>
+      <div class="act">
+        <div class="timer" id="timer">
+          <div class="timer-row"><span id="timer-label">Starts in</span><b id="timer-num">25.0</b></div>
+          <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
+        </div>
+        <div class="input-zone">
+          <form class="answer-form" id="answer-form" autocomplete="off">
+            <input class="answer-input" id="answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer" placeholder="Type an answer">
+            <button class="btn primary step-btn" id="step" type="submit">Step</button>
+          </form>
+          <div class="preview-veil" id="veil"><span>Read the prompt</span><b id="veil-n">3</b></div>
+        </div>
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+        <div class="chips" id="chips"></div>
+        <div class="tried" id="tried"></div>
       </div>
-      <div class="status" id="status" role="status" aria-live="polite"></div>
-      <div class="chips" id="chips"></div>
-      <div class="tried" id="tried"></div>`;
+    </div>`;
     const input = $("#answer");
     if (RUN.draft) input.value = RUN.draft;
     input.addEventListener("input", () => {
@@ -469,7 +485,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         input.disabled = true; $("#step").disabled = true;
         veil.classList.remove("hidden");
         $("#veil-n").textContent = Math.ceil((RUN.previewEndsAt - now) / 1000);
-        $("#timer-label").textContent = "clock starts in";
+        $("#timer-label").textContent = "Starts in";
         $("#timer-num").textContent = "25.0";
         $("#timer-fill").style.transform = "scaleX(1)";
       } else {
@@ -478,7 +494,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           input.disabled = false; $("#step").disabled = false;
           veil.classList.add("hidden");
           input.focus({ preventScroll: true });
-          $("#timer-label").textContent = "time left";
+          $("#timer-label").textContent = "Time left";
         }
         const left = Math.max(0, RUN.answerEndsAt - now);
         $("#timer-num").textContent = (left / 1000).toFixed(1);
@@ -506,7 +522,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const el = $("#chips");
     if (!el) return;
     if (!list.length) { el.innerHTML = ""; return; }
-    el.innerHTML = `<span class="chips-label">${esc(label || "did you mean")}</span>` +
+    el.innerHTML = `<span class="chips-label">${esc(label || "Did you mean")}</span>` +
       list.map((a, i) => `<button type="button" class="chip" data-i="${i}">${esc(a.a)}</button>`).join("");
     $$(".chip", el).forEach((b) => b.addEventListener("click", () => {
       if (!RUN || RUN.phase !== "answering") return;
@@ -518,7 +534,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function reject(raw, input) {
     RUN.tried = (RUN.tried || []).concat(raw);
     Sound.reject();
-    setStatus(`“${raw}”: no gradient. try again`, "bad");
+    setStatus(`“${raw}” isn't in the key: no gradient. Try again.`, "bad");
     input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake");
     if (settings.clearRejected) { input.value = ""; RUN.draft = ""; }
     else input.select();
@@ -546,12 +562,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       input.value = m.answer.a; RUN.draft = m.answer.a;
       input.classList.add("corrected");
       RUN.pendingCorrection = { from: raw, to: m.answer.a };
-      setStatus(`did you mean “${m.answer.a}”? Press Step to confirm, or keep typing.`, "info");
+      setStatus(`Did you mean “${m.answer.a}”? Step to confirm.`, "info");
       input.focus();
       return;
     }
     if (m.kind === "suggest") {
-      setStatus(`“${raw}” isn't an exact match.`, "info");
+      setStatus(`“${raw}” is close to a few. Tap one.`, "info");
       showChips(m.suggestions);
       return;
     }
@@ -564,7 +580,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (RUN.aiCtl) RUN.aiCtl.abort();
     const ctl = new AbortController();
     RUN.aiCtl = ctl;
-    setStatus(`“${raw}”: no exact match. Asking Claude what you meant…`, "info");
+    setStatus(`Checking “${raw}” with Claude…`, "info");
     let found = null;
     try { found = await aiResolve(p, raw, ctl.signal); }
     catch (e) {
@@ -577,8 +593,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const now = $("#answer");
     if (!now) return;
     if (found) {
-      setStatus(`Claude thinks “${raw}” means:`, "info");
-      showChips([found], "Claude thinks you meant");
+      setStatus(`Claude thinks you meant:`, "info");
+      showChips([found], "Tap to confirm");
     } else reject(raw, now);
   }
 
@@ -607,32 +623,28 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const p = PROMPTS.get(res.promptId);
     const t = res.tier ? T[res.tier] : null;
     const card = $("#card");
-    const nextLabel = isLast ? "See results ▶" : "Next prompt ▶";
     card.innerHTML = `
-      <div class="prompt-num">prompt ${String(RUN.results.length).padStart(2, "0")} / ${String(RUN.promptIds.length).padStart(2, "0")}</div>
-      <div class="prompt-text" style="font-size:18px">${esc(p.text)}</div>
-      <div class="feedback ${res.tier || "miss"}" style="${tierVar(res.tier)}" id="fb" aria-live="polite">
-        <div class="fb-tier"><span class="em">${t ? t.emoji : E.MISS_EMOJI}</span><span>${t ? esc(t.name) : "NaN"}</span><span class="fb-points">+${res.score}</span></div>
-        <div class="fb-answer">${res.answer ? `“${esc(res.answer.toUpperCase())}”` : res.raw ? `“${esc(res.raw)}” <span class="muted">isn't in the answer key</span>` : `<span class="muted">no answer</span>`}</div>
-        <p class="fb-blurb">${t ? esc(t.blurb) : res.timeout ? "Out of time. The gradient vanished." : "No gradient, no descent."}</p>
-        ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : ""}
-        ${res.corrected && res.raw ? `<p class="fb-note">autocorrected from “${esc(res.raw)}”</p>` : ""}
-        <button class="btn primary block" id="next" ${animate ? "disabled" : ""}>${nextLabel}</button>
+      <div class="feedback ${res.tier || "miss"} t-${tierOf(res.tier)}${animate ? "" : " landed"}" id="fb" aria-live="polite">
+        <p class="fb-q">${esc(p.text)}</p>
+        <div class="fb-answer">${res.answer ? esc(res.answer) : res.raw ? `“${esc(res.raw)}” <span class="muted">isn't in the key</span>` : `<span class="muted">No answer</span>`}</div>
+        <div class="fb-tier">${G(res.tier)}<span class="fb-name">${t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
+        ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.timeout ? "Out of time." : "No gradient, no descent."}</p>` : ""}
+        ${res.corrected && res.raw ? `<p class="fb-note">Autocorrected from “${esc(res.raw)}”</p>` : ""}
+        <button class="btn primary big" id="next" ${animate ? "disabled" : ""}>${isLast ? "See results" : "Next"}</button>
       </div>`;
-    const next = $("#next");
+    const next = $("#next"), fb = $("#fb");
     next.addEventListener("click", advance);
-    const done = () => { if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); } };
+    const done = () => {
+      if (fb.isConnected) fb.classList.add("landed");
+      if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); }
+    };
     const total = totalScore(RUN.results);
     if (animate && descent) {
       hudRange = [total - res.score, total];
       if (res.tier) Sound.tier(res.tier); else Sound.miss();
-      if (res.tier === "mlion" && !settings.reducedMotion) {
-        const f = document.createElement("div"); f.className = "gold-flash"; document.body.appendChild(f);
-        setTimeout(() => f.remove(), 1200);
-      }
       descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } done(); });
-      // never trap the player behind the animation
-      setTimeout(done, 2800);
+      // never hold the player behind the animation
+      setTimeout(done, 1500);
     } else { setHud(total); done(); }
   }
 
@@ -675,32 +687,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   });
 
   // ============================================================ results
-  function logChart(results) {
-    const n = results.length;
-    return `<div class="log-chart" style="--n:${n}">
-      ${[0, 0.25, 0.5, 0.75, 1].map((f) => `<div class="rule" style="top:${f * 100}%"><span>${f === 0 ? "surface" : f === 1 ? "deep" : ""}</span></div>`).join("")}
-      <div class="log-cols">${results.map((r, i) => {
-        const d = r.tier ? T[r.tier].depth : 0.03;
-        return `<div class="log-col" style="${tierVar(r.tier)};--h:${(d * 100).toFixed(1)}%;--d:${0.12 * i}s">
-          <div class="bar"></div><div class="pin" title="${r.tier ? esc(T[r.tier].name) : "miss"}">${r.tier ? T[r.tier].emoji : E.MISS_EMOJI}</div>
-          <div class="lbl">${i + 1}</div></div>`;
-      }).join("")}</div>
-    </div>`;
-  }
-
   function answerKey(p, yourAnswer, open) {
     const counts = Object.fromEntries(E.TIER_IDS.map((t) => [t, 0]));
     p.answers.forEach((a) => counts[a.t]++);
     const gem = p.answers.find((a) => a.t === "mlion");
     const you = yourAnswer ? E.fullKey(yourAnswer) : "";
     return `<details class="key" ${open ? "open" : ""} data-pid="${esc(p.id)}">
-      <summary><span class="grow"><b>${esc(p.text)}</b><br><span class="small muted">${fmt(p.answers.length)} accepted answers</span></span><span class="chev">▸</span></summary>
+      <summary><span class="grow"><b>${esc(p.text)}</b><span class="cnt-s">${fmt(p.answers.length)} answers</span></span>${CHEV}</summary>
       <div class="body">
-        ${gem ? `<div class="gem-line"><span>🦁</span><span><b>${esc(gem.a)}</b>${gem.q ? ` <span class="small muted">— ${esc(gem.q)}</span>` : ""}</span></div>` : ""}
-        <div class="tier-counts">${E.TIERS_BY_SCORE.map((t) => `<span class="badge" style="${tierVar(t.id)}">${t.emoji} ${counts[t.id]}</span>`).join("")}</div>
-        <input class="search" type="search" placeholder="search ${fmt(p.answers.length)} answers…" aria-label="Search answers" data-you="${esc(you)}">
+        ${gem ? `<div class="gem-line">${G("mlion")}<span><b>${esc(gem.a)}</b>${gem.q ? `<span class="gq">${esc(gem.q)}</span>` : ""}</span></div>` : ""}
+        <div class="tier-counts">${E.TIERS_BY_SCORE.map((t) => `<span title="${esc(t.name)}">${G(t.id)}${counts[t.id]}</span>`).join("")}</div>
+        <input class="search" type="search" placeholder="Search ${fmt(p.answers.length)} answers" aria-label="Search answers" data-you="${esc(you)}">
         <ul class="ans-list"></ul>
-        <div class="list-foot"><span class="cnt"></span><button class="linkish more hidden" type="button">show all</button></div>
+        <div class="list-foot"><span class="cnt"></span><button class="linkish more hidden" type="button">Show all</button></div>
       </div>
     </details>`;
   }
@@ -716,13 +715,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         const shown = m.slice(0, limit);
         list.innerHTML = shown.map((a) => {
           const isYou = you && [a.a].concat(a.aka || []).some((n) => E.fullKey(n) === you);
-          return `<li class="${isYou ? "you" : ""}" style="${tierVar(a.t)}"><span class="e">${T[a.t].emoji}</span>
-            <span><span class="nm">${esc(a.a)}</span>${isYou ? `<span class="you-tag">YOU</span>` : ""}
-            ${a.aka && a.aka.length ? `<span class="ak">aka ${esc(a.aka.slice(0, 4).join(" · "))}</span>` : ""}
-            ${a.q ? `<span class="qp">${esc(a.q)}</span>` : ""}</span>
+          return `<li class="t-${a.t}${isYou ? " you" : ""}">${G(a.t)}
+            <span><span class="nm">${esc(a.a)}</span>${isYou ? `<span class="you-tag">You</span>` : ""}
+            ${a.aka && a.aka.length ? `<span class="ak">${esc(a.aka.slice(0, 3).join(", "))}</span>` : ""}</span>
             <span class="pt">+${T[a.t].score}</span></li>`;
-        }).join("") || `<li><span></span><span class="muted">No matching answers</span><span></span></li>`;
-        cnt.textContent = `${fmt(shown.length)} of ${fmt(m.length)} answers`;
+        }).join("") || `<li><span></span><span class="muted">No matches</span><span></span></li>`;
+        cnt.textContent = `${fmt(shown.length)} of ${fmt(m.length)}`;
         more.classList.toggle("hidden", m.length <= limit);
       }
       d.addEventListener("toggle", () => { if (d.open && !list.childElementCount) draw(); });
@@ -745,40 +743,43 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const nextHref = rec.mode === "unlimited" ? `#unlimited-${nextUnlimited()}` :
       rec.mode === "pack" ? `#pack-${rec.pack}-${nextPackRun(rec.pack) > E.packRunCount(DATA, rec.pack) ? 1 : nextPackRun(rec.pack)}` :
       rec.mode === "practice" ? "#library" : "#unlimited";
-    const nextLabel = rec.mode === "unlimited" ? `Next ∞ run #${nextUnlimited()} ▶` : rec.mode === "pack" ? "Next pack run ▶" : rec.mode === "practice" ? "Back to library" : "Keep playing: ∞ Unlimited";
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel score-hero" style="${tierVar(scoreTier)}">
-        <p class="kicker">${esc(rec.label)}${rec.date ? ` · ${esc(prettyDate(rec.date))}` : ""}</p>
-        <div class="score-big">${rec.score}<small>/${max}</small></div>
-        ${band ? `<div class="verdict">${esc(band.verdict)}</div>` : ""}
-        <div class="loss-line">final loss ${((max - rec.score) / 100).toFixed(2)} · ${rec.results.filter((r) => r.tier).length}/${n} accepted</div>
-        <div class="grid-emoji" aria-label="tier grid">${rec.tiers.map(E.tierEmoji).join("")}</div>
-        <div class="btn-row" style="margin-top:16px">
-          ${rec.mode !== "practice" ? `<button class="btn primary" id="share">Share</button>` : ""}
-          <a class="btn" href="${nextHref}">${esc(nextLabel)}</a>
+    const nextLabel = rec.mode === "unlimited" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
+    const accepted = rec.results.filter((r) => r.tier).length;
+    app.innerHTML = `<section class="screen results">
+      <div class="side">
+        <div class="score-hero">
+          <p class="label">${esc(rec.label)}${rec.date ? ` · ${esc(prettyDate(rec.date, { month: "short", day: "numeric" }))}` : ""}</p>
+          <div class="score-big">${rec.score}<small>/${max}</small></div>
+          ${band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
+          ${tiersRow(rec.tiers, "grid-tiers")}
+          <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${accepted} of ${n} accepted</p>
+          <div class="btn-row">
+            ${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
+            <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>
+          </div>
+          ${isDailyToday ? `<p class="countdown">Next descent in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
         </div>
-        ${isDailyToday ? `<div class="countdown">next descent in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></div>` : ""}
       </div>
-      ${n > 1 ? `<div class="panel"><p class="kicker">training log · <span class="hl">deeper = rarer</span></p>${logChart(rec.results)}<div style="height:22px"></div></div>` : ""}
-      <div class="panel">
-        <p class="kicker">your run</p>
-        <ul class="run-list">${rec.results.map((r) => `
-          <li class="run-item" style="${tierVar(r.tier)}">
-            <span class="e">${r.tier ? T[r.tier].emoji : E.MISS_EMOJI}</span>
-            <span><span class="q">${esc(r.promptText)}</span><br>
-              <span class="a ${r.answer ? "" : "missed"}">${r.answer ? esc(r.answer) : r.raw ? `“${esc(r.raw)}” ✗` : "— no answer —"}</span>
-              ${r.quip ? `<span class="qp" style="display:block">${esc(r.quip)}</span>` : ""}</span>
-            <span class="pts">+${r.score}</span>
-          </li>`).join("")}</ul>
-      </div>
-      <div class="panel">
-        <p class="kicker">answer keys · <span class="hl">every accepted answer</span></p>
-        ${rec.promptIds.map((id, i) => PROMPTS.has(id) ? answerKey(PROMPTS.get(id), rec.results[i] && rec.results[i].answer, rec.mode === "practice") : "").join("")}
-      </div>
-      <div class="btn-row">
-        <a class="btn" href="#home">Home</a>
-        <a class="btn" href="#stats">Stats</a>
-        <a class="btn" href="#archive">Archive</a>
+      <div class="main">
+        ${n > 1 ? `<figure class="profile-wrap">${V.profileSvg(rec.results, `Your descent: loss ${((max - rec.score) / 100).toFixed(2)}`)}</figure>` : ""}
+        <section>
+          <h2 class="block-title">Your answers</h2>
+          <ul class="run-list">${rec.results.map((r) => `
+            <li class="run-item t-${tierOf(r.tier)}">${G(r.tier)}
+              <span><span class="q">${esc(r.promptText)}</span>
+                <span class="a ${r.answer ? "" : "missed"}">${r.answer ? esc(r.answer) : r.raw ? `“${esc(r.raw)}”` : "No answer"}</span></span>
+              <span class="pts">+${r.score}</span>
+            </li>`).join("")}</ul>
+        </section>
+        <section>
+          <h2 class="block-title">Answer keys</h2>
+          ${rec.promptIds.map((id, i) => PROMPTS.has(id) ? answerKey(PROMPTS.get(id), rec.results[i] && rec.results[i].answer, rec.mode === "practice") : "").join("")}
+        </section>
+        <div class="btn-row">
+          <a class="btn" href="#home">Home</a>
+          <a class="btn" href="#stats">Stats</a>
+          <a class="btn" href="#archive">Archive</a>
+        </div>
       </div>
     </section>`;
     wireAnswerKeys(app);
@@ -790,7 +791,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === "AbortError") return; }
       }
       if (await copyText(text)) return toast("Copied to clipboard");
-      showModal("Share your run", `<p class="small muted">Copying isn't allowed here. Select the text below and copy it.</p>
+      showModal("Share your run", `<p class="muted">Copying is blocked here. Select the text and copy it.</p>
         <textarea class="search share-box" id="share-box" readonly aria-label="Share text">${esc(text)}</textarea>`);
       const box = $("#share-box"); box.focus(); box.select();
     });
