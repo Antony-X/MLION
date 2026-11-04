@@ -30,6 +30,8 @@ The max is 700 a day. Score bands: Underfit 0–150 · Converging 151–250 · G
 
 ### Modes
 
+- **Live match** (GitHub Pages build): rooms over a public MQTT relay. Both players tap Ready, questions start together, you watch each other type, and the next question waits for everyone. Public duo rooms are listed at `#rooms`.
+
 - **Daily descent**: resets at local midnight, with streaks and a shareable emoji grid.
 - **∞ Unlimited**: endless 7-prompt runs dealt from the whole pool.
 - **Themed packs**: Building Blocks, The Model Zoo, Classical ML, The LLM Era, The Stack,
