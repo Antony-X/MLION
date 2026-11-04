@@ -146,6 +146,10 @@ prompts.sort((a, b) => packOrder[a.pack] - packOrder[b.pack] || a.id.localeCompa
 const isExtra = (p) => !!(display[p.id] && display[p.id].offtopic);
 const core = prompts.filter((p) => !isExtra(p));
 const extras = prompts.filter(isExtra);
+// Extra (outside the IOAI syllabus) prompts stay in the bundle's main list, flagged, so the
+// streams that deal past dailies are unchanged; the app keeps them out of shared modes.
+core.forEach((p) => { if (display[p.id] && display[p.id].extra) p.extra = true; else delete p.extra; });
+console.log(`${core.filter((p) => p.extra).length} prompts marked extra (off by default)`);
 for (const pk of packs) {
   if (!core.some((p) => p.pack === pk.id)) console.warn(`  ! pack "${pk.id}" has no prompts`);
 }

@@ -71,18 +71,19 @@
   const st = Object.assign({ drop: {}, bad: {}, notes: {} }, load());
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* private mode */ } drawStats(); };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const all = D.prompts.map((p) => ({ ...p, extra: false })).concat((D.extras || []).map((p) => ({ ...p, extra: true })));
+  const all = D.prompts.map((p) => ({ ...p, extra: !!p.extra })).concat((D.extras || []).map((p) => ({ ...p, extra: true, off: true })));
   const packName = Object.fromEntries(D.packs.map((p) => [p.id, `${p.emoji || ""} ${p.name}`.trim()]));
   const aKey = (pid, a) => `${pid}::${a}`;
 
   const sel = document.getElementById("pack");
   D.packs.forEach((p) => sel.insertAdjacentHTML("beforeend", `<option value="${esc(p.id)}">${esc(packName[p.id])}</option>`));
-  if (all.some((p) => p.extra)) sel.insertAdjacentHTML("beforeend", `<option value="__extra">Practice-only extras</option>`);
+  if (all.some((p) => p.extra)) sel.insertAdjacentHTML("beforeend", `<option value="__extra">Extra questions (off by default)</option>`);
 
   function flagged(p) { return st.drop[p.id] || st.notes[p.id] || p.answers.some((a) => st.bad[aKey(p.id, a.a)]); }
   function drawStats() {
+    const nx = all.filter((p) => p.extra).length;
     const nb = Object.values(st.bad).filter(Boolean).length, nd = Object.values(st.drop).filter(Boolean).length, nn = Object.values(st.notes).filter((x) => x && x.trim()).length;
-    document.getElementById("stats").textContent = `${all.length} questions · ${all.reduce((s, p) => s + p.answers.length, 0)} answers · marked: ${nd} questions to drop, ${nb} answers, ${nn} notes`;
+    document.getElementById("stats").textContent = `${all.length - nx} core + ${nx} extra questions · ${all.reduce((s, p) => s + p.answers.length, 0)} answers · marked: ${nd} to move between core and extra, ${nb} answers, ${nn} notes`;
   }
 
   function card(p) {
@@ -96,11 +97,11 @@
       }).join("")}</div>`;
     }).join("");
     return `<details data-id="${esc(p.id)}" class="${flagged(p) ? "flagged" : ""}">
-      <summary><span><span class="q">${esc(p.text)}</span><br><span class="sub">${p.answers.length} answers${p.example ? ` · e.g. ${esc(p.example)}` : ""}${p.extra ? " · practice-only extra" : ""}</span></span>
-        <span class="badge">${st.drop[p.id] ? "DROP" : flagged(p) ? "marked" : ""}</span></summary>
+      <summary><span><span class="q">${esc(p.text)}</span><br><span class="sub">${p.answers.length} answers${p.example ? ` · e.g. ${esc(p.example)}` : ""}${p.extra ? ` · extra, off by default${p.off ? " (off-topic)" : ""}` : ""}</span></span>
+        <span class="badge">${st.drop[p.id] ? (p.extra ? "TO CORE" : "TO EXTRA") : flagged(p) ? "marked" : ""}</span></summary>
       <div class="body">
         ${p.note ? `<p class="sub">${esc(p.note)}</p>` : ""}
-        <div class="tools"><button class="drop${st.drop[p.id] ? " on" : ""}" data-drop="${esc(p.id)}">${st.drop[p.id] ? "Marked to drop" : "Drop this question"}</button></div>
+        <div class="tools"><button class="drop${st.drop[p.id] ? " on" : ""}" data-drop="${esc(p.id)}">${st.drop[p.id] ? "Undo" : p.extra ? "Bring back to core" : "Make it an extra"}</button></div>
         <textarea data-note="${esc(p.id)}" placeholder="Note for this question (optional)">${esc(st.notes[p.id] || "")}</textarea>
         ${byTier}
       </div></details>`;
@@ -113,7 +114,7 @@
     const shown = all.filter((p) => (!pk || (pk === "__extra" ? p.extra : p.pack === pk && !p.extra)) && (!only || flagged(p)) &&
       (!q || p.text.toLowerCase().includes(q) || p.answers.some((a) => a.a.toLowerCase().includes(q))));
     const groups = new Map();
-    shown.forEach((p) => { const g = p.extra ? "Practice-only extras" : packName[p.pack] || p.pack; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
+    shown.forEach((p) => { const g = p.extra ? "Extra questions (off by default)" : packName[p.pack] || p.pack; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
     document.getElementById("list").innerHTML = shown.length ? [...groups].map(([g, ps]) => `<h2 class="pack">${esc(g)} · ${ps.length}</h2>${ps.map(card).join("")}`).join("") : `<p class="count">Nothing matches.</p>`;
     open.forEach((id) => { const d = document.querySelector(`details[data-id="${CSS.escape(id)}"]`); if (d) d.open = true; });
     drawStats();
@@ -138,7 +139,7 @@
       const bad = p.answers.filter((a) => st.bad[aKey(p.id, a.a)]);
       const note = (st.notes[p.id] || "").trim();
       if (!st.drop[p.id] && !bad.length && !note) return;
-      lines.push(`${p.id}: "${p.text}"${st.drop[p.id] ? "  -> DROP QUESTION" : ""}`);
+      lines.push(`${p.id}: "${p.text}"${st.drop[p.id] ? (p.extra ? "  -> BACK TO CORE" : "  -> MAKE EXTRA") : ""}`);
       if (note) lines.push(`  note: ${note}`);
       bad.forEach((a) => lines.push(`  bad answer: ${a.a} [${a.t}]`));
     });

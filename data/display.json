@@ -1,5 +1,5 @@
 {
-  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown. 'offtopic': true keeps a prompt out of the daily, Unlimited and packs; it stays in the Library as a practice-only extra.",
+  "_comment": "What players see under each prompt. 'example' is the most basic answer, shown as (e.g. …); it defaults to the prompt's first baseline answer. 'scope' is an optional one-line boundary with no answers in it. Notes inside prompt files are never shown. 'offtopic': true keeps a prompt out of the daily, Unlimited and packs; it stays in the Library as a practice-only extra. 'extra': true marks an on-topic prompt outside the IOAI syllabus: it stays out of the daily, challenges and live rooms, and joins a player's Unlimited and Quiz runs only when they switch on Extra questions in Settings. Off-topic prompts join those runs too when the switch is on.",
   "accelerator": {
     "scope": "A specific chip or accelerator line, not just a vendor"
   },
@@ -23,11 +23,13 @@
     "example": "ResNet"
   },
   "code-model": {
-    "scope": "Models, not IDE products"
+    "scope": "Models, not IDE products",
+    "extra": true
   },
   "decision-tree-algo": {
     "example": "CART",
-    "scope": "Single trees, not ensembles"
+    "scope": "Single trees, not ensembles",
+    "extra": true
   },
   "dropout-variant": {
     "example": "DropConnect"
@@ -69,7 +71,8 @@
     "scope": "Community slang, not standard technical terms"
   },
   "nas": {
-    "example": "DARTS"
+    "example": "DARTS",
+    "extra": true
   },
   "nn-family": {
     "example": "CNN",
@@ -82,7 +85,8 @@
     "example": "SGD"
   },
   "probabilistic-model": {
-    "scope": "Models, not inference algorithms"
+    "scope": "Models, not inference algorithms",
+    "extra": true
   },
   "regularization": {
     "example": "L2 regularization"
@@ -109,5 +113,125 @@
   },
   "turing-award": {
     "scope": "Any field of computing. Surname is enough"
+  },
+  "face-recognition-model": {
+    "extra": true
+  },
+  "game-ai": {
+    "extra": true
+  },
+  "gnn-architecture": {
+    "extra": true
+  },
+  "science-model": {
+    "extra": true
+  },
+  "text-to-image-model": {
+    "extra": true
+  },
+  "time-series-model": {
+    "extra": true
+  },
+  "video-gen-model": {
+    "extra": true
+  },
+  "bandit": {
+    "extra": true
+  },
+  "boosting": {
+    "extra": true
+  },
+  "cross-validation": {
+    "extra": true
+  },
+  "recsys": {
+    "extra": true
+  },
+  "rl-algorithm": {
+    "extra": true
+  },
+  "agent-framework": {
+    "extra": true
+  },
+  "distributed-training": {
+    "extra": true
+  },
+  "inference-engine": {
+    "extra": true
+  },
+  "llm-benchmark": {
+    "extra": true
+  },
+  "moe": {
+    "extra": true
+  },
+  "ai-coding-tool": {
+    "extra": true
+  },
+  "ai-lab": {
+    "extra": true
+  },
+  "automl": {
+    "extra": true
+  },
+  "cloud-ml": {
+    "extra": true
+  },
+  "cv-library": {
+    "extra": true
+  },
+  "dl-framework": {
+    "extra": true
+  },
+  "ml-language": {
+    "extra": true
+  },
+  "mlops": {
+    "extra": true
+  },
+  "model-format": {
+    "extra": true
+  },
+  "nlp-dataset": {
+    "extra": true
+  },
+  "nlp-library": {
+    "extra": true
+  },
+  "hf-library": {
+    "extra": true
+  },
+  "image-dataset": {
+    "extra": true
+  },
+  "notebook": {
+    "extra": true
+  },
+  "rl-env": {
+    "extra": true
+  },
+  "vector-db": {
+    "extra": true
+  },
+  "causal-inference": {
+    "extra": true
+  },
+  "fairness-metric": {
+    "extra": true
+  },
+  "gradient-estimator": {
+    "extra": true
+  },
+  "info-theory": {
+    "extra": true
+  },
+  "matrix-decomposition": {
+    "extra": true
+  },
+  "sampling-method": {
+    "extra": true
+  },
+  "stat-test": {
+    "extra": true
   }
 }

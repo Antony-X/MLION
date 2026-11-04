@@ -20,6 +20,7 @@ global.window = {};
 require(path.join(ROOT, "js", "data.js"));
 const DATA = global.window.MLION_DATA;
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
+const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra) }; // live rooms deal from the core set
 const kindOf = (id) => PROMPT.get(id).text.replace(/^Name\s+/i, "");
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
@@ -89,7 +90,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await Promise.all([unlocked(ana), unlocked(ben)]);
   const s0 = await state(ana), b0 = await state(ben);
   check(s0.fmt === "quiz" && s0.n === 4 && new Set(s0.ids).size === 4, "a four-question quiz match with four different prompts");
-  assert.deepStrictEqual(s0.quiz, E.quizFor(DATA, s0.seed, 4, { promptIds: s0.ids }).map((q) => ({ promptId: q.promptId, options: q.options, correct: q.correct, from: q.from })));
+  assert.deepStrictEqual(s0.quiz, E.quizFor(CORE, s0.seed, 4, { promptIds: s0.ids }).map((q) => ({ promptId: q.promptId, options: q.options, correct: q.correct, from: q.from })));
   check(true, "the host's questions are exactly what the engine builds from the room's seed");
   assert.deepStrictEqual(b0.quiz, s0.quiz);
   check(JSON.stringify(await options(ana)) === JSON.stringify(await options(ben)) && JSON.stringify(await options(ana)) === JSON.stringify(s0.quiz[0].options), "both phones show the same four options in the same order");

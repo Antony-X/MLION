@@ -531,6 +531,23 @@ question; **vote to skip** (`hostSkipVote`/`hostSkip`): a majority of present pl
 (`floor(n/2)+1`) replaces the question with a fresh one (no-repeat honoured), points for
 it are dropped, answers carry `pid` so late answers to the old prompt are ignored.
 
+### Core and extra questions
+
+- The audience is the IOAI community, so the owner split the set on 2026-11-05: **84 core**
+  prompts (inside the IOAI syllabus) and **50 extra** ones: 44 marked `extra: true` in
+  data/display.json (tools, products, datasets, frameworks, off-syllabus methods) plus the 6
+  `offtopic` pop-culture prompts.
+- The build keeps `extra` prompts in `DATA.prompts` with `p.extra = true`, so the streams that
+  dealt past dailies don't change. The app builds two views: `CORE` (no extras) and `WIDE`
+  (everything, off-topic included).
+- The daily, archive days from `CORE_DAILY_FROM` (2026-11-06) on, challenges (`#vs`, `#vq`) and
+  live rooms always deal from `CORE`, so everyone shares the same questions. Dailies before that
+  date keep their old stream (`daily-v1` over the full list); new ones use `daily-v2` over core.
+- Settings → **Extra questions** (`settings.extraQuestions`, off by default) puts `WIDE` behind a
+  player's own Unlimited and Quiz runs.
+- review.html (unlisted) shows which prompts are extra and lets the owner mark moves either way.
+- Test: `node tests/extras.e2e.js` (real data; clock set to before and after the switch-over).
+
 ### Daily leaderboard (Supabase)
 
 - Supabase project **MLion** (ref `ozqnznvxxxnefeetidwq`, in the user's org). The URL and

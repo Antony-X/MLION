@@ -20,6 +20,8 @@ global.window = {};
 require(path.join(ROOT, "js", "data.js"));
 const DATA = global.window.MLION_DATA;
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
+// the app deals solo quiz runs and challenges from the core set unless Extra questions is on
+const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra) };
 const kindOf = (id) => PROMPT.get(id).text.replace(/^Name\s+/i, "");
 const explain = (id, name) => (PROMPT.get(id).answers.find((a) => a.a === name) || {}).q || null;
 
@@ -71,7 +73,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.screenshot({ path: path.join(OUT, "40-quiz-hub.png") });
 
   // ---- a solo run: 7 questions, key / tap / wrong / timeout
-  const run1 = E.quizRun(DATA, 1);
+  const run1 = E.quizRun(CORE, 1);
   assert.strictEqual(run1.length, 7);
   await page.click('a.btn.primary[href="#quiz-1"]');
   await page.waitForSelector("#begin");
@@ -157,7 +159,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   check(true, "Quiz can't jump ahead to a later run");
 
   // ---- resume after a reload: same options, the clock keeps running
-  const run2 = E.quizRun(DATA, 2);
+  const run2 = E.quizRun(CORE, 2);
   await page.waitForSelector("#begin");
   await page.click("#begin");
   const before = await readQuestion(page);
@@ -192,7 +194,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.waitForSelector("#vs-send-now");
   const seed = (await page.evaluate(() => location.hash)).match(/^#vq-([a-z0-9]+)-3t10$/)[1];
   check(!!seed, "a quiz challenge gets a #vq- link with the count and clock");
-  const vq = E.quizFor(DATA, `vq-${seed}`, 3);
+  const vq = E.quizFor(CORE, `vq-${seed}`, 3);
   await page.fill("#vs-name", "Ana");
   await page.click("#vs-send-now");
   const early = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop();

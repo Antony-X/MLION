@@ -6,6 +6,15 @@
   const DATA = window.MLION_DATA;
   const EXTRAS = DATA.extras || []; // off-topic prompts: practice only, never in a run
   const PROMPTS = new Map(DATA.prompts.concat(EXTRAS).map((p) => [p.id, p]));
+  // Core questions follow the IOAI syllabus. Extra ones (display.json `extra`, plus the off-topic
+  // extras) join only a player's own Unlimited and Quiz runs, when Settings → Extra questions is on.
+  // The daily, challenges and live rooms always deal from the core set, so everyone shares it.
+  const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra) };
+  const WIDE = { version: `${DATA.version}:wide`, packs: DATA.packs, prompts: DATA.prompts.concat(EXTRAS) };
+  const EXTRA_COUNT = WIDE.prompts.length - CORE.prompts.length;
+  const CORE_DAILY_FROM = "2026-11-06"; // dailies before this keep the questions they were played with
+  const soloPool = () => (settings.extraQuestions ? WIDE : CORE);
+  const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(CORE, "daily-v2", n) : E.dailyPromptIds(DATA, n));
   const PACKS = new Map(DATA.packs.map((p) => [p.id, p]));
   const T = E.TIERS;
   // Launch mode: the daily, endless Unlimited, live rooms and challenges. Packs and
@@ -64,7 +73,7 @@
     del(k) { try { localStorage.removeItem("mlion:" + k); } catch { /* ignore */ } },
   };
   const sysReduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25 };
+  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false };
   let settings = Object.assign({}, DEFAULTS, LS.get("settings", {}));
   function applySettings() { document.documentElement.classList.toggle("reduce-motion", !!settings.reducedMotion); }
   function saveSettings() { LS.set("settings", settings); applySettings(); }
@@ -219,14 +228,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ----------------------------------------------------------- run specs
   function dailySpec(date) {
     const n = E.dayNumberFor(date);
-    return { key: `daily:${date}`, mode: "daily", number: n, date, label: `MLion #${n}`, promptIds: E.dailyPromptIds(DATA, n), secs: DEFAULT_SECS }; // fixed clock: the leaderboard compares dailies
+    return { key: `daily:${date}`, mode: "daily", number: n, date, label: `MLion #${n}`, promptIds: dailyIds(date, n), secs: DEFAULT_SECS }; // fixed clock: the leaderboard compares dailies
   }
   function archiveSpec(date) {
     const n = E.dayNumberFor(date);
-    return { key: `archive:${date}`, mode: "archive", number: n, date, label: `Archive #${n}`, promptIds: E.dailyPromptIds(DATA, n) };
+    return { key: `archive:${date}`, mode: "archive", number: n, date, label: `Archive #${n}`, promptIds: dailyIds(date, n) };
   }
   function unlimitedSpec(n) {
-    return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `Unlimited #${n}`, promptIds: E.unlimitedPromptIds(DATA, n) };
+    return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `Unlimited #${n}`, promptIds: E.runFor(soloPool(), "unlimited-v1", n) };
   }
   function packSpec(packId, n) {
     const pk = PACKS.get(packId);
@@ -238,7 +247,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
   function quizSpec(n) {
-    const quiz = E.quizRun(DATA, n);
+    const quiz = E.quizRun(soloPool(), n);
     return { key: `quiz:${n}`, mode: "quiz", fmt: "quiz", number: n, label: `Quiz #${n}`, promptIds: quiz.map((q) => q.promptId), quiz };
   }
   function nextPackRun(packId) { let n = 1; while (records[`pack:${packId}:${n}`]) n++; return n; }
@@ -295,7 +304,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   const tierPoints = (tiers) => tiers.reduce((sum, t) => sum + (T[t] ? T[t].score : 0), 0);
   const myName = () => String(LS.get("name", "") || "").slice(0, 16);
-  function challengePromptIds(seed, n) { return E.makeStream(DATA, `vs-${seed}`).take(n); }
+  function challengePromptIds(seed, n) { return E.makeStream(CORE, `vs-${seed}`).take(n); }
   function challengeLink(seed, n, players, secs) {
     const tail = players.map((pl) => `-${encTiers(pl.tiers)}-${encName(pl.name)}`).join("");
     const t = validSecs(secs) && secs !== DEFAULT_SECS ? `t${secs}` : "";
@@ -342,7 +351,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ---- quiz challenges: #vq-<seed>-<n>[tNN][-<picks>-<tenths>-<nameHex>]x2. Picks are one digit per
   // question (0 none, 1 to 4 the option chosen), so the score is recomputed from the seed; tenths is
   // the total answer time in tenths of a second, which breaks a tie on points.
-  const quizChallengeQuiz = (seed, n) => E.quizFor(DATA, `vq-${seed}`, n);
+  const quizChallengeQuiz = (seed, n) => E.quizFor(CORE, `vq-${seed}`, n);
   function vqLink(seed, n, players, secs) {
     const tail = players.map((pl) => `-${pl.picks.join("")}-${Math.min(99999, pl.tenths)}-${encName(pl.name)}`).join("");
     const t = validSecs(secs) && secs !== DEFAULT_SECS ? `t${secs}` : "";
@@ -491,7 +500,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       // a quiz match: every page builds the same questions from the room's seed and the host's prompt list
-      const quiz = m.fmt === "quiz" ? E.quizFor(DATA, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [] }) : null;
+      const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [] }) : null;
       if (quiz) LIVE.n = quiz.length;
       LIVE.mfmt = quiz ? "quiz" : "rarity"; LIVE.quiz = quiz;
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
@@ -680,11 +689,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     let fresh = [];
     const used = new Set(LS.get("liveUsed", []));
     if (LIVE.noRepeat !== false) {
-      fresh = E.shuffled(DATA.prompts.map((p) => p.id).filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
+      fresh = E.shuffled(CORE.prompts.map((p) => p.id).filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
       if (fresh.length >= LIVE.n) ids = fresh.slice(0, LIVE.n);
     }
     if (LIVE.fmt === "quiz") { // the host fixes which prompts get a question, so every page builds the same ones
-      const quiz = E.quizFor(DATA, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : ids });
+      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : ids });
       if (!quiz.length) { LIVE.phase = "lobby"; toast("This question set can't make a quiz"); return; }
       ids = quiz.map((q) => q.promptId);
       LIVE.n = ids.length;
@@ -725,7 +734,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.timers.forEach(clearTimeout); LIVE.timers = []; // this question's time cap and any pending reveal
     const inMatchIds = new Set(RUN.promptIds);
     const used = new Set(LS.get("liveUsed", []));
-    const pool = DATA.prompts.map((p) => p.id).filter((id) => !inMatchIds.has(id));
+    const pool = CORE.prompts.map((p) => p.id).filter((id) => !inMatchIds.has(id));
     const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !used.has(id)) : pool;
     const from = fresh.length ? fresh : pool;
     if (!from.length) return;
@@ -2679,7 +2688,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
-        <div class="page-head"><h1>Unlimited</h1><p>Runs of seven from all ${DATA.prompts.length} prompts.</p></div>
+        <div class="page-head"><h1>Unlimited</h1><p>Runs of seven from ${soloPool().prompts.length} prompts${settings.extraQuestions ? ", extras included" : ""}.</p></div>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
         <div><a class="btn primary big" href="#unlimited-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a></div>
       </div>
@@ -2874,6 +2883,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ["sound", "Sound", ""],
       ["reducedMotion", "Reduce motion", ""],
       ["shareLink", "Add a link when sharing", ""],
+      ["extraQuestions", "Extra questions", `Adds ${EXTRA_COUNT} questions outside the IOAI syllabus (tools, products, datasets, AI in pop culture) to your Unlimited and Quiz runs. The daily, challenges and live rooms always use the core set.`],
       ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
     ];
     app.innerHTML = `<section class="screen split">
