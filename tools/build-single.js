@@ -22,7 +22,7 @@ const safe = (js) => js.replace(/<\/script/gi, "<\\/script");
 const fonts = html.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/)[0];
 const icon = html.match(/<link rel="icon"[^>]+>/)[0];
 const desc = html.match(/<meta name="description"[^>]+>/)[0];
-const body = html.slice(html.indexOf("<body>") + 6, html.indexOf('<script src="js/engine.js">')).trim();
+const body = html.slice(html.indexOf("<body>") + 6, html.search(/<script src="js\/engine\.js/)).trim();
 const scripts = ["js/engine.js", "js/data.js", "js/landscape.js", "js/app.js"]
   .map((f) => `<script>/* ${f} */\n${safe(read(f))}\n</script>`).join("\n");
 
