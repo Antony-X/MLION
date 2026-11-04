@@ -7,10 +7,10 @@
   "answers": [
     { "a": "NoPE", "t": "mlion", "aka": ["no positional encoding", "no position embedding", "none", "implicit positional encoding"], "q": "No positional encoding at all. In a causal decoder the mask quietly does the counting for you." },
 
-    { "a": "Sinusoidal", "t": "baseline", "aka": ["sinusoidal positional encoding", "sine cosine", "sin cos", "sine-cosine", "sinusoid", "fixed sinusoidal", "fixed", "vanilla transformer positional encoding", "timing signal", "absolute sinusoidal"], "q": "Vaswani et al. hoped it would extrapolate to longer sequences. It mostly didn't." },
-    { "a": "Learned", "t": "baseline", "aka": ["learned absolute", "learnable", "trainable", "learned positional embedding", "BERT positional embedding", "GPT positional embedding", "wpe", "lookup table"], "q": "One trainable vector per slot. Works great until token 1025 shows up." },
+    { "a": "Sinusoidal", "t": "baseline", "aka": ["sinusoidal positional encoding", "sine cosine", "sin cos", "sine-cosine", "sinusoid", "fixed sinusoidal", "fixed", "vanilla transformer positional encoding", "timing signal", "absolute sinusoidal", "sine and cosine", "sines and cosines"], "q": "Vaswani et al. hoped it would extrapolate to longer sequences. It mostly didn't." },
+    { "a": "Learned", "t": "baseline", "aka": ["learned absolute", "learnable", "trainable", "learned positional embedding", "BERT positional embedding", "GPT positional embedding", "wpe", "lookup table", "ViT position embedding", "GPT-2 positional embedding", "GPT2 positional embedding", "ViT learned position embedding"], "q": "One trainable vector per slot. Works great until token 1025 shows up." },
     { "a": "RoPE", "t": "baseline", "aka": ["rotary", "rotary positional embedding", "rotary position embedding", "RoFormer"], "q": "Rotate each query/key pair by an angle set by position, and the dot product only sees the offset." },
-    { "a": "Relative (Shaw et al.)", "t": "baseline", "aka": ["relative", "relative positional encoding", "relative position representations", "Shaw", "clipped relative position"] },
+    { "a": "Relative (Shaw et al.)", "t": "baseline", "aka": ["relative", "relative positional encoding", "relative position representations", "Shaw", "clipped relative position", "learned relative position"] },
     { "a": "Absolute", "t": "baseline", "aka": ["absolute positional encoding", "absolute positional embedding"] },
 
     { "a": "ALiBi", "t": "overfit", "aka": ["attention with linear biases", "linear biases"], "q": "Skip the embeddings, subtract a distance penalty from attention. Train short, test long." },
@@ -18,13 +18,13 @@
     { "a": "T5 relative bias", "t": "indist", "aka": ["T5 bias", "T5 relative position bias", "relative position bias", "bucketed relative position bias", "relative attention bias", "T5"], "q": "One learned scalar per log-spaced distance bucket, shared across layers. Simple and stubborn." },
     { "a": "Transformer-XL relative encoding", "t": "indist", "aka": ["Transformer-XL", "Transformer XL relative", "Dai et al. relative", "XLNet relative"], "q": "Needed for segment recurrence: reusing cached memory with absolute positions would collide." },
     { "a": "Position Interpolation", "t": "indist", "aka": ["PI", "linear interpolation", "linear scaling", "linear RoPE scaling", "RoPE interpolation"], "q": "Meta's 2023 fix: squeeze the new positions into the old range. Extended Llama 2K to 32K with minimal tuning." },
-    { "a": "NTK-aware scaling", "t": "indist", "aka": ["NTK-aware", "NTK-aware interpolation", "NTK scaling", "NTK RoPE", "NTK-aware RoPE"], "q": "Born in a Reddit post: raise the RoPE base, keep high frequencies sharp, extend context free." },
+    { "a": "NTK-aware scaling", "t": "indist", "aka": ["NTK-aware", "NTK-aware interpolation", "NTK scaling", "NTK RoPE", "NTK-aware RoPE", "NTK"], "q": "Born in a Reddit post: raise the RoPE base, keep high frequencies sharp, extend context free." },
     { "a": "YaRN", "t": "indist", "aka": ["yet another rope extension", "yet another rope extension method"], "q": "Yet another RoPE extensioN: NTK-by-parts plus an attention temperature. The name admits it." },
-    { "a": "2D sinusoidal", "t": "indist", "aka": ["2D sine-cosine", "2D sincos", "2D sin cos", "2D fixed sinusoidal"] },
+    { "a": "2D sinusoidal", "t": "indist", "aka": ["2D sine-cosine", "2D sincos", "2D sin cos", "2D fixed sinusoidal", "sinusoidal 2D", "2D sine"] },
     { "a": "Swin relative position bias", "t": "indist", "aka": ["Swin bias", "Swin relative bias", "window relative position bias"] },
     { "a": "NeRF positional encoding", "t": "indist", "aka": ["NeRF", "frequency encoding", "log-spaced frequency encoding", "gamma encoding"] },
-    { "a": "Random Fourier features", "t": "indist", "aka": ["Fourier features", "Fourier feature mapping", "Gaussian Fourier features", "Fourier feature networks"], "q": "Tancik et al.: MLPs can't learn high frequencies from raw coordinates. Feed them sines and they can." },
-    { "a": "Laplacian eigenvectors", "t": "indist", "aka": ["LapPE", "Laplacian positional encoding", "Laplacian eigenvector encoding", "Laplacian eigenmaps", "graph Laplacian encoding"], "q": "The graph's own sinusoids, up to a sign flip nobody can agree on." },
+    { "a": "Random Fourier features", "t": "indist", "aka": ["Fourier features", "Fourier feature mapping", "Gaussian Fourier features", "Fourier feature networks", "Fourier position encoding", "Perceiver Fourier features"], "q": "Tancik et al.: MLPs can't learn high frequencies from raw coordinates. Feed them sines and they can." },
+    { "a": "Laplacian eigenvectors", "t": "indist", "aka": ["LapPE", "Laplacian positional encoding", "Laplacian eigenvector encoding", "Laplacian eigenmaps", "graph Laplacian encoding", "spectral positional encoding", "spectral embedding"], "q": "The graph's own sinusoids, up to a sign flip nobody can agree on." },
 
     { "a": "xPos", "t": "outlier", "aka": ["extrapolatable position embedding", "extrapolatable"], "q": "RoPE plus an exponential decay so attention fades gracefully with distance." },
     { "a": "DeBERTa disentangled attention", "t": "outlier", "aka": ["disentangled attention", "DeBERTa", "disentangled relative position"] },
@@ -34,11 +34,11 @@
     { "a": "Random walk positional encoding", "t": "outlier", "aka": ["RWPE", "RWSE", "random walk structural encoding", "random walk"] },
     { "a": "Multiresolution hash encoding", "t": "outlier", "aka": ["hash encoding", "hash grid", "Instant-NGP", "instant NGP encoding"] },
     { "a": "M-RoPE", "t": "outlier", "aka": ["multimodal RoPE", "MRoPE", "multimodal rotary position embedding"] },
-    { "a": "2D RoPE", "t": "outlier", "aka": ["axial RoPE", "2D rotary", "RoPE-Mixed", "2D rotary position embedding"] },
+    { "a": "2D RoPE", "t": "outlier", "aka": ["axial RoPE", "2D rotary", "RoPE-Mixed", "2D rotary position embedding", "Mixed RoPE", "RoPE-Axial", "Vision RoPE", "rotary 2D"] },
     { "a": "Decoupled RoPE", "t": "outlier", "aka": ["decoupled rotary", "MLA RoPE"], "q": "DeepSeek's MLA compresses keys, so RoPE rides along in a separate small head." },
     { "a": "Kerple", "t": "outlier", "aka": ["kernelized relative positional embedding", "KERPLE"] },
     { "a": "FIRE", "t": "outlier", "aka": ["functional interpolation for relative positions", "functional interpolation"] },
-    { "a": "Graphormer spatial encoding", "t": "outlier", "aka": ["spatial encoding", "shortest path distance encoding", "SPD encoding", "shortest path encoding"] },
+    { "a": "Graphormer spatial encoding", "t": "outlier", "aka": ["spatial encoding", "shortest path distance encoding", "SPD encoding", "shortest path encoding", "Graphormer"] },
     { "a": "Axial positional embedding", "t": "outlier", "aka": ["axial", "axial positional encoding", "factorized positional embedding"] },
     { "a": "Music Transformer relative attention", "t": "outlier", "aka": ["relative global attention", "skewing", "skewing trick", "Music Transformer"] },
     { "a": "Self-Extend", "t": "outlier", "aka": ["SelfExtend", "LLM Maybe LongLM", "grouped attention self-extend"] },
@@ -47,7 +47,7 @@
     { "a": "CoPE", "t": "outlier", "aka": ["contextual position encoding", "contextual"], "q": "Positions counted by context gates, so a model can attend to 'the third sentence back'." },
 
     { "a": "NTK-by-parts", "t": "longtail", "aka": ["NTK by parts", "NTK-by-parts interpolation", "by-parts interpolation"] },
-    { "a": "Partial RoPE", "t": "longtail", "aka": ["partial rotary", "rotary_pct", "partial rotary embedding"] },
+    { "a": "Partial RoPE", "t": "longtail", "aka": ["partial rotary", "rotary_pct", "partial rotary embedding", "rotary percentage"] },
     { "a": "3D RoPE", "t": "longtail", "aka": ["3D rotary", "spatiotemporal RoPE", "3D rotary position embedding"] },
     { "a": "LieRE", "t": "longtail", "aka": ["Lie rotational positional encoding", "Lie group rotary"] },
     { "a": "Llama 3 RoPE scaling", "t": "longtail", "aka": ["llama3 rope scaling", "llama 3.1 rope scaling", "frequency-dependent rope scaling"] },
@@ -56,7 +56,7 @@
     { "a": "CLEX", "t": "longtail", "aka": ["continuous length extrapolation"] },
     { "a": "Resonance RoPE", "t": "longtail", "aka": ["resonance"] },
     { "a": "Dual Chunk Attention", "t": "longtail", "aka": ["DCA", "ChunkLlama"] },
-    { "a": "Randomized positional encodings", "t": "longtail", "aka": ["randomized", "random positional encoding", "randomized positions"] },
+    { "a": "Randomized positional encodings", "t": "longtail", "aka": ["randomized", "random positional encoding", "randomized positions", "randomised positional encodings", "randomised"] },
     { "a": "Abacus embeddings", "t": "longtail", "aka": ["abacus"], "q": "Give each digit its place-in-number position and a transformer adds 100-digit numbers. Your abacus is jealous." },
     { "a": "Tree positional encoding", "t": "longtail", "aka": ["tree", "tree positional encodings"] },
     { "a": "Stochastic positional encoding", "t": "longtail", "aka": ["SPE", "stochastic"] },
@@ -78,6 +78,11 @@
     { "a": "One-hot", "t": "longtail", "aka": ["one-hot position", "one-hot positional encoding"] },
     { "a": "Complex-valued embeddings", "t": "longtail", "aka": ["complex embeddings", "complex order", "complex word embeddings"] },
     { "a": "Sandwich", "t": "longtail", "aka": ["sandwich positional embedding"] },
-    { "a": "Log-spaced continuous position bias", "t": "longtail", "aka": ["log-CPB", "continuous position bias", "Swin V2 position bias", "log-spaced CPB"] }
+    { "a": "Log-spaced continuous position bias", "t": "longtail", "aka": ["log-CPB", "continuous position bias", "Swin V2 position bias", "log-spaced CPB"] },
+    { "a": "Timestep embedding", "t": "outlier", "aka": ["sinusoidal timestep embedding", "diffusion timestep embedding", "noise level embedding", "time step embedding"] },
+    { "a": "VideoRoPE", "t": "longtail", "aka": ["Video RoPE"] },
+    { "a": "LePE", "t": "longtail", "aka": ["locally-enhanced positional encoding", "locally enhanced positional encoding"] },
+    { "a": "Heat kernel structural encoding", "t": "longtail", "aka": ["HKdiagSE", "heat kernel positional encoding", "heat kernel signature", "heat kernel"] },
+    { "a": "iRPE", "t": "longtail", "aka": ["image relative position encoding", "image RPE"] }
   ]
 }

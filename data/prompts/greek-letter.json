@@ -5,35 +5,40 @@
   "note": "Any letter of the Greek alphabet; letters ML uses less score higher",
   "strip": ["letter", "greek", "capital", "lowercase", "uppercase", "small"],
   "answers": [
-    { "a": "Digamma", "t": "mlion", "aka": ["wau", "vau"], "q": "Lost from the alphabet, kept as ψ(x) = Γ′/Γ in every Dirichlet and LDA variational update." },
+    { "a": "Digamma", "t": "mlion", "aka": ["wau", "vau"], "q": "An archaic Greek letter (Ϝ), now remembered by the digamma function ψ(x) = Γ′(x)/Γ(x) in every Dirichlet and LDA update." },
 
-    { "a": "Iota", "t": "longtail", "q": "ι: the inclusion map, if you hang out with category theorists. Otherwise not one iota." },
-    { "a": "Omicron", "t": "longtail", "q": "ο looks exactly like an o, so nobody dares. Even big-O gets typeset as a Latin O." },
-    { "a": "Upsilon", "t": "longtail", "aka": ["ypsilon"], "q": "υ looks like a u, and ν already looks like a v. Almost unused." },
-    { "a": "Zeta", "t": "longtail", "q": "ζ: the Riemann zeta, or an auxiliary variable when ξ is taken." },
+    { "a": "Iota", "t": "longtail", "aka": ["giota"], "q": "ι: the inclusion map, if you hang out with category theorists. Otherwise not one iota." },
+    { "a": "Omicron", "t": "longtail", "aka": ["omikron"], "q": "ο looks exactly like an o, so nobody dares. Even big-O gets typeset as a Latin O." },
+    { "a": "Upsilon", "t": "longtail", "aka": ["ypsilon", "ipsilon"], "q": "υ looks like a u, and ν already looks like a v. Almost unused." },
+    { "a": "Zeta", "t": "longtail", "aka": ["zita"], "q": "ζ: the Riemann zeta, or an auxiliary variable when ξ is taken." },
 
-    { "a": "Tau", "t": "outlier", "q": "τ: softmax temperature, a trajectory in RL, or a time constant." },
+    { "a": "Tau", "t": "outlier", "aka": ["taf"], "q": "τ: softmax temperature, a trajectory in RL, or a time constant." },
     { "a": "Rho", "t": "outlier", "aka": ["varrho"], "q": "ρ: correlation, density, or RMSProp's decay rate." },
     { "a": "Psi", "t": "outlier", "q": "ψ: a second parameter set, the digamma function, or a feature map." },
     { "a": "Xi", "t": "outlier", "aka": ["ksi"], "q": "ξ: noise, slack variables in soft-margin SVMs. Hard to write by hand." },
-    { "a": "Kappa", "t": "outlier", "aka": ["varkappa"], "q": "κ: Cohen's kappa, a condition number, or von Mises concentration." },
+    { "a": "Kappa", "t": "outlier", "aka": ["varkappa", "kapa"], "q": "κ: Cohen's kappa, a condition number, or von Mises concentration." },
     { "a": "Nu", "t": "outlier", "q": "ν: Student-t degrees of freedom, ν-SVM, or a frequency." },
     { "a": "Chi", "t": "outlier", "aka": ["khi"], "q": "χ: χ² tests and the chi-squared distribution. Rarely seen without its square." },
 
-    { "a": "Mu", "t": "indist", "q": "μ: a mean, a measure, or μP's step-size recipe." },
+    { "a": "Mu", "t": "indist", "q": "μ: a mean, a measure, or the μ in μP, which transfers hyperparameters across widths." },
     { "a": "Gamma", "t": "indist", "q": "γ: RL discount factor, BatchNorm scale, or the RBF kernel width." },
     { "a": "Delta", "t": "indist", "q": "δ: a TD error, a small change, or the δ in PAC's 1−δ." },
     { "a": "Pi", "t": "indist", "aka": ["varpi"], "q": "π: a policy in RL, mixture weights, and occasionally 3.14159." },
     { "a": "Phi", "t": "indist", "aka": ["varphi"], "q": "φ: encoder parameters, a feature map, or the standard normal CDF Φ." },
     { "a": "Omega", "t": "indist", "q": "ω: a weight, a frequency, Ω a regularizer or a sample space." },
 
-    { "a": "Eta", "t": "overfit", "q": "η: the learning rate, for the papers that leave α to the optimizer." },
+    { "a": "Eta", "t": "overfit", "aka": ["ita"], "q": "η: the learning rate, for the papers that leave α to the optimizer." },
     { "a": "Epsilon", "t": "overfit", "aka": ["varepsilon"], "q": "ε: Adam's tiny fudge, ε-greedy, DDPM's predicted noise, the adversarial budget." },
 
-    { "a": "Alpha", "t": "baseline", "q": "α: the learning rate, a significance level, or a Dirichlet concentration." },
-    { "a": "Beta", "t": "baseline", "q": "β: Adam's momentum terms, β-VAE, regression coefficients." },
-    { "a": "Theta", "t": "baseline", "aka": ["vartheta"], "q": "θ: the parameters. All of them." },
+    { "a": "Alpha", "t": "baseline", "aka": ["alfa"], "q": "α: the learning rate, a significance level, or a Dirichlet concentration." },
+    { "a": "Beta", "t": "baseline", "aka": ["vita"], "q": "β: Adam's momentum terms, β-VAE, regression coefficients." },
+    { "a": "Theta", "t": "baseline", "aka": ["vartheta", "thita"], "q": "θ: the parameters. All of them." },
     { "a": "Lambda", "t": "baseline", "aka": ["lamda"], "q": "λ: the regularization weight, an eigenvalue, or a Poisson rate." },
-    { "a": "Sigma", "t": "baseline", "aka": ["varsigma"], "q": "σ: sigmoid, standard deviation, a singular value; Σ the covariance or the sum." }
+    { "a": "Sigma", "t": "baseline", "aka": ["varsigma"], "q": "σ: sigmoid, standard deviation, a singular value; Σ the covariance or the sum." },
+    { "a": "Koppa", "t": "longtail", "aka": ["qoppa"] },
+    { "a": "Sampi", "t": "longtail" },
+    { "a": "Stigma", "t": "longtail" },
+    { "a": "San", "t": "longtail" },
+    { "a": "Heta", "t": "longtail" }
   ]
 }

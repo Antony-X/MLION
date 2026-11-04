@@ -61,7 +61,7 @@
     { "a": "LazyInstanceNorm1d", "t": "longtail" },
     { "a": "LazyInstanceNorm2d", "t": "longtail", "aka": ["LazyInstanceNorm"] },
     { "a": "LazyInstanceNorm3d", "t": "longtail" },
-    { "a": "CrossMapLRN2d", "t": "longtail", "q": "Lua Torch's cross-channel LRN, still kept around in torch.nn." },
+    { "a": "CrossMapLRN2d", "t": "longtail", "q": "Cross-channel local response norm, tucked away next to LocalResponseNorm in torch.nn." },
     { "a": "RNNBase", "t": "longtail" },
     { "a": "RNNCellBase", "t": "longtail" },
     { "a": "PoissonNLLLoss", "t": "longtail" },
@@ -79,7 +79,7 @@
     { "a": "Fold", "t": "longtail" },
     { "a": "UninitializedParameter", "t": "longtail", "q": "The placeholder a Lazy module holds until the first forward pass reveals its shape." },
     { "a": "UninitializedBuffer", "t": "longtail" },
-    { "a": "PackedSequence", "t": "longtail", "q": "What pack_padded_sequence returns so RNNs can skip the padding." },
+    { "a": "PackedSequence", "t": "longtail", "aka": ["nn.utils.rnn.PackedSequence", "torch.nn.utils.rnn.PackedSequence"], "q": "What pack_padded_sequence returns so RNNs can skip the padding." },
     { "a": "LazyModuleMixin", "t": "longtail" },
     { "a": "Container", "t": "longtail", "q": "A deprecated relic whose warning tells you to just subclass nn.Module instead." },
 
@@ -99,7 +99,7 @@
     { "a": "LSTMCell", "t": "outlier" },
     { "a": "GRUCell", "t": "outlier" },
     { "a": "RNNCell", "t": "outlier" },
-    { "a": "SiLU", "t": "outlier", "q": "PyTorch's name for Swish." },
+    { "a": "SiLU", "t": "outlier", "aka": ["Swish"], "q": "PyTorch's name for Swish." },
     { "a": "ELU", "t": "outlier" },
     { "a": "PReLU", "t": "outlier" },
     { "a": "SELU", "t": "outlier" },
@@ -133,7 +133,7 @@
     { "a": "EmbeddingBag", "t": "outlier", "q": "Embedding plus a sum, mean or max over each bag, without materializing the lookups." },
     { "a": "Bilinear", "t": "outlier", "q": "y = x₁ᵀAx₂ + b. Two inputs, one weight tensor, rarely seen in the wild." },
     { "a": "LazyLinear", "t": "outlier", "q": "Infers in_features on the first forward pass. No more conv-output arithmetic by hand." },
-    { "a": "DistributedDataParallel", "t": "outlier", "aka": ["DDP"], "q": "One process per GPU, gradients all-reduced in buckets as backward runs." },
+    { "a": "DistributedDataParallel", "t": "outlier", "aka": ["DDP", "nn.parallel.DistributedDataParallel", "torch.nn.parallel.DistributedDataParallel"], "q": "One process per GPU, gradients all-reduced in buckets as backward runs." },
 
     { "a": "Dropout", "t": "indist" },
     { "a": "LSTM", "t": "indist", "q": "Hochreiter & Schmidhuber 1997, cuDNN-fused. Still returns output, (h_n, c_n)." },
@@ -165,9 +165,9 @@
     { "a": "Transformer", "t": "indist", "q": "The whole 2017 encoder-decoder in one class, masks and all." },
     { "a": "TransformerEncoderLayer", "t": "indist" },
     { "a": "TransformerEncoder", "t": "indist" },
-    { "a": "Parameter", "t": "indist", "q": "A tensor that a Module automatically registers as learnable." },
+    { "a": "Parameter", "t": "indist", "aka": ["nn.parameter.Parameter"], "q": "A tensor that a Module automatically registers as learnable." },
     { "a": "Upsample", "t": "indist", "aka": ["Upsampling"] },
-    { "a": "DataParallel", "t": "indist", "q": "Single-process multi-GPU. Its own docs tell you to use DistributedDataParallel instead." },
+    { "a": "DataParallel", "t": "indist", "aka": ["nn.parallel.DataParallel", "torch.nn.parallel.DataParallel"], "q": "Single-process multi-GPU. Its own docs tell you to use DistributedDataParallel instead." },
 
     { "a": "Identity", "t": "overfit", "q": "Does nothing, beautifully. The standard way to rip the head off a pretrained model." },
 

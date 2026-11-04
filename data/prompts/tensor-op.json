@@ -630,7 +630,16 @@
         "lax.conv",
         "conv_general_dilated",
         "jnp.convolve",
-        "tf.nn.convolution"
+        "tf.nn.convolution",
+        "depthwise convolution",
+        "dilated convolution",
+        "atrous convolution",
+        "grouped convolution",
+        "separable convolution",
+        "pointwise convolution",
+        "1x1 convolution",
+        "fftconvolve",
+        "signal.convolve"
       ],
       "q": "In deep learning frameworks it's really cross-correlation. Nobody flips the kernel."
     },
@@ -690,7 +699,8 @@
         "tf.linalg.svd",
         "svdvals",
         "full_matrices svd",
-        "truncated SVD"
+        "truncated SVD",
+        "low-rank approximation"
       ],
       "q": "Every matrix is a rotation, a stretch, and another rotation."
     },
@@ -726,7 +736,10 @@
         "torch.fft.fftfreq",
         "np.fft.fftfreq",
         "fftfreq",
-        "rfftfreq"
+        "rfftfreq",
+        "irfft",
+        "DFT",
+        "discrete Fourier transform"
       ],
       "q": "Cooley-Tukey 1965, though Gauss got there around 1805. O(n log n) ever since."
     },
@@ -814,7 +827,10 @@
         "reduce_window",
         "tf.nn.pool",
         "torch.nn.functional.max_pool2d",
-        "torch.nn.functional.avg_pool2d"
+        "torch.nn.functional.avg_pool2d",
+        "global average pooling",
+        "adaptive pooling",
+        "global pooling"
       ]
     },
     {
@@ -1189,9 +1205,7 @@
         "torch.sqrt",
         "np.sqrt",
         "tf.sqrt",
-        "jnp.sqrt",
-        "np.cbrt",
-        "cbrt"
+        "jnp.sqrt"
       ]
     },
     {
@@ -1697,7 +1711,9 @@
         "tf.nn.embedding_lookup",
         "nn.Embedding",
         "jnp.take embedding",
-        "tf.keras.layers.Embedding"
+        "tf.keras.layers.Embedding",
+        "lookup",
+        "table lookup"
       ],
       "q": "Mathematically a one-hot matmul. Practically, just indexing a table."
     },
@@ -3051,8 +3067,6 @@
         "tf.nn.sparse_softmax_cross_entropy_with_logits",
         "optax.softmax_cross_entropy",
         "F.nll_loss",
-        "F.binary_cross_entropy",
-        "F.binary_cross_entropy_with_logits",
         "tf.keras.losses.categorical_crossentropy",
         "log loss op"
       ]
@@ -3067,9 +3081,9 @@
         "tf.keras.losses.MSE",
         "tf.losses.mean_squared_error",
         "mean squared error op",
-        "F.l1_loss",
-        "F.smooth_l1_loss",
-        "F.huber_loss"
+        "MSE",
+        "mean squared error",
+        "L2 loss"
       ]
     },
     {
@@ -4043,6 +4057,265 @@
         "tf.clip_by_norm",
         "tf.clip_by_global_norm",
         "clip_by_global_norm"
+      ]
+    },
+    {
+      "a": "Leaky ReLU",
+      "t": "outlier",
+      "aka": [
+        "leaky_relu",
+        "LeakyReLU",
+        "F.leaky_relu"
+      ]
+    },
+    {
+      "a": "ELU",
+      "t": "outlier",
+      "aka": [
+        "exponential linear unit",
+        "F.elu"
+      ]
+    },
+    {
+      "a": "SELU",
+      "t": "longtail",
+      "aka": [
+        "scaled exponential linear unit",
+        "F.selu"
+      ]
+    },
+    {
+      "a": "Mish",
+      "t": "longtail",
+      "aka": [
+        "F.mish"
+      ]
+    },
+    {
+      "a": "Hardswish",
+      "t": "longtail",
+      "aka": [
+        "hard swish",
+        "F.hardswish"
+      ]
+    },
+    {
+      "a": "Cube root",
+      "t": "longtail",
+      "aka": [
+        "cbrt",
+        "np.cbrt"
+      ]
+    },
+    {
+      "a": "Non-maximum suppression",
+      "t": "outlier",
+      "aka": [
+        "NMS",
+        "torchvision.ops.nms",
+        "non maximum suppression"
+      ]
+    },
+    {
+      "a": "RoI align",
+      "t": "longtail",
+      "aka": [
+        "roi_align",
+        "RoIAlign",
+        "RoI pooling",
+        "roi_pool"
+      ]
+    },
+    {
+      "a": "Quantize",
+      "t": "longtail",
+      "aka": [
+        "quantization",
+        "dequantize",
+        "dequantization",
+        "quantize_per_tensor"
+      ]
+    },
+    {
+      "a": "In-place operation",
+      "t": "longtail",
+      "aka": [
+        "in-place op",
+        "inplace",
+        "in-place add",
+        "in-place update"
+      ]
+    },
+    {
+      "a": "Element-wise operation",
+      "t": "indist",
+      "aka": [
+        "elementwise",
+        "elementwise op",
+        "pointwise",
+        "pointwise operation",
+        "unary operation",
+        "binary operation",
+        "elementwise operation"
+      ]
+    },
+    {
+      "a": "Reduction",
+      "t": "indist",
+      "aka": [
+        "reduction operation"
+      ]
+    },
+    {
+      "a": "KL divergence",
+      "t": "outlier",
+      "aka": [
+        "kl_div",
+        "Kullback-Leibler divergence",
+        "KLDivLoss",
+        "F.kl_div"
+      ]
+    },
+    {
+      "a": "Hinge loss",
+      "t": "longtail",
+      "aka": [
+        "hinge embedding loss",
+        "margin loss"
+      ]
+    },
+    {
+      "a": "Triplet loss",
+      "t": "longtail",
+      "aka": [
+        "triplet margin loss",
+        "triplet_margin_loss"
+      ]
+    },
+    {
+      "a": "CTC loss",
+      "t": "longtail",
+      "aka": [
+        "ctc_loss",
+        "connectionist temporal classification"
+      ]
+    },
+    {
+      "a": "Huber loss",
+      "t": "outlier",
+      "aka": [
+        "smooth L1 loss",
+        "smooth_l1_loss",
+        "huber_loss",
+        "HuberLoss",
+        "SmoothL1Loss",
+        "F.smooth_l1_loss",
+        "F.huber_loss",
+        "nn.HuberLoss",
+        "nn.SmoothL1Loss",
+        "smooth L1"
+      ]
+    },
+    {
+      "a": "Sparsemax",
+      "t": "longtail",
+      "aka": [
+        "entmax",
+        "sparse softmax"
+      ]
+    },
+    {
+      "a": "Softmin",
+      "t": "longtail",
+      "aka": [
+        "F.softmin"
+      ]
+    },
+    {
+      "a": "Crop",
+      "t": "longtail",
+      "aka": [
+        "center crop",
+        "center_crop",
+        "random crop",
+        "cropping"
+      ]
+    },
+    {
+      "a": "Downsampling",
+      "t": "longtail",
+      "aka": [
+        "downsample",
+        "decimation",
+        "decimate"
+      ]
+    },
+    {
+      "a": "Schur decomposition",
+      "t": "longtail",
+      "aka": [
+        "Schur",
+        "scipy.linalg.schur"
+      ]
+    },
+    {
+      "a": "Polar decomposition",
+      "t": "longtail",
+      "aka": [
+        "scipy.linalg.polar"
+      ]
+    },
+    {
+      "a": "Wavelet transform",
+      "t": "longtail",
+      "aka": [
+        "DWT",
+        "discrete wavelet transform",
+        "wavelet",
+        "pywt.dwt"
+      ]
+    },
+    {
+      "a": "Hilbert transform",
+      "t": "longtail",
+      "aka": [
+        "analytic signal",
+        "scipy.signal.hilbert"
+      ]
+    },
+    {
+      "a": "Polynomial roots",
+      "t": "longtail",
+      "aka": [
+        "np.roots",
+        "roots",
+        "root finding",
+        "polynomial root finding"
+      ]
+    },
+    {
+      "a": "L1 loss",
+      "t": "indist",
+      "aka": [
+        "F.l1_loss",
+        "mean absolute error",
+        "MAE",
+        "L1Loss",
+        "nn.L1Loss",
+        "absolute error loss"
+      ]
+    },
+    {
+      "a": "Binary cross-entropy",
+      "t": "indist",
+      "aka": [
+        "BCE",
+        "F.binary_cross_entropy",
+        "F.binary_cross_entropy_with_logits",
+        "BCEWithLogits",
+        "nn.BCELoss",
+        "nn.BCEWithLogitsLoss",
+        "binary crossentropy"
       ]
     }
   ]

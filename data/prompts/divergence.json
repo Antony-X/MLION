@@ -40,18 +40,35 @@
     { "a": "Integral probability metric", "t": "outlier", "aka": ["IPM"] },
 
     { "a": "Rényi", "t": "indist", "aka": ["renyi", "rényi divergence", "alpha-renyi"] },
-    { "a": "Total variation", "t": "indist", "aka": ["TV", "TVD", "statistical distance", "variational distance", "total variation distance"], "q": "The biggest gap in probability any single event can show. Bounded by Pinsker via KL." },
+    { "a": "Total variation", "t": "indist", "aka": ["TV", "TVD", "statistical distance", "variational distance", "total variation distance", "L1 distance"], "q": "The biggest gap in probability any single event can show. Bounded by Pinsker via KL." },
     { "a": "Bhattacharyya", "t": "indist", "aka": ["bhattacharyya coefficient", "bhattacharyya distance"] },
-    { "a": "Kolmogorov–Smirnov", "t": "indist", "aka": ["KS", "kolmogorov", "kolmogorov distance", "KS statistic"], "q": "The largest vertical gap between two CDFs." },
-    { "a": "Chi-squared", "t": "indist", "aka": ["χ²", "chi square", "chi2", "pearson chi-squared", "pearson"] },
+    { "a": "Kolmogorov–Smirnov", "t": "indist", "aka": ["KS", "kolmogorov", "kolmogorov distance", "KS statistic", "KS test", "kolmogorov-smirnov test", "two-sample KS"], "q": "The largest vertical gap between two CDFs." },
+    { "a": "Chi-squared", "t": "indist", "aka": ["χ²", "chi square", "chi2", "pearson chi-squared", "pearson", "pearson chi-square", "chi-square divergence", "chi-squared divergence"] },
     { "a": "f-divergence", "t": "indist", "aka": ["csiszar", "csiszár divergence", "ali-silvey", "phi-divergence", "φ-divergence"], "q": "KL, TV, χ², Hellinger and JS: one convex function each, same family." },
     { "a": "Cross-entropy", "t": "indist", "aka": ["cross entropy", "CE"], "q": "KL plus an entropy you can't change. Not a true divergence, but it does the job daily." },
 
-    { "a": "Hellinger", "t": "overfit", "aka": ["hellinger distance", "squared hellinger"], "q": "L2 between square-root densities. The stats-course pick that sounds exotic." },
-    { "a": "MMD", "t": "overfit", "aka": ["maximum mean discrepancy", "kernel two-sample"], "q": "Compare kernel mean embeddings. Gretton et al.'s two-sample workhorse." },
+    { "a": "Hellinger", "t": "overfit", "aka": ["hellinger distance", "squared hellinger", "matusita"], "q": "L2 between square-root densities. The stats-course pick that sounds exotic." },
+    { "a": "MMD", "t": "overfit", "aka": ["maximum mean discrepancy", "kernel two-sample", "MK-MMD", "multi-kernel MMD", "multiple kernel MMD"], "q": "Compare kernel mean embeddings. Gretton et al.'s two-sample workhorse." },
 
     { "a": "KL divergence", "t": "baseline", "aka": ["KL", "KLD", "kullback-leibler", "relative entropy", "reverse KL", "forward KL"], "q": "Asymmetric, unbounded, and in every loss function you've ever loved." },
-    { "a": "Jensen–Shannon", "t": "baseline", "aka": ["JS", "JSD", "jensen shannon", "information radius"], "q": "KL made symmetric and bounded. What the original GAN minimizes at the optimal discriminator." },
-    { "a": "Wasserstein", "t": "baseline", "aka": ["earth mover's distance", "earth movers", "EMD", "optimal transport", "OT", "kantorovich", "kantorovich-rubinstein", "mallows", "W1", "W2"], "q": "How much dirt you'd move to reshape one pile into another. WGAN made it famous." }
+    { "a": "Jensen–Shannon", "t": "baseline", "aka": ["JS", "JSD", "jensen shannon", "information radius", "topsoe", "topsøe"], "q": "KL made symmetric and bounded. What the original GAN minimizes at the optimal discriminator." },
+    { "a": "Wasserstein", "t": "baseline", "aka": ["earth mover's distance", "earth movers", "EMD", "optimal transport", "OT", "kantorovich", "kantorovich-rubinstein", "mallows", "W1", "W2", "wasserstein-1", "wasserstein-2", "wasserstein-p", "earth mover", "wasserstein metric"], "q": "How much dirt you'd move to reshape one pile into another. WGAN made it famous." },
+    { "a": "Gamma divergence", "t": "longtail", "aka": ["γ-divergence", "fujisawa-eguchi"] },
+    { "a": "Alpha-beta divergence", "t": "longtail", "aka": ["AB divergence", "αβ-divergence"] },
+    { "a": "Density power divergence", "t": "longtail", "aka": ["DPD", "basu-harris-hjort-jones"] },
+    { "a": "Max-sliced Wasserstein", "t": "longtail" },
+    { "a": "Fused Gromov–Wasserstein", "t": "longtail", "aka": ["fused gromov wasserstein", "FGW"] },
+    { "a": "Unbalanced optimal transport", "t": "longtail", "aka": ["unbalanced OT", "UOT"] },
+    { "a": "Fréchet Video Distance", "t": "longtail", "aka": ["FVD"] },
+    { "a": "Fréchet Audio Distance", "t": "longtail", "aka": ["FAD"] },
+    { "a": "CMMD", "t": "longtail", "aka": ["CLIP MMD"] },
+    { "a": "Hockey-stick divergence", "t": "longtail", "aka": ["e-gamma divergence", "hockey stick"] },
+    { "a": "Max divergence", "t": "longtail" },
+    { "a": "Skew divergence", "t": "longtail" },
+    { "a": "Kuiper", "t": "longtail", "aka": ["kuiper statistic", "kuiper's test"] },
+    { "a": "L2 distance", "t": "longtail", "aka": ["integrated squared error", "squared L2"] },
+    { "a": "Ky Fan", "t": "longtail", "aka": ["ky fan metric"] },
+    { "a": "Zolotarev", "t": "longtail", "aka": ["zolotarev metric"] },
+    { "a": "CORAL", "t": "longtail", "aka": ["correlation alignment", "coral loss"] }
   ]
 }
