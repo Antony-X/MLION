@@ -114,6 +114,10 @@
     }
     return out;
   }
+  /** The words that carry meaning, for word-by-word typo matching. */
+  function contentWords(s, strip) {
+    return without(without(dropArticle(tokens(s)), strip), SOFT_FILLER).filter((w) => !STOP.has(w));
+  }
   function singular(k) {
     if (k.length > 4 && k.endsWith("es") && !k.endsWith("ses")) return k.slice(0, -2);
     if (k.length > 3 && k.endsWith("s") && !k.endsWith("ss")) return k.slice(0, -1);
@@ -184,13 +188,17 @@
         errors.push(`key "${key}" (from ${label}) collides: "${answers[had].a}" vs "${answers[idx].a}"`);
       }
     }
-    const softPairs = [], acPairs = [];
+    const softPairs = [], acPairs = [], words = [];
     answers.forEach((ans, idx) => {
       for (const n of [ans.a].concat(ans.aka || [])) {
         claim(fullKey(n), idx, `"${n}"`);
         claim(strippedKey(n, strip), idx, `"${n}" stripped`);
         softPairs.push([softKey(n, strip), idx]);
         for (const ac of acronyms(n)) acPairs.push([ac, idx]);
+        const seen = new Set();
+        for (const w of [contentWords(n, strip), contentWords(n, null)]) {
+          if (w.length >= 2 && !seen.has(w.join(" "))) { seen.add(w.join(" ")); words.push({ idx, w }); }
+        }
       }
     });
     const keys = [...exact.keys()];
@@ -209,7 +217,7 @@
       for (const [t, c] of g) { const v = c * idf(t); w.set(t, v); norm += v * v; }
       return { w, norm: Math.sqrt(norm) || 1 };
     });
-    return { index: { strip, exact, loose, soft, acro, keys, vecs, idf }, errors };
+    return { index: { strip, exact, loose, soft, acro, keys, vecs, idf, words }, errors };
   }
 
   /**
@@ -221,7 +229,7 @@
    */
   function matchAnswer(prompt, raw) {
     if (!prompt._index) prompt._index = buildIndex(prompt).index;
-    const { strip, exact, loose, soft, acro, keys, vecs, idf } = prompt._index;
+    const { strip, exact, loose, soft, acro, keys, vecs, idf, words } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
     const kf = fullKey(text);
     if (!kf) return { kind: "none" };
@@ -276,6 +284,23 @@
         }
       }
     });
+    // 4. word by word: every word of a multi-word name within its own typo budget
+    const iws = [contentWords(text, strip), contentWords(text, null)].filter((w, i, all) => w.length >= 2 && (i === 0 || w.join(" ") !== all[0].join(" ")));
+    for (const iw of iws) {
+      for (const { idx, w } of words) {
+        if (w.length !== iw.length) continue;
+        let edits = 0, okAll = true;
+        for (let i = 0; i < w.length && okAll; i++) {
+          const b = Math.min(fuzzyBudget(w[i].length), fuzzyBudget(iw[i].length));
+          const d = w[i] === iw[i] ? 0 : editDistance(iw[i], w[i], b);
+          if (d > b) okAll = false; else edits += d;
+        }
+        if (okAll && edits > 0) {
+          const sc = Math.max(0.8, 0.96 - 0.03 * edits);
+          bump(typo, idx, sc); bump(score, idx, sc);
+        }
+      }
+    }
     const ranked = [...score.entries()].sort((a, b) => b[1] - a[1] || TIERS[answers[a[0]].t].score - TIERS[answers[b[0]].t].score);
     if (!ranked.length) return { kind: "none" };
     // A single clear typo wins outright; ties go to the more common answer only across tiers.
