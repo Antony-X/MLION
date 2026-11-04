@@ -600,3 +600,38 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
   .step-btn { padding: 0 22px; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ------------------------------------------------------------ challenge */
+.challenge { display: grid; gap: 32px; max-width: 560px; }
+.vs-form { display: grid; gap: 24px; }
+.vs-field { display: grid; gap: 10px; }
+.vs-field > span { color: var(--muted); font-size: var(--s1); }
+.vs-sizes { display: flex; gap: 10px; }
+.vs-size {
+  min-width: 64px; min-height: 56px; border-radius: var(--round); border: 0; cursor: pointer;
+  background: var(--raised); color: var(--ink); font: inherit; font-size: var(--s3); font-variant-numeric: tabular-nums;
+  transition: background-color 160ms ease, transform 120ms var(--ease-out);
+}
+.vs-size:hover { background: var(--raised-2); }
+.vs-size:active { transform: scale(0.96); }
+.vs-size.on { background: var(--gold); color: var(--gold-ink); }
+.fb-opp {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: var(--soft); background: var(--raised); color: var(--ink); margin: 0;
+}
+.fb-opp b { font-weight: 600; }
+.fb-opp .lead { color: var(--muted); font-size: var(--s1); font-variant-numeric: tabular-nums; }
+.duel { display: grid; gap: 20px; padding: 24px; border-radius: var(--soft); background: var(--surface); }
+.duel-head { font-size: var(--s4); line-height: 1.1; }
+.duel-scores { display: flex; align-items: flex-end; gap: 20px; }
+.duel-scores > div { display: grid; gap: 4px; }
+.duel-scores b { font-size: var(--s4); font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; color: var(--muted); }
+.duel-scores .win b { color: var(--gold); }
+.duel-scores span { color: var(--muted); font-size: var(--s1); }
+.duel-v { color: var(--faint); padding-bottom: 6px; }
+.duel-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.duel-rows li { display: grid; grid-template-columns: minmax(0, 1fr) 76px 76px; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--raised); }
+.duel-rows .dq { color: var(--muted); font-size: var(--s1); min-width: 0; }
+.duel-rows .dc { display: flex; align-items: center; gap: 6px; justify-content: flex-end; font-variant-numeric: tabular-nums; color: var(--muted); }
+.duel-rows .dc.win { color: var(--ink); }
+.duel-rows .dc.win b { color: var(--gold); }

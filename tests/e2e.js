@@ -156,6 +156,55 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   }
   check(true, "all secondary screens render");
 
+  // ---- challenge a friend: Ana plays 3, sends a link; Ben opens it on his own phone
+  await page.goto(base + "#challenge");
+  await page.waitForSelector("#vs-go");
+  await page.fill("#vs-name", "Ana");
+  await page.click('.vs-size[data-n="3"]');
+  await page.click("#vs-go");
+  await page.waitForSelector("#begin");
+  await page.click("#begin");
+  for (const ans of ["snake", "relu", "gelu"]) {
+    await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
+    await page.fill("#answer", ans);
+    await page.press("#answer", "Enter");
+    await page.waitForSelector("#next:not([disabled])", { timeout: 6000 });
+    await page.click("#next");
+  }
+  await page.waitForSelector("#send-vs");
+  await page.click("#send-vs");
+  const invite = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop();
+  check(/#vs-[a-z0-9]+-3-[0-6]{3}-[0-9a-f]+$/.test(invite), `challenge link built (${invite.split("#")[1]})`);
+  const ctxB = await browser.newContext({ viewport: { width: 420, height: 900 } });
+  await ctxB.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const ben = await ctxB.newPage();
+  ben.on("pageerror", (e) => errors.push("ben: " + e.message));
+  await ben.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ben.goto(invite);
+  await ben.waitForSelector("#begin");
+  check((await ben.textContent("#card")).includes("Ana challenged you"), "friend sees who challenged them");
+  await ben.fill("#vs-name", "Ben");
+  await ben.click("#begin");
+  for (let i = 0; i < 3; i++) {
+    await ben.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
+    await ben.fill("#answer", "relu");
+    await ben.press("#answer", "Enter");
+    await ben.waitForSelector(".fb-opp");
+    await ben.waitForSelector("#next:not([disabled])", { timeout: 6000 });
+    if (i === 0) await ben.screenshot({ path: path.join(OUT, "12-vs-feedback.png") });
+    await ben.click("#next");
+  }
+  await ben.waitForSelector(".duel-head");
+  check((await ben.textContent(".duel-head")) === "Ana wins", "head-to-head names the winner (Ana 140 vs 30)");
+  await ben.screenshot({ path: path.join(OUT, "13-vs-results.png"), fullPage: true });
+  await ben.click("#send-vs");
+  const reply = (await ben.evaluate(() => navigator.clipboard.readText())).split("\n").pop();
+  await page.goto(reply);
+  await page.waitForSelector(".duel-head");
+  const board = await page.textContent(".duel-scores");
+  check(board.includes("Ana (you)") && board.includes("Ben"), "challenger opens the reply and sees both names");
+  await ctxB.close();
+
   // desktop layout shot of home
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.goto(base);

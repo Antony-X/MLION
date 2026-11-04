@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* Bundle the whole game (HTML, CSS, JS, data) into one self-contained file.
- *   node tools/build-single.js [out.html] [--fragment]
+ *   node tools/build-single.js [out.html] [--fragment] [--url=https://…]
+ * --url sets the public address that challenge links point at.
  * --fragment omits the <!doctype>/<html>/<head>/<body> wrapper, for hosts that
  * supply their own document skeleton. Run tools/build.js first. */
 "use strict";
@@ -10,6 +11,8 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..");
 const args = process.argv.slice(2);
 const fragment = args.includes("--fragment");
+const urlArg = args.find((a) => a.startsWith("--url="));
+const shareUrl = urlArg ? urlArg.slice(6) : "";
 const out = path.resolve(args.find((a) => !a.startsWith("--")) || path.join(ROOT, "dist", "mlion.html"));
 
 const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
@@ -27,6 +30,7 @@ const head = [
   "<title>MLion</title>",
   fragment ? '<meta name="claude:viewport-fit-sides" content="cover">' : "",
   desc,
+  shareUrl ? `<meta name="mlion:url" content="${shareUrl.replace(/"/g, "&quot;")}">` : "",
   '<meta name="theme-color" content="#090b10">',
   icon,
   '<link rel="preconnect" href="https://fonts.googleapis.com">',

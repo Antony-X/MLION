@@ -212,6 +212,64 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
   function nextPackRun(packId) { let n = 1; while (records[`pack:${packId}:${n}`]) n++; return n; }
 
+  // ----------------------------------------------------------- challenges
+  // A challenge travels entirely in its link, so friends need no account and
+  // no server: #vs-<seed>-<n>[-<tiers>-<name>][-<tiers>-<name>]. Tiers are one
+  // digit per question, names are UTF-8 hex (links allow only a-z, 0-9, -).
+  const TIER_CODE = ["miss", "baseline", "overfit", "indist", "outlier", "longtail", "mlion"];
+  const VS_SIZES = [3, 5, 7, 10];
+  const SHARE_BASE = ((document.querySelector('meta[name="mlion:url"]') || {}).content || "").trim();
+  const encTiers = (tiers) => tiers.map((t) => Math.max(0, TIER_CODE.indexOf(t || "miss"))).join("");
+  const decTiers = (str) => str.split("").map((c) => TIER_CODE[+c] || "miss");
+  const encName = (name) => [...new TextEncoder().encode(String(name || "").slice(0, 16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  function decName(hex) {
+    try { return new TextDecoder().decode(new Uint8Array((hex.match(/../g) || []).map((h) => parseInt(h, 16)))).trim(); } catch { return ""; }
+  }
+  const tierPoints = (tiers) => tiers.reduce((sum, t) => sum + (T[t] ? T[t].score : 0), 0);
+  const myName = () => String(LS.get("name", "") || "").slice(0, 16);
+  function challengePromptIds(seed, n) { return E.makeStream(DATA, `vs-${seed}`).take(n); }
+  function challengeLink(seed, n, players) {
+    const tail = players.map((pl) => `-${encTiers(pl.tiers)}-${encName(pl.name)}`).join("");
+    return `${SHARE_BASE || siteUrl()}#vs-${seed}-${n}${tail}`;
+  }
+  function parseChallenge(h) {
+    const m = h.match(/^vs-([a-z0-9]{4,12})-(\d{1,2})((?:-[0-6]{1,10}-[0-9a-f]{0,64}){0,2})$/);
+    if (!m) return null;
+    const n = +m[2];
+    if (!VS_SIZES.includes(n)) return null;
+    const parts = m[3].split("-").filter((x, i) => i > 0);
+    const players = [];
+    for (let i = 0; i + 1 < parts.length + 1; i += 2) {
+      if (parts[i] === undefined) break;
+      if (parts[i].length !== n) return null;
+      players.push({ tiers: decTiers(parts[i]), name: decName(parts[i + 1] || "") || "A friend" });
+    }
+    return { seed: m[1], n, players };
+  }
+  function vsSpec(seed, n, opp) {
+    return {
+      key: `vs:${seed}`, mode: "vs", number: 0, seed, n, opp: opp || null,
+      label: opp ? `Vs ${opp.name}` : "Challenge", promptIds: challengePromptIds(seed, n),
+    };
+  }
+  function openChallenge(h) {
+    const c = parseChallenge(h);
+    if (!c) return go("challenge");
+    const mine = records[`vs:${c.seed}`];
+    const mineTiers = mine ? encTiers(mine.tiers) : null;
+    if (!c.players.length) return mine ? go(`results-vs-${c.seed}`) : openRun(vsSpec(c.seed, c.n, null));
+    const [a, b] = c.players;
+    if (b) {
+      if (mineTiers === encTiers(a.tiers)) a.you = true;
+      else if (mineTiers === encTiers(b.tiers)) b.you = true;
+      return renderDuel(c, a, b);
+    }
+    // One result in the link: either my own link, or a friend's challenge to me.
+    if (mineTiers && mineTiers === encTiers(a.tiers)) return go(`results-vs-${c.seed}`);
+    if (mine) return renderDuel(c, a, { name: mine.name || myName() || "You", tiers: mine.tiers }, true);
+    return openRun(vsSpec(c.seed, c.n, a));
+  }
+
   // ============================================================ routing
   // Hash routes are plain names (#daily, #pack-blocks-3, #results-daily-2026-11-04)
   // so links survive hosts that only pass simple fragments through.
@@ -220,6 +278,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     daily: () => openRun(dailySpec(today())),
     unlimited: renderUnlimited, packs: renderPacks, archive: renderArchive, library: renderLibrary,
     stats: renderStats, how: renderHow, faq: renderFaq, prefs: renderSettings,
+    challenge: renderChallenge,
   };
   const slugFor = (key) => key.replace(/:/g, "-");
   function keyFromSlug(s) {
@@ -227,6 +286,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((m = s.match(/^(daily|archive)-(\d{4}-\d{2}-\d{2})$/))) return `${m[1]}:${m[2]}`;
     if ((m = s.match(/^unlimited-(\d+)$/))) return `unlimited:${m[1]}`;
     if ((m = s.match(/^pack-([a-z]+)-(\d+)$/))) return `pack:${m[1]}:${m[2]}`;
+    if ((m = s.match(/^vs-([a-z0-9]+)$/))) return `vs:${m[1]}`;
     return s;
   }
   function go(name) {
@@ -243,6 +303,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     scene("page");
     $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + (h || "home")));
     if (SIMPLE[h]) return SIMPLE[h]();
+    if (/^vs-/.test(h)) return openChallenge(h);
     let m;
     if ((m = h.match(/^unlimited-(\d+)$/))) return openRun(unlimitedSpec(Math.max(1, +m[1])));
     if ((m = h.match(/^pack-([a-z]+)$/))) return PACKS.has(m[1]) ? renderPack(m[1]) : go("packs");
@@ -267,8 +328,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <span class="countdown">Next in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></span>`;
     else if (inProg) cta = `<a class="btn primary big" href="#daily">Resume · ${Math.min(inProg.results.length + 1, 7)} of 7</a>`;
     else cta = `<a class="btn primary big" href="#daily">Start training</a>`;
+    cta += `<a class="btn big" href="#challenge">Challenge a friend</a>`;
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const modes = [
+      ["#challenge", "Challenge a friend", "Same questions, one link"],
       ["#unlimited", "Unlimited", "Endless runs"],
       ["#packs", "Packs", `${DATA.packs.length} themes`],
       ["#archive", "Archive", "Past days"],
@@ -394,10 +457,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function renderIntro() {
     const n = RUN.promptIds.length;
-    const title = RUN.mode === "daily" ? `MLion #${RUN.number}` : RUN.label;
+    const title = RUN.mode === "daily" ? `MLion #${RUN.number}` : RUN.mode === "vs" && RUN.opp ? `${RUN.opp.name} challenged you` : RUN.label;
     const sub = RUN.mode === "daily" ? prettyDate(RUN.date, { weekday: "long", month: "long", day: "numeric" }) :
       RUN.mode === "archive" ? `${prettyDate(RUN.date)} · no streak` :
-      RUN.mode === "practice" ? "Answers shown after" : "";
+      RUN.mode === "practice" ? "Answers shown after" :
+      RUN.mode === "vs" ? (RUN.opp ? `Score to beat: ${tierPoints(RUN.opp.tiers)}. You'll see their result after each answer.` : "Play first, then send the link.") : "";
     $("#card").innerHTML = `<div class="intro-card">
       <div><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
       <ul class="beats">
@@ -406,10 +470,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <li><b>25 s</b><span>to answer</span></li>
       </ul>
       <p class="rule">Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more.</p>
+      ${RUN.mode === "vs" ? `<label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So ${RUN.opp ? esc(RUN.opp.name) : "your friend"} knows who played" value="${esc(myName())}"></label>` : ""}
       <button class="btn primary big" id="begin">Begin</button>
       <p class="hint"><kbd>Enter</kbd> submits and continues</p>
     </div>`;
-    $("#begin").addEventListener("click", async () => { $("#begin").disabled = true; await aiConsentUpFront(); startRound(); });
+    $("#begin").addEventListener("click", async () => {
+      const nm = $("#vs-name");
+      if (nm) LS.set("name", nm.value.trim().slice(0, 16));
+      $("#begin").disabled = true; await aiConsentUpFront(); startRound();
+    });
     $("#begin").focus();
   }
 
@@ -629,6 +698,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="fb-tier">${G(res.tier)}<span class="fb-name">${t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
         ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.timeout ? "Out of time." : "No gradient, no descent."}</p>` : ""}
         ${res.corrected && res.raw ? `<p class="fb-note">Autocorrected from “${esc(res.raw)}”</p>` : ""}
+        ${RUN.mode === "vs" && RUN.opp ? oppLine(RUN.opp, RUN.results.length - 1) : ""}
         <button class="btn primary big" id="next" ${animate ? "disabled" : ""}>${isLast ? "See results" : "Next"}</button>
       </div>`;
     const next = $("#next"), fb = $("#fb");
@@ -647,6 +717,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     } else { setHud(total); done(); }
   }
 
+  function oppLine(opp, i) {
+    const t = opp.tiers[i];
+    const pts = T[t] ? T[t].score : 0;
+    const mine = totalScore(RUN.results), theirs = tierPoints(opp.tiers.slice(0, i + 1));
+    const lead = mine === theirs ? "Level" : mine > theirs ? `You lead by ${mine - theirs}` : `${esc(opp.name)} leads by ${theirs - mine}`;
+    return `<p class="fb-opp t-${tierOf(t)}">${G(t)}<span><b>${esc(opp.name)}</b> ${T[t] ? esc(T[t].name) : "missed"} +${pts}</span><span class="lead">${lead}</span></p>`;
+  }
+
   function advance() {
     if (!RUN || RUN.phase !== "feedback") return;
     if (RUN.results.length >= RUN.promptIds.length) { RUN.phase = "done"; persistRun(); return finalize(); }
@@ -661,6 +739,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       label: RUN.label, promptIds: RUN.promptIds, results: RUN.results, score,
       tiers: RUN.results.map((r) => r.tier || "miss"), completedAt: Date.now(),
     };
+    if (RUN.mode === "vs") Object.assign(rec, { seed: RUN.seed, n: RUN.n, opp: RUN.opp || null, name: myName() || "You" });
     if (RUN.mode === "practice") {
       const r = RUN.results[0];
       const prev = practiceBest[r.promptId];
@@ -744,23 +823,26 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       rec.mode === "practice" ? "#library" : "#unlimited";
     const nextLabel = rec.mode === "unlimited" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
+    const isVs = rec.mode === "vs";
     scene("results");
     app.innerHTML = `<section class="screen results">
       <div class="side">
         <div class="score-hero">
           <p class="label">${esc(rec.label)}${rec.date ? ` · ${esc(prettyDate(rec.date, { month: "short", day: "numeric" }))}` : ""}</p>
           <div class="score-big">${rec.score}<small>/${max}</small></div>
-          ${band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
+          ${isVs && rec.opp ? (() => { const me = rec.score, them = tierPoints(rec.opp.tiers); return `<p class="band ${me >= them ? "t-mlion" : ""}">${me === them ? "Draw" : me > them ? "You win" : `${esc(rec.opp.name)} wins`} · ${me} vs ${them}</p>`; })() : band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
           ${tiersRow(rec.tiers, "grid-tiers")}
           <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${accepted} of ${n} accepted</p>
           <div class="btn-row">
-            ${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
-            <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>
+            ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send challenge"}</button>
+              <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
+            <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
           ${isDailyToday ? `<p class="countdown">Next descent in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
         </div>
       </div>
       <div class="main">
+        ${isVs && rec.opp ? duelBoard(rec.promptIds, { name: rec.name || "You", tiers: rec.tiers, you: true }, rec.opp) : ""}
         ${n > 1 ? `<figure class="profile-wrap">${V.profileSvg(rec.results, `Your descent: loss ${((max - rec.score) / 100).toFixed(2)}`)}</figure>` : ""}
         <section>
           <h2 class="block-title">Your answers</h2>
@@ -796,6 +878,89 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const box = $("#share-box"); box.focus(); box.select();
     });
     if (isDailyToday) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); });
+    const sv = $("#send-vs");
+    if (sv) sv.addEventListener("click", () => {
+      const me = { name: rec.name || myName() || "A friend", tiers: rec.tiers };
+      const players = rec.opp ? [rec.opp, me] : [me];
+      const link = challengeLink(rec.seed, rec.n, players);
+      const text = rec.opp ? `I scored ${rec.score} vs your ${tierPoints(rec.opp.tiers)} on MLion. See it:` : `Beat my ${rec.score} on MLion. Same ${rec.n} questions:`;
+      shareLink(`${text}\n${link}`);
+    });
+  }
+
+  async function shareLink(text) {
+    if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    if (await copyText(text)) return toast("Link copied. Send it to your friend");
+    showModal("Send this to your friend", `<p class="muted">Copying is blocked here. Select the text and copy it.</p>
+      <textarea class="search share-box" id="share-box" readonly aria-label="Challenge link">${esc(text)}</textarea>`);
+    const box = $("#share-box"); box.focus(); box.select();
+  }
+
+  /** Head-to-head table: winner, both scores, question by question. */
+  function duelBoard(promptIds, a, b) {
+    const sa = tierPoints(a.tiers), sb = tierPoints(b.tiers);
+    const head = sa === sb ? "It's a draw" : `${esc(sa > sb ? a.name : b.name)} wins`;
+    return `<section class="duel" aria-label="Head to head">
+      <h2 class="duel-head">${head}</h2>
+      <div class="duel-scores">
+        <div class="${sa >= sb ? "win" : ""}"><b>${sa}</b><span>${esc(a.name)}${a.you && a.name !== "You" ? " (you)" : ""}</span></div>
+        <span class="duel-v">vs</span>
+        <div class="${sb >= sa ? "win" : ""}"><b>${sb}</b><span>${esc(b.name)}${b.you && b.name !== "You" ? " (you)" : ""}</span></div>
+      </div>
+      <ul class="duel-rows">${promptIds.map((id, i) => {
+        const p = PROMPTS.get(id);
+        const ta = a.tiers[i], tb = b.tiers[i];
+        const pa = T[ta] ? T[ta].score : 0, pb = T[tb] ? T[tb].score : 0;
+        return `<li><span class="dq">${esc(p ? p.text : id)}</span>
+          <span class="dc t-${tierOf(ta)}${pa > pb ? " win" : ""}">${G(ta)}<b>${pa}</b></span>
+          <span class="dc t-${tierOf(tb)}${pb > pa ? " win" : ""}">${G(tb)}<b>${pb}</b></span></li>`;
+      }).join("")}</ul>
+    </section>`;
+  }
+
+  /** A finished duel opened from a link (both results inside it). */
+  function renderDuel(c, a, b, bIsMe) {
+    setMid("Head to head");
+    scene("results");
+    app.innerHTML = `<section class="screen results">
+      <div class="side">
+        <div class="page-head"><h1>Head to head</h1><p>${c.n} questions, same for both.</p></div>
+        <div class="btn-row">
+          ${bIsMe ? `<button class="btn primary big" id="send-vs">Send result back</button>` : ""}
+          <a class="btn${bIsMe ? "" : " primary"} big" href="#challenge">Rematch</a>
+        </div>
+      </div>
+      <div class="main">${duelBoard(challengePromptIds(c.seed, c.n), bIsMe ? { ...b, you: true } : a, bIsMe ? a : b)}</div>
+    </section>`;
+    const sv = $("#send-vs");
+    if (sv) sv.addEventListener("click", () => shareLink(`I scored ${tierPoints(b.tiers)} vs your ${tierPoints(a.tiers)} on MLion. See it:\n${challengeLink(c.seed, c.n, [a, b])}`));
+  }
+
+  /** Pick a size and a name, then play first. */
+  function renderChallenge() {
+    setMid("Challenge");
+    let size = LS.get("vsSize", 5);
+    if (!VS_SIZES.includes(size)) size = 5;
+    app.innerHTML = `<section class="screen challenge">
+      <div class="page-head"><h1>Challenge a friend</h1><p>Play first, then send one link. Your friend plays the same questions and sees who won. No accounts.</p></div>
+      <div class="vs-form">
+        <label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So your friend knows" value="${esc(myName())}"></label>
+        <div class="vs-field"><span>Questions</span><div class="vs-sizes" role="radiogroup" aria-label="Number of questions">${VS_SIZES.map((n) => `<button type="button" class="vs-size${n === size ? " on" : ""}" role="radio" aria-checked="${n === size}" data-n="${n}">${n}</button>`).join("")}</div></div>
+        <button class="btn primary big" id="vs-go">Start</button>
+      </div>
+    </section>`;
+    $$(".vs-size").forEach((b) => b.addEventListener("click", () => {
+      size = +b.dataset.n;
+      $$(".vs-size").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); });
+    }));
+    $("#vs-go").addEventListener("click", () => {
+      LS.set("name", $("#vs-name").value.trim().slice(0, 16));
+      LS.set("vsSize", size);
+      const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
+      go(`vs-${seed}-${size}`);
+    });
   }
 
   // =========================================================== unlimited
