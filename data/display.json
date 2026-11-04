@@ -17,7 +17,8 @@
     "extra": true
   },
   "ai-leader": {
-    "scope": "Surname is enough"
+    "scope": "Surname is enough",
+    "added": "2026-11-07"
   },
   "ai-movie": {
     "offtopic": true
@@ -185,7 +186,8 @@
     "extra": true
   },
   "numpy-function": {
-    "scope": "The np. prefix is optional"
+    "scope": "The np. prefix is optional",
+    "added": "2026-11-07"
   },
   "optimizer": {
     "example": "SGD"
@@ -243,7 +245,8 @@
     "added": "2026-11-06"
   },
   "special-token": {
-    "scope": "Brackets are optional"
+    "scope": "Brackets are optional",
+    "added": "2026-11-07"
   },
   "stat-test": {
     "extra": true
@@ -275,7 +278,8 @@
     "added": "2026-11-06"
   },
   "turing-award": {
-    "scope": "Any field of computing. Surname is enough"
+    "scope": "Any field of computing. Surname is enough",
+    "added": "2026-11-07"
   },
   "vector-db": {
     "extra": true
