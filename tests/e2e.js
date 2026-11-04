@@ -169,6 +169,16 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.waitForFunction(() => location.hash === "#unlimited-1", null, { timeout: 5000 });
   check(true, "Unlimited can't jump ahead to a later run");
 
+  // ---- quiz: the tile and the drawer link exist. This fixture is nine clones of one prompt, so every
+  // wrong option would be accepted by the question's own matcher: a run must say so, not break.
+  // (the full quiz flow runs in tests/quiz.e2e.js on the real data)
+  await page.goto(base + "#home");
+  await page.waitForSelector(".wordmark");
+  check(!!(await page.$('.modes a[href="#quiz"]')) && !!(await page.$('#drawer a.nav[href="#quiz"]')), "home and the drawer link to Quiz");
+  await page.goto(base + "#quiz-1");
+  await page.waitForFunction(() => /can't make quiz questions/.test(document.body.textContent), null, { timeout: 5000 });
+  check(true, "a bundle with no fair wrong answers says so instead of breaking");
+
   // ---- custom question count: any number up to 25
   await page.goto(base + "#challenge");
   await page.waitForSelector("#vs-go");

@@ -34,6 +34,21 @@
   const CHEV = `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
   const LOCK = `<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
   const XICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+  // ---- quiz marks: a right answer in a quiz run carries one neutral tier, only to colour the
+  // descent; it says nothing about rarity (every right answer scores the same 100).
+  const QUIZ_TIER = "indist";
+  const isQuizMode = (m) => m === "quiz" || m === "vq";
+  /** "a loss function": what a prompt asks for, for labelling a wrong option by where it belongs. */
+  const kindOf = (id) => { const p = PROMPTS.get(id); return p ? p.text.replace(/^Name\s+/i, "") : "something else"; };
+  const qmark = (ok, cls = "") => `<svg class="glyph qm ${ok ? "t-" + QUIZ_TIER : "t-miss"} ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ok ? `<path d="M4.5 12.5l4.8 4.8L19.5 6.8"/>` : `<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>`}</svg>`;
+  const qmarksRow = (oks, cls = "") => `<span class="tiers ${cls}" role="img" aria-label="${oks.filter(Boolean).length} of ${oks.length} right">${oks.map((ok) => qmark(ok)).join("")}</span>`;
+  /** What a quiz result card says in one word. */
+  const quizVerdict = (res) => (res.score > 0 ? "Correct" : res.timeout ? "Out of time" : "Not quite");
+  /** Quiz duels: picks are one digit per question (0 none, 1 to 4 the option), so either side's score is recomputed from the seed. */
+  const quizPts = (quiz, picks) => picks.reduce((s, p, i) => s + (quiz[i] && p - 1 === quiz[i].correct ? E.QUIZ_POINTS : 0), 0);
+  /** Negative when `a` is ahead: more points, then less total time. */
+  const quizCompare = (quiz, a, b) => (quizPts(quiz, b.picks) - quizPts(quiz, a.picks)) || (a.tenths - b.tenths);
+  const fmtSecs = (tenths) => `${(tenths / 10).toFixed(1)} s`;
   /** What the page backdrop shows: the full surface at home, a horizon elsewhere. */
   function scene(view, opts) { document.body.dataset.view = view; if (V.scene) V.scene(view, opts); }
   /** The six tiers, each set as deep as it scores. */
@@ -191,7 +206,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function statsSummary() {
     const ds = dailyRecords();
-    const all = Object.values(records);
+    const all = Object.values(records).filter((r) => !isQuizMode(r.mode)); // quiz runs score 100 a hit, not by rarity: kept out of the tier stats
     const best = ds.reduce((m, r) => Math.max(m, r.score), 0);
     const avg = ds.length ? Math.round(ds.reduce((s, r) => s + r.score, 0) / ds.length) : 0;
     const tierCounts = Object.fromEntries([...E.TIER_IDS, "miss"].map((t) => [t, 0]));
@@ -221,6 +236,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return { key: `practice:${promptId}`, mode: "practice", number: 1, label: "Practice", promptIds: [promptId] };
   }
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
+  function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
+  function quizSpec(n) {
+    const quiz = E.quizRun(DATA, n);
+    return { key: `quiz:${n}`, mode: "quiz", fmt: "quiz", number: n, label: `Quiz #${n}`, promptIds: quiz.map((q) => q.promptId), quiz };
+  }
   function nextPackRun(packId) { let n = 1; while (records[`pack:${packId}:${n}`]) n++; return n; }
 
   // ----------------------------------------------------------- challenges
@@ -319,6 +339,54 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return openRun(vsSpec(c.seed, c.n, a, c.secs));
   }
 
+  // ---- quiz challenges: #vq-<seed>-<n>[tNN][-<picks>-<tenths>-<nameHex>]x2. Picks are one digit per
+  // question (0 none, 1 to 4 the option chosen), so the score is recomputed from the seed; tenths is
+  // the total answer time in tenths of a second, which breaks a tie on points.
+  const quizChallengeQuiz = (seed, n) => E.quizFor(DATA, `vq-${seed}`, n);
+  function vqLink(seed, n, players, secs) {
+    const tail = players.map((pl) => `-${pl.picks.join("")}-${Math.min(99999, pl.tenths)}-${encName(pl.name)}`).join("");
+    const t = validSecs(secs) && secs !== DEFAULT_SECS ? `t${secs}` : "";
+    return `${SHARE_BASE || siteUrl()}#vq-${seed}-${n}${t}${tail}`;
+  }
+  function parseQuizChallenge(h) {
+    const m = h.match(/^vq-([a-z0-9]{4,12})-(\d{1,2})(?:t(\d{2}))?((?:-[0-4]{1,25}-\d{1,5}-[0-9a-f]{0,64}){0,2})$/);
+    if (!m) return null;
+    const n = +m[2], secs = m[3] ? +m[3] : DEFAULT_SECS;
+    if (!validQ(n) || !validSecs(secs)) return null;
+    const parts = m[4].split("-").slice(1);
+    const players = [];
+    for (let i = 0; i < parts.length; i += 3) {
+      if (parts[i].length !== n) return null;
+      players.push({ picks: parts[i].split("").map(Number), tenths: +parts[i + 1], name: decName(parts[i + 2] || "") || "A friend" });
+    }
+    return { seed: m[1], n, secs, players };
+  }
+  function vqSpec(seed, n, opp, secs) {
+    const quiz = quizChallengeQuiz(seed, n);
+    return {
+      key: `vq:${seed}`, mode: "vq", fmt: "quiz", number: 0, seed, n: quiz.length, opp: opp || null, secs,
+      label: opp ? `Quiz vs ${opp.name}` : "Quiz challenge", promptIds: quiz.map((q) => q.promptId), quiz,
+    };
+  }
+  const picksSig = (pl) => `${pl.picks.join("")}-${pl.tenths}`;
+  function openQuizChallenge(h) {
+    const c = parseQuizChallenge(h);
+    if (!c) return go("challenge");
+    if (quizChallengeQuiz(c.seed, c.n).length !== c.n) { toast("This question set can't make that many quiz questions"); return go("challenge"); }
+    const mine = records[`vq:${c.seed}`];
+    const me = mine ? { picks: mine.picks, tenths: mine.tenths, name: mine.name || myName() || "You" } : null;
+    if (!c.players.length) return mine ? go(`results-vq-${c.seed}`) : openRun(vqSpec(c.seed, c.n, null, c.secs));
+    const [a, b] = c.players;
+    if (b) {
+      if (me && picksSig(me) === picksSig(a)) a.you = true;
+      else if (me && picksSig(me) === picksSig(b)) b.you = true;
+      return renderQuizDuel(c, a, b);
+    }
+    if (me && picksSig(me) === picksSig(a)) return go(`results-vq-${c.seed}`);
+    if (me) return renderQuizDuel(c, a, me, true);
+    return openRun(vqSpec(c.seed, c.n, a, c.secs));
+  }
+
   // ================================================================ live
   // Real-time matches. Browsers talk directly over WebRTC; PeerJS's public
   // server only introduces them, so nobody needs an account. The host's page
@@ -336,7 +404,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const CODE_ABC = "abcdefghjkmnpqrstuvwxyz23456789";
   const liveBlocked = () => !!SHARE_BASE; // only the artifact build sets SHARE_BASE
   const LIVE = { active: false, code: "", isHost: false, client: null, conns: new Map(), myId: "",
-    players: new Map(), n: 7, seed: "", phase: "lobby", revealed: -1, timers: [], intervals: [], status: "" };
+    players: new Map(), n: 7, seed: "", phase: "lobby", revealed: -1, timers: [], intervals: [], status: "",
+    fmt: "rarity", mfmt: "rarity", quiz: null }; // fmt: the lobby's choice; mfmt and quiz: the running match's format and questions
   let mqttLib = null;
   function loadMqtt() {
     if (window.mqtt) return Promise.resolve(window.mqtt);
@@ -362,7 +431,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
     Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
-      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null });
+      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", quiz: null });
     chatRate.clear();
     syncChat();
   }
@@ -380,7 +449,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const playerList = () => [...LIVE.players.values()];
   const inMatch = () => playerList().filter((p) => !p.late); // late joiners wait for the next match
   const roundPts = (pl, i) => (pl.ans[i] ? pl.ans[i].score : 0);
-  const shownTotal = (pl) => { let s = 0; for (const k in pl.ans) s += roundPts(pl, +k); return s; };
+  const liveQuiz = () => LIVE.mfmt === "quiz";
+  // quiz matches keep each verdict back until the reveal, so a total counts revealed rounds only
+  const shownTotal = (pl) => { let s = 0; for (const k in pl.ans) if (!liveQuiz() || +k <= LIVE.revealed) s += roundPts(pl, +k); return s; };
+  /** A player's whole answer time in a quiz match; a question they never answered counts as the full clock. */
+  const liveTotalMs = (pl) => { let s = 0; for (let k = 0; k < LIVE.n; k++) s += pl.ans[k] ? pl.ans[k].ms : (LIVE.secs || DEFAULT_SECS) * 1000; return s; };
+  /** Standing order: points, then (quiz) the faster total time. */
+  const rankCmp = (a, b) => shownTotal(b) - shownTotal(a) || (liveQuiz() ? liveTotalMs(a) - liveTotalMs(b) : 0);
   const hostNow = () => Date.now() + (LIVE.isHost ? 0 : LIVE.offset || 0); // clocks synced to the host
 
   // ---- messages: everyone (host included) applies the same events
@@ -408,16 +483,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (validSecs(+m.secs)) LIVE.secs = +m.secs;
       if (!LIVE.isHost) LIVE.isPublic = !!m.pub;
       if (["off", "typos", "full"].includes(m.assist)) LIVE.assist = m.assist;
+      if (["rarity", "quiz"].includes(m.fmt) && LIVE.phase !== "playing") LIVE.fmt = m.fmt;
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
     } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && validQ(+m.n)) {
       LIVE.seed = m.seed; LIVE.n = +m.n; LIVE.phase = "playing"; LIVE.revealed = -1; LIVE.countdownAt = 0;
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
+      // a quiz match: every page builds the same questions from the room's seed and the host's prompt list
+      const quiz = m.fmt === "quiz" ? E.quizFor(DATA, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [] }) : null;
+      if (quiz) LIVE.n = quiz.length;
+      LIVE.mfmt = quiz ? "quiz" : "rarity"; LIVE.quiz = quiz;
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
         assist: ["off", "typos", "full"].includes(m.assist) ? m.assist : "typos",
         answerMs: (validSecs(+m.secs) ? +m.secs : DEFAULT_SECS) * 1000,
-        promptIds: Array.isArray(m.ids) && m.ids.length === LIVE.n && m.ids.every((id) => PROMPTS.has(id)) ? m.ids.slice() : challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
+        promptIds: quiz ? quiz.map((q) => q.promptId) : Array.isArray(m.ids) && m.ids.length === LIVE.n && m.ids.every((id) => PROMPTS.has(id)) ? m.ids.slice() : challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
+      if (quiz) { RUN.fmt = "quiz"; RUN.quiz = quiz; } // the same array as LIVE.quiz: a skip replaces a question in both
       LIVE.skip = null;
       LIVE.ids = RUN.promptIds; // same array: kept for the recap after RUN is gone, and skips update both
       renderPlayShell();
@@ -426,7 +507,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       cancelAnimationFrame(runRaf);
       while (RUN.results.length < m.i) { // missed a round (lag or tab asleep): count it as a miss
         const p = PROMPTS.get(RUN.promptIds[RUN.results.length]);
-        RUN.results.push({ promptId: p.id, promptText: p.text, raw: null, answer: null, tier: null, score: 0, quip: null, corrected: false, timeout: true });
+        RUN.results.push({ promptId: p.id, promptText: p.text, raw: null, answer: null, tier: null, score: 0, quip: null, corrected: false, timeout: true, ...(RUN.fmt === "quiz" ? { picked: -1, correct: RUN.quiz[RUN.results.length].correct, ms: answerMs() } : {}) });
       }
       RUN.round = m.i;
       const go1 = () => { if (RUN && RUN.mode === "live" && RUN.round === m.i) { startRound(); renderStrip(); } };
@@ -437,6 +518,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     } else if (m.t === "ans" && typeof m.id === "string" && Number.isInteger(m.i)) {
       const pl = LIVE.players.get(m.id);
       if (!pl || pl.ans[m.i]) return;
+      if (liveQuiz()) { // the pick is an index into the options every page built from the same seed; correctness is recomputed here
+        const q = LIVE.quiz && LIVE.quiz[m.i];
+        if (!q || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
+        const ok = m.pick >= 0 && m.pick === q.correct;
+        const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, (LIVE.secs || DEFAULT_SECS) * 1000));
+        pl.ans[m.i] = { pick: m.pick, ok, ms, answer: m.pick >= 0 ? q.options[m.pick] : null, tier: ok ? QUIZ_TIER : null, score: ok ? E.QUIZ_POINTS : 0 };
+        renderStrip();
+        renderLiveWait();
+        if (LIVE.revealed >= m.i) renderReveal(m.i);
+        return;
+      }
       const tier = T[m.tier] ? m.tier : null;
       pl.ans[m.i] = { answer: tier ? String(m.answer || "").slice(0, 80) : null, tier, score: tier ? T[tier].score : 0 };
       renderStrip();
@@ -463,6 +555,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     } else if (m.t === "skip" && RUN && RUN.mode === "live" && Number.isInteger(m.i) && m.i < RUN.promptIds.length && m.i > LIVE.revealed && PROMPTS.has(m.id)) {
       // the room voted this question out: a fresh one takes its slot, and nobody keeps points from it
       cancelAnimationFrame(runRaf);
+      if (liveQuiz()) { const q = E.quizQuestion(DATA, LIVE.seed, m.id); if (!q) return; RUN.quiz[m.i] = q; }
       RUN.promptIds[m.i] = m.id;
       RUN.results.length = Math.min(RUN.results.length, m.i);
       Object.assign(RUN, { round: m.i, phase: "intro", draft: "", tried: [], pendingCorrection: null });
@@ -479,6 +572,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (RUN && RUN.mode === "live" && RUN.results.length <= m.i && (RUN.phase === "preview" || RUN.phase === "answering")) submit(true);
       renderStrip();
       renderReveal(m.i);
+      if (liveQuiz()) liveQuizSettle(m.i);
     } else if (m.t === "closed" && !LIVE.isHost) {
       leaveLive();
       renderLiveStatus("The host closed the room.", true);
@@ -496,7 +590,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     apply(m);
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
+    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", fmt: LIVE.fmt || "rarity", phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
@@ -538,7 +632,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function hostAnswer(id, m) {
     if (LIVE.phase !== "playing" || !Number.isInteger(m.i) || m.i <= LIVE.revealed) return;
     if (m.pid && RUN && RUN.mode === "live" && RUN.promptIds[m.i] !== m.pid) return; // answered a question that was skipped
-    broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier });
+    if (liveQuiz()) { // the host decides what counts: a real option index (or none), a time inside the clock
+      if (!LIVE.quiz || !LIVE.quiz[m.i] || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
+      const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, (LIVE.secs || DEFAULT_SECS) * 1000));
+      broadcast({ t: "ans", id, i: m.i, pick: m.pick, ms });
+    } else broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier });
     const everyone = inMatch().every((p) => p.ans[m.i]);
     if (everyone) liveLater(() => hostReveal(m.i), 700);
   }
@@ -579,13 +677,20 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.phase = "playing";
     const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
     let ids = challengePromptIds(seed, LIVE.n);
+    let fresh = [];
+    const used = new Set(LS.get("liveUsed", []));
     if (LIVE.noRepeat !== false) {
-      const used = new Set(LS.get("liveUsed", []));
-      const fresh = E.shuffled(DATA.prompts.map((p) => p.id).filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
+      fresh = E.shuffled(DATA.prompts.map((p) => p.id).filter((id) => !used.has(id)), E.mulberry32(E.hashString(seed)));
       if (fresh.length >= LIVE.n) ids = fresh.slice(0, LIVE.n);
-      LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
     }
-    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos" });
+    if (LIVE.fmt === "quiz") { // the host fixes which prompts get a question, so every page builds the same ones
+      const quiz = E.quizFor(DATA, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : ids });
+      if (!quiz.length) { LIVE.phase = "lobby"; toast("This question set can't make a quiz"); return; }
+      ids = quiz.map((q) => q.promptId);
+      LIVE.n = ids.length;
+    }
+    if (LIVE.noRepeat !== false) LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
+    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", fmt: LIVE.fmt === "quiz" ? "quiz" : "rarity" });
     broadcast(lobbyMsg());
     liveLater(() => hostRound(0), 1800);
   }
@@ -599,7 +704,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     broadcast({ t: "reveal", i });
     // explanations take reading: hold the reveal a little longer for each one on screen
     const pid = RUN && RUN.mode === "live" ? RUN.promptIds[i] : "";
-    const notes = new Set(inMatch().map((pl) => pl.ans[i] && explainOf(pid, pl.ans[i].answer)).filter(Boolean)).size;
+    const notes = liveQuiz() ? (LIVE.quiz[i] && explainOf(pid, LIVE.quiz[i].options[LIVE.quiz[i].correct]) ? 1 : 0)
+      : new Set(inMatch().map((pl) => pl.ans[i] && explainOf(pid, pl.ans[i].answer)).filter(Boolean)).size;
     liveLater(() => { if (i + 1 < LIVE.n) hostRound(i + 1); else { broadcast({ t: "end" }); LIVE.phase = "done"; broadcast(lobbyMsg()); } }, REVEAL_MS + Math.min(3000, 1200 * notes));
   }
   /** Players present for the question; a skip needs more than half of them (both, in a duo). */
@@ -623,7 +729,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !used.has(id)) : pool;
     const from = fresh.length ? fresh : pool;
     if (!from.length) return;
-    const id = from[Math.floor(Math.random() * from.length)];
+    // a quiz needs a prompt that can make a fair question; try them in random order until one does
+    const id = liveQuiz() ? E.shuffled(from, Math.random).find((x) => E.quizQuestion(DATA, LIVE.seed, x)) : from[Math.floor(Math.random() * from.length)];
+    if (!id) return;
     if (LIVE.noRepeat !== false) LS.set("liveUsed", [...used, id].slice(-400));
     broadcast({ t: "skip", i, id });
     liveLater(() => hostRound(i), 1200);
@@ -631,6 +739,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   /** Called from renderFeedback when this player's answer for the round is final. */
   function liveLocalAnswer(res) {
     const m = { t: "ans", i: RUN.round, pid: RUN.promptIds[RUN.round], answer: res.answer, tier: res.tier };
+    if (RUN.fmt === "quiz") Object.assign(m, { pick: res.picked, ms: res.ms });
     if (LIVE.isHost) hostAnswer(LIVE.myId, m);
     else guestSend(m);
   }
@@ -751,7 +860,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS });
+        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: LS.get("liveFmt", "rarity") === "quiz" ? "quiz" : "rarity" });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
         becomeHost();
         go(liveHash());
@@ -918,11 +1027,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
-        <div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>
+        <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Rarity"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
+        ${LIVE.fmt === "quiz" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>No repeat questions across matches</span></label>
         ${qPicker(LIVE.n)}
         ${timePicker(LIVE.secs || DEFAULT_SECS)}
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each · autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}.</p>`}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each · ${LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Rarity format.`}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -931,6 +1041,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const ll = $("#live-leave-lobby");
     if (ll) ll.addEventListener("click", () => leaveLive(false));
     $$(".lv-assist").forEach((b) => b.addEventListener("click", () => { LIVE.assist = b.dataset.a; broadcast(lobbyMsg()); }));
+    $$(".lv-fmt").forEach((b) => b.addEventListener("click", () => { LIVE.fmt = b.dataset.f; LS.set("liveFmt", LIVE.fmt); broadcast(lobbyMsg()); }));
     if (typingN !== null && $("#q-custom")) { const box = $("#q-custom"); box.value = typingN; box.focus(); }
     const nr = $("#live-norepeat");
     if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
@@ -944,6 +1055,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const iDone = RUN.results.length > i || LIVE.revealed >= i; // no peeking until you've answered
     const mask = (x) => "•".repeat(Math.min(24, String(x).length));
     const others = inMatch().filter((p) => p.id !== LIVE.myId);
+    if (liveQuiz()) { // no typing in a quiz: "answered" until you've answered yourself, then what they picked (the verdict waits for the reveal)
+      const q = LIVE.quiz[i];
+      el.innerHTML = others.map((p) => {
+        const a = p.ans[i];
+        const line = !a ? `<span class="rv-typing"><span class="muted">thinking</span></span>`
+          : !iDone ? `<span class="rv-locked"><b>Locked in ✓</b></span>`
+          : `<span class="rv-locked">${a.pick >= 0 && q ? `<span class="rv-pick">${esc(String(a.pick + 1))}</span><b>${esc(q.options[a.pick])}</b>` : `<b>No answer</b>`}</span>`;
+        return `<div class="rv${a ? " done" : ""}">${avatar(p.name)}<div class="rv-main"><span class="rv-name">${esc(p.name)}${p.away ? " · reconnecting" : ""}</span>${line}</div></div>`;
+      }).join("");
+      return;
+    }
     el.innerHTML = others.map((p) => {
       const a = p.ans[i];
       const ty = p.typing && p.typing.i === i ? p.typing : { draft: "", tried: [] };
@@ -980,7 +1102,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     el.innerHTML = inMatch().map((p) => {
       const done = !!p.ans[i];
       const iDone = RUN.results.length > i || LIVE.revealed >= i;
-      const tot = shownTotal(p) - (!iDone && p.id !== LIVE.myId ? roundPts(p, i) : 0);
+      const tot = shownTotal(p) - (!liveQuiz() && !iDone && p.id !== LIVE.myId ? roundPts(p, i) : 0); // quiz totals already count revealed rounds only
       return `<span class="lp${p.id === LIVE.myId ? " me" : ""}${done ? " done" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><em>${tot}</em>${done && LIVE.revealed < i ? `<i class="lp-tick" aria-label="answered">✓</i>` : ""}</span>`;
     }).join("");
   }
@@ -1008,6 +1130,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function renderReveal(i) {
     if (!RUN || RUN.mode !== "live" || !$("#card")) return;
+    if (liveQuiz()) return renderQuizReveal(i);
     const p = PROMPTS.get(RUN.promptIds[i]);
     const ps = inMatch().sort((a, b) => roundPts(b, i) - roundPts(a, i));
     const standings = inMatch().sort((a, b) => shownTotal(b) - shownTotal(a));
@@ -1023,32 +1146,77 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <p class="lv-note">${last ? "Final standings coming up…" : `Question ${i + 2} of ${LIVE.n} coming up…`}</p>
     </div>`;
   }
+  /** The reveal of a quiz question: the four options, who picked which, the right one lit, standings underneath. */
+  function renderQuizReveal(i) {
+    const q = LIVE.quiz && LIVE.quiz[i];
+    if (!q) return;
+    const p = PROMPTS.get(q.promptId);
+    const ps = inMatch();
+    const standings = ps.slice().sort(rankCmp);
+    const x = explainOf(q.promptId, q.options[q.correct]);
+    const silent = ps.filter((pl) => !pl.ans[i] || pl.ans[i].pick < 0);
+    const last = i + 1 >= LIVE.n;
+    $("#card").innerHTML = `<div class="lv-reveal">
+      <p class="fb-q">${esc(p.text)}</p>
+      <ul class="mq-opts">${q.options.map((o, k) => {
+        const who = ps.filter((pl) => pl.ans[i] && pl.ans[i].pick === k);
+        return `<li class="${k === q.correct ? "right" : ""}"><span class="mcq-k">${k === q.correct ? qmark(true) : k + 1}</span>
+          <span class="mcq-t"><b>${esc(o)}</b>${k === q.correct ? (x ? `<span class="mcq-x">${esc(x)}</span>` : "") : `<span class="mcq-from">That's ${esc(kindOf(q.from[k]))}</span>`}</span>
+          <span class="mcq-who">${who.map((pl) => `<i class="${pl.id === LIVE.myId ? "me" : ""}">${esc(pl.name)}</i>`).join("")}</span></li>`;
+      }).join("")}</ul>
+      ${silent.length ? `<p class="lv-note">No answer: ${esc(silent.map((pl) => pl.name).join(", "))}</p>` : ""}
+      <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
+      <p class="lv-note">${last ? "Final standings coming up…" : `Question ${i + 2} of ${LIVE.n} coming up…`}</p>
+    </div>`;
+  }
+  /** Quiz verdicts wait for the reveal: only then do the dots, score and ball move for the round. */
+  function liveQuizSettle(i) {
+    if (!RUN || RUN.mode !== "live" || RUN.fmt !== "quiz" || RUN.settled >= i) return;
+    const res = RUN.results[i];
+    if (!res) return;
+    RUN.settled = i;
+    updateHead();
+    const total = totalScore(RUN.results.slice(0, i + 1));
+    if (descent) {
+      descent.set(RUN.results.slice(0, i));
+      hudRange = [total - res.score, total];
+      if (res.tier) Sound.tier(res.tier); else Sound.miss();
+      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } });
+      setTimeout(() => { if (RUN && RUN.fmt === "quiz") setHud(totalScore(RUN.results.slice(0, Math.max(i, LIVE.revealed) + 1))); }, 1500);
+    } else setHud(total);
+  }
   function renderPodium() {
     stopRun();
     setMid(`Room ${LIVE.code}`);
     scene("results");
-    const ps = inMatch().sort((a, b) => shownTotal(b) - shownTotal(a));
-    const top = ps.length ? shownTotal(ps[0]) : 0;
-    const winners = ps.filter((p) => shownTotal(p) === top);
+    const quiz = liveQuiz();
+    const ps = inMatch().sort(rankCmp);
+    const top = ps.length ? ps[0] : null;
+    const winners = top ? ps.filter((p) => rankCmp(p, top) === 0) : [];
+    const timeNote = quiz && ps.length > 1 && shownTotal(ps[0]) === shownTotal(ps[1]) && liveTotalMs(ps[0]) !== liveTotalMs(ps[1])
+      ? ` · level on points, ${esc(ps[0].name)} was faster (${fmtSecs(liveTotalMs(ps[0]) / 100)} to ${fmtSecs(liveTotalMs(ps[1]) / 100)})` : "";
     const ids = (LIVE.ids || []).slice(0, LIVE.n).filter((id) => PROMPTS.has(id));
     const me = LIVE.players.get(LIVE.myId);
     const openKeys = new Set($$("details.key[open]", app).map((d) => d.dataset.pid)); // redraws (Ready taps) keep what you opened
+    const rightOf = (i) => (quiz && LIVE.quiz[i] ? LIVE.quiz[i].options[LIVE.quiz[i].correct] : null);
     const recap = ids.length ? `
       <section class="lv-recap">
         <h2 class="block-title">Answers</h2>
-        ${ids.map((pid, i) => `<div class="rc"><p class="rc-q">${esc(PROMPTS.get(pid).text)}</p><ul class="rc-list">${ps.map((pl) => {
+        ${ids.map((pid, i) => quiz ? (() => { const q = LIVE.quiz[i], x = q && explainOf(pid, rightOf(i)); return q ? `<div class="rc"><p class="rc-q">${esc(PROMPTS.get(pid).text)}</p>
+          <p class="rc-right">${qmark(true)}<span><b>${esc(rightOf(i))}</b>${x ? `<span class="rx">${esc(x)}</span>` : ""}</span></p>
+          <ul class="rc-list">${ps.map((pl) => { const a = pl.ans[i]; return `<li class="t-${a && a.ok ? QUIZ_TIER : "miss"}${pl.id === LIVE.myId ? " me" : ""}">${qmark(a && a.ok)}<span><span class="rn">${esc(pl.name)}</span><span class="ra">${a && a.pick >= 0 ? esc(q.options[a.pick]) : "No answer"}</span></span><em>+${roundPts(pl, i)}</em></li>`; }).join("")}</ul></div>` : ""; })() : `<div class="rc"><p class="rc-q">${esc(PROMPTS.get(pid).text)}</p><ul class="rc-list">${ps.map((pl) => {
           const a = pl.ans[i], x = a && explainOf(pid, a.answer);
           return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${G(a && a.tier)}<span><span class="rn">${esc(pl.name)}</span><span class="ra">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="rx">${esc(x)}</span>` : ""}</span><em>+${roundPts(pl, i)}</em></li>`;
         }).join("")}</ul></div>`).join("")}
       </section>
       <section>
         <h2 class="block-title">Answer keys</h2>
-        ${ids.map((pid, i) => answerKey(PROMPTS.get(pid), me && me.ans[i] && me.ans[i].answer, openKeys.has(pid))).join("")}
+        ${ids.map((pid, i) => answerKey(PROMPTS.get(pid), quiz ? rightOf(i) : me && me.ans[i] && me.ans[i].answer, openKeys.has(pid))).join("")}
       </section>` : "";
     app.innerHTML = `<section class="screen live">
-      <div class="page-head"><h1>${winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${LIVE.n} questions · Room ${esc(LIVE.code)}</p></div>
+      <div class="page-head"><h1>${winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${LIVE.n} questions${quiz ? " · Quiz" : ""} · Room ${esc(LIVE.code)}${timeNote}</p></div>
       <ol class="lv-podium">${ps.map((pl, k) => `<li class="${k === 0 ? "first" : ""}${pl.id === LIVE.myId ? " me" : ""}">
-        <span class="rk">${k + 1}</span>${avatar(pl.name)}<span class="nm"><b>${esc(pl.name)}</b>${tiersRow(Array.from({ length: LIVE.n }, (_, i) => (pl.ans[i] && pl.ans[i].tier) || "miss"))}</span><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
+        <span class="rk">${k + 1}</span>${avatar(pl.name)}<span class="nm"><b>${esc(pl.name)}</b>${quiz ? `${qmarksRow(Array.from({ length: LIVE.n }, (_, i) => !!(pl.ans[i] && pl.ans[i].ok)))}<span class="nm-t">${fmtSecs(liveTotalMs(pl) / 100)}</span>` : tiersRow(Array.from({ length: LIVE.n }, (_, i) => (pl.ans[i] && pl.ans[i].tier) || "miss"))}</span><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <div class="btn-row">
         <a class="btn big" href="#home" id="live-leave">Leave</a>
       </div>
@@ -1251,7 +1419,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const SIMPLE = {
     "": renderHome, home: renderHome,
     daily: () => openRun(dailySpec(today())),
-    unlimited: renderUnlimited, packs: renderPacks, archive: renderArchive, library: renderLibrary,
+    unlimited: renderUnlimited, quiz: renderQuizHub, packs: renderPacks, archive: renderArchive, library: renderLibrary,
     stats: renderStats, how: renderHow, faq: renderFaq, prefs: renderSettings,
     challenge: renderChallenge,
     live: () => openLive(""),
@@ -1265,6 +1433,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((m = s.match(/^unlimited-(\d+)$/))) return `unlimited:${m[1]}`;
     if ((m = s.match(/^pack-([a-z]+)-(\d+)$/))) return `pack:${m[1]}:${m[2]}`;
     if ((m = s.match(/^vs-([a-z0-9]+)$/))) return `vs:${m[1]}`;
+    if ((m = s.match(/^quiz-(\d+)$/))) return `quiz:${m[1]}`;
+    if ((m = s.match(/^vq-([a-z0-9]+)$/))) return `vq:${m[1]}`;
     return s;
   }
   function go(name) {
@@ -1286,8 +1456,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + (h || "home")));
     if (!BROWSE && /^(packs|library|pack-|practice-|answers-)/.test(h)) return go("home");
     if (!BROWSE && /^unlimited-\d+$/.test(h) && +h.slice(10) > nextUnlimited()) return go(`unlimited-${nextUnlimited()}`);
+    if (!BROWSE && /^quiz-\d+$/.test(h) && +h.slice(5) > nextQuiz()) return go(`quiz-${nextQuiz()}`); // same launch rule as Unlimited: no jumping ahead
     if (SIMPLE[h]) return SIMPLE[h]();
     if (/^vs-/.test(h)) return openChallenge(h);
+    if (/^vq-/.test(h)) return openQuizChallenge(h);
+    if (/^quiz-\d+$/.test(h)) return openQuiz(Math.max(1, +h.slice(5)));
     if (/^live-[a-z0-9]{5}$/.test(h)) return openLive(h.slice(5));
     let m;
     if ((m = h.match(/^unlimited-(\d+)$/))) return openRun(unlimitedSpec(Math.max(1, +m[1])));
@@ -1322,6 +1495,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ["#rooms", "Public rooms", "Join anyone playing now"],
       ["#challenge", "Challenge a friend", "Same questions, one link"],
       ["#unlimited", "Unlimited", "Endless runs"],
+      ["#quiz", "Quiz", "Four answers, one fits"],
       ["#packs", "Packs", `${DATA.packs.length} themes`],
       ["#board", "Leaderboard", "Today's top scores"],
       ["#archive", "Archive", "Past days"],
@@ -1378,13 +1552,23 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function openRun(spec) {
     if (records[spec.key] && spec.mode !== "practice") return go(`results-${slugFor(spec.key)}`);
     let run = spec.mode === "practice" ? null : LS.get("run:" + spec.key);
-    if (!run || run.promptIds.join() !== spec.promptIds.join()) {
+    if (!run || run.promptIds.join() !== spec.promptIds.join() || (spec.quiz && JSON.stringify(run.quiz) !== JSON.stringify(spec.quiz))) {
       run = { ...spec, answerMs: (validSecs(spec.secs) ? spec.secs : validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS) * 1000,
         round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
     }
     RUN = run;
     renderPlayShell();
     resumePhase();
+  }
+
+  function openQuiz(n) {
+    const spec = quizSpec(n);
+    if (!spec.quiz.length) {
+      setMid("Quiz");
+      app.innerHTML = `<section class="screen"><div class="page-head"><h1>Quiz</h1><p>This question set can't make quiz questions.</p></div><a class="btn big" href="#home">Home</a></section>`;
+      return;
+    }
+    openRun(spec);
   }
 
   function resumePhase() {
@@ -1401,7 +1585,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function renderPlayShell() {
     setMid(RUN.label);
-    app.innerHTML = `<section class="screen play">
+    app.innerHTML = `<section class="screen play${RUN.fmt === "quiz" ? " quiz" : ""}">
       <div class="stage" id="stage">
         <canvas id="descent" aria-hidden="true"></canvas>
         <div class="hud"><span>Loss</span><b id="hud-loss">7.00</b></div>
@@ -1436,6 +1620,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const n = RUN.promptIds.length;
     $("#dots").innerHTML = RUN.promptIds.map((_, i) => {
       const r = RUN.results[i];
+      if (r && RUN.mode === "live" && RUN.fmt === "quiz" && i > LIVE.revealed) return `<i class="done t-baseline" title="Locked in"></i>`; // the verdict waits for the reveal
       if (r) return r.tier ? `<i class="done t-${r.tier}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="Miss"></i>`;
       return `<i class="${i === RUN.round && RUN.phase !== "intro" ? "cur" : ""}"></i>`;
     }).join("");
@@ -1454,11 +1639,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       $("#card").innerHTML = `<div class="intro-card"><div><h2>Get ready</h2><p class="sub">${n} questions. Same clock for everyone. Answers are revealed after each one.</p></div></div>`;
       return;
     }
-    const title = RUN.mode === "daily" ? `MLion #${RUN.number}` : RUN.mode === "vs" && RUN.opp ? `${RUN.opp.name} challenged you` : RUN.label;
+    const quiz = RUN.fmt === "quiz";
+    const vsLike = RUN.mode === "vs" || RUN.mode === "vq";
+    const title = RUN.mode === "daily" ? `MLion #${RUN.number}` : vsLike && RUN.opp ? `${RUN.opp.name} challenged you` : RUN.label;
     const sub = RUN.mode === "daily" ? prettyDate(RUN.date, { weekday: "long", month: "long", day: "numeric" }) :
       RUN.mode === "archive" ? `${prettyDate(RUN.date)} · no streak` :
       RUN.mode === "practice" ? "Answers shown after" :
-      RUN.mode === "vs" ? (RUN.opp ? `Score to beat: ${tierPoints(RUN.opp.tiers)}. You'll see their result after each answer.` : "Send the link now to play at the same time, or play first and send your score.") : "";
+      vsLike ? (RUN.opp ? `Score to beat: ${quiz ? quizPts(RUN.quiz, RUN.opp.picks) : tierPoints(RUN.opp.tiers)}. You'll see their ${quiz ? "pick" : "result"} after each answer.` : "Send the link now to play at the same time, or play first and send your score.") :
+      RUN.mode === "quiz" ? `Pick the one that fits. ${E.QUIZ_POINTS} a right answer.` : "";
     $("#card").innerHTML = `<div class="intro-card">
       <div><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
       <ul class="beats">
@@ -1466,24 +1654,25 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <li><b>3 s</b><span>to read</span></li>
         <li><b>${answerMs() / 1000} s</b><span>to answer</span></li>
       </ul>
-      <p class="rule">Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more.</p>
-      ${RUN.mode === "vs" ? `<label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So ${RUN.opp ? esc(RUN.opp.name) : "your friend"} knows who played" value="${esc(myName())}"></label>` : ""}
+      <p class="rule">${quiz ? "Four answers, one fits. Tap one before the clock runs out. A wrong answer or no answer scores nothing." : "Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more."}</p>
+      ${vsLike ? `<label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So ${RUN.opp ? esc(RUN.opp.name) : "your friend"} knows who played" value="${esc(myName())}"></label>` : ""}
       <div class="btn-row">
         <button class="btn primary big" id="begin">Begin</button>
-        ${RUN.mode === "vs" && !RUN.opp ? `<button class="btn big" id="vs-send-now">Send link now</button>` : ""}
+        ${vsLike && !RUN.opp ? `<button class="btn big" id="vs-send-now">Send link now</button>` : ""}
       </div>
-      <p class="hint"><kbd>Enter</kbd> submits and continues</p>
+      <p class="hint">${quiz ? `<kbd>1</kbd> to <kbd>4</kbd> pick an answer` : `<kbd>Enter</kbd> submits and continues`}</p>
     </div>`;
     const sendNow = $("#vs-send-now");
     if (sendNow) sendNow.addEventListener("click", () => {
       const nm = $("#vs-name");
       if (nm) LS.set("name", nm.value.trim().slice(0, 16));
-      shareLink(`Play MLion with me: the same ${RUN.n} ML questions. Send me your score when you're done:\n${challengeLink(RUN.seed, RUN.n, [], answerMs() / 1000)}`);
+      const link = quiz ? vqLink(RUN.seed, RUN.n, [], answerMs() / 1000) : challengeLink(RUN.seed, RUN.n, [], answerMs() / 1000);
+      shareLink(`Play MLion with me: the same ${RUN.n} ${quiz ? "quiz" : "ML"} questions. Send me your score when you're done:\n${link}`);
     });
     $("#begin").addEventListener("click", async () => {
       const nm = $("#vs-name");
       if (nm) LS.set("name", nm.value.trim().slice(0, 16));
-      $("#begin").disabled = true; await aiConsentUpFront(); startRound();
+      $("#begin").disabled = true; if (!quiz) await aiConsentUpFront(); startRound();
     });
     $("#begin").focus();
   }
@@ -1503,7 +1692,41 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function currentPrompt() { return PROMPTS.get(RUN.promptIds[RUN.round]); }
 
+  /** A quiz question: the prompt, then four options to tap (or press 1 to 4). */
+  function renderQuizRound() {
+    const p = currentPrompt(), q = RUN.quiz[RUN.round];
+    updateHead();
+    if (descent) descent.calm();
+    $("#card").innerHTML = `<div class="round quiz">
+      <div class="ask">
+        <p class="prompt-text" id="prompt-text">${esc(p.text)}</p>
+        <p class="prompt-note">${p.scope ? `${esc(p.scope)}. ` : ""}Which one fits?</p>
+      </div>
+      <div class="act">
+        <div class="timer" id="timer">
+          <div class="timer-row"><span id="timer-label">Starts in</span><b id="timer-num">${(answerMs() / 1000).toFixed(1)}</b></div>
+          <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
+        </div>
+        <div class="mcq-zone">
+          <div class="mcq locked" id="mcq" role="group" aria-label="Choose one answer">
+            ${q.options.map((o, i) => `<button type="button" class="mcq-opt" data-i="${i}" disabled aria-keyshortcuts="${i + 1}"><span class="mcq-k">${i + 1}</span><span class="mcq-t">${esc(o)}</span></button>`).join("")}
+          </div>
+          <div class="preview-veil" id="veil"><span>Read the question</span><b id="veil-n">3</b></div>
+        </div>
+      </div>
+    </div>`;
+    $$(".mcq-opt").forEach((b) => b.addEventListener("click", () => pickQuiz(+b.dataset.i)));
+    lastTick = -1;
+    tickLoop();
+  }
+  /** Lock in an option (index 0 to 3) while the clock is running. */
+  function pickQuiz(i) {
+    if (!RUN || RUN.fmt !== "quiz" || RUN.phase !== "answering" || !(i >= 0 && i < E.QUIZ_OPTIONS)) return;
+    finishQuiz(i, {});
+  }
+
   function renderRound() {
+    if (RUN.fmt === "quiz") return renderQuizRound();
     const p = currentPrompt();
     updateHead();
     if (descent) descent.calm();
@@ -1564,6 +1787,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     cancelAnimationFrame(runRaf);
     const loop = () => {
       if (!RUN || (RUN.phase !== "preview" && RUN.phase !== "answering")) return;
+      if (RUN.fmt === "quiz") return quizTick();
       const now = Date.now();
       const input = $("#answer"), veil = $("#veil");
       if (!input) return;
@@ -1595,6 +1819,39 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       runRaf = requestAnimationFrame(loop);
     };
     runRaf = requestAnimationFrame(loop);
+  }
+
+  /** The quiz clock: options are covered and locked through the preview, then free until time runs out. */
+  function quizTick() {
+    if (!RUN || (RUN.phase !== "preview" && RUN.phase !== "answering")) return;
+    const now = Date.now();
+    const mcq = $("#mcq"), veil = $("#veil");
+    if (!mcq) return;
+    if (now < RUN.previewEndsAt) {
+      RUN.phase = "preview";
+      veil.classList.remove("hidden");
+      $("#veil-n").textContent = Math.ceil((RUN.previewEndsAt - now) / 1000);
+      $("#timer-label").textContent = "Starts in";
+      $("#timer-num").textContent = (answerMs() / 1000).toFixed(1);
+      $("#timer-fill").style.transform = "scaleX(1)";
+    } else {
+      if (RUN.phase === "preview" || mcq.classList.contains("locked")) {
+        RUN.phase = "answering"; persistRun();
+        mcq.classList.remove("locked");
+        $$(".mcq-opt", mcq).forEach((b) => { b.disabled = false; });
+        veil.classList.add("hidden");
+        $("#timer-label").textContent = "Time left";
+      }
+      const left = Math.max(0, RUN.answerEndsAt - now);
+      $("#timer-num").textContent = (left / 1000).toFixed(1);
+      $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
+      const low = left <= 5000;
+      $("#timer").classList.toggle("low", low);
+      const sec = Math.ceil(left / 1000);
+      if (low && sec !== lastTick && sec > 0) { lastTick = sec; Sound.tick(); }
+      if (left <= 0) { submit(true); return; }
+    }
+    runRaf = requestAnimationFrame(quizTick);
   }
 
   function setStatus(msg, cls) {
@@ -1632,6 +1889,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function submit(force) {
     if (!RUN || RUN.phase !== "answering") return;
+    if (RUN.fmt === "quiz") { if (force) finishQuiz(-1, { timeout: true }); return; } // a quiz answer is a tap, not a submission
     const input = $("#answer");
     const raw = (input ? input.value : RUN.draft || "").trim();
     const p = currentPrompt();
@@ -1694,7 +1952,28 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     } else reject(raw, now);
   }
 
+  /** A quiz answer is final: score it, keep it, show the verdict (a live match holds the verdict for the reveal). */
+  function finishQuiz(pick, { timeout = false, silent = false } = {}) {
+    cancelAnimationFrame(runRaf);
+    const p = currentPrompt(), q = RUN.quiz[RUN.round];
+    const ok = pick >= 0 && pick === q.correct;
+    const ms = pick < 0 ? answerMs() : Math.max(0, Math.min(answerMs(), Date.now() - RUN.previewEndsAt));
+    const res = {
+      promptId: p.id, promptText: p.text, raw: pick >= 0 ? q.options[pick] : null,
+      answer: ok ? q.options[q.correct] : null, tier: ok ? QUIZ_TIER : null, score: ok ? E.QUIZ_POINTS : 0, quip: null,
+      corrected: false, timeout: pick < 0 && !!timeout, skipped: false,
+      picked: pick, correct: q.correct, ms: Math.round(ms),
+    };
+    RUN.results.push(res);
+    RUN.phase = "feedback";
+    markSeen(p.id);
+    persistRun();
+    if (!silent) Sound.submit();
+    renderFeedback(res, !silent);
+  }
+
   function finishRound(answer, raw, { corrected = false, timeout = false, skipped = false, silent = false } = {}) {
+    if (RUN.fmt === "quiz") return finishQuiz(-1, { timeout: true, silent });
     cancelAnimationFrame(runRaf);
     if (RUN.aiCtl) { RUN.aiCtl.abort(); RUN.aiCtl = null; }
     const p = currentPrompt();
@@ -1713,7 +1992,65 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     renderFeedback(res, !silent);
   }
 
+  /** After a quiz answer. Solo: right or wrong, the right option lit, each wrong one labelled with where it belongs.
+   *  Live: just "Locked in"; the verdict arrives with the room's reveal. */
+  function renderQuizFeedback(res, animate) {
+    updateHead();
+    const n = RUN.results.length;
+    const isLast = n >= RUN.promptIds.length;
+    const q = RUN.quiz[n - 1], p = PROMPTS.get(res.promptId);
+    const card = $("#card");
+    if (RUN.mode === "live") {
+      card.innerHTML = `<div class="feedback t-baseline landed" id="fb" aria-live="polite">
+        <p class="fb-q">${esc(p.text)}</p>
+        <div class="fb-answer">${res.picked >= 0 ? `<span class="mcq-n">${res.picked + 1}</span> ${esc(q.options[res.picked])}` : `<span class="muted">No answer</span>`}</div>
+        <div class="fb-tier t-baseline"><span class="fb-name">Locked in</span></div>
+        <p class="lv-note" id="live-wait" aria-live="polite"></p>
+      </div>`;
+      liveLocalAnswer(res);
+      renderLiveWait();
+      renderStrip();
+      return;
+    }
+    const ok = res.score > 0;
+    const row = (o, k) => {
+      const right = k === q.correct, mine = k === res.picked;
+      const x = right ? explainOf(res.promptId, o) : null;
+      return `<li class="${right ? "right" : ""}${mine ? " mine" : ""}"><span class="mcq-k">${right ? qmark(true) : mine ? qmark(false) : k + 1}</span>
+        <span class="mcq-t"><b>${esc(o)}</b>${right ? (x ? `<span class="mcq-x">${esc(x)}</span>` : "") : `<span class="mcq-from">That's ${esc(kindOf(q.from[k]))}</span>`}</span>${mine ? `<span class="mcq-you">You</span>` : ""}</li>`;
+    };
+    card.innerHTML = `
+      <div class="feedback ${ok ? QUIZ_TIER : "miss"} t-${ok ? QUIZ_TIER : "miss"}${animate ? "" : " landed"}" id="fb" aria-live="polite">
+        <p class="fb-q">${esc(p.text)}</p>
+        <div class="fb-tier">${qmark(ok)}<span class="fb-name">${quizVerdict(res)}</span><span class="fb-points">+${res.score}</span></div>
+        <ul class="mcq-key">${q.options.map(row).join("")}</ul>
+        ${RUN.mode === "vq" && RUN.opp ? quizOppLine(RUN.opp, n - 1) : ""}
+        <button class="btn primary big" id="next" ${animate ? "disabled" : ""}>${isLast ? "See results" : "Next"}</button>
+      </div>`;
+    const next = $("#next"), fb = $("#fb");
+    next.addEventListener("click", advance);
+    const done = () => {
+      if (fb.isConnected) fb.classList.add("landed");
+      if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); }
+    };
+    const total = totalScore(RUN.results);
+    if (animate && descent) {
+      hudRange = [total - res.score, total];
+      if (res.tier) Sound.tier(res.tier); else Sound.miss();
+      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } done(); });
+      setTimeout(done, 1500); // never hold the player behind the animation
+    } else { setHud(total); done(); }
+  }
+  /** vq: what the challenger picked on this question, and who leads. */
+  function quizOppLine(opp, i) {
+    const q = RUN.quiz[i], pick = opp.picks[i] - 1, ok = pick === q.correct;
+    const mine = totalScore(RUN.results), theirs = quizPts(RUN.quiz.slice(0, i + 1), opp.picks.slice(0, i + 1));
+    const lead = mine === theirs ? "Level" : mine > theirs ? `You lead by ${mine - theirs}` : `${esc(opp.name)} leads by ${theirs - mine}`;
+    return `<p class="fb-opp t-${ok ? QUIZ_TIER : "miss"}">${qmark(ok)}<span><b>${esc(opp.name)}</b> ${pick >= 0 ? `picked ${esc(q.options[pick])}` : "didn't answer"}${ok ? ` +${E.QUIZ_POINTS}` : ""}</span><span class="lead">${lead}</span></p>`;
+  }
+
   function renderFeedback(res, animate) {
+    if (RUN.fmt === "quiz") return renderQuizFeedback(res, animate);
     updateHead();
     const isLast = RUN.results.length >= RUN.promptIds.length;
     const p = PROMPTS.get(res.promptId);
@@ -1775,6 +2112,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       tiers: RUN.results.map((r) => r.tier || "miss"), completedAt: Date.now(), secs: answerMs() / 1000,
     };
     if (RUN.mode === "vs") Object.assign(rec, { seed: RUN.seed, n: RUN.n, opp: RUN.opp || null, name: myName() || "You" });
+    if (isQuizMode(RUN.mode)) { // keep the questions with the record, so old runs still read right if the generator changes
+      Object.assign(rec, { fmt: "quiz", quiz: RUN.quiz, picks: RUN.results.map((r) => r.picked + 1), tenths: Math.min(99999, Math.round(RUN.results.reduce((s, r) => s + (r.ms || 0), 0) / 100)) });
+      if (RUN.mode === "vq") Object.assign(rec, { seed: RUN.seed, n: RUN.n, opp: RUN.opp || null, name: myName() || "You" });
+    }
     if (RUN.mode === "practice") {
       const r = RUN.results[0];
       const prev = practiceBest[r.promptId];
@@ -1797,6 +2138,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const n = $("#next");
       if (n && !n.disabled && document.activeElement !== n) { e.preventDefault(); advance(); }
     }
+    if (RUN && RUN.fmt === "quiz" && RUN.phase === "answering" && /^[1-4]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey
+      && !(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) && !$("#modal").firstElementChild) { e.preventDefault(); pickQuiz(+e.key - 1); } // keys 1 to 4 pick an option
     if (e.key === "Escape") { closeDrawer(); closeModal(); if (CHAT.open) setChatOpen(false); }
   });
 
@@ -2096,18 +2439,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!rec) return go("home");
     const n = rec.results.length;
     const max = n * 100;
-    const band = n === 7 ? E.bandFor(rec.score) : null;
-    const scoreTier = band ? band.tier : rec.results[0] && rec.results[0].tier;
+    const isQ = isQuizMode(rec.mode); // quiz runs: 100 a hit, no rarity bands
+    const quiz = isQ ? rec.quiz || [] : null;
+    const hits = rec.results.filter((r) => r.score > 0).length;
+    const band = !isQ && n === 7 ? E.bandFor(rec.score) : null;
     setMid(rec.label);
     const share = E.shareText({ mode: rec.mode, number: rec.number, score: rec.score, tiers: rec.tiers, secs: rec.secs, label: rec.mode === "pack" ? PACKS.get(rec.pack).name : rec.label });
     const isDailyToday = rec.mode === "daily" && rec.date === today();
     const picked = !BROWSE && (rec.mode === "pack" || rec.mode === "practice"); // those pages are hidden
     const nextHref = picked ? "#unlimited" : rec.mode === "unlimited" ? `#unlimited-${nextUnlimited()}` :
+      rec.mode === "quiz" ? `#quiz-${nextQuiz()}` :
       rec.mode === "pack" ? `#pack-${rec.pack}-${nextPackRun(rec.pack) > E.packRunCount(DATA, rec.pack) ? 1 : nextPackRun(rec.pack)}` :
       rec.mode === "practice" ? "#library" : "#unlimited";
-    const nextLabel = picked ? "Play Unlimited" : rec.mode === "unlimited" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
+    const nextLabel = picked ? "Play Unlimited" : rec.mode === "unlimited" || rec.mode === "quiz" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
-    const isVs = rec.mode === "vs";
+    const isVs = rec.mode === "vs" || rec.mode === "vq";
+    const meQ = isQ ? { name: rec.name || "You", picks: rec.picks || [], tenths: rec.tenths || 0, you: true } : null;
     V.setRounds(n); // the results chart uses the same hill as the run
     scene("results");
     app.innerHTML = `<section class="screen results">
@@ -2115,9 +2462,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="score-hero">
           <p class="label">${esc(rec.label)}${rec.date ? ` · ${esc(prettyDate(rec.date, { month: "short", day: "numeric" }))}` : ""}</p>
           <div class="score-big">${rec.score}<small>/${max}</small></div>
-          ${isVs && rec.opp ? (() => { const me = rec.score, them = tierPoints(rec.opp.tiers); return `<p class="band ${me >= them ? "t-mlion" : ""}">${me === them ? "Draw" : me > them ? "You win" : `${esc(rec.opp.name)} wins`} · ${me} vs ${them}</p>`; })() : band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
-          ${tiersRow(rec.tiers, "grid-tiers")}
-          <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${accepted} of ${n} accepted</p>
+          ${rec.mode === "vq" && rec.opp ? (() => { const me = rec.score, them = quizPts(quiz, rec.opp.picks), c = quizCompare(quiz, meQ, rec.opp); return `<p class="band ${c < 0 ? "t-mlion" : ""}">${c === 0 ? "Draw" : c < 0 ? "You win" : `${esc(rec.opp.name)} wins`} · ${me} vs ${them}${me === them && c ? (c < 0 ? " · faster" : " · slower") : ""}</p>`; })()
+            : isVs && rec.opp ? (() => { const me = rec.score, them = tierPoints(rec.opp.tiers); return `<p class="band ${me >= them ? "t-mlion" : ""}">${me === them ? "Draw" : me > them ? "You win" : `${esc(rec.opp.name)} wins`} · ${me} vs ${them}</p>`; })()
+            : isQ ? `<p class="band">${hits} of ${n} right</p>` : band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
+          ${isQ ? qmarksRow(rec.results.map((r) => r.score > 0), "grid-tiers") : tiersRow(rec.tiers, "grid-tiers")}
+          <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${isQ ? `${hits} of ${n} right · ${fmtSecs(rec.tenths || 0)}` : `${accepted} of ${n} accepted`}</p>
           <div class="btn-row">
             ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send my score"}</button>
               <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
@@ -2128,11 +2477,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         </div>
       </div>
       <div class="main">
-        ${isVs && rec.opp ? duelBoard(rec.promptIds, { name: rec.name || "You", tiers: rec.tiers, you: true }, rec.opp) : ""}
+        ${rec.mode === "vq" && rec.opp ? quizDuelBoard(quiz, meQ, rec.opp) : isVs && rec.opp ? duelBoard(rec.promptIds, { name: rec.name || "You", tiers: rec.tiers, you: true }, rec.opp) : ""}
         ${n > 1 ? `<figure class="profile-wrap">${V.profileSvg(rec.results, `Your descent: loss ${((max - rec.score) / 100).toFixed(2)}`)}</figure>` : ""}
         <section>
           <h2 class="block-title">Your answers</h2>
-          <ul class="run-list">${rec.results.map((r) => `
+          <ul class="run-list">${isQ ? rec.results.map((r, i) => {
+            const q = quiz[i], right = q ? q.options[q.correct] : r.answer, x = right && explainOf(r.promptId, right), ok = r.score > 0;
+            return `<li class="run-item t-${ok ? QUIZ_TIER : "miss"}">${qmark(ok)}
+              <span><span class="q">${esc(r.promptText)}</span>
+                <span class="a">${esc(right || "")}</span>
+                ${ok ? "" : `<span class="qp">${r.raw ? `You picked ${esc(r.raw)}` : r.timeout ? "Out of time" : "No answer"}</span>`}
+                ${x ? `<span class="qp">${esc(x)}</span>` : ""}</span>
+              <span class="pts">+${r.score}</span>
+            </li>`; }).join("") : rec.results.map((r) => `
             <li class="run-item t-${tierOf(r.tier)}">${G(r.tier)}
               <span><span class="q">${esc(r.promptText)}</span>
                 <span class="a ${r.answer ? "" : "missed"}">${r.answer ? esc(r.answer) : r.raw ? `“${esc(r.raw)}”` : r.skipped ? "Skipped" : "No answer"}</span>
@@ -2169,12 +2526,55 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (isDailyToday) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); });
     const sv = $("#send-vs");
     if (sv) sv.addEventListener("click", () => {
+      if (rec.mode === "vq") {
+        const me = { name: rec.name || myName() || "A friend", picks: rec.picks, tenths: rec.tenths };
+        const link = vqLink(rec.seed, rec.n, rec.opp ? [rec.opp, me] : [me], rec.secs);
+        const text = rec.opp ? `I scored ${rec.score} vs your ${quizPts(quiz, rec.opp.picks)} on the MLion quiz. See it:` : `Beat my ${rec.score} on the MLion quiz. Same ${rec.n} questions:`;
+        return shareLink(`${text}\n${link}`);
+      }
       const me = { name: rec.name || myName() || "A friend", tiers: rec.tiers };
       const players = rec.opp ? [rec.opp, me] : [me];
       const link = challengeLink(rec.seed, rec.n, players, rec.secs);
       const text = rec.opp ? `I scored ${rec.score} vs your ${tierPoints(rec.opp.tiers)} on MLion. See it:` : `Beat my ${rec.score} on MLion. Same ${rec.n} questions:`;
       shareLink(`${text}\n${link}`);
     });
+  }
+
+  /** Quiz head-to-head: winner (points, then the faster total time), both scores, question by question. */
+  function quizDuelBoard(quiz, a, b) {
+    const sa = quizPts(quiz, a.picks), sb = quizPts(quiz, b.picks), c = quizCompare(quiz, a, b);
+    const head = c === 0 ? "It's a draw" : `${esc(c < 0 ? a.name : b.name)} wins`;
+    const side = (pl, s, win) => `<div class="${win ? "win" : ""}"><b>${s}</b><span>${esc(pl.name)}${pl.you && pl.name !== "You" ? " (you)" : ""} · ${fmtSecs(pl.tenths)}</span></div>`;
+    return `<section class="duel" aria-label="Head to head">
+      <h2 class="duel-head">${head}</h2>
+      ${sa === sb && c ? `<p class="duel-tie">Level on points: the faster ${c < 0 ? esc(a.name) : esc(b.name)} takes it.</p>` : ""}
+      <div class="duel-scores">${side(a, sa, c <= 0)}<span class="duel-v">vs</span>${side(b, sb, c >= 0)}</div>
+      <ul class="duel-rows">${quiz.map((q, i) => {
+        const ra = a.picks[i] - 1 === q.correct, rb = b.picks[i] - 1 === q.correct;
+        const p = PROMPTS.get(q.promptId);
+        return `<li><span class="dq">${esc(p ? p.text : q.promptId)}</span>
+          <span class="dc t-${ra ? QUIZ_TIER : "miss"}${ra && !rb ? " win" : ""}">${qmark(ra)}<b>${ra ? E.QUIZ_POINTS : 0}</b></span>
+          <span class="dc t-${rb ? QUIZ_TIER : "miss"}${rb && !ra ? " win" : ""}">${qmark(rb)}<b>${rb ? E.QUIZ_POINTS : 0}</b></span></li>`;
+      }).join("")}</ul>
+    </section>`;
+  }
+  /** A finished quiz duel opened from a link (both results inside it). */
+  function renderQuizDuel(c, a, b, bIsMe) {
+    setMid("Head to head");
+    scene("results");
+    const quiz = quizChallengeQuiz(c.seed, c.n);
+    app.innerHTML = `<section class="screen results">
+      <div class="side">
+        <div class="page-head"><h1>Head to head</h1><p>${c.n} quiz questions, same for both.</p></div>
+        <div class="btn-row">
+          ${bIsMe ? `<button class="btn primary big" id="send-vs">Send result back</button>` : ""}
+          <a class="btn${bIsMe ? "" : " primary"} big" href="#challenge">Rematch</a>
+        </div>
+      </div>
+      <div class="main">${quizDuelBoard(quiz, bIsMe ? { ...b, you: true } : a, bIsMe ? a : b)}</div>
+    </section>`;
+    const sv = $("#send-vs");
+    if (sv) sv.addEventListener("click", () => shareLink(`I scored ${quizPts(quiz, b.picks)} vs your ${quizPts(quiz, a.picks)} on the MLion quiz. See it:\n${vqLink(c.seed, c.n, [a, b], c.secs)}`));
   }
 
   async function shareLink(text) {
@@ -2234,9 +2634,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!validQ(size)) size = 5;
     let secs = LS.get("vsSecs", settings.answerSecs);
     if (!validSecs(secs)) secs = DEFAULT_SECS;
+    let fmt = LS.get("vsFormat", "rarity") === "quiz" ? "quiz" : "rarity";
     app.innerHTML = `<section class="screen challenge">
       <div class="page-head"><h1>Challenge a friend</h1><p>Play first, then send one link. Your friend plays the same questions and sees who won. No accounts.</p></div>
       <div class="vs-form">
+        <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Rarity"], ["quiz", "Quiz"]].map(([k, l]) => `<button type="button" class="vs-size fmt-size${fmt === k ? " on" : ""}" role="radio" aria-checked="${fmt === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         <label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So your friend knows" value="${esc(myName())}"></label>
         ${qPicker(size)}
         ${timePicker(secs)}
@@ -2251,6 +2653,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (Q_PRESETS.includes(n)) box.value = "";
     });
     wireTimePicker((v) => { secs = v; });
+    $$(".fmt-size").forEach((b) => b.addEventListener("click", () => {
+      fmt = b.dataset.f;
+      $$(".fmt-size").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); });
+    }));
     $("#vs-go").addEventListener("click", () => {
       const box = $("#q-custom"); // a number typed but not yet confirmed still counts
       if (box.value !== "" && validQ(Math.round(+box.value))) size = Math.round(+box.value);
@@ -2258,7 +2664,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LS.set("vsSize", size);
       LS.set("vsSecs", secs);
       const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
-      go(`vs-${seed}-${size}${secs !== DEFAULT_SECS ? `t${secs}` : ""}`);
+      LS.set("vsFormat", fmt);
+      go(`${fmt === "quiz" ? "vq" : "vs"}-${seed}-${size}${secs !== DEFAULT_SECS ? `t${secs}` : ""}`);
     });
   }
 
@@ -2278,6 +2685,25 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
       ${runs.length ? `<div class="main"><ul class="list">${runs.slice(0, 50).map((r) => `
         <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Run ${r.number}</span><span class="sub">${tiersRow(r.tiers)}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}
+    </section>`;
+  }
+
+  // ================================================================= quiz
+  function renderQuizHub() {
+    setMid("Quiz");
+    const runs = Object.values(records).filter((r) => r.mode === "quiz").sort((a, b) => b.number - a.number);
+    const next = nextQuiz();
+    const inProg = LS.get(`run:quiz:${next}`);
+    const avg = runs.length ? Math.round(runs.reduce((s, r) => s + r.score, 0) / runs.length) : 0;
+    const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
+    app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
+      <div class="side">
+        <div class="page-head"><h1>Quiz</h1><p>Seven questions a run. Four answers each, one fits. ${E.QUIZ_POINTS} a right answer.</p></div>
+        ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
+        <div class="btn-row"><a class="btn primary big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
+      </div>
+      ${runs.length ? `<div class="main"><ul class="list">${runs.slice(0, 50).map((r) => `
+        <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Run ${r.number}</span><span class="sub">${qmarksRow(r.results.map((x) => x.score > 0))}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}
     </section>`;
   }
 

@@ -9,8 +9,9 @@
     "test": "node tools/build.js && node tests/engine.test.js",
     "e2e": "node tests/e2e.js",
     "serve": "python3 -m http.server 8000",
-    "e2e:live": "node tests/live.e2e.js && node tests/live.rejoin.e2e.js",
-    "e2e:board": "node tests/board.e2e.js"
+    "e2e:quiz": "node tests/quiz.e2e.js",
+    "e2e:board": "node tests/board.e2e.js",
+    "e2e:live": "node tests/live.e2e.js && node tests/live.rejoin.e2e.js && node tests/live.quiz.e2e.js && node tests/live.rejoin.e2e.js --quiz"
   },
   "license": "MIT"
 }

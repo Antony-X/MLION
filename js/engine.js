@@ -419,13 +419,124 @@
     return Math.max(1, Math.ceil(pool / ROUNDS));
   }
 
+  // --------------------------------------------------------------- quiz
+  // Multiple choice built from the same data: the question is a prompt, the
+  // right option is one of its well-known answers, the three wrong ones are
+  // answers of other prompts that the prompt's own matcher would turn down.
+  const QUIZ_TIERS = ["baseline", "overfit", "indist", "outlier"]; // familiar enough to be the right option
+  const QUIZ_TIER_WEIGHT = { baseline: 0.25, overfit: 0.15, indist: 0.35, outlier: 0.25 };
+  const QUIZ_OPTIONS = 4;
+  const QUIZ_POINTS = 100;
+  const QUIZ_ROUNDS = 7;
+  const QUIZ_HIT_EMOJI = "🟩";
+  const _quizCtx = new WeakMap();
+  /** On-topic prompts of a data bundle (never an `offtopic` one), indexed once. */
+  function quizContext(data) {
+    let c = _quizCtx.get(data);
+    if (!c || c.n !== data.prompts.length) {
+      const prompts = data.prompts.filter((p) => p && !p.offtopic && Array.isArray(p.answers) && p.answers.length);
+      c = { n: data.prompts.length, prompts, byId: new Map(prompts.map((p) => [p.id, p])) };
+      _quizCtx.set(data, c);
+    }
+    return c;
+  }
+  /** Every key an answer goes by: its name and its aliases. */
+  function answerKeys(a) { return [a.a].concat(a.aka || []).map(fullKey).filter(Boolean); }
+  /** A name the prompt's matcher doesn't recognise at all: no exact hit, no autocorrect, no "did you mean". */
+  function foreignTo(prompt, a) {
+    return [a.a].concat(a.aka || []).every((name) => matchAnswer(prompt, name).kind === "none");
+  }
+  /**
+   * One question for one prompt, or null if the data can't supply a fair one.
+   * Deterministic in (data, seedKey, promptId). Options are shuffled by the seed.
+   * `trace`, if given, records where each distractor came from: {slots: [{stage, tierPass, from}]}
+   * (stage 0 same pack, 1 another pack with a fresh prompt, 2 any prompt; tierPass 0 same tier
+   * as the right answer, 1 any familiar tier, 2 any tier).
+   */
+  function quizQuestion(data, seedKey, promptId, trace) {
+    const ctx = quizContext(data);
+    const p = ctx.byId.get(promptId);
+    if (!p) return null;
+    const rng = mulberry32(hashString(`quiz:${seedKey}:${promptId}`));
+    // the right option: pick a familiar tier by weight, then an answer inside it
+    const byTier = new Map(QUIZ_TIERS.map((t) => [t, p.answers.filter((a) => a.t === t)]).filter(([, l]) => l.length));
+    if (!byTier.size) return null;
+    let roll = rng() * [...byTier.keys()].reduce((s, t) => s + QUIZ_TIER_WEIGHT[t], 0);
+    let tier = [...byTier.keys()][0];
+    for (const t of byTier.keys()) { roll -= QUIZ_TIER_WEIGHT[t]; if (roll < 0) { tier = t; break; } }
+    const right = shuffled(byTier.get(tier), rng)[0];
+    const picked = [{ text: right.a, from: p.id }];
+    const keys = new Set(answerKeys(right));
+    const usedFrom = new Set([p.id]);
+    // wrong options: three of them, one slot at a time, widening the search only when a stage runs dry
+    const others = shuffled(ctx.prompts.filter((q) => q.id !== p.id), rng);
+    const stages = [
+      () => others.filter((q) => q.pack === p.pack && !usedFrom.has(q.id)),
+      () => others.filter((q) => q.pack !== p.pack && !usedFrom.has(q.id)),
+      () => others,
+    ];
+    const tierPasses = [(a) => a.t === tier, (a) => QUIZ_TIERS.includes(a.t), () => true];
+    const slots = [];
+    while (picked.length < QUIZ_OPTIONS) {
+      let found = null;
+      search: for (let si = 0; si < stages.length; si++) {
+        const pool = stages[si]();
+        for (let ti = 0; ti < tierPasses.length; ti++) {
+          for (const q of pool) {
+            for (const a of shuffled(q.answers.filter(tierPasses[ti]), rng)) {
+              const ks = answerKeys(a);
+              if (!ks.length || ks.some((k) => keys.has(k))) continue; // same thing as an option already in
+              if (!foreignTo(p, a)) continue; // the question's own matcher would take it
+              found = { text: a.a, from: q.id, ks, si, ti };
+              break search;
+            }
+          }
+        }
+      }
+      if (!found) return null;
+      picked.push({ text: found.text, from: found.from });
+      found.ks.forEach((k) => keys.add(k));
+      usedFrom.add(found.from);
+      slots.push({ stage: found.si, tierPass: found.ti, from: found.from });
+    }
+    const order = shuffled(picked.map((_, i) => i), rng);
+    const options = order.map((i) => picked[i].text);
+    if (trace) trace.slots = slots;
+    return { promptId: p.id, options, correct: order.indexOf(0), from: order.map((i) => picked[i].from) };
+  }
+  /**
+   * `n` questions for a seed, each from a different prompt. Prompts come from `opts.promptIds`
+   * first (when a run already has its prompts), then from the seed's own stream; a prompt that
+   * can't make a fair question is passed over. Fewer than `n` come back only if the data runs out.
+   */
+  function quizFor(data, seedKey, n, opts) {
+    const ctx = quizContext(data);
+    const dealt = ctx.prompts.filter((p) => data.packs.some((pk) => pk.id === p.pack)).length; // the stream only deals listed packs
+    const want = Math.min(n, ctx.prompts.length);
+    const stream = makeStream({ packs: data.packs, prompts: ctx.prompts }, `quiz-${seedKey}`);
+    const ids = [...new Set(((opts && opts.promptIds) || []).concat(stream.take(dealt)))];
+    const out = [];
+    for (const id of ids) {
+      if (out.length >= want) break;
+      const q = quizQuestion(data, seedKey, id);
+      if (q) out.push(q);
+    }
+    return out;
+  }
+  /** Solo quiz run `n` (1-based): seven questions, the prompts dealt like Unlimited's so runs don't repeat. */
+  function quizRun(data, n) {
+    return quizFor(data, `quiz-v1:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v1", n) });
+  }
+
   // -------------------------------------------------------------- share
   function tierEmoji(t) { return t && TIERS[t] ? TIERS[t].emoji : MISS_EMOJI; }
   function shareText({ mode = "daily", number, score, tiers, label, secs }) {
-    const grid = tiers.map(tierEmoji).join("");
+    const quiz = mode === "quiz" || mode === "vq";
+    const grid = quiz ? tiers.map((t) => (t && t !== "miss" ? QUIZ_HIT_EMOJI : MISS_EMOJI)).join("") : tiers.map(tierEmoji).join("");
     const tag = mode === "daily" ? `MLion #${number}` :
       mode === "archive" ? `MLion ⟲ #${number}` :
-      mode === "unlimited" ? `MLion ∞ #${number}` : `MLion · ${label || mode} #${number}`;
+      mode === "unlimited" ? `MLion ∞ #${number}` :
+      mode === "quiz" ? `MLion Quiz #${number}` : `MLion · ${label || mode} #${number}`;
     const loss = (tiers.length * 100 - score) / 100;
     const clock = secs && secs * 1000 !== ANSWER_MS ? ` · ${secs} s` : ""; // a different clock isn't the same game
     return `${tag} 🦁\n${score}/${tiers.length * 100} · loss ${loss.toFixed(2)}${clock}\n\n${grid}`;
@@ -438,6 +549,7 @@
     mulberry32, hashString, shuffled,
     EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
+    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun,
     tierEmoji, shareText,
   };
 });

@@ -129,7 +129,9 @@ tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SU
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
 tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQTT broker
-tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat
+tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat (--quiz: in a Quiz match, real data)
+tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, resume, results, stats) + #vq- challenge between two browsers
+tests/live.quiz.e2e.js  Playwright: live Quiz match, two browsers over MQTT (hidden picks, reveal, skip, chat, forged answers, time tie-break)
 README.md, package.json, .nojekyll (needed for Pages)
 ```
 
@@ -140,7 +142,8 @@ npm run build      # node tools/build.js
 npm run stats      # node tools/build.js --stats
 npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
-npm run e2e:live   # live.e2e.js then live.rejoin.e2e.js (needs network: unpkg.com + public.cloud.shiftr.io)
+npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz (needs network: unpkg.com + public.cloud.shiftr.io)
+npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
 ```
 
 ### Artifact build
@@ -304,14 +307,15 @@ use `#/…`, and never `#settings`, which claude.ai reserves.
 | `#library`, `#practice-<id>`, `#answers-<id>` | library, practice one prompt, its answer key (hidden in launch mode) |
 | `#results-<key-with-dashes>` | a run's results |
 | `#stats`, `#how`, `#faq`, `#prefs` | stats, how to play, FAQ, settings |
-| `#challenge`, `#vs-…` | challenge setup, a challenge link |
+| `#challenge`, `#vs-…`, `#vq-…` | challenge setup (Format: Rarity or Quiz), a rarity challenge link, a quiz challenge link |
+| `#quiz`, `#quiz-N` | Quiz hub, solo quiz run N (hidden-ahead rule below) |
 | `#live`, `#live-<code>` | live match setup, a room |
 | `#rooms` | public room list |
 
 **Launch mode** (`const BROWSE = false` near the top of app.js): Packs and the Library are
 hidden (home tiles, drawer links), their routes redirect home, and `#unlimited-N` beyond the
-next unplayed run redirects to it. This stops people choosing questions or reading a key and
-replaying. It is client-side only: `js/data.js` and the public repo still contain every
+next unplayed run redirects to it (`#quiz-N` follows the same rule). This stops people choosing
+questions or reading a key and replaying. It is client-side only: `js/data.js` and the public repo still contain every
 answer. Real protection would need a server. `BROWSE = true` restores everything.
 
 ### Round state machine
@@ -361,6 +365,63 @@ intro → preview (3 s, input locked) → answering (default 25 s) → feedback 
 - In the Artifact, links point at the claude.ai URL. **Not verified:** that claude.ai passes
   `#vs-…` hashes through to the page. The platform docs say plain `#name` hashes pass.
 
+### Quiz (multiple choice), added 2026-11-05
+
+Four options, one fits. Everything is generated from the existing prompt data; no written
+content and no LLM. Same shape in solo, async challenges and live rooms.
+
+**Generator (`js/engine.js`)**
+- `quizQuestion(data, seedKey, promptId)` → `{promptId, options:[4 strings], correct, from:[promptId per option]}`
+  or `null`. `quizFor(data, seedKey, n, {promptIds})` → `n` questions from different prompts (the
+  given ids first, then the seed's own `makeStream`; a prompt that can't make a fair question is
+  passed over). `quizRun(data, N)` = solo run N: seven questions, prompts dealt by
+  `runFor(data, "quiz-v1", N)` so runs don't repeat a prompt until the deck is used up. All
+  deterministic in (seed, prompt id); the RNG is `mulberry32(hashString("quiz:<seed>:<id>"))`.
+- Question = the prompt's own text plus "Which one fits?". The `(e.g. …)` example is not shown (it is
+  a baseline answer and would give the option away); the `display.json` scope line is.
+- Right option: an answer of the prompt from baseline/overfit/indist/outlier (tier picked with
+  weights .25/.15/.35/.25, then an answer inside it). Longtail and the gem are never the right option.
+- Three wrong options: answers of other **on-topic** prompts (`data.extras` and anything flagged
+  `offtopic` are never read). Search order: another prompt of the **same pack** (a different prompt for
+  each wrong option, so the right one is never the odd one out), **same tier** as the right answer; it
+  widens only when a stage runs dry (other pack, then any tier, then reusing a prompt).
+- A candidate is dropped if the question's own `matchAnswer` returns anything but `none` for its name or
+  any alias (so no exact hit, no autocorrect, no "did you mean"), or if any of its keys (`fullKey` of the
+  name or aliases) collides with an option already picked. Options are shuffled with the seed.
+- Measured on the shipped 128 prompts (20 seeds each, 2,560 questions): every prompt makes a question
+  every time; all 7,680 wrong options came from the same pack and the same tier, from three different
+  prompts per question; the right option's tier split was indist 862 / baseline 699 / outlier 643 /
+  overfit 356, and its position 643/645/618/654. About 3 ms a question. How often the matcher veto
+  fires: of random same-pack candidates 94.2% are `none`, 1.4% are accepted outright (`exact`, the
+  lists overlap, e.g. one name in two prompts), 2.0% autocorrect, 2.5% only "suggest".
+- Limits: the answer lists are incomplete, so a wrong option can be a real member of the category that the
+  key doesn't list (the matcher is the only oracle). The fixture in `tests/e2e.js` is nine clones of one
+  prompt, so every candidate is vetoed and `quizFor` returns `[]`; the app then says quiz questions
+  can't be made instead of breaking. `tests/engine.test.js` covers smaller bundles (one prompt per
+  pack, nine prompts in three packs, two, one).
+
+**Solo (`#quiz`, `#quiz-N`)**
+- Run spec `mode: "quiz"`, `fmt: "quiz"`, key `quiz:N`; seven questions; 100 per right answer, nothing for
+  a wrong answer or a timeout; no Skip. Preview 3 s (options covered and locked), then
+  `answerMs()` (Settings). Four big buttons; keys 1 to 4 pick. A tap locks in at once.
+- Verdict card: Correct / Not quite / Out of time, the four options again with the right one lit, your wrong
+  pick marked, `explainOf(promptId, rightAnswer)` under the right option, and "That's <kind of prompt>"
+  under every wrong one (the prompt text minus "Name ").
+- A right answer carries the neutral tier `indist` (`QUIZ_TIER`) only so the descent and profile chart
+  colour it; it means nothing about rarity. The record keeps `quiz` (the questions), `picks`
+  (one digit per question, 0 none, 1 to 4), `tenths` (total answer time) and per-result `picked`, `ms`.
+- Share text: `MLion Quiz #N 🦁\n<score>/700 · loss x.xx[ · N s]\n\n🟩⬛…`.
+- Results reuse `renderResults` (score, descent chart, answers, answer keys) with quiz branches. Quiz and
+  `vq` records are excluded from `statsSummary`, so the daily stats and tier counts stay clean.
+
+**Async challenge (`#vq-<seed>-<n>[tNN][-<picks>-<tenths>-<nameHex>]x2`)**
+- Same count presets (3/5/7/10, custom up to 25) and time pickers as `#vs-…`; `#challenge` has a
+  Format row (Rarity / Quiz) that decides which link is made. Questions: `quizFor(DATA, "vq-<seed>", n)`.
+- `picks` is one digit per question (0 none, 1 to 4), so each side's score is recomputed from the seed;
+  `tenths` is the total answer time in tenths of a second. Winner: more points, else the lower `tenths`;
+  equal on both is a draw. Same send-back flow (`#send-vs`), head-to-head board (`quizDuelBoard`), and the
+  challenger sees the opponent's pick after each answer.
+
 ### Live match (real time)
 
 **Transport: MQTT over a WebSocket on port 443.**
@@ -397,6 +458,36 @@ intro → preview (3 s, input locked) → answering (default 25 s) → feedback 
   1.5 + 3 + 25 + 12 s covers a vanished player.
 - After each question: a reveal with everyone's answer, tier and points, plus standings.
   REVEAL_MS = 4500. The end is a podium.
+
+**Quiz format (live)**
+- The host picks **Rarity** or **Quiz** in the lobby (`.lv-fmt`, next to count and time; saved as
+  `liveFmt`; Quiz hides the autocorrect setting). It travels in the `lobby` message (`fmt`) and the
+  `start` message; guests read it in the settings note ("Quiz format, pick one of four." or "… Rarity
+  format."). `LIVE.fmt` is the lobby's choice; `LIVE.mfmt` and `LIVE.quiz` are the running match's.
+- The host fixes which prompts get a question (`quizFor` over the no-repeat list, honouring `liveUsed`) and
+  sends `ids`; every page then calls `quizFor(DATA, seed, n, {promptIds: ids})`, so all four options and
+  their order agree without being sent. `RUN.quiz` and `LIVE.quiz` are the same array.
+- Answer message `{t:"ans", i, pid, pick, ms}`: `pick` is 0 to 3, or -1 for none. The host drops it unless
+  `pick` is an integer -1..3 for a question it holds (and `pid` is still the question), clamps `ms` to
+  `[0, clock]`, then broadcasts `{t:"ans", id, i, pick, ms}`. Every page recomputes right/wrong and the
+  100 points from its own copy of the question. `ms` is measured by each client from the end of the 3 s
+  preview (host-measured time would charge guests their network delay), so it is self-reported but
+  clamped; the public broker means a forged client can still lie inside the clock.
+- Reveal rules match the typed format: before you answer, a rival shows "Locked in ✓" only; once you have
+  answered you see which option they picked. **The verdict (right/wrong, points, ball, dots, strip totals)
+  waits for the reveal for everyone**, so nobody learns the right option from their own result and tells
+  the room. The reveal (`renderQuizReveal`) lists the four options with the right one lit, who picked
+  each, "That's <kind>" under wrong ones, the explanation under the right one, and the standings; the
+  ball and score move then (`liveQuizSettle`).
+- Points 100 per right answer. Ranking (`rankCmp`) is points, then the lower total answer time (a question
+  nobody answered counts as the whole clock); a podium level on both is "It's a tie". The podium shows each
+  player's right/wrong marks and total time, and the recap names the right answer of every question.
+- Vote-to-skip: the host picks the replacement only from prompts that can make a question
+  (`quizQuestion(DATA, seed, id)`), clients rebuild it from `{t:"skip", i, id}`. Chat, no-repeat, takeover
+  and rejoin use the same code as the typed format. Chat's spoiler hold still blocks a message naming any
+  answer of the open prompt (broader than needed for a quiz, but safe).
+- A rematch uses the lobby's last format; the host can't change format or count from the podium (the same
+  limit the typed format has).
 
 **Rival panel**
 - Before you answer: opponent typing shows as dots, with a count of wrong guesses. A locked
@@ -573,6 +664,10 @@ rounded.
   start on the production Pages site.
 - **Not tested in a browser:** the autocorrect-help setting in live matches (the last commit).
   Only syntax, the build and engine tests ran.
+- Quiz (2026-11-05): `tests/engine.test.js` has 13 quiz checks (determinism, one right option, no wrong option
+  the matcher accepts, off-topic excluded, small bundles). `tests/quiz.e2e.js` plays a solo run and a
+  `#vq-` challenge. `tests/live.quiz.e2e.js` and `live.rejoin.e2e.js --quiz` play a live Quiz match.
+  Not verified on a real phone or on the claude.ai Artifact build (live is disabled there anyway).
 
 ---
 
@@ -631,6 +726,9 @@ rounded.
 9. Optional: a proper `main` branch. Pages currently serves from `claude/mlion-game`, so moving
    it means changing the Pages source.
 10. `.taste-skill/` was meant to be gitignored, but that edit never ran.
+11. Quiz follow-ups: a wrong option can be a real member of the category the answer list lacks (lists are
+    incomplete); the host can't switch format from the podium; live quiz answer times are self-reported
+    (clamped by the host); no quiz leaderboard or per-mode stats (quiz records are kept out of Stats).
 
 ---
 

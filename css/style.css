@@ -827,3 +827,78 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .board-pitch a, .board-box a { color: var(--gold); }
 .board-side > * + * { margin-top: 12px; }
 .board-days { margin-top: 16px; }
+/* ----------------------------------------------------------------- quiz */
+/* four answers to tap: big, one per row, comfortable at phone width */
+.mcq-zone { position: relative; margin-top: 16px; }
+.mcq { display: grid; gap: 10px; }
+.mcq-opt {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 14px;
+  width: 100%; min-height: 64px; padding: 12px 18px 12px 14px; border: 0; border-radius: var(--soft);
+  background: var(--raised); color: var(--ink); text-align: left; cursor: pointer;
+  font-size: var(--s2); line-height: 1.3;
+  transition: background-color 160ms ease, transform 120ms var(--ease-out);
+}
+.mcq-opt:active:not(:disabled) { transform: scale(0.985); }
+.mcq-opt:disabled { cursor: default; }
+@media (hover: hover) and (pointer: fine) { .mcq-opt:hover:not(:disabled) { background: var(--raised-2); } }
+.mcq-t { min-width: 0; overflow-wrap: anywhere; }
+.mcq-k {
+  width: 32px; height: 32px; border-radius: 50%; flex: none; display: inline-grid; place-items: center;
+  background: var(--raised-2); color: var(--muted); font-size: var(--s1); font-weight: 600; line-height: 1;
+}
+.mcq-k .glyph { width: 18px; height: 18px; color: inherit; }
+.mcq-zone .preview-veil { border-radius: var(--soft); padding: 0 16px 0 24px; }
+.mcq-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--raised-2); color: var(--muted); font-size: var(--s1); margin-right: 6px; vertical-align: 2px; }
+
+/* the verdict: every option again, the right one lit, each wrong one labelled with where it belongs */
+.mcq-key, .mq-opts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; width: 100%; justify-self: stretch; }
+.mcq-key li, .mq-opts li {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start; gap: 14px;
+  padding: 12px 16px 12px 14px; border-radius: var(--soft); background: var(--surface); color: var(--muted);
+}
+.mcq-key .mcq-t, .mq-opts .mcq-t { padding-top: 3px; }
+.mcq-key li b, .mq-opts li b { display: block; font-weight: 400; color: var(--ink); font-size: var(--s2); overflow-wrap: anywhere; }
+.mcq-from, .mcq-x { display: block; font-size: var(--s1); color: var(--muted); margin-top: 2px; }
+.mcq-key li.right, .mq-opts li.right { background: var(--gold); color: var(--gold-ink); }
+.mcq-key li.right b, .mq-opts li.right b { color: var(--gold-ink); font-weight: 600; }
+.mcq-key li.right .mcq-x, .mq-opts li.right .mcq-x { color: #4a3812; }
+.mcq-key li.right .mcq-k, .mq-opts li.right .mcq-k { background: var(--gold-ink); color: var(--gold); }
+.mcq-key li.mine:not(.right) { box-shadow: inset 0 0 0 2px var(--negative); }
+.mcq-key li.mine:not(.right) .mcq-k { background: var(--negative); color: var(--bg); }
+.mcq-you { align-self: center; font-size: var(--s1); color: var(--gold); }
+.mcq-key li.right .mcq-you { color: var(--gold-ink); }
+html:not(.reduce-motion) .feedback:not(.landed) .mcq-key { opacity: 0; transform: translateY(14px); }
+html:not(.reduce-motion) .feedback .mcq-key { transition: opacity 500ms var(--ease-out) 90ms, transform 700ms var(--ease-expo) 90ms; }
+
+/* live reveal: who picked what */
+.mcq-who { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 42vw; }
+.mcq-who:empty { display: none; }
+.mcq-who i { font-style: normal; font-size: var(--s1); padding: 2px 10px; border-radius: var(--round); background: var(--raised-2); color: var(--ink); overflow-wrap: anywhere; }
+.mcq-who i.me { background: var(--gold); color: var(--gold-ink); }
+.mq-opts li.right .mcq-who i { background: var(--gold-ink); color: var(--gold); }
+.mq-opts li.right .mcq-who i.me { background: var(--bg); color: var(--gold); }
+.rv-pick { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--raised-2); color: var(--muted); font-size: 13px; }
+.rc-right { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: start; color: var(--ink); }
+.rc-right .glyph { font-size: 22px; margin-top: 1px; }
+.rc-right b { font-weight: 400; overflow-wrap: anywhere; }
+.rc-right .rx { display: block; font-size: var(--s1); color: var(--muted); margin-top: 2px; }
+.nm-t { color: var(--muted); font-size: var(--s1); }
+.lv-podium li.first .nm-t { color: #4a3812; }
+.duel-tie { color: var(--muted); font-size: var(--s1); margin-top: -8px; }
+.vs-size.fmt-size, .vs-size.lv-fmt { font-size: var(--s2); padding: 0 22px; min-width: 0; }
+/* a quiz round has four options (and, live, the room's strip and rivals) to fit under the stage: tighter on phones */
+@media (max-width: 999px) {
+  .play.quiz .stage { height: clamp(112px, 16vh, 180px); }
+  .play.quiz .prompt-card { padding-top: 16px; }
+  .play.quiz .round { gap: 14px; }
+  .play.quiz .mcq { gap: 8px; }
+  .play.quiz .mcq-opt { min-height: 60px; }
+  .play.quiz .mcq-zone, .play.quiz .input-zone { margin-top: 12px; }
+  /* live: the rivals fold to one slim line each, the skip vote sits closer */
+  .play.quiz .live-rivals { gap: 6px; margin-top: 8px; }
+  .play.quiz .rv { padding: 6px 12px; gap: 10px; }
+  .play.quiz .rv .lv-av { width: 28px; height: 28px; font-size: var(--s1); }
+  .play.quiz .rv-main { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; }
+  .play.quiz .rv-locked, .play.quiz .rv-typing { font-size: var(--s2); }
+  .play.quiz .live-skip { margin-top: 8px; }
+}
