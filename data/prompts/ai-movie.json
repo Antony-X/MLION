@@ -76,7 +76,7 @@
     { "a": "Heart of Stone", "t": "longtail" },
     { "a": "Robot Overlords", "t": "longtail" },
     { "a": "Sleeper", "t": "longtail", "q": "Woody Allen, 1973, hiding from a future police state disguised as a robot butler." },
-    { "a": "Superintelligence (2020)", "t": "longtail", "aka": ["Superintelligence movie"], "q": "A comedy in which an AI picks James Corden's voice and decides humanity's fate by studying Melissa McCarthy." },
+    { "a": "Superintelligence (2020)", "t": "longtail", "aka": ["Superintelligence movie", "Superintelligence"], "q": "A comedy in which an AI picks James Corden's voice and decides humanity's fate by studying Melissa McCarthy." },
     { "a": "The Artifice Girl", "t": "longtail" },
     { "a": "We Need to Talk About AI", "t": "longtail" },
     { "a": "I'm Your Man", "t": "longtail", "aka": ["Ich bin dein Mensch"], "q": "A German scientist trials a humanoid robot built to be her perfect partner." },

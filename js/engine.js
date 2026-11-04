@@ -85,7 +85,7 @@
     let t = String(s == null ? "" : s).toLowerCase();
     t = t.replace(GREEK_RE, (c) => " " + GREEK[c] + " ");
     t = t.normalize("NFKD").replace(/[̀-ͯ]/g, "");
-    t = t.replace(/&/g, " and ").replace(/\+/g, " plus ").replace(/\*/g, " star ").replace(/@/g, " at ");
+    t = t.replace(/&/g, " and ").replace(/\+/g, " plus ").replace(/\*/g, " star ").replace(/@/g, " at ").replace(/([a-z])#/g, "$1 sharp ");
     t = t.replace(/['’`]/g, ""); // don't split "Bayes'" / "Hinton's"
     return t.split(/[^a-z0-9]+/).filter((w) => w && w !== "version").map((w) => NUMBER_WORDS[w] || w);
   }
