@@ -13,7 +13,6 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const tierVar = (t) => `--tc: var(--t-${t || "miss"})`;
   const fmt = (n) => Number(n).toLocaleString("en-US");
 
   // ------------------------------------------------- presentation helpers
@@ -200,7 +199,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return { key: `archive:${date}`, mode: "archive", number: n, date, label: `Archive #${n}`, promptIds: E.dailyPromptIds(DATA, n) };
   }
   function unlimitedSpec(n) {
-    return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `∞ Run #${n}`, promptIds: E.unlimitedPromptIds(DATA, n) };
+    return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `Unlimited #${n}`, promptIds: E.unlimitedPromptIds(DATA, n) };
   }
   function packSpec(packId, n) {
     const pk = PACKS.get(packId);
@@ -800,39 +799,37 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // =========================================================== unlimited
   function renderUnlimited() {
-    setMid("∞ unlimited");
+    setMid("Unlimited");
     const runs = Object.values(records).filter((r) => r.mode === "unlimited").sort((a, b) => b.number - a.number);
     const next = nextUnlimited();
     const inProg = LS.get(`run:unlimited:${next}`);
     const avg = runs.length ? Math.round(runs.reduce((s, r) => s + r.score, 0) / runs.length) : 0;
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel center">
-        <p class="kicker"><span class="hl">∞ the endless descent</span></p>
-        <h2>Every prompt, every depth</h2>
-        <p class="muted">Run after run of 7 prompts dealt from all ${DATA.prompts.length} prompts across ${DATA.packs.length} packs. Progress saves on this device.</p>
-        <a class="btn primary big block" href="#unlimited-${next}">${inProg ? `Resume run #${next}` : `Start run #${next}`} ▶</a>
-        <div class="quick-stats"><div class="qs"><b>${runs.length}</b><span>runs</span></div><div class="qs"><b>${avg || "—"}</b><span>average</span></div><div class="qs"><b>${runs.reduce((m, r) => Math.max(m, r.score), 0) || "—"}</b><span>best</span></div></div>
+    const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
+    app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
+      <div class="side">
+        <div class="page-head"><h1>Unlimited</h1><p>Runs of seven from all ${DATA.prompts.length} prompts.</p></div>
+        ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
+        <div><a class="btn primary big" href="#unlimited-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a></div>
       </div>
-      ${runs.length ? `<div class="panel"><p class="kicker">past runs</p><ul class="list">${runs.slice(0, 50).map((r) => `
-        <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="em">∞</span><span class="main"><span class="title">Run #${r.number}</span><span class="sub" style="display:block">${r.tiers.map(E.tierEmoji).join("")}</span></span><span class="right">${r.score}/700</span></a></li>`).join("")}</ul></div>` : ""}
+      ${runs.length ? `<div class="main"><ul class="list">${runs.slice(0, 50).map((r) => `
+        <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Run ${r.number}</span><span class="sub">${tiersRow(r.tiers)}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}
     </section>`;
   }
 
   // =============================================================== packs
   function renderPacks() {
-    setMid("themed packs");
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel"><p class="kicker">themed packs</p><h2>Pick a corner of the field</h2>
-        <p class="muted small" style="margin:6px 0 0">Each pack deals its prompts into runs of 7. Clear every run to complete the pack.</p></div>
-      <ul class="list">${DATA.packs.map((pk) => {
+    setMid("Packs");
+    app.innerHTML = `<section class="screen split">
+      <div class="side"><div class="page-head"><h1>Packs</h1><p>${DATA.packs.length} corners of the field, seven prompts a run.</p></div></div>
+      <div class="main"><ul class="list big">${DATA.packs.map((pk) => {
         const count = DATA.prompts.filter((p) => p.pack === pk.id).length;
         const runs = E.packRunCount(DATA, pk.id);
         const done = Array.from({ length: runs }, (_, i) => records[`pack:${pk.id}:${i + 1}`]).filter(Boolean).length;
-        return `<li><a class="list-item" href="#pack-${pk.id}"><span class="em">${pk.emoji}</span>
-          <span class="main"><span class="title">${esc(pk.name)}</span><span class="sub" style="display:block">${esc(pk.tagline)}</span>
-          <span class="progress"><i style="width:${(100 * done / runs).toFixed(0)}%"></i></span></span>
-          <span class="right">${count} prompts<br><span class="muted">${done}/${runs} runs</span></span></a></li>`;
-      }).join("")}</ul>
+        return `<li><a class="list-item" href="#pack-${pk.id}">
+          <span class="main"><span class="title">${esc(pk.name)}</span><span class="sub">${count} prompts · ${done} of ${runs} ${runs === 1 ? "run" : "runs"}</span>
+          <span class="progress" aria-hidden="true"><i style="width:${(100 * done / runs).toFixed(0)}%"></i></span></span>
+          ${CHEV.replace('class="chev"', 'class="chev go-r"')}</a></li>`;
+      }).join("")}</ul></div>
     </section>`;
   }
   function renderPack(id) {
@@ -840,23 +837,25 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     setMid(pk.name);
     const prompts = DATA.prompts.filter((p) => p.pack === id);
     const runs = E.packRunCount(DATA, id);
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel"><div class="pack-head"><span class="em">${pk.emoji}</span><div><h2>${esc(pk.name)}</h2><p class="muted small" style="margin:4px 0 0">${esc(pk.tagline)} · ${prompts.length} prompts · ${fmt(prompts.reduce((s, p) => s + p.answers.length, 0))} answers</p></div></div></div>
-      <ul class="list">${Array.from({ length: runs }, (_, i) => {
+    app.innerHTML = `<section class="screen split">
+      <div class="side">
+        <div class="page-head"><h1>${esc(pk.name)}</h1><p>${esc(pk.tagline)}</p></div>
+        <div class="figures"><div class="figure"><b>${prompts.length}</b><span>Prompts</span></div><div class="figure"><b>${fmt(prompts.reduce((s, p) => s + p.answers.length, 0))}</b><span>Answers</span></div></div>
+        <div><a class="btn ghost" href="#packs">All packs</a></div>
+      </div>
+      <div class="main"><ul class="list big">${Array.from({ length: runs }, (_, i) => {
         const n = i + 1, rec = records[`pack:${id}:${n}`], prog = LS.get(`run:pack:${id}:${n}`);
         const ids = E.packPromptIds(DATA, id, n);
         return `<li><a class="list-item" href="#${rec ? `results-${slugFor(rec.key)}` : `pack-${id}-${n}`}">
-          <span class="em">${rec ? "✓" : prog ? "…" : "▶"}</span>
-          <span class="main"><span class="title">Run ${n}</span><span class="sub" style="display:block">${rec ? rec.tiers.map(E.tierEmoji).join("") : `${ids.length} prompts${prog ? " · in progress" : ""}`}</span></span>
-          <span class="right">${rec ? `${rec.score}/${ids.length * 100}` : ""}</span></a></li>`;
-      }).join("")}</ul>
-      <a class="btn ghost" href="#packs">← All packs</a>
+          <span class="main"><span class="title">Run ${n}</span><span class="sub">${rec ? tiersRow(rec.tiers) : `${ids.length} prompts${prog ? " · in progress" : ""}`}</span></span>
+          <span class="right">${rec ? `<b>${rec.score}</b>/${ids.length * 100}` : `<span class="go">${prog ? "Resume" : "Play"}</span>`}</span></a></li>`;
+      }).join("")}</ul></div>
     </section>`;
   }
 
   // ============================================================= archive
   function renderArchive() {
-    setMid("archive");
+    setMid("Archive");
     const n = todayNumber();
     const rows = [];
     for (let d = n; d >= 1; d--) {
@@ -864,143 +863,134 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const rec = records[`daily:${date}`] || records[`archive:${date}`];
       const prog = !rec && (LS.get(`run:daily:${date}`) || LS.get(`run:archive:${date}`));
       rows.push(`<li><a class="list-item" href="#${rec ? `results-${slugFor(rec.key)}` : d === n ? "daily" : `archive-${date}`}">
-        <span class="em">${d === n ? "☀" : rec ? (rec.mode === "daily" ? "✓" : "⟲") : "·"}</span>
-        <span class="main"><span class="title">MLion #${d}${d === n ? " · today" : ""}</span><span class="sub" style="display:block">${esc(prettyDate(date))}${rec ? ` · ${rec.tiers.map(E.tierEmoji).join("")}` : prog ? " · in progress" : ""}</span></span>
-        <span class="right">${rec ? `${rec.score}/700` : "play ▶"}</span></a></li>`);
+        <span class="main"><span class="title">MLion #${d}${d === n ? " · Today" : ""}</span><span class="sub">${rec ? tiersRow(rec.tiers) : esc(prettyDate(date))}${prog ? " · in progress" : ""}</span></span>
+        <span class="right">${rec ? `<b>${rec.score}</b>/700` : `<span class="go">Play</span>`}</span></a></li>`);
     }
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel"><p class="kicker">⟲ archive</p><h2>Every daily descent</h2>
-        <p class="muted small" style="margin:6px 0 0">Missed a day? Replay it here. Archive runs don't count toward your streak.${n === 1 ? " MLion launched today, so tomorrow's archive gets its first entry." : ""}</p></div>
-      <ul class="list">${rows.join("")}</ul>
+    app.innerHTML = `<section class="screen split">
+      <div class="side"><div class="page-head"><h1>Archive</h1><p>Replay any past day. It won't touch your streak.</p></div></div>
+      <div class="main"><ul class="list big">${rows.join("")}</ul></div>
     </section>`;
   }
 
   // ============================================================= library
   function renderLibrary() {
-    setMid("library");
+    setMid("Library");
     const total = DATA.prompts.reduce((s, p) => s + p.answers.length, 0);
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel"><p class="kicker">library</p><h2>${DATA.prompts.length} prompts · ${fmt(total)} answers</h2>
-        <p class="muted small" style="margin:6px 0 10px">Practice any prompt on its own. Answer keys unlock once you've answered a prompt in any mode, so nothing gets spoiled.</p>
-        <input class="search" id="lib-q" type="search" placeholder="filter prompts…" aria-label="Filter prompts"></div>
-      <div id="lib"></div>
+    app.innerHTML = `<section class="screen split">
+      <div class="side">
+        <div class="page-head"><h1>Library</h1><p>${DATA.prompts.length} prompts, ${fmt(total)} answers. Keys open once you've played a prompt.</p></div>
+        <input class="search" id="lib-q" type="search" placeholder="Filter prompts" aria-label="Filter prompts">
+      </div>
+      <div class="main" id="lib"></div>
     </section>`;
     const draw = () => {
       const q = E.fullKey($("#lib-q").value);
       $("#lib").innerHTML = DATA.packs.map((pk) => {
         const ps = DATA.prompts.filter((p) => p.pack === pk.id && (!q || E.fullKey(p.text).includes(q)));
         if (!ps.length) return "";
-        return `<div class="panel"><p class="kicker">${pk.emoji} ${esc(pk.name)}</p><ul class="list">${ps.map((p) => {
+        return `<section class="lib-pack"><h2>${esc(pk.name)}</h2><ul class="list">${ps.map((p) => {
           const best = practiceBest[p.id];
           const unlocked = seen.has(p.id);
-          return `<li class="list-item" style="cursor:default">
-            <span class="main"><span class="title">${esc(p.text)}</span><span class="sub" style="display:block">${fmt(p.answers.length)} answers${best ? ` · practice best ${best === "miss" ? E.MISS_EMOJI : T[best].emoji}` : ""}</span></span>
-            <span class="row"><a class="btn sm" href="#practice-${p.id}">Play</a>${unlocked ? `<a class="btn sm ghost" href="#answers-${p.id}">Key</a>` : `<span class="btn sm ghost" style="opacity:.4" title="Answer this prompt once to unlock">🔒</span>`}</span>
+          return `<li class="list-item lib-row">
+            <span class="main"><span class="title">${esc(p.text)}</span><span class="sub">${fmt(p.answers.length)} answers${best ? ` · best ${G(best)}` : ""}</span></span>
+            <span class="row"><a class="btn sm" href="#practice-${p.id}">Play</a>${unlocked ? `<a class="btn sm" href="#answers-${p.id}">Key</a>` : `<span class="locked" title="Play it once to unlock the key" aria-label="Key locked">${LOCK}</span>`}</span>
           </li>`;
-        }).join("")}</ul></div>`;
-      }).join("") || `<div class="panel muted">No prompts match.</div>`;
+        }).join("")}</ul></section>`;
+      }).join("") || `<p class="muted">No prompts match.</p>`;
     };
     $("#lib-q").addEventListener("input", draw);
     draw();
   }
   function renderAnswersPage(id) {
     const p = PROMPTS.get(id);
-    setMid("answer key");
+    setMid("Answer key");
     if (!seen.has(id)) {
-      app.innerHTML = `<section class="screen stack"><div class="panel center"><h2>Locked</h2><p class="muted">Answer “${esc(p.text)}” once to unlock its key.</p><a class="btn primary" href="#practice-${id}">Practice it ▶</a></div></section>`;
+      app.innerHTML = `<section class="screen"><div class="page-head"><h1>Locked</h1><p>Play “${esc(p.text)}” once to open its key.</p></div><a class="btn primary big" href="#practice-${id}">Practice it</a></section>`;
       return;
     }
-    app.innerHTML = `<section class="screen stack"><div class="panel">${answerKey(p, null, true)}</div><a class="btn ghost" href="#library">← Library</a></section>`;
+    app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Answer key</h1></div>${answerKey(p, null, true)}<a class="btn ghost" href="#library">Library</a></section>`;
     wireAnswerKeys(app);
   }
 
   // =============================================================== stats
   function renderStats() {
-    setMid("stats");
+    setMid("Stats");
     const s = statsSummary();
     const tierMax = Math.max(1, ...Object.values(s.tierCounts));
     const bandMax = Math.max(1, ...s.bands.map((b) => b.n));
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel"><p class="kicker">your stats · daily descents</p>
-        <div class="stat-grid">
-          <div class="qs"><b>${s.played}</b><span>played</span></div>
-          <div class="qs"><b>${s.avg || "—"}</b><span>average</span></div>
-          <div class="qs"><b>${s.best || "—"}</b><span>best</span></div>
-          <div class="qs"><b>${s.cur}</b><span>streak</span></div>
-          <div class="qs"><b>${s.max}</b><span>max streak</span></div>
-          <div class="qs"><b>${s.gems}</b><span>🦁 gems</span></div>
-        </div></div>
-      <div class="panel"><p class="kicker">score bands · daily</p><div class="bars">${s.bands.slice().reverse().map((b) => `
-        <div class="bar-row" style="${tierVar(b.tier)}"><span class="lab">${esc(b.name)}</span><span class="tr"><i style="width:${(100 * b.n / bandMax).toFixed(0)}%"></i></span><span class="v">${b.n}</span></div>`).join("")}</div>
-        <p class="small muted" style="margin:10px 0 0">${E.BANDS.map((b) => `${esc(b.name)} ${b.range}`).join(" · ")}</p></div>
-      <div class="panel"><p class="kicker">tiers landed · all modes (${s.allRuns} runs)</p><div class="bars">${[...E.TIERS_BY_SCORE.map((t) => t.id), "miss"].map((t) => `
-        <div class="bar-row" style="${tierVar(t)}"><span class="lab">${t === "miss" ? `${E.MISS_EMOJI} Miss` : `${T[t].emoji} ${esc(T[t].name)}`}</span><span class="tr"><i style="width:${(100 * s.tierCounts[t] / tierMax).toFixed(0)}%"></i></span><span class="v">${s.tierCounts[t]}</span></div>`).join("")}</div></div>
-      <p class="small muted center">Stats live in this browser only. Clearing site data resets them.</p>
+    const figs = [["Played", s.played], ["Average", s.avg || "—"], ["Best", s.best || "—"], ["Streak", s.cur], ["Max streak", s.max], ["Gems", s.gems]];
+    app.innerHTML = `<section class="screen split">
+      <div class="side">
+        <div class="page-head"><h1>Stats</h1><p>Daily descents, kept in this browser.</p></div>
+        <div class="stat-grid">${figs.map(([l, v]) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`).join("")}</div>
+      </div>
+      <div class="main">
+        <section><h2 class="block-title">Score bands</h2><div class="bars">${s.bands.slice().reverse().map((b) => `
+          <div class="bar-row t-${b.tier}"><span class="lab">${esc(b.name)} <span class="muted">${b.range}</span></span><span class="tr"><i style="width:${(100 * b.n / bandMax).toFixed(0)}%"></i></span><span class="v">${b.n}</span></div>`).join("")}</div></section>
+        <section><h2 class="block-title">Tiers landed</h2><div class="bars">${[...E.TIERS_BY_SCORE.map((t) => t.id), "miss"].map((t) => `
+          <div class="bar-row t-${t}"><span class="lab">${G(t === "miss" ? null : t)}${t === "miss" ? "Miss" : esc(T[t].name)}</span><span class="tr"><i style="width:${(100 * s.tierCounts[t] / tierMax).toFixed(0)}%"></i></span><span class="v">${s.tierCounts[t]}</span></div>`).join("")}</div></section>
+      </div>
     </section>`;
   }
 
   // ======================================================== how / faq
   function howHtml() {
-    return `<div class="prose">
-      <p>Every day there are <b>7 ML prompts</b>, the same for everyone: “Name a loss function”, “Name a vision transformer”, “Name a Greek letter used in ML notation”…</p>
-      <ol>
-        <li>Each prompt shows for <b>3 seconds</b>, then you get <b>25 seconds</b> to answer.</li>
-        <li>Type any valid answer and press <kbd>Enter</kbd>. If it isn't in the answer key you'll see <i>“no gradient”</i>; try again as often as you like until time runs out.</li>
-        <li>Close misspellings trigger <b>autocorrect</b>, which suggests the nearest accepted answer. Press Step again to confirm, or keep typing. If several answers are close, tap the one you meant.</li>
-        <li>Rarer accepted answers <b>descend deeper</b>. Your optimizer rolls down the loss landscape and your loss drops by points ÷ 100.</li>
-      </ol>
-      ${tierLegend()}
-      <p style="margin-top:12px"><b>Max 700 a day.</b> ${E.BANDS.map((b) => `${esc(b.name)} ${b.range}`).join(" · ")}.</p>
-      <p>When you finish, share your grid and browse every accepted answer for each prompt.</p>
+    return `<div class="how">
+      <ul class="beats">
+        <li><b>7</b><span>prompts a day</span></li>
+        <li><b>3 s</b><span>to read</span></li>
+        <li><b>25 s</b><span>to answer</span></li>
+      </ul>
+      <p>Type any valid answer. Wrong ones bounce, so keep trying. Near misses get a “did you mean”. Rarer answers roll deeper:</p>
+      ${depthList()}
+      <p class="muted">Loss starts at 7.00 and falls by points ÷ 100. Max 700 a day.</p>
     </div>`;
   }
   function renderHow() {
-    setMid("how to play");
-    app.innerHTML = `<section class="screen stack"><div class="panel"><p class="kicker">how to play</p><h2 style="margin-bottom:8px">Descend the loss landscape</h2>${howHtml()}
-      <a class="btn primary block" href="#daily" style="margin-top:14px">▶ Start today's descent</a></div></section>`;
+    setMid("How to play");
+    app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>How to play</h1></div>${howHtml()}
+      <a class="btn primary big" href="#daily">Play today</a></section>`;
   }
   function renderFaq() {
-    setMid("faq");
+    setMid("FAQ");
     const total = DATA.prompts.reduce((s, p) => s + p.answers.length, 0);
-    app.innerHTML = `<section class="screen stack"><div class="panel"><p class="kicker">faq</p>
+    app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>FAQ</h1></div>
       <dl class="faq">
-        <dt>How were the answer sets built?</dt>
-        <dd>By merging what the field actually uses: framework docs (PyTorch, scikit-learn, Hugging Face), survey papers, textbooks, model cards and community lists. Each set is then deduplicated and cleaned, and aliases are added so abbreviations and full names both count. There are ${fmt(total)} accepted answers across ${DATA.prompts.length} prompts right now.</dd>
+        <dt>Where do the answers come from?</dt>
+        <dd>Framework docs, papers, textbooks and model cards, cleaned up, with aliases so short and long names both count. ${fmt(total)} answers in all.</dd>
         <dt>How is rarity decided?</dt>
-        <dd>By familiarity, not quality. Picture a thousand ML people with 25 seconds each. The tier reflects how many would think of the answer, judged by how visible it is in intro courses, docs, papers and ML social media. Tiers are fixed, so a score never changes after you play.</dd>
-        <dt>Why isn't the 🦁 always the most obscure answer?</dt>
-        <dd>Past a certain depth, “rarest” stops being meaningful and nobody would ever type it. The gem is picked for delight: a real, satisfying answer that a few strong players actually land.</dd>
-        <dt>What is “Overfit”?</dt>
-        <dd>The famous “obscure” pick, the one you type to look clever. So many people memorized it that it barely scores.</dd>
-        <dt>Why did autocorrect suggest something odd?</dt>
-        <dd>Autocorrect checks every alias, and some prompts have hundreds. A one-letter typo can land near an alias you didn't expect. With suggestions on (Settings), nothing is accepted until you confirm.</dd>
-        <dt>My answer wasn't accepted, but it's real!</dt>
-        <dd>Then the set is missing it. Please <a href="${REPO_URL}/issues" target="_blank" rel="noopener">open an issue</a> with the prompt and your answer. Each prompt is one JSON file in <code>data/prompts/</code>.</dd>
-        <dt>When does the daily reset?</dt>
-        <dd>At local midnight. Everyone gets the same 7 prompts for the same calendar date.</dd>
+        <dd>By how many ML people would think of it in 25 seconds. Tiers are fixed, so a score never changes.</dd>
+        <dt>Why isn't the lion the most obscure answer?</dt>
+        <dd>It's picked for delight: a real answer that a few strong players land.</dd>
+        <dt>My answer is real but wasn't accepted.</dt>
+        <dd>Then the set is missing it. <a href="${REPO_URL}/issues" target="_blank" rel="noopener">Open an issue</a> with the prompt and your answer.</dd>
+        <dt>When does it reset?</dt>
+        <dd>At local midnight. Everyone gets the same seven.</dd>
         <dt>Is anything tracked?</dt>
-        <dd>No. There are no accounts, analytics or servers. Your runs, streaks and settings live in this browser's local storage.</dd>
-      </dl></div></section>`;
+        <dd>No. Runs, streaks and settings stay in this browser.</dd>
+      </dl></section>`;
   }
 
   // ============================================================ settings
   function renderSettings() {
-    setMid("settings");
+    setMid("Settings");
     const items = [
-      ["previewCorrections", "Preview autocorrect", "Show the corrected answer and wait for you to confirm it. Off accepts corrections straight away."],
-      ["clearRejected", "Clear rejected answers", "Empty the input after a wrong answer instead of selecting it."],
-      ["sound", "Sound effects", "Ticks, chimes and the lion's roar."],
-      ["reducedMotion", "Reduce motion", "Shorter animations and fewer particles."],
-      ["shareLink", "Include link when sharing", "Append this page's address to your share text."],
-      ["aiCheck", "Ask Claude when nothing matches", "If an answer isn't recognized, Claude checks whether you meant a listed answer, and you confirm it. Uses your Claude usage. Only on the claude.ai page."],
+      ["previewCorrections", "Confirm autocorrect", "Off accepts corrections at once"],
+      ["clearRejected", "Clear wrong answers", ""],
+      ["sound", "Sound", ""],
+      ["reducedMotion", "Reduce motion", ""],
+      ["shareLink", "Add a link when sharing", ""],
+      ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
     ];
-    app.innerHTML = `<section class="screen stack">
-      <div class="panel"><p class="kicker">settings</p><div class="settings-list">${items.map(([k, t, d]) => `
-        <label class="setting" ${k === "aiCheck" ? `id="ai-setting" ${aiUsable() ? "" : "hidden"}` : ""}><span class="txt"><b>${esc(t)}</b><span>${esc(d)}</span></span>
-          <span class="switch"><input type="checkbox" data-k="${k}" ${settings[k] ? "checked" : ""}><i></i></span></label>`).join("")}</div></div>
-      <div class="panel"><p class="kicker">progress</p>
-        <p class="small muted" style="margin-top:0">Move your history to another browser: export it here and import it there.</p>
-        <div class="btn-row"><button class="btn" id="exp">Export</button><button class="btn" id="imp">Import</button><button class="btn danger" id="reset">Reset all</button></div></div>
+    app.innerHTML = `<section class="screen split">
+      <div class="side"><div class="page-head"><h1>Settings</h1></div></div>
+      <div class="main">
+        <div class="settings-list">${items.map(([k, t, d]) => `
+          <label class="setting" ${k === "aiCheck" ? `id="ai-setting" ${aiUsable() ? "" : "hidden"}` : ""}><span class="txt"><span class="t">${esc(t)}</span>${d ? `<span>${esc(d)}</span>` : ""}</span>
+            <span class="switch"><input type="checkbox" role="switch" data-k="${k}" ${settings[k] ? "checked" : ""}><i></i></span></label>`).join("")}</div>
+        <section><h2 class="block-title">Progress</h2><p class="muted" style="margin-top:8px">Move your history to another browser.</p>
+          <div class="btn-row" style="margin-top:20px"><button class="btn" id="exp">Export</button><button class="btn" id="imp">Import</button><button class="btn danger" id="reset">Reset all</button></div></section>
+      </div>
     </section>`;
     $$("input[data-k]").forEach((i) => i.addEventListener("change", () => { settings[i.dataset.k] = i.checked; saveSettings(); }));
     $("#exp").addEventListener("click", async () => {
@@ -1008,9 +998,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       toast((await copyText(blob)) ? "Progress copied. Paste it into Import elsewhere" : "Couldn't copy");
     });
     $("#imp").addEventListener("click", () => {
-      showModal("Import progress", `<p class="small muted">Paste exported progress. It merges with what's here; on a clash, the higher score wins.</p>
-        <textarea id="imp-t" class="search" style="height:140px;padding:10px" aria-label="Exported progress"></textarea>
-        <button class="btn primary block" id="imp-go" style="margin-top:10px">Import</button>`);
+      showModal("Import progress", `<p class="muted">Paste exported progress. The higher score wins on a clash.</p>
+        <textarea id="imp-t" class="search area" aria-label="Exported progress"></textarea>
+        <div class="btn-row"><button class="btn primary big" id="imp-go">Import</button></div>`);
       $("#imp-go").addEventListener("click", () => {
         try {
           const d = JSON.parse($("#imp-t").value);
@@ -1026,8 +1016,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       });
     });
     $("#reset").addEventListener("click", () => {
-      showModal("Reset all progress?", `<p class="muted">This deletes every run, streak and stat stored in this browser. It can't be undone.</p>
-        <div class="btn-row"><button class="btn" id="rs-no">Keep my progress</button><button class="btn danger" id="rs-yes">Delete everything</button></div>`);
+      showModal("Reset all progress?", `<p class="muted">Every run, streak and stat in this browser goes. This can't be undone.</p>
+        <div class="btn-row"><button class="btn" id="rs-no">Keep it</button><button class="btn danger" id="rs-yes">Delete everything</button></div>`);
       $("#rs-no").addEventListener("click", closeModal);
       $("#rs-yes").addEventListener("click", () => {
         try { Object.keys(localStorage).filter((k) => k.startsWith("mlion:")).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
@@ -1042,15 +1032,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function closeDrawer() { document.body.classList.remove("drawer-open"); $("#drawer").setAttribute("aria-hidden", "true"); }
   function showModal(title, html) {
     const m = $("#modal");
-    m.innerHTML = `<div class="modal-backdrop" id="mb"><div class="panel modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" id="mclose" aria-label="Close">✕</button></div>${html}</div></div>`;
+    m.innerHTML = `<div class="modal-backdrop" id="mb"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" id="mclose" aria-label="Close">${XICON}</button></div>${html}</div></div>`;
     $("#mclose").addEventListener("click", closeModal);
     $("#mb").addEventListener("click", (e) => { if (e.target.id === "mb") closeModal(); });
     $("#mclose").focus();
   }
   function closeModal() { $("#modal").innerHTML = ""; }
   function showHowModal() {
-    showModal("How to play", howHtml() + `<button class="btn primary block" id="how-go" style="margin-top:14px">Got it</button>`);
+    showModal("How to play", howHtml() + `<div class="btn-row"><button class="btn primary big block" id="how-go">Got it</button></div>`);
     $("#how-go").addEventListener("click", closeModal);
   }
 
@@ -1058,6 +1048,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   $("#drawer-backdrop").addEventListener("click", closeDrawer);
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#brand").addEventListener("click", () => go("home"));
+
+  // A phone keyboard shrinks the visual viewport (on iOS only that), so flag it
+  // and let the play screen fold the stage to keep the prompt and input in view.
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const kb = () => document.documentElement.classList.toggle("kb", window.innerHeight - vv.height > 140);
+    vv.addEventListener("resize", kb);
+    kb();
+  }
 
   V.initBackdrop();
   route();
