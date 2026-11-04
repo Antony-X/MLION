@@ -94,6 +94,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(true, "the host's questions are exactly what the engine builds from the room's seed");
   assert.deepStrictEqual(b0.quiz, s0.quiz);
   check(JSON.stringify(await options(ana)) === JSON.stringify(await options(ben)) && JSON.stringify(await options(ana)) === JSON.stringify(s0.quiz[0].options), "both phones show the same four options in the same order");
+  if (!(await ana.$$eval(".mcq-opt", (els) => els.every((e) => e.getBoundingClientRect().bottom <= window.innerHeight)))) { await ana.screenshot({ path: path.join(OUT, "fail-live-quiz-fit.png") }); console.log(JSON.stringify(s0.quiz[0]), await ana.evaluate(() => [...document.querySelectorAll(".mcq-opt")].map((e) => Math.round(e.getBoundingClientRect().bottom)))); }
   check(await ana.$$eval(".mcq-opt", (els) => els.every((e) => e.getBoundingClientRect().bottom <= window.innerHeight)), "live, with the strip and rivals above, all four options still fit a 390 x 844 screen");
   await ana.screenshot({ path: path.join(OUT, "51-live-quiz-round.png") });
   const Q0 = s0.quiz[0], right0 = Q0.options[Q0.correct], wrong0 = (Q0.correct + 1) % 4;
@@ -113,7 +114,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check((await ben.textContent(".mq-opts li.right b")) === right0, "the reveal lights the right option");
   check((await ben.textContent(".mq-opts li.right .mcq-who")).includes("Ana") && (await ben.textContent(`.mq-opts li:nth-child(${wrong0 + 1}) .mcq-who`)).includes("Ben"), "the reveal shows who picked what");
   const froms = await ben.$$eval(".mq-opts li:not(.right) .mcq-from", (els) => els.map((e) => e.textContent));
-  check(JSON.stringify(froms) === JSON.stringify(Q0.options.map((_, k) => k).filter((k) => k !== Q0.correct).map((k) => `That's ${kindOf(Q0.from[k])}`)), "wrong options are labelled with the prompt they came from");
+  const wantFroms = Q0.from ? Q0.options.map((_, k) => k).filter((k) => k !== Q0.correct && Q0.from[k]).map((k) => `That's ${kindOf(Q0.from[k])}`) : []; // a reasoning question's options come from nowhere else
+  check(JSON.stringify(froms) === JSON.stringify(wantFroms), "wrong options are labelled with the prompt they came from");
   check((await standings(ben)) === "Ana 100, Ben 0", "standings: Ana 100, Ben 0");
   await ana.waitForFunction(() => document.querySelector("#hud-score").textContent.trim() === "100", null, { timeout: 6000 });
   check(true, "Ana's ball and score move at the reveal");

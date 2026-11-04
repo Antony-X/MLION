@@ -2940,15 +2940,30 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // =============================================================== stats
+  /** The daily quiz in numbers: days played, right answers on average, best, and the current run of days. */
+  function quizSummary() {
+    const recs = Object.values(records).filter((r) => r.mode === "dquiz" && r.date).sort((a, b) => a.date.localeCompare(b.date));
+    const right = (r) => r.results.filter((x) => x.score > 0).length;
+    const days = new Set(recs.map((r) => r.date));
+    let cur = 0;
+    for (let d = days.has(today()) ? today() : E.addDays(today(), -1); days.has(d); d = E.addDays(d, -1)) cur++;
+    return {
+      played: recs.length,
+      avg: recs.length ? (recs.reduce((t, r) => t + right(r), 0) / recs.length).toFixed(1) : null,
+      best: recs.length ? Math.max(...recs.map(right)) : null,
+      cur,
+    };
+  }
   function renderStats() {
     setMid("Stats");
-    const s = statsSummary();
+    const s = statsSummary(), q = quizSummary();
+    const quizBlock = q.played ? `<section><h2 class="block-title">Daily quiz</h2><div class="stat-grid quiz-grid">${[["Played", q.played], ["Average", `${q.avg}/7`], ["Best", `${q.best}/7`], ["Streak", q.cur]].map(([l, v]) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`).join("")}</div></section>` : "";
     const tierMax = Math.max(1, ...Object.values(s.tierCounts));
     const bandMax = Math.max(1, ...s.bands.map((b) => b.n));
     const figs = [["Played", s.played], ["Average", s.avg || "—"], ["Best", s.best || "—"], ["Streak", s.cur], ["Max streak", s.max], ["Gems", s.gems]];
     if (!s.played) {
       app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Stats</h1><p>Your streak, best score and tier counts start with your first daily. They stay in this browser.</p></div>
-        <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div></section>`;
+        <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div>${quizBlock}</section>`;
       return;
     }
     app.innerHTML = `<section class="screen split">
@@ -2961,6 +2976,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <div class="bar-row t-${b.tier}"><span class="lab"><span>${esc(b.name)}</span><span class="muted">${b.range}</span></span><span class="tr"><i style="width:${(100 * b.n / bandMax).toFixed(0)}%"></i></span><span class="v">${b.n}</span></div>`).join("")}</div></section>
         <section><h2 class="block-title">Tiers landed</h2><div class="bars">${[...E.TIERS_BY_SCORE.map((t) => t.id), "miss"].map((t) => `
           <div class="bar-row t-${t}"><span class="lab">${G(t === "miss" ? null : t)}${t === "miss" ? "Miss" : esc(T[t].name)}</span><span class="tr"><i style="width:${(100 * s.tierCounts[t] / tierMax).toFixed(0)}%"></i></span><span class="v">${s.tierCounts[t]}</span></div>`).join("")}</div></section>
+        ${quizBlock}
       </div>
     </section>`;
   }

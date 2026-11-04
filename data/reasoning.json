@@ -630,6 +630,531 @@
       ],
       "answer": 1,
       "why": "Whole session and room holdouts test speaker identity rather than memorizing recording conditions."
+    },
+    {
+      "id": "rq-46",
+      "title": "Can You Tell Train from Test?",
+      "cat": "Data & validation",
+      "q": "You label training rows 0 and test rows 1, use features only, and train a classifier to tell them apart. Its cross-validated ROC AUC is 0.97. What does this most directly indicate?",
+      "options": [
+        "Train and test differ in distribution, so random validation may mislead",
+        "The features are strongly predictive of the original task labels",
+        "Test labels have leaked into the training data through shared features",
+        "The classifier has overfit, so its cross-validated AUC carries no meaning"
+      ],
+      "answer": 0,
+      "why": "A classifier that separates train from test exposes covariate shift, so a validation set drawn randomly from train will not mimic test conditions.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-47",
+      "title": "Filling Holes with the Mean",
+      "cat": "Data & validation",
+      "q": "A feature has variance 4. At random, 30% of its values go missing, independently of everything else. You replace each missing value with the mean of the observed ones. Roughly what is the feature's variance afterwards?",
+      "options": [
+        "About 4.0",
+        "About 2.8",
+        "About 2.0",
+        "About 1.2"
+      ],
+      "answer": 1,
+      "why": "Imputed entries add no squared deviation but still count in n, so the variance shrinks to about 0.7 × 4 = 2.8.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-48",
+      "title": "Balanced Training, Rare Reality",
+      "cat": "Data & validation",
+      "q": "To train faster you discard negatives until 50% of the training rows are positive, while only 1% of real cases are. The model, calibrated on the balanced data, outputs 0.80 for a new case. Assuming only class proportions differ, what is its true probability of being positive?",
+      "options": [
+        "About 0.01",
+        "About 0.04",
+        "About 0.40",
+        "About 0.80"
+      ],
+      "answer": 1,
+      "why": "Undersampling inflates the odds, so multiply by the real prior odds 0.01/0.99 (balanced prior odds are 1): 4 × 0.0101 ≈ 0.04 odds, hence p ≈ 0.04.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-49",
+      "title": "The Hidden Ceiling",
+      "cat": "Evaluation",
+      "q": "In a binary test set, 10% of the labels are flipped at random, independently of the inputs. A model has 90% accuracy against the clean labels. What accuracy does it measure against the noisy labels?",
+      "options": [
+        "80%",
+        "81%",
+        "82%",
+        "90%"
+      ],
+      "answer": 2,
+      "why": "It agrees with a noisy label when it is right and the label intact (0.9 × 0.9) or wrong and the label flipped (0.1 × 0.1): 0.82.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-50",
+      "title": "A Chance Baseline",
+      "cat": "Evaluation",
+      "q": "Only 2% of examples are positive. A model assigns scores that are random and unrelated to the label. What are its expected ROC AUC and average precision (area under the precision-recall curve)?",
+      "options": [
+        "ROC AUC 0.5 and average precision 0.5",
+        "ROC AUC 0.02 and average precision 0.02",
+        "ROC AUC 0.98 and average precision 0.02",
+        "ROC AUC 0.5 and average precision 0.02"
+      ],
+      "answer": 3,
+      "why": "Random scores give AUC 0.5, but precision at every recall level equals the 2% positive rate, so average precision is about 0.02.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-51",
+      "title": "Accurate but Overconfident",
+      "cat": "Evaluation",
+      "q": "A balanced binary classifier has 85% validation accuracy and a validation log loss of 0.80 nats. A model that always outputs probability 0.5 scores ln 2 ≈ 0.69. What does the comparison show?",
+      "options": [
+        "Its probabilities are worse than constant ones, from confident errors",
+        "It must beat the constant model, since accuracy is far above 50%",
+        "The log loss must be a bug, since it cannot exceed ln 2",
+        "Log loss and accuracy always rank models in exactly the same order"
+      ],
+      "answer": 0,
+      "why": "Log loss punishes confident mistakes without bound, so an accurate model can still assign worse probabilities than a model that always says 0.5.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-52",
+      "title": "The Step That Is Too Long",
+      "cat": "Classical ML",
+      "q": "You minimise f(w) = 5w² (second derivative 10) with plain gradient descent from w = 1. Which fixed learning rate makes the iterates diverge?",
+      "options": [
+        "0.05",
+        "0.1",
+        "0.15",
+        "0.25"
+      ],
+      "answer": 3,
+      "why": "Each step multiplies w by 1 − 10·lr, which exceeds magnitude 1 only when lr > 0.2: 0.25 gives −1.5, while 0.15 gives −0.5 and still converges.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-53",
+      "title": "Points That Do Not Matter",
+      "cat": "Classical ML",
+      "q": "You fit a linear soft-margin SVM, then delete one training point that is correctly classified and lies well outside the margin, and refit. What happens to the hyperplane?",
+      "options": [
+        "It shifts slightly toward the class of the deleted point",
+        "It shifts slightly away from the class of the deleted point",
+        "It keeps its direction but the margin must widen",
+        "It is exactly the same hyperplane as before"
+      ],
+      "answer": 3,
+      "why": "Only support vectors, the points on or inside the margin, have nonzero dual weights, so removing any other point leaves the solution unchanged.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-54",
+      "title": "Fitting Forever",
+      "cat": "Classical ML",
+      "q": "Logistic regression with no regularisation is trained by gradient descent on linearly separable data, for an unlimited number of steps. What happens to the weight vector?",
+      "options": [
+        "Its norm grows without bound as the loss keeps falling",
+        "It converges to a finite maximum-likelihood solution",
+        "It oscillates around the separating boundary indefinitely",
+        "Its norm shrinks toward zero once every point is fit"
+      ],
+      "answer": 0,
+      "why": "On separable data, scaling the weights up always lowers the loss, so no finite minimiser exists and the norm keeps growing.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-55",
+      "title": "Counting Evidence Twice",
+      "cat": "Classical ML",
+      "q": "A Gaussian Naive Bayes classifier uses a feature x. You append an exact copy of x as a second feature and retrain. How does the log-likelihood ratio that x contributes to the prediction change?",
+      "options": [
+        "It is split evenly between the copies, leaving predictions unchanged",
+        "It doubles, making the predicted probabilities overconfident",
+        "It is unchanged, since Naive Bayes ignores correlated features",
+        "It cancels, since the copy carries no new information"
+      ],
+      "answer": 1,
+      "why": "Naive Bayes multiplies per-feature likelihoods as if they were independent, so the copy's identical likelihood ratio is counted a second time.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-56",
+      "title": "Decay That Depends on Gradients",
+      "cat": "PyTorch & deep learning",
+      "q": "In PyTorch, Adam(weight_decay=λ) adds λw to each gradient before Adam divides by the running RMS of gradients, whereas AdamW shrinks weights directly. How does Adam's shrinkage differ between weights?",
+      "options": [
+        "Weights with large typical gradients are shrunk less than those with small ones",
+        "Weights with large typical gradients are shrunk more than those with small ones",
+        "All weights shrink at the same relative rate, exactly as in AdamW",
+        "Only weights whose loss gradient is exactly zero are shrunk"
+      ],
+      "answer": 0,
+      "why": "The L2 term is divided by the gradient RMS like any gradient, so large-gradient weights get weaker effective decay; AdamW's decay bypasses that division.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-57",
+      "title": "A Louder Loss",
+      "cat": "PyTorch & deep learning",
+      "q": "To 'strengthen the signal', a colleague multiplies the loss by 1000 and keeps the learning rate. Ignoring ε and weight decay, how do the parameter updates change for plain SGD and for Adam?",
+      "options": [
+        "Both optimisers take steps that are 1000× larger",
+        "SGD steps stay the same; Adam steps become 1000× larger",
+        "Neither changes, since the learning rate is fixed",
+        "SGD steps become 1000× larger; Adam steps stay the same"
+      ],
+      "answer": 3,
+      "why": "SGD's step is lr × gradient, so it scales with the loss; Adam divides the gradient by its running RMS, which scales identically and cancels.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-58",
+      "title": "A Softer Target",
+      "cat": "PyTorch & deep learning",
+      "q": "Cross-entropy uses label smoothing 0.1 on 10 classes, so the true class has target 0.91 and every other class 0.01. At the loss minimum, how much larger is the true-class logit than each other logit?",
+      "options": [
+        "About 2.2",
+        "About 4.5",
+        "About 91",
+        "It grows without bound, as with hard labels"
+      ],
+      "answer": 1,
+      "why": "The softmax must equal the targets, so e^gap = 0.91/0.01 = 91 and the gap is ln 91 ≈ 4.5, which is finite.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-59",
+      "title": "The Scheduler That Hates Progress",
+      "cat": "PyTorch & deep learning",
+      "q": "You call scheduler.step(val_acc) on ReduceLROnPlateau(optimizer, mode='min', patience=3). Validation accuracy improves every epoch. What happens to the learning rate?",
+      "options": [
+        "It stays constant, because the metric keeps improving every epoch",
+        "PyTorch raises an error, because accuracy is not a loss function",
+        "It is cut after a few epochs, even though accuracy keeps improving",
+        "It rises each epoch, because the metric is steadily increasing"
+      ],
+      "answer": 2,
+      "why": "In min mode a higher metric counts as no improvement, so once the patience runs out the scheduler cuts the learning rate; accuracy needs mode='max'.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-60",
+      "title": "Scale-Free Weights",
+      "cat": "PyTorch & deep learning",
+      "q": "A bias-free conv layer feeds a BatchNorm layer in training mode (ε negligible). You multiply the conv weights by 10, and the loss is unchanged. How does the gradient of the loss with respect to those conv weights change?",
+      "options": [
+        "It is divided by 10",
+        "It is unchanged",
+        "It is multiplied by 10",
+        "It is divided by 100"
+      ],
+      "answer": 0,
+      "why": "BatchNorm makes the loss depend only on w divided by its norm, so L(cw) = L(w), and differentiating gives ∇L(cw) = ∇L(w)/c.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-61",
+      "title": "A Fading Signal",
+      "cat": "PyTorch & deep learning",
+      "q": "A 10-layer MLP of width 512 stacks Linear + ReLU blocks without biases. Weights are drawn from N(0, 1/512) and the inputs have mean-square 1. Roughly what is the mean-square of the activations after the tenth ReLU?",
+      "options": [
+        "About 0.001",
+        "About 0.5",
+        "About 1",
+        "About 1000"
+      ],
+      "answer": 0,
+      "why": "A ReLU keeps half the energy, so each layer halves the mean-square, leaving 0.5¹⁰ ≈ 0.001; He initialisation uses variance 2/fan_in to compensate.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-62",
+      "title": "A Spike in a Quiet Run",
+      "cat": "PyTorch & deep learning",
+      "q": "Adam (β₁ = 0.9, β₂ = 0.999) has seen gradients of about 0.001 for 2,000 steps. One step then delivers a gradient of 1. Roughly how large is that update, in units of the learning rate?",
+      "options": [
+        "About 1000",
+        "About 3",
+        "About 1",
+        "About 0.001"
+      ],
+      "answer": 1,
+      "why": "Momentum rises by 0.1·g but the variance estimate by only 0.001·g², so the step is about 0.1/√0.001 ≈ 3 times the learning rate.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-63",
+      "title": "Variance of a Dot Product",
+      "cat": "Attention & transformers",
+      "q": "Query and key entries are independent with mean 0 and variance 1, and d_k = 64. Which constant c makes q·k / c have variance 1?",
+      "options": [
+        "c = 1",
+        "c = 2.8",
+        "c = 8",
+        "c = 64"
+      ],
+      "answer": 2,
+      "why": "q·k sums 64 independent unit-variance products, so its variance is 64 and its standard deviation 8; dividing by √d_k restores variance 1.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-64",
+      "title": "The Cache Bill",
+      "cat": "Attention & transformers",
+      "q": "A decoder has 32 layers and head size 128. It uses grouped-query attention: 32 query heads share 8 key/value heads. Keys and values are cached in fp16. How much cache memory does each generated token add?",
+      "options": [
+        "512 KiB",
+        "256 KiB",
+        "128 KiB",
+        "64 KiB"
+      ],
+      "answer": 2,
+      "why": "Per token: 2 (keys and values) × 32 layers × 8 heads × 128 dims × 2 bytes = 131,072 bytes = 128 KiB, a quarter of full multi-head attention.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-65",
+      "title": "Rotations Remember Offsets",
+      "cat": "Attention & transformers",
+      "q": "Rotary embeddings rotate each 2D pair of the query at position m by angle mθ, and of the key at position n by angle nθ. For fixed q and k, how does that pair's contribution to q·k depend on m and n?",
+      "options": [
+        "Only through the offset m − n, not the absolute positions",
+        "Only through the sum m + n, not the individual positions",
+        "Through m and n separately, never through their difference",
+        "Not at all, since rotations preserve the length of vectors"
+      ],
+      "answer": 0,
+      "why": "Rotating both vectors by a common angle leaves their dot product unchanged, so rotations by mθ and nθ are equivalent to a single rotation by (m − n)θ.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-66",
+      "title": "A Bias That Cancels",
+      "cat": "Attention & transformers",
+      "q": "In one attention head you add the same learned vector b to every key before computing scores. What happens to the attention weights?",
+      "options": [
+        "They flatten toward uniform, since every key shifts equally",
+        "They shift toward keys at later positions in the sequence",
+        "They sharpen on the keys with the largest norm",
+        "They are unchanged, because q·b is identical for every key"
+      ],
+      "answer": 3,
+      "why": "Each score becomes q·k_j + q·b, and softmax is unchanged when the same constant is added to every score in a row.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-67",
+      "title": "How Far Does a Window Reach?",
+      "cat": "Attention & transformers",
+      "q": "In a causal Transformer, each token attends only to itself and the 3 tokens before it. After 5 such layers, the output at position p can depend on tokens as far back as position p − what?",
+      "options": [
+        "p − 3",
+        "p − 5",
+        "p − 15",
+        "p − 20"
+      ],
+      "answer": 2,
+      "why": "Each layer lets information hop back 3 positions, and hops compose across layers, so 5 layers reach 5 × 3 = 15 positions back.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-68",
+      "title": "Where the Compute Goes",
+      "cat": "Attention & transformers",
+      "q": "A Transformer layer has d_model = 768, a feed-forward hidden size of 4d, and sequence length 1,024. Per token, which costs more multiply-adds: the projection and feed-forward matrices, or the query-key scores plus the weighted sum of values?",
+      "options": [
+        "Scores and weighting, by roughly 4.5×",
+        "Scores and weighting, because attention is quadratic in length",
+        "They cost about the same at this length",
+        "Projections and feed-forward, by roughly 4.5×"
+      ],
+      "answer": 3,
+      "why": "Projections and feed-forward cost 12d² ≈ 7.1M multiply-adds per token versus 2nd ≈ 1.6M for scores and weighting; attention only dominates beyond n ≈ 6d ≈ 4,600.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-69",
+      "title": "A Pool in the Middle",
+      "cat": "Computer vision",
+      "q": "A CNN applies a 3×3 conv (stride 1), another 3×3 conv (stride 1), a 2×2 max-pool (stride 2), then a 3×3 conv (stride 1). How wide, in input pixels, is the receptive field of one final output unit?",
+      "options": [
+        "7 pixels",
+        "9 pixels",
+        "10 pixels",
+        "12 pixels"
+      ],
+      "answer": 2,
+      "why": "The two convs reach 5, the pool adds 1 more (6) and doubles the step between units, so the last 3×3 conv adds 2 × 2 = 4, giving 10.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-70",
+      "title": "Upsampling Off by One",
+      "cat": "Computer vision",
+      "q": "nn.ConvTranspose2d(kernel_size=3, stride=2, padding=1) with no output_padding upsamples a 16×16 feature map. What is the output side length?",
+      "options": [
+        "30",
+        "31",
+        "32",
+        "33"
+      ],
+      "answer": 1,
+      "why": "Output = (in − 1)·stride − 2·padding + kernel = 15·2 − 2 + 3 = 31; output_padding=1 would be needed to reach 32.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-71",
+      "title": "Half a Step",
+      "cat": "Computer vision",
+      "q": "A stride-2 convolution with circular padding processes a 1D signal. You feed it the signal shifted by 2 samples, then shifted by 1 sample. Which statement holds?",
+      "options": [
+        "Shift by 2 gives a shifted output; shift by 1 generally does not",
+        "Both shifts give shifted outputs, since convolution is shift-equivariant",
+        "A shift by 1 gives the output shifted by half a sample",
+        "Neither shift gives a shifted output, because stride destroys equivariance"
+      ],
+      "answer": 0,
+      "why": "Stride 2 samples every second position, so only even shifts map onto shifted outputs; an odd shift samples different positions, which is aliasing.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-72",
+      "title": "Two Overlap Scores",
+      "cat": "Computer vision",
+      "q": "A predicted foreground mask has IoU 0.5 with the ground truth. What is its Dice coefficient, which equals the F1 score on the foreground pixels?",
+      "options": [
+        "0.75",
+        "0.67",
+        "0.50",
+        "0.33"
+      ],
+      "answer": 1,
+      "why": "IoU = TP/(TP+FP+FN) and Dice = 2TP/(2TP+FP+FN), so Dice = 2·IoU/(1+IoU) = 1/1.5 ≈ 0.67.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-73",
+      "title": "One Channel to Three",
+      "cat": "Computer vision",
+      "q": "A pretrained CNN's first conv takes 3 input channels. To accept grayscale images you swap in a 1-channel conv with the same bias. Which weights reproduce exactly what the network computed on grayscale images copied into all 3 channels?",
+      "options": [
+        "The mean of the three channels' filters",
+        "The first channel's filters alone",
+        "The sum of the three channels' filters",
+        "The first channel's filters multiplied by 3"
+      ],
+      "answer": 2,
+      "why": "With one image g in all channels, the output is (w₁ + w₂ + w₃) convolved with g, so the sum is exact; the mean gives a third.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-74",
+      "title": "A Thousand Whispers",
+      "cat": "Computer vision",
+      "q": "A dense detector scores 100,000 anchors per image, of which 100 are positives. With cross-entropy, each easy negative has loss 0.01 and each positive has loss 2. Which part contributes more to the summed loss?",
+      "options": [
+        "The positives, since each one's loss is 200 times larger",
+        "Neither: positives and negatives each contribute about half",
+        "The easy negatives contribute almost nothing, as each loss is tiny",
+        "The easy negatives, outweighing the positives about five to one"
+      ],
+      "answer": 3,
+      "why": "99,900 easy negatives × 0.01 ≈ 1,000 against 100 positives × 2 = 200, so the swarm of easy examples swamps the rare hard ones; focal loss addresses this.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-75",
+      "title": "Perplexity Across Tokenizers",
+      "cat": "NLP & audio",
+      "q": "On the same text, model A predicts whole words and has perplexity 100 per word. Model B predicts subword tokens, 2.5 per word on average, and has perplexity 8 per token. Which model needs fewer bits to encode the text?",
+      "options": [
+        "Model A, at about 6.6 bits per word against 7.5",
+        "Model B, because its perplexity of 8 is far lower than 100",
+        "Model B, at about 3 bits per word against 6.6",
+        "They tie, since both perplexities are measured on the same text"
+      ],
+      "answer": 0,
+      "why": "Perplexity is per prediction unit, so convert to bits per word: log₂100 ≈ 6.6 for A versus 2.5 × log₂8 = 7.5 for B.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-76",
+      "title": "The Double L",
+      "cat": "NLP & audio",
+      "q": "A CTC speech model must output the word 'hello' (h, e, l, l, o) from T encoder frames. What is the smallest T for which at least one valid alignment exists?",
+      "options": [
+        "4",
+        "5",
+        "6",
+        "10"
+      ],
+      "answer": 2,
+      "why": "Adjacent repeated letters collapse unless a blank separates them, so 'hello' needs its 5 letters plus one blank between the two l's: 6 frames.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-77",
+      "title": "A Tone From Nowhere",
+      "cat": "NLP & audio",
+      "q": "A recorder samples at 16 kHz with no anti-aliasing filter, while a pure 10 kHz tone is in the air. Where does the tone appear in the spectrum of the recording?",
+      "options": [
+        "At 10 kHz, since sampling does not change frequencies",
+        "Nowhere, because frequencies above 8 kHz are discarded",
+        "At 8 kHz, clipped to the highest representable frequency",
+        "At 6 kHz, folded back about the Nyquist frequency"
+      ],
+      "answer": 3,
+      "why": "Sampling at 16 kHz folds a frequency f above 8 kHz down to |f − 16 kHz|, so 10 kHz aliases to 6 kHz.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-78",
+      "title": "How Far Back Does It Listen?",
+      "cat": "NLP & audio",
+      "q": "A causal 1D conv stack has kernel size 2 and dilations 1, 2, 4, …, 512 (ten layers, stride 1). Audio is sampled at 16 kHz. About how much audio does a single output sample depend on?",
+      "options": [
+        "About 128 ms",
+        "About 64 ms",
+        "About 32 ms",
+        "About 0.6 ms"
+      ],
+      "answer": 1,
+      "why": "Each layer adds (k − 1)·dilation samples: 1 + 2 + … + 512 = 1023, plus the sample itself gives 1024 samples, which is 64 ms at 16 kHz.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-79",
+      "title": "Nucleus Arithmetic",
+      "cat": "NLP & audio",
+      "q": "Next-token probabilities are 0.50, 0.30, 0.10, 0.06 and 0.04. You sample with top-p = 0.85: keep the smallest set of top tokens whose total probability is at least 0.85, renormalise, then sample. What is the probability of picking the top token?",
+      "options": [
+        "0.63",
+        "0.59",
+        "0.56",
+        "0.50"
+      ],
+      "answer": 2,
+      "why": "The smallest set reaching 0.85 is the top three tokens, with total mass 0.90, so the top token has 0.50/0.90 ≈ 0.56.",
+      "added": "2026-11-06"
+    },
+    {
+      "id": "rq-80",
+      "title": "Shape of a Spectrogram",
+      "cat": "NLP & audio",
+      "q": "torch.stft is applied to 1 second of 16 kHz audio (16,000 samples) with n_fft = 400, hop_length = 160, center=True and one-sided complex output. What is the output shape (frequency bins, frames)?",
+      "options": [
+        "(201, 100)",
+        "(201, 101)",
+        "(200, 100)",
+        "(400, 101)"
+      ],
+      "answer": 1,
+      "why": "A one-sided FFT of 400 points has 400/2 + 1 = 201 bins, and center padding gives 1 + 16000/160 = 101 frames.",
+      "added": "2026-11-06"
     }
   ]
 }

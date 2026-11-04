@@ -1020,3 +1020,13 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 /* page intros stay a readable measure on wide screens */
 .page-head p { max-width: 62ch; }
 .dq-card { max-width: 620px; }
+/* a reasoning question is a paragraph: on phones the stage shrinks and the hint goes, so four options still fit under it (live adds the rivals and the skip vote) */
+@media (max-width: 999px) {
+  .play.quiz:has(.rq-text) .stage { height: clamp(64px, 9vh, 110px); }
+  .play.quiz:has(.rq-text) .prompt-note { display: none; }
+}
+/* the category above a reasoning question reads as a quiet label, not a tracked-caps eyebrow */
+.rq-eyebrow { text-transform: none; letter-spacing: 0; }
+
+.quiz-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px; }
+@media (max-width: 420px) { .quiz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
