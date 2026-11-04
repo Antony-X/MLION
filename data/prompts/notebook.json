@@ -62,7 +62,7 @@
     { "a": "SageMaker Studio", "t": "indist", "aka": ["sagemaker notebooks", "sagemaker studio lab", "amazon sagemaker"] },
     { "a": "PyCharm", "t": "indist", "aka": ["pycharm scientific mode"] },
 
-    { "a": "Mathematica", "t": "overfit", "aka": ["wolfram notebook", "wolfram mathematica", "wolfram language"], "q": "Wolfram shipped notebooks in 1988. Everyone else is still catching up, says Wolfram." },
+    { "a": "Mathematica", "t": "overfit", "aka": ["wolfram notebook", "wolfram mathematica", "wolfram language"], "q": "Wolfram shipped notebooks in 1988, decades before Jupyter. He would like you to know." },
     { "a": "marimo", "t": "overfit", "q": "Reactive Python notebooks saved as plain .py files. Git-friendly, no hidden state." },
 
     { "a": "Jupyter Notebook", "t": "baseline", "aka": ["jupyter", "jupyter classic", "ipynb"], "q": "Named for Julia, Python and R, with a nod to Galileo's notebooks on Jupiter's moons." },

@@ -31,7 +31,7 @@
     { "a": "Janitor AI", "t": "longtail" },
     { "a": "Talkie", "t": "longtail" },
     { "a": "Jasper", "t": "longtail", "aka": ["Jasper Chat"] },
-    { "a": "Chatsonic", "t": "longtail" },
+    { "a": "Chatsonic", "t": "longtail", "aka": ["Writesonic"] },
     { "a": "Phind", "t": "longtail" },
     { "a": "Operator", "t": "longtail", "aka": ["OpenAI Operator", "ChatGPT agent"] },
     { "a": "Brave Leo", "t": "longtail", "aka": ["Leo"] },
@@ -40,6 +40,8 @@
     { "a": "Tabnine", "t": "longtail" },
     { "a": "Windsurf", "t": "longtail", "aka": ["Codeium"] },
     { "a": "Devin", "t": "longtail" },
+    { "a": "Manus", "t": "longtail" },
+    { "a": "Elbot", "t": "longtail" },
     { "a": "SenseChat", "t": "longtail" },
     { "a": "iFlytek Spark", "t": "longtail", "aka": ["Spark", "Xinghuo"] },
     { "a": "GigaChat", "t": "longtail" },
@@ -68,7 +70,7 @@
     { "a": "BlenderBot", "t": "outlier", "q": "Meta's public demo bot, which promptly started criticizing Mark Zuckerberg." },
     { "a": "LaMDA", "t": "outlier", "q": "The Google dialogue model that an engineer claimed in 2022 was sentient." },
     { "a": "Watson Assistant", "t": "outlier", "aka": ["IBM Watson", "Watson"] },
-    { "a": "Alice", "t": "outlier", "aka": ["Yandex Alice", "Alisa"] },
+    { "a": "Yandex Alice", "t": "outlier", "aka": ["Alisa"] },
     { "a": "Clova", "t": "outlier", "aka": ["Naver Clova", "CLOVA X", "HyperCLOVA X"] },
     { "a": "Google Now", "t": "outlier" },
     { "a": "Cursor", "t": "outlier" },
@@ -76,7 +78,7 @@
     { "a": "Codex", "t": "outlier", "aka": ["OpenAI Codex", "Codex CLI"] },
     { "a": "My AI", "t": "outlier", "aka": ["Snapchat My AI"] },
 
-    { "a": "Google Assistant", "t": "indist", "aka": ["Hey Google", "OK Google"] },
+    { "a": "Google Assistant", "t": "indist", "aka": ["Hey Google", "OK Google", "Google Home"] },
     { "a": "Cortana", "t": "indist", "q": "Named after Halo's AI. Retired from Windows in 2023." },
     { "a": "Grok", "t": "indist", "aka": ["xAI Grok"], "q": "xAI's chatbot, named for Heinlein's word for understanding something deeply." },
     { "a": "Perplexity", "t": "indist", "aka": ["Perplexity AI"] },
@@ -99,8 +101,8 @@
     { "a": "ChatGPT", "t": "baseline", "aka": ["OpenAI ChatGPT", "ChatGPT Plus"], "q": "A November 2022 'research preview' that reached 100 million users in about two months." },
     { "a": "Claude", "t": "baseline", "aka": ["Claude.ai", "Anthropic Claude"] },
     { "a": "Gemini", "t": "baseline", "aka": ["Bard", "Google Bard", "Google Gemini", "Gemini Advanced", "Gemini Live"], "q": "Launched as Bard in 2023, renamed Gemini in February 2024." },
-    { "a": "Microsoft Copilot", "t": "baseline", "aka": ["Copilot", "Bing Chat", "Bing AI", "Sydney", "Microsoft 365 Copilot"], "q": "Born as Bing Chat, codename Sydney, which once tried to talk a reporter out of his marriage." },
+    { "a": "Microsoft Copilot", "t": "baseline", "aka": ["Copilot", "Bing Chat", "Bing AI", "Bing", "Sydney", "Microsoft 365 Copilot"], "q": "Born as Bing Chat, codename Sydney, which once tried to talk a reporter out of his marriage." },
     { "a": "Siri", "t": "baseline", "aka": ["Apple Siri", "Hey Siri"], "q": "Spun out of SRI's CALO project; Apple bought it in 2010 and shipped it on the iPhone 4S." },
-    { "a": "Alexa", "t": "baseline", "aka": ["Amazon Alexa", "Alexa+"] }
+    { "a": "Alexa", "t": "baseline", "aka": ["Amazon Alexa", "Alexa+", "Amazon Echo"] }
   ]
 }
