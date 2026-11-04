@@ -44,7 +44,7 @@
     { "a": "Jieba", "t": "outlier", "q": "Chinese for 'stutter': the go-to Python library for Chinese word segmentation." },
     { "a": "MeCab", "t": "longtail", "q": "The classic Japanese morphological analyzer, named after its author's favorite food, mekabu." },
     { "a": "Patchification", "t": "outlier", "aka": ["patch embedding", "image patches", "ViT patches", "patchify", "tubelet embedding"], "q": "'An Image is Worth 16x16 Words': ViT's tokenizer is a strided linear projection." },
-    { "a": "VQ-VAE", "t": "outlier", "aka": ["discrete VAE", "dVAE"] },
+    { "a": "VQ-VAE", "t": "outlier" },
     { "a": "VQGAN", "t": "outlier" },
     { "a": "EnCodec", "t": "outlier" },
     { "a": "SoundStream", "t": "longtail" },
@@ -113,6 +113,7 @@
     { "a": "BlingFire", "t": "longtail" },
     { "a": "Syllable-level", "t": "longtail", "aka": ["syllable tokenization", "syllables"] },
     { "a": "Phoneme-level", "t": "longtail", "aka": ["phonemes", "phoneme tokenization", "grapheme-to-phoneme", "phonemizer"] },
-    { "a": "Codepoint-level", "t": "longtail", "aka": ["Unicode code points", "code points", "codepoint tokenization"] }
+    { "a": "Codepoint-level", "t": "longtail", "aka": ["Unicode code points", "code points", "codepoint tokenization"] },
+    { "a": "dVAE", "t": "outlier", "aka": ["discrete VAE", "DALL-E dVAE", "DALL-E tokenizer"] }
   ]
 }

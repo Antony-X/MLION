@@ -74,7 +74,7 @@
     { "a": "SFT", "t": "indist", "aka": ["supervised fine-tuning", "instruction tuning", "instruction fine-tuning", "behavior cloning", "SFTTrainer", "behavioral cloning", "behaviour cloning"] },
     { "a": "KTO", "t": "indist", "aka": ["Kahneman-Tversky optimization","KTOTrainer"], "q": "Prospect theory for LLMs: losses loom larger than gains. Needs only thumbs-up/down labels." },
     { "a": "ORPO", "t": "indist", "aka": ["odds ratio preference optimization","ORPOTrainer"], "q": "SFT and preference tuning in one loss via an odds-ratio penalty. No reference model." },
-    { "a": "IPO", "t": "indist", "aka": ["identity preference optimization", "ΨPO"], "q": "DPO with a squared loss instead of the Bradley-Terry log-sigmoid, so it overfits less on near-deterministic preferences." },
+    { "a": "IPO", "t": "indist", "aka": ["identity preference optimization"], "q": "DPO with a squared loss instead of the Bradley-Terry log-sigmoid, so it overfits less on near-deterministic preferences." },
     { "a": "SimPO", "t": "indist", "aka": ["simple preference optimization"] },
     { "a": "Reward modeling", "t": "indist", "aka": ["reward model","Bradley-Terry reward model","preference model","RM","RewardTrainer"] },
     { "a": "Best-of-N", "t": "indist", "aka": ["BoN", "rejection sampling", "rejection sampling fine-tuning", "best-of-n sampling", "BoN sampling"], "q": "Sample N, keep the reward model's favorite. Llama 2 fine-tuned on these before PPO." },
