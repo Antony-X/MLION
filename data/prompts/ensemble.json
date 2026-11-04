@@ -85,7 +85,7 @@
     { "a": "Averaging", "t": "indist", "aka": ["model averaging", "simple averaging", "weighted averaging", "weighted average", "mean ensemble", "prediction averaging"] },
     { "a": "Extra trees", "t": "indist", "aka": ["extremely randomized trees", "extra-trees", "ExtraTreesClassifier", "ExtraTreesRegressor"], "q": "Geurts, Ernst & Wehenkel, 2006: random features and random split thresholds." },
     { "a": "Bayesian model averaging", "t": "indist", "aka": ["BMA"], "q": "Weight each model by its posterior probability. It's Bayesian, so there's an integral." },
-    { "a": "Deep ensembles", "t": "indist", "aka": [], "q": "Lakshminarayanan et al., 2017: train the same net five times and beat fancier Bayesian uncertainty." },
+    { "a": "Deep ensembles", "t": "indist", "q": "Lakshminarayanan et al., 2017: train the same net five times and beat fancier Bayesian uncertainty." },
 
     { "a": "XGBoost", "t": "overfit", "aka": ["extreme gradient boosting", "XGB", "XGBClassifier", "XGBRegressor", "XGBRFClassifier", "XGBRFRegressor", "XGBRanker"], "q": "Chen & Guestrin's regularized boosting. The 'clever' answer half the room typed." },
     { "a": "Mixture of experts", "t": "overfit", "aka": ["MoE", "mixture-of-experts", "sparse mixture of experts", "sparse MoE", "Switch Transformer", "Mixtral", "Soft MoE"], "q": "Jacobs et al., 1991: a gate routes each input to its experts. Now the plumbing inside many frontier LLMs." },
