@@ -280,15 +280,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
         <p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>
         <div class="hero-cta">${cta}</div>
-        ${s.played ? `<div class="figures">
-          <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
-          <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
-          <div class="figure"><b>${s.gems}</b><span>Gems</span></div>
-        </div>` : ""}
       </div>
       <div class="home-rest">
         <section><h2>Six depths</h2>${depthList()}</section>
-        <section><h2>More ways to play</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        <section>${s.played ? `<div class="figures">
+          <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
+          <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
+          <div class="figure"><b>${s.gems}</b><span>Gems</span></div>
+        </div>` : ""}<h2>More ways to play</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
         <p class="home-close"><span>One in a MLion</span><a href="${REPO_URL}" target="_blank" rel="noopener">Source</a></p>
       </div>
     </section>`;
@@ -744,6 +743,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       rec.mode === "practice" ? "#library" : "#unlimited";
     const nextLabel = rec.mode === "unlimited" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
+    scene("results");
     app.innerHTML = `<section class="screen results">
       <div class="side">
         <div class="score-hero">
@@ -926,7 +926,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
       <div class="main">
         <section><h2 class="block-title">Score bands</h2><div class="bars">${s.bands.slice().reverse().map((b) => `
-          <div class="bar-row t-${b.tier}"><span class="lab">${esc(b.name)} <span class="muted">${b.range}</span></span><span class="tr"><i style="width:${(100 * b.n / bandMax).toFixed(0)}%"></i></span><span class="v">${b.n}</span></div>`).join("")}</div></section>
+          <div class="bar-row t-${b.tier}"><span class="lab"><span>${esc(b.name)}</span><span class="muted">${b.range}</span></span><span class="tr"><i style="width:${(100 * b.n / bandMax).toFixed(0)}%"></i></span><span class="v">${b.n}</span></div>`).join("")}</div></section>
         <section><h2 class="block-title">Tiers landed</h2><div class="bars">${[...E.TIERS_BY_SCORE.map((t) => t.id), "miss"].map((t) => `
           <div class="bar-row t-${t}"><span class="lab">${G(t === "miss" ? null : t)}${t === "miss" ? "Miss" : esc(T[t].name)}</span><span class="tr"><i style="width:${(100 * s.tierCounts[t] / tierMax).toFixed(0)}%"></i></span><span class="v">${s.tierCounts[t]}</span></div>`).join("")}</div></section>
       </div>

@@ -115,7 +115,7 @@
     const f = phone ? w * 1.25 : w * 0.66;
     // put the basin where the screen has room for it: right of the title on
     // a wide screen, under it on a phone
-    const cx = phone ? w * 0.5 + 0.1 * f : w * 0.7 - (0.9 * f) / 7.6;
+    const cx = phone ? w * 0.5 + 0.1 * f : w * 0.75 - (0.9 * f) / 7.6;
     const Znear = 2.4, Zfar = 21;
     const Hc = ((h * 1.02 - horizon) * Znear) / f;
     const cam = { horizon, f, cx, Znear, Zfar, Hc, amp: 1 };
