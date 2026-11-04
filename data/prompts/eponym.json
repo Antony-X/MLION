@@ -603,6 +603,16 @@
     { "a": "William Henry Young", "t": "longtail", "aka": ["Young"] },
     { "a": "John Geweke", "t": "longtail", "aka": ["Geweke"] },
     { "a": "Joseph L. Walsh", "t": "longtail", "aka": ["Walsh"] },
-    { "a": "René Descartes", "t": "longtail", "aka": ["Descartes", "Cartesian"] }
+    { "a": "René Descartes", "t": "longtail", "aka": ["Descartes", "Cartesian"] },
+    { "a": "Erwin Schrödinger", "t": "longtail", "aka": ["Schrödinger", "Schrodinger"], "q": "Schrödinger bridges: the entropic cousin of optimal transport behind some diffusion models." },
+    { "a": "Jean-David Benamou", "t": "longtail", "aka": ["Benamou"] },
+    { "a": "Arianna Rosenbluth", "t": "longtail", "aka": ["Rosenbluth"] },
+    { "a": "Marshall Rosenbluth", "t": "longtail" },
+    { "a": "Steffen Lauritzen", "t": "longtail", "aka": ["Lauritzen"] },
+    { "a": "David Spiegelhalter", "t": "longtail", "aka": ["Spiegelhalter"] },
+    { "a": "Irénée-Jules Bienaymé", "t": "longtail", "aka": ["Bienaymé", "Bienayme"] },
+    { "a": "Francis Edgeworth", "t": "longtail", "aka": ["Edgeworth"] },
+    { "a": "Francis Anscombe", "t": "longtail", "aka": ["Anscombe"], "q": "Anscombe's quartet: four datasets, identical statistics, four different pictures." },
+    { "a": "W. Edwards Deming", "t": "longtail", "aka": ["Deming"] }
   ]
 }

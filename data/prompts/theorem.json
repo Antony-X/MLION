@@ -76,7 +76,7 @@
     { "a": "Kolmogorov axioms", "t": "outlier", "aka": ["probability axioms", "axioms of probability"] },
     { "a": "Chernoff bound", "t": "outlier", "aka": ["chernoff"] },
     { "a": "McDiarmid's inequality", "t": "outlier", "aka": ["mcdiarmid", "bounded differences inequality"] },
-    { "a": "Union bound", "t": "outlier", "aka": ["boole's inequality", "boole", "bonferroni inequality", "bonferroni"] },
+    { "a": "Union bound", "t": "outlier", "aka": ["boole's inequality", "boole", "bonferroni inequality", "bonferroni", "bonferroni correction"] },
     { "a": "Pinsker's inequality", "t": "outlier", "aka": ["pinsker"] },
     { "a": "Gibbs' inequality", "t": "outlier", "aka": ["gibbs"] },
     { "a": "Data processing inequality", "t": "outlier", "aka": ["DPI"], "q": "Post-processing can't create information about the source. Sorry, feature engineers." },
@@ -229,6 +229,10 @@
     { "a": "Marchenko–Pastur law", "t": "longtail", "aka": ["marchenko pastur"] },
     { "a": "Wigner semicircle law", "t": "longtail", "aka": ["semicircle law", "wigner's semicircle"] },
     { "a": "68–95–99.7 rule", "t": "outlier", "aka": ["empirical rule", "three sigma rule", "3-sigma rule"] },
-    { "a": "Oja's rule", "t": "longtail", "aka": ["oja"] }
+    { "a": "Oja's rule", "t": "longtail", "aka": ["oja"] },
+    { "a": "Chain rule", "t": "indist", "aka": ["chain rule of calculus", "chain rule of probability", "product rule of probability", "product rule"] },
+    { "a": "Pythagorean theorem", "t": "outlier", "aka": ["pythagoras"] },
+    { "a": "Kernel trick", "t": "outlier" },
+    { "a": "Markov property", "t": "outlier", "aka": ["markov assumption", "memorylessness"] }
   ]
 }
