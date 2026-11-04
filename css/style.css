@@ -34,7 +34,7 @@
 
   --side-l: max(16px, env(safe-area-inset-left, 0px));
   --side-r: max(16px, env(safe-area-inset-right, 0px));
-  --wide: 1240px;
+  --wide: 1344px;
   --gap: 16px;
   --round: 999px;
   --soft: 22px;
@@ -99,7 +99,7 @@ body[data-view="home"] .topbar { background: transparent; }
   font-family: var(--font); font-stretch: 125%; font-weight: 400; font-size: 21px; letter-spacing: -0.02em; line-height: 1; color: var(--ink);
 }
 .brand .mark { width: 30px; height: 30px; }
-body[data-view="home"] .topbar .brand { visibility: hidden; }
+body[data-view="home"] .topbar .brand { display: none; }
 /* the lion: a mane around a nabla. The mane takes the colour, the face cuts it */
 .mark { display: inline-block; flex: none; color: var(--gold); overflow: visible; }
 .mk-face { stroke: var(--mark-ink, var(--bg)); }
@@ -122,6 +122,8 @@ body[data-view="home"] .topbar .brand { visibility: hidden; }
   padding: 8px var(--side-r) calc(64px + env(safe-area-inset-bottom, 0px)) var(--side-l);
 }
 .screen > * + * { margin-top: 40px; }
+/* single-column grids never grow past the screen to fit an input's intrinsic width */
+.play, .round, .results, .feedback, .intro-card, .score-hero, .how, .home-hero, .home-rest, .page-head { grid-template-columns: minmax(0, 1fr); }
 .page-head { display: grid; gap: 10px; }
 .page-head h1 { font-size: var(--s4); }
 .page-head p { color: var(--muted); }
@@ -243,30 +245,36 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
 
 /* ------------------------------------------------------------------ play */
 .play { display: grid; }
+body[data-view="play"] #app { max-width: none; }
+.play .prompt-card { width: 100%; max-width: var(--wide); margin-inline: auto; }
 .play > * + * { margin-top: 0; }
 .stage {
   position: relative;
   margin: 0 calc(var(--side-r) * -1) 0 calc(var(--side-l) * -1);
   height: clamp(200px, 30vh, 420px);
+  --edge-l: max(var(--side-l), calc((100% - var(--wide)) / 2));
+  --edge-r: max(var(--side-r), calc((100% - var(--wide)) / 2));
   transition: height 240ms var(--ease-out);
 }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .hud {
-  position: absolute; top: 12px; left: var(--side-l); pointer-events: none;
+  position: absolute; top: 12px; left: var(--edge-l); pointer-events: none;
   display: grid; gap: 2px; color: var(--muted); font-size: var(--s1);
   transition: color 240ms ease;
 }
 .hud b { font-size: var(--s4); font-weight: 300; line-height: 1; letter-spacing: -0.02em; color: var(--ink); transition: color 240ms ease; }
-.hud-r { left: auto; right: var(--side-r); text-align: right; }
+.hud-r { left: auto; right: var(--edge-r); text-align: right; }
 .hud .crank { animation: crank 420ms var(--ease-out); }
 @keyframes crank { from { transform: translateY(-6px); opacity: 0.4; } }
 .stage.flood .hud, .stage.flood .hud b, .stage.flood .play-head { color: var(--gold-ink); }
 .stage.flood .dots i { background: var(--gold-ink); }
+.stage.flood .play-meta b { color: inherit; }
 .play-head {
   position: absolute; left: 0; right: 0; bottom: 14px; pointer-events: none;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 0 var(--side-r) 0 var(--side-l); color: var(--muted); font-size: var(--s1);
+  padding: 0 var(--edge-r) 0 var(--edge-l); color: var(--muted); font-size: var(--s1);
 }
+@media (min-width: 1000px) { .stage { height: clamp(300px, 42vh, 460px); } }
 .dots { display: flex; gap: 8px; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; background: var(--raised-2); transition: background-color 240ms ease, transform 240ms var(--ease-out); }
 .dots i.cur { background: var(--ink); transform: scale(1.2); }
@@ -305,10 +313,13 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
 .answer-input::placeholder { color: var(--faint); }
 .answer-input:focus { box-shadow: inset 0 0 0 2px var(--gold); }
 .answer-input:disabled { background: var(--surface); }
-.answer-input.corrected { box-shadow: inset 0 0 0 2px var(--ink); }
-.answer-input.shake { box-shadow: inset 0 0 0 2px var(--negative); }
-html:not(.reduce-motion) .answer-input.shake { animation: shake 360ms var(--ease-out); }
+/* wrong: a red flash and a shake; the status line keeps saying it */
+.answer-input.shake { animation: wrong 1400ms var(--ease-out); }
+html:not(.reduce-motion) .answer-input.shake { animation: wrong 1400ms var(--ease-out), shake 360ms var(--ease-out); }
+@keyframes wrong { 0%, 40% { box-shadow: inset 0 0 0 2px var(--negative); background: #2e1a15; } }
 @keyframes shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+/* did you mean: the proposed answer sits in the field, ringed in ink */
+.answer-input.corrected, .answer-input.corrected.shake { box-shadow: inset 0 0 0 2px var(--ink); animation: none; }
 .step-btn { height: 60px; min-width: 60px; padding: 0 26px; }
 .preview-veil {
   position: absolute; inset: 0; border-radius: var(--round);
@@ -377,7 +388,7 @@ html:not(.reduce-motion) .feedback .fb-quip { transition: opacity 500ms var(--ea
 html:not(.reduce-motion) .feedback .fb-quip { transition-delay: 90ms; }
 /* the gem: the whole card turns to gold with the stage */
 .feedback.mlion::before {
-  content: ""; position: absolute; z-index: -1; inset: -28px calc(var(--side-r) * -1) -32px calc(var(--side-l) * -1);
+  content: ""; position: absolute; z-index: -1; inset: -28px calc(50% - 50vw) -32px;
   background: var(--gold); clip-path: circle(0% at 30% 0%);
 }
 .feedback.mlion.landed::before { clip-path: circle(150% at 30% 0%); }
@@ -404,6 +415,8 @@ html.kb .round { gap: 14px; }
   .results { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: 72px; align-items: start; }
   .results > .side { position: sticky; top: 96px; }
 }
+.results > .main > * + * { margin-top: 48px; }
+.results > .main > .profile-wrap + * { margin-top: 32px; }
 .score-hero { display: grid; gap: 14px; justify-items: start; }
 .score-hero .label { color: var(--muted); }
 .score-big { font-size: clamp(96px, 11vw, 168px); font-weight: 300; font-stretch: 112%; line-height: 0.88; letter-spacing: -0.05em; margin-left: -0.04em; color: var(--ink); }
@@ -509,8 +522,9 @@ a.list-item { cursor: pointer; }
 .switch input:checked + i::after { transform: translateX(20px); background: var(--bg); }
 .switch input:focus-visible + i { outline: 2px solid var(--gold); outline-offset: 3px; }
 
-.faq { margin: 0; display: grid; gap: 28px; }
+.faq { margin: 0; }
 .faq dt { font-size: var(--s2); }
+.faq dd + dt { margin-top: 28px; }
 .faq dd { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
 .faq dd a { color: var(--ink); }
 
@@ -549,7 +563,7 @@ html:not(.reduce-motion) .modal { animation: modal-in 320ms var(--ease-out) both
 @keyframes modal-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .modal-head h2 { font-size: var(--s4); }
-.modal .depths li { padding: 6px 0; }
+.modal .depths li { padding: 6px 0; margin-left: calc(var(--d) * 26%); }
 .modal .btn-row { margin-top: 20px; }
 .search.area { height: 140px; padding: 16px 20px; border-radius: var(--soft); margin-top: 14px; resize: vertical; }
 .share-box { height: 150px; padding: 16px 20px; white-space: pre; resize: none; border-radius: var(--soft); margin-top: 14px; }

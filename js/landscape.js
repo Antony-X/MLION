@@ -111,11 +111,11 @@
   const BD = { canvas: null, ctx: null, view: "home", progress: 0, shown: 0, raf: 0, w: 0, h: 0, dpr: 1 };
   function camera(w, h, view) {
     const phone = w < 700;
-    const horizon = view === "home" ? h * (phone ? 0.44 : 0.36) : h * (phone ? 0.72 : 0.68);
+    const horizon = view === "home" ? h * (phone ? 0.44 : 0.46) : h * (phone ? 0.74 : 0.72);
     const f = phone ? w * 1.25 : w * 0.66;
     // put the basin where the screen has room for it: right of the title on
     // a wide screen, under it on a phone
-    const cx = phone ? w * 0.5 + 0.1 * f : w * 0.66 - (0.9 * f) / 7.6;
+    const cx = phone ? w * 0.5 + 0.1 * f : w * 0.7 - (0.9 * f) / 7.6;
     const Znear = 2.4, Zfar = 21;
     const Hc = ((h * 1.02 - horizon) * Znear) / f;
     const cam = { horizon, f, cx, Znear, Zfar, Hc, amp: 1 };
@@ -160,7 +160,7 @@
       ctx.fill();
       // light pools in the basin: the lower the loss, the brighter the line
       ctx.lineWidth = 1.1;
-      const fade = home ? 1 : 0.55;
+      const fade = home ? 1 : 0.42;
       for (let b = 0; b < SHADES.length; b++) {
         ctx.strokeStyle = mix(COL.bg, "#dccbad", SHADES[b] * fade * (0.7 + 0.3 * (1 - t)));
         ctx.beginPath();
@@ -527,10 +527,13 @@
       /** Drop any landing effect still running (a new prompt is starting). */
       calm,
       get x() { return st.x; },
-      destroy() { cancelAnimationFrame(st.raf); st.raf = 0; window.removeEventListener("resize", onResize); },
+      destroy() { cancelAnimationFrame(st.raf); st.raf = 0; window.removeEventListener("resize", onResize); if (ro) ro.disconnect(); },
     };
     const onResize = () => resize();
     window.addEventListener("resize", onResize);
+    // the stage folds when a phone keyboard opens, which no window resize reports
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => resize()) : null;
+    if (ro) ro.observe(canvas);
     resize();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!st.raf) draw(); });
     return api;

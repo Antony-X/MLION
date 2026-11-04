@@ -566,7 +566,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       return;
     }
     if (m.kind === "suggest") {
-      setStatus(`“${raw}” is close to a few. Tap one.`, "info");
+      setStatus(`“${raw}” is close. Tap the one you meant.`, "info");
       showChips(m.suggestions);
       return;
     }
@@ -1042,6 +1042,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function showHowModal() {
     showModal("How to play", howHtml() + `<div class="btn-row"><button class="btn primary big block" id="how-go">Got it</button></div>`);
     $("#how-go").addEventListener("click", closeModal);
+    $("#how-go").focus();
   }
 
   $("#menu-btn").addEventListener("click", openDrawer);
