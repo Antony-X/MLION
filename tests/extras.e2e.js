@@ -27,7 +27,7 @@ async function runIds(b, base, hash, { extras, time }) {
   const ex = (ids) => ids.filter((i) => EXTRA.has(i));
   let r = await runIds(b, base, "#unlimited-1", { extras: false });
   check(!ex(r.ids).length && !r.errs.length, "Unlimited deals only core questions by default");
-  check(/Extra questions/.test(r.setText) && /Adds \d+ questions outside the IOAI syllabus/.test(r.setText), "Settings has the Extra questions switch");
+  check(/Extra questions/.test(r.setText) && /\d+ more outside the IOAI syllabus/.test(r.setText), "Settings has the Extra questions switch");
   r = await runIds(b, base, "#unlimited-1", { extras: true });
   check(r.ids.length === 7 && ex(r.ids).length > 0 && !r.errs.length, "with the switch on, Unlimited mixes extras in");
   r = await runIds(b, base, "#quiz-1", { extras: false });

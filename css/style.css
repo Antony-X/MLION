@@ -996,3 +996,14 @@ html.reduce-motion body.hero3d .depths-sec .depths li { transition: none; }
 body.hero3d .topbar { background: linear-gradient(var(--bg) 52%, rgba(11, 10, 8, 0)); }
 /* the opaque rest of home runs to the very bottom, over the surface */
 body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom, 0px)); padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+
+/* settings: groups of rows */
+.set-groups { display: grid; gap: 48px; }
+.set-group { display: grid; gap: 8px; }
+.set-group > h2 { font-size: var(--s1); font-weight: 500; color: var(--muted); letter-spacing: 0; margin: 0 0 4px; }
+.set-group .settings-list { gap: 0; }
+.set-group .setting + .setting { border-top: 1px solid var(--raised); }
+.set-group .btn-row { margin-top: 12px; }
+.time-setting { flex-wrap: wrap; cursor: default; }
+.time-setting .txt { min-width: 220px; }
+.split > .main.set-groups > * + * { margin-top: 0; }

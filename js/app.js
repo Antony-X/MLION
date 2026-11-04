@@ -3006,24 +3006,27 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ============================================================ settings
   function renderSettings() {
     setMid("Settings");
-    const items = [
-      ["previewCorrections", "Confirm autocorrect", "Off accepts corrections at once"],
-      ["clearRejected", "Clear wrong answers", ""],
-      ["sound", "Sound", ""],
-      ["reducedMotion", "Reduce motion", ""],
-      ["shareLink", "Add a link when sharing", ""],
-      ["extraQuestions", "Extra questions", `Adds ${EXTRA_COUNT} questions outside the IOAI syllabus (tools, products, datasets, AI in pop culture) to your Unlimited and Quiz runs. The daily, challenges and live rooms always use the core set.`],
-      ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
-    ];
-    app.innerHTML = `<section class="screen split">
-      <div class="side"><div class="page-head"><h1>Settings</h1></div></div>
-      <div class="main">
-        <div class="vs-form">${timePicker(validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS)}<p class="muted small">For your own runs. The daily always uses 25 s so leaderboard scores compare. A run already in progress keeps its time. Live rooms and challenges use the time their host or link sets.</p></div>
-        <div class="settings-list">${items.map(([k, t, d]) => `
+    const row = ([k, t, d]) => `
           <label class="setting" ${k === "aiCheck" ? `id="ai-setting" ${aiUsable() ? "" : "hidden"}` : ""}><span class="txt"><span class="t">${esc(t)}</span>${d ? `<span>${esc(d)}</span>` : ""}</span>
-            <span class="switch"><input type="checkbox" role="switch" data-k="${k}" ${settings[k] ? "checked" : ""}><i></i></span></label>`).join("")}</div>
-        <section><h2 class="block-title">Progress</h2><p class="muted" style="margin-top:8px">Move your history to another browser.</p>
-          <div class="btn-row" style="margin-top:20px"><button class="btn" id="exp">Export</button><button class="btn" id="imp">Import</button><button class="btn danger" id="reset">Reset all</button></div></section>
+            <span class="switch"><input type="checkbox" role="switch" data-k="${k}" ${settings[k] ? "checked" : ""}><i></i></span></label>`;
+    const group = (title, body) => `<section class="set-group"><h2>${title}</h2><div class="settings-list">${body}</div></section>`;
+    const secs = validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS;
+    app.innerHTML = `<section class="screen split">
+      <div class="side"><div class="page-head"><h1>Settings</h1><p>Saved in this browser.</p></div></div>
+      <div class="main set-groups">
+        ${group("Playing", `
+          <div class="setting time-setting"><span class="txt"><span class="t">Time per question</span><span>For your own runs. The daily, the daily quiz, rooms and challenges set their own clock.</span></span>
+            <div class="vs-sizes" role="radiogroup" aria-label="Seconds per question">${TIME_PRESETS.map((k) => `<button type="button" class="vs-size t-size${k === secs ? " on" : ""}" role="radio" aria-checked="${k === secs}" data-s="${k}">${k} s</button>`).join("")}</div></div>
+          ${[
+            ["previewCorrections", "Confirm autocorrect", "Off: a close spelling counts at once"],
+            ["clearRejected", "Clear wrong answers", "Empty the box after a miss"],
+            ["extraQuestions", "Extra questions", `${EXTRA_COUNT} more outside the IOAI syllabus (tools, datasets, AI in pop culture) in your Unlimited and Quiz runs`],
+            ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
+          ].map(row).join("")}`)}
+        ${group("Feel", [["sound", "Sound", ""], ["reducedMotion", "Reduce motion", "No rolling ball or camera moves"]].map(row).join(""))}
+        ${group("Sharing", row(["shareLink", "Add a link when sharing", "Results text ends with the site address"]))}
+        <section class="set-group"><h2>Your data</h2><p class="muted">Runs, streaks and stats live in this browser. Export copies them so you can import them elsewhere.</p>
+          <div class="btn-row"><button class="btn" id="exp">Export</button><button class="btn" id="imp">Import</button><button class="btn danger" id="reset">Reset all</button></div></section>
       </div>
     </section>`;
     $$("input[data-k]").forEach((i) => i.addEventListener("change", () => { settings[i.dataset.k] = i.checked; saveSettings(); }));
