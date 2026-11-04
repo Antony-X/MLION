@@ -92,7 +92,7 @@
     {"a": "Normalized cuts", "t": "outlier", "aka": ["Ncut", "n-cut", "shi-malik", "normalized cut"]},
     {"a": "CURE", "t": "outlier", "aka": ["clustering using representatives"], "q": "Several well-scattered representatives per cluster, shrunk toward the center."},
     {"a": "CLIQUE", "t": "outlier"},
-    {"a": "Density peaks", "t": "outlier", "aka": ["density peak clustering", "DPC", "clustering by fast search and find of density peaks"], "q": "Rodriguez & Laio, Science 2014: centers are dense points that sit far from anything denser."},
+    {"a": "Density peaks", "t": "outlier", "aka": ["density peak clustering", "DPC", "clustering by fast search and find of density peaks", "CFSFDP"], "q": "Rodriguez & Laio, Science 2014: centers are dense points that sit far from anything denser."},
     {"a": "Latent Dirichlet allocation", "t": "outlier", "aka": ["LDA"]},
     {"a": "DEC", "t": "outlier", "aka": ["deep embedded clustering"], "q": "Xie, Girshick & Farhadi, 2016: pretrain an autoencoder, then sharpen soft cluster assignments."},
     {"a": "Subspace clustering", "t": "outlier"},
@@ -189,6 +189,16 @@
     {"a": "Student's t mixture model", "t": "longtail", "aka": ["t-mixture", "t mixture model", "TMM"]},
     {"a": "Multi-view clustering", "t": "longtail", "aka": ["multiview clustering"]},
     {"a": "BERTopic", "t": "longtail"},
-    {"a": "Top2Vec", "t": "longtail"}
+    {"a": "Top2Vec", "t": "longtail"},
+    {"a": "Brown clustering", "t": "outlier", "aka": ["Brown clusters", "IBM clustering"]},
+    {"a": "Scatter/Gather", "t": "longtail", "aka": ["scatter gather"]},
+    {"a": "U-shapelets", "t": "longtail", "aka": ["unsupervised shapelets"]},
+    {"a": "D-Stream", "t": "longtail"},
+    {"a": "ClusTree", "t": "longtail"},
+    {"a": "DBSTREAM", "t": "longtail"},
+    {"a": "Felzenszwalb segmentation", "t": "longtail", "aka": ["Felzenszwalb", "graph-based image segmentation", "efficient graph-based image segmentation"]},
+    {"a": "Ratio cut", "t": "longtail", "aka": ["RatioCut"]},
+    {"a": "Ckmeans.1d.dp", "t": "longtail", "aka": ["Ckmeans", "optimal 1D k-means"]},
+    {"a": "PG-means", "t": "longtail"}
   ]
 }

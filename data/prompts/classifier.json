@@ -218,6 +218,9 @@
     { "a": "Diagonal linear discriminant analysis", "t": "longtail", "aka": ["DLDA", "diagonal LDA", "diagonal discriminant analysis"] },
     { "a": "OPLS-DA", "t": "longtail", "aka": ["orthogonal PLS-DA", "orthogonal partial least squares discriminant analysis"] },
     { "a": "NODE", "t": "longtail", "aka": ["neural oblivious decision ensembles"] },
-    { "a": "DART", "t": "longtail", "aka": ["dropouts meet multiple additive regression trees"] }
+    { "a": "DART", "t": "longtail", "aka": ["dropouts meet multiple additive regression trees"] },
+    { "a": "Linear classifier", "t": "outlier", "aka": ["linear classifiers", "linear discriminant function"] },
+    { "a": "SLIQ", "t": "longtail" },
+    { "a": "SPRINT", "t": "longtail" }
   ]
 }

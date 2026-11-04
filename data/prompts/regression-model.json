@@ -68,7 +68,7 @@
     { "a": "Multinomial logistic regression", "t": "outlier", "aka": ["softmax regression", "multinomial logit", "maxent", "maximum entropy classifier"] },
     { "a": "Ordinal regression", "t": "outlier", "aka": ["ordered logit", "ordered probit", "proportional odds model", "ordinal logistic regression"] },
     { "a": "Cox proportional hazards", "t": "outlier", "aka": ["cox regression", "cox model", "cox ph", "proportional hazards model", "coxph"], "q": "Cox, 1972: partial likelihood lets you skip the baseline hazard entirely. One of the most cited stats papers ever." },
-    { "a": "Linear mixed-effects model", "t": "outlier", "aka": ["mixed model", "mixed-effects model", "LMM", "GLMM", "hierarchical linear model", "multilevel regression", "random effects model", "lme4", "linear mixed model", "mixed effects model", "multilevel model"], "q": "Fixed effects for everyone, random effects per group. lme4 made it a one-liner in R." },
+    { "a": "Linear mixed-effects model", "t": "outlier", "aka": ["mixed model", "mixed-effects model", "LMM", "GLMM", "hierarchical linear model", "multilevel regression", "random effects model", "lme4", "linear mixed model", "mixed effects model", "multilevel model", "hierarchical Bayesian regression", "Bayesian hierarchical model"], "q": "Fixed effects for everyone, random effects per group. lme4 made it a one-liner in R." },
     { "a": "Two-stage least squares", "t": "outlier", "aka": ["2SLS", "TSLS", "instrumental variables", "IV regression", "instrumental variable regression"], "q": "Regress the endogenous variable on instruments, then use its fitted values. Econometrics 101." },
     { "a": "Generalized least squares", "t": "outlier", "aka": ["GLS", "feasible generalized least squares", "FGLS", "feasible GLS"] },
     { "a": "Total least squares", "t": "outlier", "aka": ["TLS", "orthogonal regression", "orthogonal distance regression", "ODR", "errors-in-variables", "major axis regression"] },
@@ -81,7 +81,7 @@
     { "a": "Support vector regression", "t": "indist", "aka": ["SVR", "ε-SVR", "epsilon-svr", "nu-svr", "support vector machine regression", "SVM regression", "LinearSVR", "NuSVR", "epsilon-SVR", "nu-SVR", "kernel SVR", "RBF SVR"], "q": "Ignore errors inside an ε-tube, pay linearly outside it. Vapnik's margin idea for real-valued targets." },
     { "a": "Decision tree", "t": "indist", "aka": ["decision tree regression", "regression tree", "CART", "DecisionTreeRegressor"], "q": "Piecewise-constant predictions from axis-aligned splits. CART, Breiman et al., 1984." },
     { "a": "k-NN regression", "t": "indist", "aka": ["kNN", "k-nearest neighbors", "k nearest neighbours", "KNeighborsRegressor", "nearest neighbor regression", "RadiusNeighborsRegressor", "kNN regressor"], "q": "Average the targets of the k closest points. No training; all the work happens at query time." },
-    { "a": "Gradient boosting", "t": "indist", "aka": ["GBM", "GBDT", "GBRT", "gradient boosted trees", "gradient boosting machine", "GradientBoostingRegressor", "HistGradientBoostingRegressor", "gradient boosted regression trees", "boosted regression trees", "BRT", "gradient boosted regression", "histogram gradient boosting", "histogram-based gradient boosting", "HGB", "gradient boosting regression"], "q": "Friedman, 2001: fit each new tree to the negative gradient of the loss. Gradient descent in function space." },
+    { "a": "Gradient boosting", "t": "indist", "aka": ["GBM", "GBDT", "GBRT", "gradient boosted trees", "gradient boosting machine", "GradientBoostingRegressor", "HistGradientBoostingRegressor", "gradient boosted regression trees", "boosted regression trees", "BRT", "gradient boosted regression", "histogram gradient boosting", "histogram-based gradient boosting", "HGB", "gradient boosting regression", "boosting", "boosted trees", "boosted decision trees"], "q": "Friedman, 2001: fit each new tree to the negative gradient of the loss. Gradient descent in function space." },
     { "a": "XGBoost", "t": "indist", "aka": ["xgb", "extreme gradient boosting", "XGBRegressor", "XGBRFRegressor"], "q": "Chen & Guestrin, 2016: regularized second-order boosting, and Kaggle's favorite for years." },
     { "a": "LightGBM", "t": "indist", "aka": ["lgbm", "LGBMRegressor"] },
     { "a": "CatBoost", "t": "indist", "aka": ["CatBoostRegressor"] },
@@ -153,6 +153,9 @@
     { "a": "Deep evidential regression", "t": "longtail", "aka": ["evidential regression"] },
     { "a": "Bayesian neural network", "t": "longtail", "aka": ["BNN"] },
     { "a": "NODE", "t": "longtail", "aka": ["neural oblivious decision ensembles"] },
-    { "a": "Regularized greedy forest", "t": "longtail", "aka": ["RGF"] }
+    { "a": "Regularized greedy forest", "t": "longtail", "aka": ["RGF"] },
+    { "a": "Fixed effects model", "t": "longtail", "aka": ["fixed effects", "fixed-effects regression", "fixed effects regression", "within estimator", "panel regression"] },
+    { "a": "S-estimator", "t": "longtail" },
+    { "a": "Student-t regression", "t": "longtail", "aka": ["t regression", "Student's t regression", "robust Bayesian regression"] }
   ]
 }

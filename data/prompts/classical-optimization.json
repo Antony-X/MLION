@@ -2,7 +2,7 @@
   "id": "classical-optimization",
   "pack": "theory",
   "text": "Name a classical optimization algorithm",
-  "note": "Numerical, convex, combinatorial and black-box optimization outside deep-learning optimizers (Newton, BFGS, simplex, ADMM, simulated annealing, ...)",
+  "note": "Numerical, convex, combinatorial and black-box optimization; not Adam-style deep-learning optimizers, but plain SGD and its classical roots count",
   "strip": ["method", "algorithm", "optimization", "optimisation", "optimizer"],
   "answers": [
     { "a": "Karmarkar's algorithm", "t": "mlion", "aka": ["karmarkar", "karmarkar's projective method"], "q": "1984: an interior-point LP method that was polynomial and fast. It made the front page, and AT&T patented it." },
@@ -165,7 +165,7 @@
     { "a": "Method of feasible directions", "t": "longtail", "aka": ["Zoutendijk", "feasible directions"] },
     { "a": "Sequential linear programming", "t": "longtail", "aka": ["SLP"] },
     { "a": "Lawson–Hanson", "t": "longtail", "aka": ["Lawson-Hanson NNLS", "NNLS", "non-negative least squares"] },
-    { "a": "Lemke's algorithm", "t": "longtail", "aka": ["Lemke", "Lemke-Howson", "complementary pivoting"] },
+    { "a": "Lemke's algorithm", "t": "longtail", "aka": ["Lemke", "complementary pivoting"] },
     { "a": "Iterative scaling", "t": "longtail", "aka": ["generalized iterative scaling", "GIS", "improved iterative scaling", "IIS"] },
     { "a": "Kaczmarz method", "t": "longtail", "aka": ["randomized Kaczmarz", "Kaczmarz"] },
     { "a": "Convex-concave procedure", "t": "longtail", "aka": ["CCP", "DC programming", "difference of convex programming", "DCA"] },
