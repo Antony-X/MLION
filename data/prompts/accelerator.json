@@ -111,7 +111,7 @@
     { "a": "TPU v5e", "t": "outlier" },
     { "a": "TPU v5p", "t": "outlier" },
     { "a": "Trillium", "t": "outlier", "aka": ["tpu v6e", "tpu v6"] },
-    { "a": "Ironwood", "t": "outlier", "aka": ["tpu v7"] },
+    { "a": "Ironwood", "t": "outlier", "aka": ["tpu v7"], "q": "TPU v7, which Google pitched as its first TPU for the age of inference." },
     { "a": "Edge TPU", "t": "outlier", "aka": ["coral", "coral edge tpu", "coral tpu"], "q": "A USB stick that runs quantized TFLite models on about 2 watts." },
     { "a": "Trainium2", "t": "outlier", "aka": ["trn2"] },
     { "a": "Inferentia2", "t": "outlier", "aka": ["inf2"] },
@@ -122,24 +122,24 @@
     { "a": "MTIA", "t": "outlier", "aka": ["meta mtia", "meta training and inference accelerator", "mtia v1", "mtia v2"] },
     { "a": "Maia 100", "t": "outlier", "aka": ["maia", "azure maia", "microsoft maia"] },
     { "a": "SambaNova RDU", "t": "outlier", "aka": ["sambanova", "sn40l", "sn10", "reconfigurable dataflow unit"] },
-    { "a": "Tenstorrent", "t": "outlier", "aka": ["grayskull", "wormhole", "blackhole", "tensix"] },
+    { "a": "Tenstorrent", "t": "outlier", "aka": ["grayskull", "wormhole", "blackhole", "tensix"], "q": "Jim Keller's AI chip company, betting on RISC-V and open software." },
 
     { "a": "K80", "t": "indist", "aka": ["kepler", "tesla k80"], "q": "The free Colab GPU of legend: two Kepler dies, glacial by today's standards." },
-    { "a": "P100", "t": "indist", "aka": ["pascal", "tesla p100"] },
+    { "a": "P100", "t": "indist", "aka": ["pascal", "tesla p100"], "q": "Pascal, 2016: the first GPU with HBM2 and NVLink." },
     { "a": "T4", "t": "indist", "aka": ["turing", "tesla t4"], "q": "70 watts of Turing, and the GPU you most likely got on free Colab." },
-    { "a": "H200", "t": "indist" },
-    { "a": "B200", "t": "indist", "aka": ["blackwell", "b100", "hgx b200", "dgx b200"] },
+    { "a": "H200", "t": "indist", "q": "An H100 with 141 GB of HBM3e." },
+    { "a": "B200", "t": "indist", "aka": ["blackwell", "b100", "hgx b200", "dgx b200"], "q": "Blackwell: two dies stitched together to act as one GPU." },
     { "a": "GB200", "t": "indist", "aka": ["grace blackwell", "gb200 nvl72", "nvl72"], "q": "72 Blackwells in one liquid-cooled rack, wired to act like a single GPU." },
     { "a": "GTX 1080 Ti", "t": "indist", "aka": ["1080 ti", "1080ti"], "q": "11 GB of Pascal that every 2017 lab coveted." },
     { "a": "RTX 3090", "t": "indist", "aka": ["3090", "rtx 3090 ti"], "q": "24 GB for $1,499 in 2020. Grad-student gold." },
     { "a": "RTX 4090", "t": "indist", "aka": ["4090", "ada lovelace", "rtx 4090d"], "q": "24 GB on a desk: the poor man's H100, export-banned to China all the same." },
-    { "a": "TPU v4", "t": "indist", "aka": ["tpuv4"] },
-    { "a": "Trainium", "t": "indist", "aka": ["trn1"] },
+    { "a": "TPU v4", "t": "indist", "aka": ["tpuv4"], "q": "4,096 chips per pod, wired together with optical circuit switches." },
+    { "a": "Trainium", "t": "indist", "aka": ["trn1"], "q": "AWS's in-house training chip, from its Annapurna Labs team." },
     { "a": "Inferentia", "t": "indist", "aka": ["inf1"] },
     { "a": "MI300X", "t": "indist", "aka": ["instinct mi300x", "mi300", "instinct"], "q": "192 GB of HBM3: AMD's answer to the H100 memory squeeze." },
-    { "a": "Gaudi", "t": "indist", "aka": ["habana gaudi", "gaudi 1"] },
-    { "a": "Apple Neural Engine", "t": "indist", "aka": ["ANE", "neural engine"] },
-    { "a": "Apple M-series", "t": "indist", "aka": ["apple silicon", "m1", "m2", "m3", "m4", "m5", "m1 max", "m2 ultra", "m3 max", "m4 max"] },
+    { "a": "Gaudi", "t": "indist", "aka": ["habana gaudi", "gaudi 1"], "q": "Habana Labs' training chip with Ethernet built in. Intel bought Habana in 2019." },
+    { "a": "Apple Neural Engine", "t": "indist", "aka": ["ANE", "neural engine"], "q": "Apple's NPU, on every iPhone chip since the A11." },
+    { "a": "Apple M-series", "t": "indist", "aka": ["apple silicon", "m1", "m2", "m3", "m4", "m5", "m1 max", "m2 ultra", "m3 max", "m4 max"], "q": "Unified memory lets a laptop hold models that would choke a 24 GB card." },
     { "a": "Jetson", "t": "indist", "aka": ["jetson nano", "jetson tx1", "jetson tx2", "jetson xavier", "jetson orin", "jetson agx", "jetson thor"], "q": "NVIDIA's robot-brain modules, starting from the $99 Nano." },
     { "a": "Graphcore IPU", "t": "indist", "aka": ["graphcore", "IPU", "intelligence processing unit", "colossus mk2", "gc200", "bow ipu"], "q": "Bristol's IPU kept models in on-chip SRAM. SoftBank bought Graphcore in 2024." },
 
@@ -147,8 +147,8 @@
     { "a": "Groq LPU", "t": "overfit", "aka": ["groq", "groqchip", "language processing unit", "tensor streaming processor", "TSP"], "q": "SRAM-only, deterministic, and very fast tokens. Not to be confused with Grok." },
 
     { "a": "H100", "t": "baseline", "aka": ["hopper", "h100 sxm", "h100 pcie", "h100 nvl"], "q": "Named for Grace Hopper. Became the de facto unit of AI compute." },
-    { "a": "A100", "t": "baseline", "aka": ["ampere", "a100 80gb", "a100 40gb"] },
+    { "a": "A100", "t": "baseline", "aka": ["ampere", "a100 80gb", "a100 40gb"], "q": "Ampere, 2020: TF32, structured sparsity, and a generation of LLM training runs." },
     { "a": "V100", "t": "baseline", "aka": ["volta", "tesla v100"], "q": "Volta, 2017: the first GPU with Tensor Cores." },
-    { "a": "TPU", "t": "baseline", "aka": ["tensor processing unit", "cloud tpu"] }
+    { "a": "TPU", "t": "baseline", "aka": ["tensor processing unit", "cloud tpu"], "q": "Google's matmul ASIC, built around a systolic array." }
   ]
 }

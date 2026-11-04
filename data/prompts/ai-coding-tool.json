@@ -91,6 +91,6 @@
     { "a": "GitHub Copilot", "t": "baseline", "aka": ["copilot", "copilot chat", "copilot x", "github copilot chat", "copilot agent mode", "copilot coding agent"], "q": "Launched in 2021 on OpenAI Codex: autocomplete that finishes your thought, or someone else's." },
     { "a": "Cursor", "t": "baseline", "aka": ["cursor ide", "cursor ai", "anysphere", "cursor tab"], "q": "A VS Code fork that turned 'tab, tab, tab' into a business model." },
     { "a": "Claude Code", "t": "baseline", "q": "Anthropic's terminal-native coding agent, first previewed in February 2025." },
-    { "a": "ChatGPT", "t": "baseline", "aka": ["chat gpt", "openai chatgpt"] }
+    { "a": "ChatGPT", "t": "baseline", "aka": ["chat gpt", "openai chatgpt"], "q": "The 2022 chatbot that turned copy-pasting code from a browser tab into a workflow." }
   ]
 }

@@ -55,12 +55,12 @@
     { "a": "Zilliz Cloud", "t": "outlier", "aka": ["zilliz"] },
 
     { "a": "Qdrant", "t": "indist", "q": "Rust-built vector DB with payload filtering, pronounced 'quadrant'." },
-    { "a": "Elasticsearch", "t": "indist", "aka": ["elastic", "elk", "elastic knn"] },
+    { "a": "Elasticsearch", "t": "indist", "aka": ["elastic", "elk", "elastic knn"], "q": "Lucene-based search that bolted on dense vectors and HNSW." },
     { "a": "OpenSearch", "t": "indist", "aka": ["amazon opensearch", "opensearch k-nn"] },
     { "a": "Redis", "t": "indist", "aka": ["redis stack", "redisearch", "redis vector"] },
     { "a": "MongoDB Atlas Vector Search", "t": "indist", "aka": ["mongodb", "mongodb atlas", "atlas vector search"] },
     { "a": "Vespa", "t": "indist", "aka": ["vespa.ai"], "q": "Yahoo's search engine, open-sourced in 2017, doing vectors before it was cool." },
-    { "a": "LanceDB", "t": "indist", "aka": ["lance"] },
+    { "a": "LanceDB", "t": "indist", "aka": ["lance"], "q": "An embedded vector DB built on the Lance columnar format." },
     { "a": "ScaNN", "t": "indist", "aka": ["scalable nearest neighbors"], "q": "Google's anisotropic quantization trick for fast inner-product search." },
     { "a": "hnswlib", "t": "indist", "aka": ["HNSW", "hierarchical navigable small world"], "q": "Malkov's reference HNSW: small-world graphs stacked like a skip list." },
 
@@ -68,8 +68,8 @@
 
     { "a": "Pinecone", "t": "baseline", "q": "The managed service that made 'vector database' a 2023 buzzword." },
     { "a": "FAISS", "t": "baseline", "aka": ["facebook ai similarity search", "faiss-gpu", "faiss-cpu"], "q": "Facebook AI Similarity Search: billion-scale k-NN on GPUs since 2017." },
-    { "a": "Chroma", "t": "baseline", "aka": ["chromadb"] },
-    { "a": "Weaviate", "t": "baseline" },
-    { "a": "Milvus", "t": "baseline", "aka": ["milvus lite"] }
+    { "a": "Chroma", "t": "baseline", "aka": ["chromadb"], "q": "The embedding database that starts with a pip install." },
+    { "a": "Weaviate", "t": "baseline", "q": "Open-source vector database written in Go, from Amsterdam." },
+    { "a": "Milvus", "t": "baseline", "aka": ["milvus lite"], "q": "Zilliz's open-source vector DB, an LF AI & Data graduated project." }
   ]
 }

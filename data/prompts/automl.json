@@ -57,16 +57,16 @@
     { "a": "AutoML-Zero", "t": "outlier", "q": "Evolution from bare math ops rediscovered linear regression and backprop." },
     { "a": "Databricks AutoML", "t": "outlier" },
 
-    { "a": "AutoKeras", "t": "indist", "aka": ["auto-keras"] },
+    { "a": "AutoKeras", "t": "indist", "aka": ["auto-keras"], "q": "Neural architecture search for Keras, from Texas A&M." },
     { "a": "Hyperopt", "t": "indist", "q": "Tree-structured Parzen Estimators, the TPE behind a decade of tuning runs." },
-    { "a": "Ray Tune", "t": "indist", "aka": ["tune"] },
-    { "a": "Keras Tuner", "t": "indist", "aka": ["kerastuner"] },
-    { "a": "FLAML", "t": "indist", "aka": ["fast and lightweight automl"] },
+    { "a": "Ray Tune", "t": "indist", "aka": ["tune"], "q": "Distributed tuning on Ray, with ASHA and population-based training built in." },
+    { "a": "Keras Tuner", "t": "indist", "aka": ["kerastuner"], "q": "Hyperband and Bayesian search for Keras models." },
+    { "a": "FLAML", "t": "indist", "aka": ["fast and lightweight automl"], "q": "Microsoft's fast, cost-frugal AutoML." },
     { "a": "PyCaret", "t": "indist", "q": "Low-code AutoML: compare_models() and a leaderboard of everything." },
     { "a": "DataRobot", "t": "indist" },
     { "a": "Azure Automated ML", "t": "indist", "aka": ["azure automl", "automated ml", "azure ml automl"] },
     { "a": "SageMaker Autopilot", "t": "indist", "aka": ["autopilot", "sagemaker canvas", "amazon sagemaker autopilot"] },
-    { "a": "NNI", "t": "indist", "aka": ["neural network intelligence", "microsoft nni"] },
+    { "a": "NNI", "t": "indist", "aka": ["neural network intelligence", "microsoft nni"], "q": "Microsoft's toolkit for hyperparameter tuning, NAS and model compression." },
     { "a": "H2O Driverless AI", "t": "indist", "aka": ["driverless ai"] },
     { "a": "scikit-optimize", "t": "indist", "aka": ["skopt"] },
     { "a": "SMAC", "t": "indist", "aka": ["smac3", "sequential model-based algorithm configuration"] },
@@ -74,9 +74,9 @@
     { "a": "Optuna", "t": "overfit", "q": "Strictly a hyperparameter optimizer, but it's what everyone actually runs." },
     { "a": "AutoGluon", "t": "overfit", "q": "AWS's 'three lines of code' AutoML that stacks everything in sight." },
 
-    { "a": "Auto-sklearn", "t": "baseline", "aka": ["autosklearn", "auto-sklearn 2.0"] },
+    { "a": "Auto-sklearn", "t": "baseline", "aka": ["autosklearn", "auto-sklearn 2.0"], "q": "Freiburg's mix of Bayesian optimization, meta-learning and ensembling over scikit-learn." },
     { "a": "TPOT", "t": "baseline", "aka": ["tree-based pipeline optimization tool", "tpot2"], "q": "Genetic programming that evolves whole scikit-learn pipelines." },
-    { "a": "H2O AutoML", "t": "baseline", "aka": ["h2o", "h2o.ai"] },
-    { "a": "Google Cloud AutoML", "t": "baseline", "aka": ["automl", "cloud automl", "vertex ai automl", "google automl", "automl vision", "automl tables"] }
+    { "a": "H2O AutoML", "t": "baseline", "aka": ["h2o", "h2o.ai"], "q": "Trains a stack of models and hands you a leaderboard." },
+    { "a": "Google Cloud AutoML", "t": "baseline", "aka": ["automl", "cloud automl", "vertex ai automl", "google automl", "automl vision", "automl tables"], "q": "Google's 2018 pitch: custom models without ML expertise." }
   ]
 }

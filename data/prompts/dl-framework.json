@@ -118,8 +118,8 @@
     { "a": "Theano", "t": "overfit", "q": "MILA's symbolic graph compiler. Retired in 2017, it lives on through Aesara and PyTensor." },
     { "a": "tinygrad", "t": "overfit", "aka": ["tiny grad"], "q": "George Hotz's 'something between PyTorch and micrograd'. The line-count cap is a feature." },
 
-    { "a": "PyTorch", "t": "baseline", "aka": ["libtorch", "pytorch 2", "py torch"] },
-    { "a": "TensorFlow", "t": "baseline", "aka": ["TF", "tensorflow 2", "tf2", "tensorflow 1", "tensor flow"] },
+    { "a": "PyTorch", "t": "baseline", "aka": ["libtorch", "pytorch 2", "py torch"], "q": "Facebook's 2017 release, now run by the PyTorch Foundation under the Linux Foundation." },
+    { "a": "TensorFlow", "t": "baseline", "aka": ["TF", "tensorflow 2", "tf2", "tensorflow 1", "tensor flow"], "q": "Google's 2015 open-source successor to DistBelief." },
     { "a": "Keras", "t": "baseline", "aka": ["tf.keras", "keras 3", "keras core"], "q": "Chollet's 2015 high-level API. Multi-backend at birth, and again with Keras 3." },
     { "a": "JAX", "t": "baseline", "aka": ["google jax"] }
   ]

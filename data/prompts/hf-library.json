@@ -52,8 +52,8 @@
     { "a": "Hugging Face Course", "t": "outlier", "aka": ["course", "nlp course", "llm course", "agents course"] },
 
     { "a": "Accelerate", "t": "indist", "q": "The same training loop on CPU, one GPU, many GPUs or TPUs, give or take four lines." },
-    { "a": "PEFT", "t": "indist", "aka": ["parameter-efficient fine-tuning"] },
-    { "a": "TRL", "t": "indist", "aka": ["transformer reinforcement learning"] },
+    { "a": "PEFT", "t": "indist", "aka": ["parameter-efficient fine-tuning"], "q": "LoRA and friends: train a sliver of the weights, freeze the rest." },
+    { "a": "TRL", "t": "indist", "aka": ["transformer reinforcement learning"], "q": "SFT, DPO, PPO and GRPO trainers for LLM post-training." },
     { "a": "Spaces", "t": "indist", "aka": ["hugging face spaces", "hf spaces"] },
     { "a": "Evaluate", "t": "indist" },
     { "a": "Optimum", "t": "indist", "aka": ["optimum intel", "optimum habana", "optimum nvidia", "optimum onnx"] },
@@ -70,9 +70,9 @@
     { "a": "Safetensors", "t": "overfit", "q": "Weights without pickle's arbitrary-code-execution surprise." },
 
     { "a": "Transformers", "t": "baseline", "aka": ["pytorch-transformers", "pytorch-pretrained-bert"], "q": "Born in 2018 as pytorch-pretrained-bert. The name got more ambitious." },
-    { "a": "Datasets", "t": "baseline", "aka": ["hugging face datasets"] },
-    { "a": "Tokenizers", "t": "baseline" },
-    { "a": "Diffusers", "t": "baseline" },
-    { "a": "Hub", "t": "baseline", "aka": ["hugging face hub", "huggingface_hub", "model hub", "huggingface-cli", "hf hub", "hfapi"] }
+    { "a": "Datasets", "t": "baseline", "aka": ["hugging face datasets"], "q": "Arrow-backed, memory-mapped datasets: open a terabyte without loading it." },
+    { "a": "Tokenizers", "t": "baseline", "q": "Rust tokenizers that chew through a GB of text in under 20 seconds." },
+    { "a": "Diffusers", "t": "baseline", "q": "Pipelines for diffusion models: Stable Diffusion in a few lines." },
+    { "a": "Hub", "t": "baseline", "aka": ["hugging face hub", "huggingface_hub", "model hub", "huggingface-cli", "hf hub", "hfapi"], "q": "Git repos for models, datasets and Spaces, with large files offloaded." }
   ]
 }

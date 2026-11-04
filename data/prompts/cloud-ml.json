@@ -67,16 +67,16 @@
     { "a": "DataRobot", "t": "outlier" },
     { "a": "Anthropic API", "t": "outlier", "aka": ["claude api", "anthropic console"] },
     { "a": "Replicate", "t": "outlier", "q": "Run open models with one API call, packaged with its own Cog containers." },
-    { "a": "Modal", "t": "outlier", "aka": ["modal labs"] },
+    { "a": "Modal", "t": "outlier", "aka": ["modal labs"], "q": "Serverless GPUs, declared with Python decorators." },
     { "a": "RunPod", "t": "outlier" },
     { "a": "CoreWeave", "t": "outlier", "q": "A crypto-mining outfit turned GPU cloud." },
     { "a": "Lambda", "t": "outlier", "aka": ["lambda cloud", "lambda labs", "lambda gpu cloud"] },
-    { "a": "Paperspace", "t": "outlier", "aka": ["paperspace gradient", "gradient", "digitalocean paperspace"] },
+    { "a": "Paperspace", "t": "outlier", "aka": ["paperspace gradient", "gradient", "digitalocean paperspace"], "q": "GPU cloud that DigitalOcean acquired in 2023." },
     { "a": "Together AI", "t": "outlier", "aka": ["together"] },
 
     { "a": "Google Colab", "t": "indist", "aka": ["colab", "colaboratory", "colab pro", "colab enterprise"], "q": "Free GPUs in a browser tab, with a session timer that never lets you forget it." },
-    { "a": "Kaggle", "t": "indist", "aka": ["kaggle notebooks", "kaggle kernels"] },
-    { "a": "Azure OpenAI Service", "t": "indist", "aka": ["azure openai"] },
+    { "a": "Kaggle", "t": "indist", "aka": ["kaggle notebooks", "kaggle kernels"], "q": "Google-owned home of competitions, datasets and free notebook GPUs." },
+    { "a": "Azure OpenAI Service", "t": "indist", "aka": ["azure openai"], "q": "OpenAI's models, served from Microsoft's datacenters." },
     { "a": "Azure AI Foundry", "t": "indist", "aka": ["azure ai studio", "ai foundry"] },
     { "a": "Azure Cognitive Services", "t": "indist", "aka": ["azure ai services", "cognitive services"] },
     { "a": "Google Cloud TPU", "t": "indist", "aka": ["cloud tpu", "tpu vm"] },
@@ -85,15 +85,15 @@
     { "a": "IBM Watson", "t": "indist", "aka": ["watson", "watson studio", "watsonx", "watsonx.ai", "watson machine learning", "ibm watsonx"], "q": "Won Jeopardy! in 2011, then became a brand for almost everything IBM sold." },
     { "a": "Amazon Rekognition", "t": "indist", "aka": ["rekognition"] },
     { "a": "Snowflake", "t": "indist", "aka": ["snowflake cortex", "snowpark ml", "cortex ai"] },
-    { "a": "OpenAI API", "t": "indist", "aka": ["openai platform", "openai"] },
-    { "a": "Google AI Studio", "t": "indist", "aka": ["gemini api", "ai studio", "makersuite"] },
+    { "a": "OpenAI API", "t": "indist", "aka": ["openai platform", "openai"], "q": "Launched in 2020 with GPT-3 behind a waitlist." },
+    { "a": "Google AI Studio", "t": "indist", "aka": ["gemini api", "ai studio", "makersuite"], "q": "Formerly MakerSuite: a prompt playground with a Gemini API key attached." },
 
     { "a": "Amazon Bedrock", "t": "overfit", "aka": ["bedrock", "aws bedrock"], "q": "AWS's model buffet: Claude, Llama, Mistral and Amazon's own, behind one API." },
     { "a": "Hugging Face", "t": "overfit", "aka": ["huggingface", "inference endpoints", "hugging face inference endpoints", "hugging face spaces", "spaces", "autotrain"], "q": "Spaces, Inference Endpoints, AutoTrain: the model hub grew its own cloud." },
 
-    { "a": "Amazon SageMaker", "t": "baseline", "aka": ["sagemaker", "aws sagemaker", "sagemaker studio", "sagemaker ai", "sagemaker studio lab", "sagemaker autopilot", "sagemaker canvas", "sagemaker jumpstart"] },
-    { "a": "Vertex AI", "t": "baseline", "aka": ["google vertex ai", "vertex", "google ai platform", "ai platform", "cloud ml engine", "vertex ai workbench", "model garden"] },
-    { "a": "Azure Machine Learning", "t": "baseline", "aka": ["azure ml", "azureml", "azure ml studio", "azure machine learning studio"] },
-    { "a": "Databricks", "t": "baseline", "aka": ["mosaic ai", "databricks ml", "azure databricks"] }
+    { "a": "Amazon SageMaker", "t": "baseline", "aka": ["sagemaker", "aws sagemaker", "sagemaker studio", "sagemaker ai", "sagemaker studio lab", "sagemaker autopilot", "sagemaker canvas", "sagemaker jumpstart"], "q": "AWS's ML workbench since 2017, renamed SageMaker AI in late 2024." },
+    { "a": "Vertex AI", "t": "baseline", "aka": ["google vertex ai", "vertex", "google ai platform", "ai platform", "cloud ml engine", "vertex ai workbench", "model garden"], "q": "Google Cloud's 2021 merger of AI Platform and AutoML." },
+    { "a": "Azure Machine Learning", "t": "baseline", "aka": ["azure ml", "azureml", "azure ml studio", "azure machine learning studio"], "q": "Microsoft's ML platform, successor to ML Studio (classic)." },
+    { "a": "Databricks", "t": "baseline", "aka": ["mosaic ai", "databricks ml", "azure databricks"], "q": "Founded by Spark's creators; now a lakehouse with an AI wing." }
   ]
 }

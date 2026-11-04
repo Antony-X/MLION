@@ -66,8 +66,8 @@
     { "a": "marimo", "t": "overfit", "q": "Reactive Python notebooks saved as plain .py files. Git-friendly, no hidden state." },
 
     { "a": "Jupyter Notebook", "t": "baseline", "aka": ["jupyter", "jupyter classic", "ipynb"], "q": "Named for Julia, Python and R, with a nod to Galileo's notebooks on Jupiter's moons." },
-    { "a": "JupyterLab", "t": "baseline", "aka": ["jupyter lab"] },
+    { "a": "JupyterLab", "t": "baseline", "aka": ["jupyter lab"], "q": "Jupyter's IDE-style interface, and the foundation Notebook 7 is built on." },
     { "a": "Google Colab", "t": "baseline", "aka": ["colab", "colaboratory", "colab pro"], "q": "Google's hosted Jupyter, loved for free GPUs and feared for its timeouts." },
-    { "a": "Kaggle Notebooks", "t": "baseline", "aka": ["kaggle", "kaggle kernels"] }
+    { "a": "Kaggle Notebooks", "t": "baseline", "aka": ["kaggle", "kaggle kernels"], "q": "Formerly Kernels: free GPUs and TPUs, right next to the competition data." }
   ]
 }

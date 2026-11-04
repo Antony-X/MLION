@@ -14,6 +14,7 @@
     { "a": "Langroid", "t": "longtail" },
     { "a": "Atomic Agents", "t": "longtail" },
     { "a": "txtai", "t": "longtail" },
+    { "a": "Embedchain", "t": "longtail" },
     { "a": "Rivet", "t": "longtail" },
     { "a": "Coze", "t": "longtail" },
     { "a": "FastGPT", "t": "longtail" },
@@ -51,7 +52,7 @@
     { "a": "Mastra", "t": "outlier" },
     { "a": "Vercel AI SDK", "t": "outlier" },
     { "a": "Agno", "t": "outlier", "aka": ["Phidata"] },
-    { "a": "Mem0", "t": "outlier", "aka": ["Embedchain"] },
+    { "a": "Mem0", "t": "outlier" },
     { "a": "ChatDev", "t": "outlier", "q": "A virtual software company where CEO, CTO, programmer and tester agents chat their way to a product." },
     { "a": "CAMEL", "t": "outlier", "aka": ["CAMEL-AI"], "q": "An AI user and an AI assistant role-play their way through a task, set up by 'inception prompting'." },
     { "a": "AgentGPT", "t": "outlier" },
@@ -90,6 +91,6 @@
     { "a": "LangGraph", "t": "baseline" },
     { "a": "CrewAI", "t": "baseline" },
     { "a": "AutoGen", "t": "baseline", "aka": ["Microsoft AutoGen", "AutoGen Studio"], "q": "Microsoft's conversable multi-agent framework: agents talk to agents until the job's done." },
-    { "a": "AutoGPT", "t": "baseline", "q": "March 2023's viral 'give GPT-4 a goal and let it loop' agent. Record GitHub stars, then a lot of loops." }
+    { "a": "AutoGPT", "t": "baseline", "q": "March 2023's viral 'give GPT-4 a goal and let it loop' agent. A rocket of GitHub stars, then a lot of loops." }
   ]
 }

@@ -68,7 +68,7 @@
     { "a": "GATE", "t": "outlier", "aka": ["general architecture for text engineering"], "q": "Sheffield's General Architecture for Text Engineering, in development since 1995." },
     { "a": "Apache UIMA", "t": "outlier", "aka": ["UIMA"], "q": "The plumbing under IBM Watson's Jeopardy! run." },
     { "a": "Stanford Parser", "t": "outlier", "aka": ["stanford ner", "stanford pos tagger"] },
-    { "a": "Marian", "t": "outlier", "aka": ["marian nmt", "marianmt"] },
+    { "a": "Marian", "t": "outlier", "aka": ["marian nmt", "marianmt"], "q": "Fast C++ neural MT, an engine behind Microsoft Translator." },
     { "a": "KenLM", "t": "outlier", "q": "Kenneth Heafield's fast n-gram LM, still hiding inside web-data filtering pipelines." },
     { "a": "ParlAI", "t": "outlier" },
     { "a": "DeepPavlov", "t": "outlier" },
@@ -88,24 +88,24 @@
     { "a": "Prodigy", "t": "outlier" },
     { "a": "subword-nmt", "t": "outlier" },
     { "a": "SetFit", "t": "outlier" },
-    { "a": "Spark NLP", "t": "outlier", "aka": ["john snow labs"] },
+    { "a": "Spark NLP", "t": "outlier", "aka": ["john snow labs"], "q": "John Snow Labs' NLP library on Apache Spark." },
 
     { "a": "Gensim", "t": "indist", "q": "'Generate similar': topic models and word2vec for the masses." },
-    { "a": "TextBlob", "t": "indist" },
+    { "a": "TextBlob", "t": "indist", "q": "A friendly API over NLTK and Pattern: sentiment in one line." },
     { "a": "Stanza", "t": "indist", "aka": ["stanford stanza"], "q": "Stanford NLP's Python successor to CoreNLP, covering dozens of languages." },
     { "a": "AllenNLP", "t": "indist", "q": "AI2's research library, archived in 2022." },
     { "a": "Flair", "t": "indist", "aka": ["flair nlp"], "q": "Zalando Research's contextual string embeddings, stackable like LEGO." },
     { "a": "fastText", "t": "indist", "q": "Facebook's subword embeddings and text classifier. Trains in minutes on a laptop." },
     { "a": "Apache OpenNLP", "t": "indist", "aka": ["opennlp"] },
-    { "a": "fairseq", "t": "indist" },
-    { "a": "OpenNMT", "t": "indist", "aka": ["opennmt-py"] },
+    { "a": "fairseq", "t": "indist", "q": "FAIR's sequence modeling toolkit, home of BART and wav2vec." },
+    { "a": "OpenNMT", "t": "indist", "aka": ["opennmt-py"], "q": "Open-source neural MT from Harvard NLP and SYSTRAN." },
     { "a": "Moses", "t": "indist", "aka": ["moses smt", "sacremoses", "moses tokenizer"], "q": "The statistical MT toolkit behind a decade of phrase tables before neural MT." },
-    { "a": "sentence-transformers", "t": "indist", "aka": ["sbert", "sentencetransformers"] },
+    { "a": "sentence-transformers", "t": "indist", "aka": ["sbert", "sentencetransformers"], "q": "SBERT: siamese BERT networks for embeddings you can compare with cosine." },
     { "a": "SentencePiece", "t": "indist", "q": "Tokenizes raw text, spaces and all: the ▁ you see in T5 and Llama vocabularies." },
     { "a": "Tokenizers", "t": "indist", "aka": ["hugging face tokenizers"] },
     { "a": "tiktoken", "t": "indist", "q": "OpenAI's fast BPE tokenizer, home of cl100k_base and o200k_base." },
-    { "a": "LlamaIndex", "t": "indist", "aka": ["llama index", "gpt index"] },
-    { "a": "Haystack", "t": "indist", "aka": ["deepset haystack"] },
+    { "a": "LlamaIndex", "t": "indist", "aka": ["llama index", "gpt index"], "q": "Formerly GPT Index: connect LLMs to your documents." },
+    { "a": "Haystack", "t": "indist", "aka": ["deepset haystack"], "q": "deepset's framework for search and RAG pipelines." },
     { "a": "MALLET", "t": "indist", "q": "UMass's Java toolkit: the LDA workhorse for a generation of digital humanists." },
     { "a": "BERTopic", "t": "indist", "q": "BERT embeddings, UMAP, HDBSCAN, c-TF-IDF: topic modeling as a pipeline." },
     { "a": "VADER", "t": "indist", "aka": ["vadersentiment"], "q": "Rule-based sentiment tuned for social media, emoticons and ALL CAPS included." },
@@ -116,6 +116,6 @@
 
     { "a": "NLTK", "t": "baseline", "aka": ["natural language toolkit"], "q": "Bird, Klein and Loper's teaching toolkit, plus the free book everyone learned from." },
     { "a": "spaCy", "t": "baseline", "aka": ["spacy-transformers"], "q": "Explosion's 'industrial-strength NLP', written in Cython." },
-    { "a": "Transformers", "t": "baseline", "aka": ["hugging face transformers", "hf transformers", "hugging face", "huggingface", "pytorch-transformers"] }
+    { "a": "Transformers", "t": "baseline", "aka": ["hugging face transformers", "hf transformers", "hugging face", "huggingface", "pytorch-transformers"], "q": "Born in 2018 as pytorch-pretrained-bert." }
   ]
 }

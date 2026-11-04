@@ -183,7 +183,7 @@
     { "a": "David (A.I.)", "t": "indist", "aka": ["David from A.I."], "q": "Programmed to love, then left in the woods. Spielberg finishing a Kubrick project." },
     { "a": "Sonny", "t": "indist", "q": "I, Robot's NS-5 who dreams, winks and has a second brain." },
     { "a": "Roy Batty", "t": "indist", "aka": ["Batty"], "q": "All those moments will be lost in time, like tears in rain." },
-    { "a": "Rachael", "t": "indist", "aka": ["Rachel"] },
+    { "a": "Rachael", "t": "indist" },
     { "a": "Baymax", "t": "indist", "q": "Your personal healthcare companion. Inflatable, huggable, punchable fist." },
     { "a": "The Iron Giant", "t": "indist", "aka": ["Iron Giant"], "q": "Superman." },
     { "a": "Optimus Prime", "t": "indist", "aka": ["Optimus"], "q": "Autobots, roll out." },
