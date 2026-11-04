@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MLion · the daily descent</title>
+  <meta name="description" content="Seven machine-learning prompts a day. Name an activation function, a loss, a model… Rare answers descend deeper. Obvious ones barely count. One in a MLion.">
+  <meta name="theme-color" content="#090b10">
+  <meta property="og:title" content="MLion · the daily descent">
+  <meta property="og:description" content="Seven ML prompts a day. Rarer answers descend deeper. One in a MLion.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23090b10'/%3E%3Cpath d='M10 18 C24 20 30 40 54 46' stroke='%23f5b942' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='46' cy='42' r='7' fill='%23ffd23f'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="landscape" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <button class="brand" id="brand" aria-label="MLion home"><span class="ml">ML</span><span class="ion">ION</span></button>
+    <div class="topbar-mid" id="topbar-mid"></div>
+    <button class="icon-btn" id="menu-btn" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </header>
+
+  <main id="app" aria-live="off"></main>
+
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <nav class="drawer" id="drawer" aria-hidden="true" aria-label="Menu">
+    <div class="row spread" style="margin-bottom:6px">
+      <span class="brand" style="cursor:default"><span class="ml">ML</span><span class="ion">ION</span></span>
+      <button class="icon-btn" id="drawer-close" aria-label="Close menu">✕</button>
+    </div>
+    <a href="#daily"><span class="gi">▼</span>Daily descent</a>
+    <a href="#unlimited"><span class="gi">∞</span>Unlimited</a>
+    <a href="#packs"><span class="gi">◆</span>Themed packs</a>
+    <a href="#archive"><span class="gi">⟲</span>Archive</a>
+    <a href="#library"><span class="gi">≡</span>Library</a>
+    <a href="#stats"><span class="gi">↗</span>Stats</a>
+    <a href="#how"><span class="gi">?</span>How to play</a>
+    <a href="#faq"><span class="gi">i</span>FAQ</a>
+    <a href="#prefs"><span class="gi">⚙</span>Settings</a>
+    <div class="foot">one in a mlion.<br><a href="https://github.com/Antony-X/MLION" target="_blank" rel="noopener">source &amp; answer sets ↗</a></div>
+  </nav>
+
+  <div id="modal"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p style="position:relative;z-index:2;text-align:center;padding:40px">MLion needs JavaScript to run.</p></noscript>
+  <script src="js/engine.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/landscape.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

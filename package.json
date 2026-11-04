@@ -1,0 +1,14 @@
+{
+  "name": "mlion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MLion — the daily descent. A rarity-scored ML trivia game: name an activation function, a loss, a model… rarer answers descend deeper.",
+  "scripts": {
+    "build": "node tools/build.js",
+    "stats": "node tools/build.js --stats",
+    "test": "node tools/build.js && node tests/engine.test.js",
+    "e2e": "node tests/e2e.js",
+    "serve": "python3 -m http.server 8000"
+  },
+  "license": "MIT"
+}

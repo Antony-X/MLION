@@ -1,0 +1,9 @@
+[
+  { "id": "blocks", "name": "Building Blocks", "emoji": "🧱", "tagline": "activations, losses, optimizers & every layer in between" },
+  { "id": "zoo", "name": "The Model Zoo", "emoji": "🦓", "tagline": "architectures and the models that made the news" },
+  { "id": "classic", "name": "Classical ML", "emoji": "📐", "tagline": "before everything was a transformer" },
+  { "id": "llm", "name": "The LLM Era", "emoji": "💬", "tagline": "tokens, prompts, alignment & everything after GPT" },
+  { "id": "stack", "name": "The Stack", "emoji": "🛠️", "tagline": "frameworks, datasets, chips & tooling" },
+  { "id": "theory", "name": "Math & Theory", "emoji": "∑", "tagline": "divergences, decompositions & the proofs behind them" },
+  { "id": "lore", "name": "Lore & Legends", "emoji": "📜", "tagline": "people, history, venues, films & fiction" }
+]
