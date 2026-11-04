@@ -10,14 +10,14 @@
     { "a": "Feed-forward network", "t": "baseline", "aka": ["FFN", "MLP", "feed forward", "feedforward", "feed-forward layer", "position-wise feed-forward network", "positionwise feedforward", "fully connected network", "feed forward neural network", "multilayer perceptron", "multi-layer perceptron", "dense block"], "q": "Two linear layers around a nonlinearity, applied to each token separately. Holds about two-thirds of a standard block's parameters." },
     { "a": "Residual connection", "t": "baseline", "aka": ["skip connection", "residual", "shortcut connection", "residual link", "skip", "residual path", "add and norm", "add & norm"], "q": "Add the input back onto the output of every sub-layer. Take it away and deep stacks stop training." },
     { "a": "Layer normalization", "t": "baseline", "aka": ["LayerNorm", "layer norm", "LN", "nn.LayerNorm", "normalization", "normalisation", "norm", "layer normalisation"], "q": "Normalises across each token's own features, so batch size and padding don't matter." },
-    { "a": "Positional encoding", "t": "baseline", "aka": ["positional embedding", "position encoding", "position embedding", "positional embeddings", "positional encodings", "sinusoidal positional encoding", "sinusoidal encoding", "sinusoidal embeddings", "absolute positional encoding", "PE"], "q": "Attention ignores order, so you have to inject where each token sits. The original used sines and cosines." },
+    { "a": "Positional encoding", "t": "baseline", "aka": ["positional embedding", "position encoding", "position embedding", "positional embeddings", "positional encodings", "sinusoidal positional encoding", "sinusoidal encoding", "sinusoidal embeddings", "absolute positional encoding", "PE", "sinusoidal", "absolute positional embedding"], "q": "Attention ignores order, so you have to inject where each token sits. The original used sines and cosines." },
 
     { "a": "Residual stream", "t": "overfit", "aka": ["residual pathway"], "q": "Mech-interp's favourite noun: the running sum every layer reads from and writes to. Not a layer, but everyone says it." },
     { "a": "KV cache", "t": "overfit", "aka": ["key-value cache", "key value cache", "KV caching", "kv-cache", "key value caching"], "q": "Not in the maths, but in every LLM server: past keys and values are stored, so each new token attends to them instead of recomputing them." },
 
     { "a": "Register tokens", "t": "mlion", "aka": ["registers", "register token", "ViT registers", "vision transformer registers", "visual registers"], "q": "Vision Transformers Need Registers (Darcet et al., 2023): spare scratch tokens stop ViTs from hijacking background patches as storage." },
 
-    { "a": "Cross-attention", "t": "indist", "aka": ["cross attention", "encoder-decoder attention", "encoder decoder attention"], "q": "Queries from the decoder, keys and values from the encoder. How translation models look at the source." },
+    { "a": "Cross-attention", "t": "indist", "aka": ["cross attention", "encoder-decoder attention", "encoder decoder attention", "cross-attention layer"], "q": "Queries from the decoder, keys and values from the encoder. How translation models look at the source." },
     { "a": "Masked self-attention", "t": "indist", "aka": ["masked multi-head attention", "causal self-attention", "causal attention", "masked attention", "masked self attention", "masked multi head attention"], "q": "Decoder attention that is not allowed to peek at future tokens." },
     { "a": "Attention mask", "t": "indist", "aka": ["mask", "masking", "attention masking"] },
     { "a": "Causal mask", "t": "indist", "aka": ["look-ahead mask", "lookahead mask", "subsequent mask", "triangular mask", "autoregressive mask", "upper triangular mask", "causal masking"], "q": "A triangle of minus infinity above the diagonal, so no token reads the future." },
@@ -29,7 +29,7 @@
     { "a": "Attention head", "t": "indist", "aka": ["head", "heads", "attention heads"] },
     { "a": "Dropout", "t": "indist", "aka": ["nn.Dropout"] },
     { "a": "Token embedding", "t": "indist", "aka": ["embedding layer", "input embedding", "word embedding", "embedding", "input embeddings", "token embeddings", "nn.Embedding", "embedding matrix", "word embeddings", "embeddings"] },
-    { "a": "Activation function", "t": "indist", "aka": ["nonlinearity", "non-linearity", "activation", "GELU", "ReLU", "nonlinear activation"] },
+    { "a": "Activation function", "t": "indist", "aka": ["nonlinearity", "non-linearity", "activation", "GELU", "ReLU", "nonlinear activation", "SiLU", "Swish", "tanh"] },
     { "a": "Linear layer", "t": "indist", "aka": ["linear projection", "dense layer", "fully connected layer", "nn.Linear", "projection layer", "linear", "projection", "FC layer"] },
     { "a": "Encoder", "t": "indist", "aka": ["encoder stack", "encoder block", "encoder layer", "transformer encoder", "encoder layers"] },
     { "a": "Decoder", "t": "indist", "aka": ["decoder stack", "decoder block", "decoder layer", "transformer decoder", "decoder layers"] },
@@ -38,7 +38,7 @@
     { "a": "Post-norm", "t": "indist", "aka": ["post-LN", "post-layer norm", "post-layernorm", "post-normalization", "post-LayerNorm", "post layer normalization"], "q": "The original recipe: add, then normalise. Needs warmup and some patience." },
     { "a": "[CLS] token", "t": "indist", "aka": ["CLS token", "class token", "classification token", "CLS"], "q": "A dummy token prepended to the input whose final state stands for the whole sequence." },
     { "a": "Patch embedding", "t": "indist", "aka": ["patch embeddings", "patchify", "image patches", "patch projection", "patch embed", "patchifying", "patch tokenizer"] },
-    { "a": "Output head", "t": "indist", "aka": ["LM head", "language model head", "language modeling head", "lm_head", "classification head", "prediction head", "output layer", "final linear layer", "output linear layer"] },
+    { "a": "Output head", "t": "indist", "aka": ["LM head", "language model head", "language modeling head", "lm_head", "classification head", "prediction head", "output layer", "final linear layer", "output linear layer", "MLM head", "masked language modeling head"] },
 
     { "a": "Rotary position embedding", "t": "outlier", "aka": ["RoPE", "rotary embeddings", "rotary positional embedding", "rotary position encoding", "rotary embedding", "rotary", "rotary positional encoding"], "q": "Rotates query and key pairs by position-dependent angles, so their dot product sees relative offsets." },
     { "a": "ALiBi", "t": "outlier", "aka": ["attention with linear biases", "linear biases"], "q": "No position embeddings at all: just subtract a distance penalty, one slope per head, from the attention scores." },
@@ -50,7 +50,7 @@
     { "a": "Down-projection", "t": "outlier", "aka": ["down projection", "down_proj", "contraction layer", "second linear layer", "W2", "fc2"] },
     { "a": "Gated linear unit", "t": "outlier", "aka": ["GLU", "gated FFN", "gated feed-forward", "gated MLP", "GLU variants"] },
     { "a": "SwiGLU", "t": "outlier", "aka": ["Swish GLU", "swiglu activation", "SiLU GLU", "swish-gated linear unit"], "q": "Shazeer's 2020 GLU paper credits its success, \"as all else, to divine benevolence.\"" },
-    { "a": "Router", "t": "outlier", "aka": ["gating network", "gate network", "expert router", "routing network", "gate", "routing", "top-k router", "gating function", "expert gate"], "q": "A small linear layer that decides which experts each token visits." },
+    { "a": "Router", "t": "outlier", "aka": ["gating network", "gate network", "expert router", "routing network", "gate", "routing", "top-k router", "gating function", "expert gate", "top-k gating", "noisy top-k gating"], "q": "A small linear layer that decides which experts each token visits." },
     { "a": "Mixture-of-experts layer", "t": "outlier", "aka": ["MoE", "MoE layer", "sparse MoE", "experts", "mixture of experts", "sparse mixture of experts", "expert layer", "MoE block", "expert"] },
     { "a": "Grouped-query attention", "t": "outlier", "aka": ["GQA", "grouped query attention"] },
     { "a": "Multi-query attention", "t": "outlier", "aka": ["MQA", "multi query attention"] },
@@ -90,6 +90,12 @@
     { "a": "Gated cross-attention", "t": "longtail", "aka": ["tanh-gated cross-attention", "gated xattn-dense", "Flamingo cross-attention", "tanh gated cross attention"], "q": "Flamingo's trick: tanh gates start at zero, so slotting vision layers into a frozen LLM can't wreck it." },
     { "a": "Prefix mask", "t": "longtail", "aka": ["prefix-LM mask", "prefix LM mask", "prefix attention mask", "bidirectional prefix mask", "prefix-LM attention"], "q": "Bidirectional attention over the prompt, causal over the output. The middle road between BERT and GPT." },
     { "a": "Embedding layer norm", "t": "longtail", "aka": ["embedding LayerNorm", "embeddings layernorm", "LayerNorm after embeddings"] },
-    { "a": "Residual dropout", "t": "longtail", "aka": ["sublayer dropout", "sub-layer dropout", "residual-path dropout"] }
+    { "a": "Residual dropout", "t": "longtail", "aka": ["sublayer dropout", "sub-layer dropout", "residual-path dropout"] },
+    { "a": "Padding mask", "t": "indist", "aka": ["key padding mask", "src_key_padding_mask", "tgt_key_padding_mask", "pad mask", "attention padding mask", "padding attention mask"] },
+    { "a": "[SEP] token", "t": "indist", "aka": ["SEP token", "separator token", "sep"] },
+    { "a": "BOS token", "t": "outlier", "aka": ["beginning-of-sequence token", "start-of-sequence token", "start token", "bos", "begin of sequence token"] },
+    { "a": "EOS token", "t": "outlier", "aka": ["end-of-sequence token", "end token", "eos", "end of sequence token", "<|endoftext|>"] },
+    { "a": "Padding token", "t": "outlier", "aka": ["PAD token", "[PAD] token", "pad", "pad token"] },
+    { "a": "Token mixer", "t": "longtail", "aka": ["token mixing", "MetaFormer token mixer", "sequence mixer", "token-mixing layer"] }
   ]
 }
