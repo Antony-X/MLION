@@ -253,5 +253,13 @@ assert.strictEqual(E.bandFor(449).name, "State of the Art");
 assert.strictEqual(E.bandFor(450).name, "One in a MLion");
 ok("score bands");
 
+{ // autocorrect benchmark (tools/matchbench.js): typos land on the meant answer; other prompts' answers don't sneak in
+  const out = require("child_process").execFileSync(process.execPath, [path.join(__dirname, "..", "tools", "matchbench.js")], { encoding: "utf8" });
+  const num = (re) => parseFloat((out.match(re) || [])[1]);
+  const right = num(/right ([\d.]+)%/), wrong = num(/WRONG answer ([\d.]+)%/), falseAcc = num(/FALSE accept ([\d.]+)%/);
+  assert.ok(right >= 97 && wrong <= 1 && falseAcc <= 1, `autocorrect regressed: ${out}`);
+  ok(`autocorrect: ${right}% of typos right, ${wrong}% wrong, ${falseAcc}% of other prompts' answers accepted`);
+}
+
 const src = fs.readFileSync(path.join(__dirname, "..", "js", "data.js"), "utf8");
 console.log(`engine tests passed (${n} checks · ${DATA.prompts.length} prompts · ${(src.length / 1024).toFixed(0)} KB data)`);

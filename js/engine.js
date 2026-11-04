@@ -227,7 +227,24 @@
    *   {kind: "suggest", suggestions: [answer]}   a few plausible near misses
    *   {kind: "none"}
    */
+  /** True when an answer is listed under a name of two or more real words. */
+  function hasLongForm(a) {
+    return [a.a].concat(a.aka || []).some((n) => tokens(n).filter((w) => w.length >= 3 && !/^d+$/.test(w)).length >= 2);
+  }
+  // Every answer key in the game (set by the app with setLexicon). A player who types something that
+  // is a real answer somewhere else meant that thing, not a typo of an answer here: a fuzzy match is
+  // only offered ("did you mean"), never accepted on its own.
+  let LEXICON = null;
+  function setLexicon(prompts) {
+    LEXICON = new Set();
+    for (const p of prompts) for (const a of p.answers || []) for (const n of [a.a].concat(a.aka || [])) { const k = fullKey(n); if (k) LEXICON.add(k); }
+  }
   function matchAnswer(prompt, raw) {
+    const m = matchRaw(prompt, raw);
+    if (m.kind === "correction" && LEXICON && LEXICON.has(fullKey(raw))) return { kind: "suggest", suggestions: [m.answer], confidence: Math.min(m.confidence || 0.9, 0.7), via: "known-elsewhere" };
+    return m;
+  }
+  function matchRaw(prompt, raw) {
     if (!prompt._index) prompt._index = buildIndex(prompt).index;
     const { strip, exact, loose, soft, acro, keys, vecs, idf, words } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
@@ -245,10 +262,12 @@
     }
     for (const k of [kso, singular(kso)]) if (soft.has(k)) return hit(soft.get(k));
     for (const k of [kf, ks]) if (acro.has(k)) return hit(acro.get(k));
-    // The player typed the long form of an answer listed only as initials.
-    for (const ac of acronyms(text)) {
-      if (exact.has(ac)) return { kind: "correction", answer: answers[exact.get(ac)], from: text };
-    }
+    // The player typed the long form of an answer listed only as initials. Decided after the typo
+    // check: "Binarized nural network" has the initials of BNN (Bayesian NN), but it is a typo.
+    // Only for answers that have no long form of their own: "Prompt injection" is not PI when the
+    // list already spells PI out as "Probability of improvement".
+    let acIdx = -1;
+    for (const ac of acronyms(text)) if (exact.has(ac) && !hasLongForm(answers[exact.get(ac)])) { acIdx = exact.get(ac); break; }
 
     // ---- fuzzy: score every answer by its best key, then decide.
     const probes = [...new Set([kf, ks, kso])].filter(Boolean);
@@ -305,6 +324,7 @@
     if (!ranked.length) return { kind: "none" };
     // A single clear typo wins outright; ties go to the more common answer only across tiers.
     const typos = [...typo.entries()].sort((a, b) => b[1] - a[1]);
+    if (acIdx >= 0 && !(typos.length && typos[0][1] >= 0.85)) return { kind: "correction", answer: answers[acIdx], from: text, confidence: 0.9, via: "initials" };
     if (typos.length) {
       const best = typos[0][1];
       const near = typos.filter(([, s]) => s >= best - 0.04).map(([i]) => answers[i]);
@@ -312,13 +332,13 @@
       const low = Math.min(...tied.map((a) => TIERS[a.t].score));
       const pick = tied.filter((a) => TIERS[a.t].score === low);
       if (near.length === 1 || (near.length === tied.length && pick.length === 1 && best >= 0.85)) {
-        return { kind: "correction", answer: near.length === 1 ? near[0] : pick[0], from: text, confidence: best };
+        return { kind: "correction", answer: near.length === 1 ? near[0] : pick[0], from: text, confidence: best, via: "typo" };
       }
       if (near.length > 1) return { kind: "suggest", suggestions: near.slice(0, 3), confidence: best };
     }
     const [i1, s1] = ranked[0];
     const s2 = ranked[1] ? ranked[1][1] : 0;
-    if (s1 >= 0.8 && s1 - s2 >= 0.08) return { kind: "correction", answer: answers[i1], from: text, confidence: s1 };
+    if (s1 >= 0.8 && s1 - s2 >= 0.08) return { kind: "correction", answer: answers[i1], from: text, confidence: s1, via: "similar" };
     const sugg = ranked.filter(([, s]) => s >= 0.55).slice(0, 3).map(([i]) => answers[i]);
     if (sugg.length) return { kind: "suggest", suggestions: sugg, confidence: s1 };
     return { kind: "none" };
@@ -592,7 +612,7 @@
   return {
     TIERS, TIER_IDS, TIERS_BY_SCORE, MISS_EMOJI, ROUNDS, MAX_SCORE, PREVIEW_MS, ANSWER_MS,
     MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
-    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer,
+    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon,
     mulberry32, hashString, shuffled,
     EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,

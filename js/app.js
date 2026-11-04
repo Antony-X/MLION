@@ -3012,6 +3012,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   V.initBackdrop();
+  // every answer key in the game, so a real answer from elsewhere is offered, never auto-corrected
+  (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => E.setLexicon(DATA.prompts.concat(EXTRAS)));
   if (!BOARD_ON) $$('#drawer a[href="#board"]').forEach((a) => a.remove());
   boardBoot();
   route();
