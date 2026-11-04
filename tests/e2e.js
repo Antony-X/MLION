@@ -130,7 +130,8 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await sleep(1200);
   await page.screenshot({ path: path.join(OUT, "07-results.png"), fullPage: true });
   await page.click("#share");
-  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  // the Windows clipboard turns \n into \r\n; normalise so the check is platform-independent
+  const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   check(/^MLion #\d+ 🦁\n300\/700 · loss 4\.00\n\n🦜🦁🐑🦄☄️⬛📊/.test(clip), "share text format");
   console.log(clip.split("\n").map((l) => "    | " + l).join("\n"));
 
