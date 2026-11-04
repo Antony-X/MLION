@@ -36,38 +36,55 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
   const browser = await chromium.launch({ proxy, args: ["--disable-features=WebRtcHideLocalIpsWithMdns"] });
   const errors = [];
-  async function player(tag) {
+  const forced = "t" + Math.random().toString(36).slice(2, 6).replace(/[^a-z0-9]/g, "x");
+  async function player(tag, init) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${tag}: ${e.message}`));
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-    await page.addInitScript(() => { try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ } });
+    await page.addInitScript((code) => {
+      window.MLION_TEST = true;
+      if (code) window.MLION_LIVE_CODE = code;
+      try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ }
+    }, init || null);
     return page;
   }
-  const ana = await player("ana"), ben = await player("ben");
+  const ana = await player("ana", forced), ben = await player("ben"), cy = await player("cy");
+
+  // Ben opens the link before the room exists (the host switched apps): he must wait, not fail.
+  await ben.goto(base + `#live-${forced}`);
+  await ben.fill("#live-name", "Ben");
+  await ben.click("#live-go");
+  await ben.waitForFunction(() => /Waiting for the host|Connecting|reaching/.test(document.body.textContent), null, { timeout: 20000 });
+  check(true, "friend waits for a host who isn't there yet");
+  await ben.screenshot({ path: path.join(OUT, "19-live-waiting.png") });
 
   await ana.goto(base + "#live");
   await ana.fill("#live-name", "Ana");
   await ana.click("#live-go");
   await ana.waitForSelector(".lv-code", { timeout: 20000 });
   const code = (await ana.textContent(".lv-code")).trim();
-  check(/^[a-z0-9]{5}$/.test(code), `room opened (${code})`);
+  check(code === forced, `room opened (${code})`);
+  await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 30000 });
+  check(true, "the waiting friend gets in as soon as the room is back");
 
-  await ben.goto(base + `#live-${code}`);
-  await ben.fill("#live-name", "Ben");
-  await ben.click("#live-go");
-  await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 20000 });
-  check(true, "host sees the friend join live");
+  // The host's phone drops its server connection; a third player must still get in.
+  await ana.evaluate(() => window.MLION_LIVE_STATE.peer.disconnect());
+  await cy.goto(base + `#live-${code}`);
+  await cy.fill("#live-name", "Cy");
+  await cy.click("#live-go");
+  await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 3, null, { timeout: 40000 });
+  check(true, "room reconnects by itself after the host drops off");
   await ben.waitForSelector(".lv-players li:nth-child(2)");
   check((await ben.textContent(".lv-players")).includes("Ana"), "friend sees the host in the lobby");
   await ana.screenshot({ path: path.join(OUT, "20-live-lobby.png") });
 
   await ana.click('.vs-size[data-n="5"]');
   await ana.click("#live-start");
-  const plan = { ana: ["snake", "snake", "snake", "snake", "snake"], ben: ["relu", "relu", "relu", "relu", "relu"] };
+  const plan = { ana: ["snake", "snake", "snake", "snake", "snake"], ben: ["relu", "relu", "relu", "relu", "relu"], cy: ["gelu", "gelu", "gelu", "gelu", "gelu"] };
   for (let i = 0; i < 5; i++) {
-    for (const [page, who] of [[ana, "ana"], [ben, "ben"]]) {
+    for (const [page, who] of [[ana, "ana"], [ben, "ben"], [cy, "cy"]]) {
       await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 15000 });
       await page.fill("#answer", plan[who][i]);
       await page.press("#answer", "Enter");
@@ -86,6 +103,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await Promise.all([ana.waitForSelector(".lv-podium", { timeout: 15000 }), ben.waitForSelector(".lv-podium", { timeout: 15000 })]);
   check((await ben.textContent("h1")).includes("Ana wins"), "podium names the winner on both phones");
   check((await ana.textContent(".lv-podium li.first em")).trim() === "500", "scores add up (Ana 500)");
+  const order = await ana.$$eval(".lv-podium .nm b", (els) => els.map((e) => e.textContent));
+  check(order.join(",") === "Ana,Cy,Ben", `podium order (${order.join(", ")})`);
   await ben.screenshot({ path: path.join(OUT, "23-live-podium.png") });
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
