@@ -162,7 +162,10 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.fill("#vs-name", "Ana");
   await page.click('.vs-size[data-n="3"]');
   await page.click("#vs-go");
-  await page.waitForSelector("#begin");
+  await page.waitForSelector("#vs-send-now");
+  await page.click("#vs-send-now");
+  const early = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop();
+  check(/#vs-[a-z0-9]+-3$/.test(early), "link can be sent before playing");
   await page.click("#begin");
   for (const ans of ["snake", "relu", "gelu"]) {
     await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });

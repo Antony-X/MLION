@@ -461,7 +461,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const sub = RUN.mode === "daily" ? prettyDate(RUN.date, { weekday: "long", month: "long", day: "numeric" }) :
       RUN.mode === "archive" ? `${prettyDate(RUN.date)} · no streak` :
       RUN.mode === "practice" ? "Answers shown after" :
-      RUN.mode === "vs" ? (RUN.opp ? `Score to beat: ${tierPoints(RUN.opp.tiers)}. You'll see their result after each answer.` : "Play first, then send the link.") : "";
+      RUN.mode === "vs" ? (RUN.opp ? `Score to beat: ${tierPoints(RUN.opp.tiers)}. You'll see their result after each answer.` : "Send the link now to play at the same time, or play first and send your score.") : "";
     $("#card").innerHTML = `<div class="intro-card">
       <div><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
       <ul class="beats">
@@ -471,9 +471,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </ul>
       <p class="rule">Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more.</p>
       ${RUN.mode === "vs" ? `<label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So ${RUN.opp ? esc(RUN.opp.name) : "your friend"} knows who played" value="${esc(myName())}"></label>` : ""}
-      <button class="btn primary big" id="begin">Begin</button>
+      <div class="btn-row">
+        <button class="btn primary big" id="begin">Begin</button>
+        ${RUN.mode === "vs" && !RUN.opp ? `<button class="btn big" id="vs-send-now">Send link now</button>` : ""}
+      </div>
       <p class="hint"><kbd>Enter</kbd> submits and continues</p>
     </div>`;
+    const sendNow = $("#vs-send-now");
+    if (sendNow) sendNow.addEventListener("click", () => {
+      const nm = $("#vs-name");
+      if (nm) LS.set("name", nm.value.trim().slice(0, 16));
+      shareLink(`Play MLion with me: the same ${RUN.n} ML questions. Send me your score when you're done:\n${challengeLink(RUN.seed, RUN.n, [])}`);
+    });
     $("#begin").addEventListener("click", async () => {
       const nm = $("#vs-name");
       if (nm) LS.set("name", nm.value.trim().slice(0, 16));
@@ -834,7 +843,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           ${tiersRow(rec.tiers, "grid-tiers")}
           <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${accepted} of ${n} accepted</p>
           <div class="btn-row">
-            ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send challenge"}</button>
+            ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send my score"}</button>
               <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
