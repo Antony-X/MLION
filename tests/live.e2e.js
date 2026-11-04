@@ -80,7 +80,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ana.screenshot({ path: path.join(OUT, "20-live-lobby.png") });
 
   await ana.click('.vs-size[data-n="5"]');
-  await ana.click("#live-start");
+  for (const pg of [ana, ben, cy]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
+  check(true, "everyone taps Ready; match starts by itself");
   const plan = { ana: ["snake", "snake", "snake", "snake", "snake"], ben: ["relu", "relu", "relu", "relu", "relu"], cy: ["gelu", "gelu", "gelu", "gelu", "gelu"] };
   for (let i = 0; i < 5; i++) {
     for (const [page, who] of [[ana, "ana"], [ben, "ben"], [cy, "cy"]]) {
