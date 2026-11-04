@@ -309,7 +309,9 @@ use `#/…`, and never `#settings`, which claude.ai reserves.
 | `#results-<key-with-dashes>` | a run's results |
 | `#stats`, `#how`, `#faq`, `#prefs` | stats, how to play, FAQ, settings |
 | `#challenge`, `#vs-…`, `#vq-…` | challenge setup (Format: Rarity or Quiz), a rarity challenge link, a quiz challenge link |
-| `#quiz`, `#quiz-N` | Quiz hub, solo quiz run N (hidden-ahead rule below) |
+| `#quiz`, `#quiz-N` | Quiz hub (today's quiz first, then practice runs), solo quiz run N (hidden-ahead rule below) |
+| `#daily-quiz`, `#results-dquiz-YYYY-MM-DD` | today's Daily Quiz, its results |
+| `#board`, `#board-YYYY-MM-DD`, `#board-quiz`, `#board-quiz-YYYY-MM-DD` | leaderboard, Daily and Quiz tabs |
 | `#live`, `#live-<code>` | live match setup, a room |
 | `#rooms` | public room list |
 
@@ -422,6 +424,40 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   `tenths` is the total answer time in tenths of a second. Winner: more points, else the lower `tenths`;
   equal on both is a draw. Same send-back flow (`#send-vs`), head-to-head board (`quizDuelBoard`), and the
   challenger sees the opponent's pick after each answer.
+
+### Daily Quiz (added overnight 2026-11-05)
+
+- One shared seven-question quiz a day: five prompt questions and two reasoning MCQs, on the fixed
+  25 s clock (reasoning questions get 2.4x). `E.dailyQuiz(data, dayNumber)` deals the prompts like
+  the daily (`runFor(data, "dquiz-v1", n)`) and the reasoning questions from their own stream
+  (`"dquiz-reason-v1"`), so days don't repeat. `dquizSpec(date)` in app.js uses `asOf(CORE, date)`;
+  `asOf` now also filters `reasoning` by an optional `added` date, so adding questions never
+  changes a past day.
+- Numbered from its own first day: `DQUIZ_FROM = "2026-11-05"` is Daily Quiz #1.
+- Leaderboard: table `daily_quiz_scores` (`supabase/daily_quiz.sql`, additive: new table, trigger,
+  policies only). The client posts `marks` (7 digits, 1 = right) and `tenths` (total answer time);
+  the database recomputes `score = 100 x right`. Equal scores rank by time. Until the SQL is applied
+  the Quiz tab says "The quiz leaderboard opens soon" (the client detects PGRST205/42P01).
+- Tests: the daily-quiz block in `tests/quiz.e2e.js`; the quiz-board block in `tests/board.e2e.js`
+  (mock table off, then on; tie-break by time).
+
+### Home: the 3D descent (added overnight 2026-11-05)
+
+- `js/hero3d.js` (raw WebGL, no libraries): a loss surface with a heavy-ball momentum path from the
+  far wall to the minimum; `MLionHero.mount(canvas, {progress, onStage})`, `MLionHero.stages`.
+  Draws only when progress or size changes; frees its WebGL context on destroy.
+- `mountHomeHero()` in app.js puts a fixed canvas behind home; scroll drives progress piecewise so
+  each of the six depth rows reaches the reading line as the ball reaches that depth; rows light
+  (`.on`/`.past`). The opaque `.home-rest` scrolls over it. `route()` unmounts it. Without WebGL
+  the old 2D `landscape.js` scene runs instead. `dev/hero.html` is a standalone harness.
+
+### Installable app (added overnight 2026-11-05)
+
+- `manifest.webmanifest` (icons from `tools/icons.js`), `sw.js`: the page network-first, our own
+  files cache-first (hashed URLs), Google Fonts stale-while-revalidate, everything else (Supabase,
+  MQTT) untouched. `tools/build.js` stamps the precache list into `sw.js`. Registers only on https
+  (or when `mlion:sw` is set, which `tests/pwa.e2e.js` does to play the daily offline).
+- The menu shows "Install the app" when the browser fires `beforeinstallprompt`.
 
 ### Live match (real time)
 
@@ -682,6 +718,10 @@ rounded.
   start on the production Pages site.
 - **Not tested in a browser:** the autocorrect-help setting in live matches (the last commit).
   Only syntax, the build and engine tests ran.
+- Overnight 2026-11-05 additions: `tests/pwa.e2e.js` (manifest, precache list, offline daily), the
+  daily-quiz and quiz-board blocks above, `tests/live.topics.e2e.js` (live topic filter), and
+  `tools/matchbench.js` (autocorrect benchmark, pinned in the engine test: right >= 97%, wrong
+  <= 1%, false accept <= 1%).
 - Quiz (2026-11-05): `tests/engine.test.js` has 13 quiz checks (determinism, one right option, no wrong option
   the matcher accepts, off-topic excluded, small bundles). `tests/quiz.e2e.js` plays a solo run and a
   `#vq-` challenge. `tests/live.quiz.e2e.js` and `live.rejoin.e2e.js --quiz` play a live Quiz match.
@@ -714,6 +754,11 @@ rounded.
 ---
 
 ## 11. Open items and next steps
+
+0. **Overnight 2026-11-05 (branch `overnight`, not pushed):** paste `supabase/daily_quiz.sql` into the
+   Supabase SQL editor to open the quiz leaderboard; test locally; then merge `overnight` into
+   `claude/mlion-game` and push. The new mark (Leo's curve and the ball) replaced the lion badge
+   everywhere: favicon, icons, og.png.
 
 1. **Verify on real phones:** the live autocorrect-help setting, masked typing, no-repeat
    questions, the kick-out fix, and chat with the phone keyboard open (the panel follows
