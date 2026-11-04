@@ -233,7 +233,10 @@
     },
     {
       "a": "Web Traffic Time Series Forecasting",
-      "t": "longtail"
+      "t": "longtail",
+      "aka": [
+        "Web Traffic"
+      ]
     },
     {
       "a": "Allen AI Science Challenge",
@@ -267,11 +270,17 @@
     },
     {
       "a": "Airbus Ship Detection",
-      "t": "longtail"
+      "t": "longtail",
+      "aka": [
+        "Airbus"
+      ]
     },
     {
       "a": "Global Wheat Detection",
-      "t": "longtail"
+      "t": "longtail",
+      "aka": [
+        "Global Wheat"
+      ]
     },
     {
       "a": "Cassava Leaf Disease Classification",
@@ -303,7 +312,11 @@
     },
     {
       "a": "Waymo Open Dataset Challenge",
-      "t": "longtail"
+      "t": "longtail",
+      "aka": [
+        "Waymo",
+        "Waymo Open Challenge"
+      ]
     },
     {
       "a": "EPIC-KITCHENS Challenge",
@@ -698,7 +711,7 @@
       "aka": [
         "DFDC"
       ],
-      "q": "Facebook's $1M contest. The winner caught about 65% of unseen fakes."
+      "q": "Facebook's $1M contest. The winner scored about 65% accuracy on the held-out set."
     },
     {
       "a": "BraTS",
@@ -754,7 +767,7 @@
     {
       "a": "Heritage Health Prize",
       "t": "outlier",
-      "q": "$3M to predict hospital stays. Nobody hit the target, so the grand prize went unclaimed."
+      "q": "A $3M Kaggle contest to predict who lands in hospital next year, with milestone prizes paid along the way."
     },
     {
       "a": "Merck Molecular Activity Challenge",
@@ -912,7 +925,7 @@
       "aka": [
         "DRC"
       ],
-      "q": "2015: humanoids opening doors and falling over, very slowly, on live TV."
+      "q": "2015: humanoids opening doors and falling over, very slowly, on a live stream."
     },
     {
       "a": "RoboCup",
@@ -933,7 +946,9 @@
       "t": "indist",
       "aka": [
         "AI Mathematical Olympiad",
-        "AIMO Prize"
+        "AIMO Prize",
+        "AIMO Progress Prize",
+        "AIMO progress prize 1"
       ],
       "q": "A $10M fund for an open AI that earns IMO gold."
     },
@@ -950,7 +965,10 @@
         "M4",
         "M5",
         "M5 Forecasting",
-        "M3"
+        "M3",
+        "Makridakis",
+        "M6",
+        "M6 competition"
       ]
     },
     {
@@ -1016,7 +1034,7 @@
       "aka": [
         "Grand Challenge"
       ],
-      "q": "2004: no car got past mile 7.4 of 150. 2005: five finished."
+      "q": "2004: no car got past mile 7 of about 150. 2005: five finished."
     },
     {
       "a": "AICC",
@@ -1057,6 +1075,550 @@
     {
       "a": "NEOAI",
       "t": "longtail"
+    },
+    {
+      "a": "Playground Series",
+      "t": "outlier",
+      "aka": [
+        "Tabular Playground Series",
+        "Kaggle Playground",
+        "Playground Series S3",
+        "Playground",
+        "Kaggle Playground Series"
+      ]
+    },
+    {
+      "a": "Spaceship Titanic",
+      "t": "outlier"
+    },
+    {
+      "a": "Santander Customer Transaction Prediction",
+      "t": "longtail",
+      "aka": [
+        "Santander"
+      ]
+    },
+    {
+      "a": "Santander Product Recommendation",
+      "t": "longtail"
+    },
+    {
+      "a": "Instacart Market Basket Analysis",
+      "t": "longtail",
+      "aka": [
+        "Instacart"
+      ]
+    },
+    {
+      "a": "Allstate Claims Severity",
+      "t": "longtail"
+    },
+    {
+      "a": "Two Sigma News Competition",
+      "t": "longtail",
+      "aka": [
+        "Two Sigma",
+        "Two Sigma Using News to Predict Stock Movements"
+      ]
+    },
+    {
+      "a": "Feedback Prize",
+      "t": "longtail",
+      "aka": [
+        "Feedback Prize - Evaluating Student Writing",
+        "Feedback Prize English Language Learning"
+      ]
+    },
+    {
+      "a": "CommonLit Readability",
+      "t": "longtail",
+      "aka": [
+        "CommonLit",
+        "CommonLit Readability Prize"
+      ]
+    },
+    {
+      "a": "Ventilator Pressure Prediction",
+      "t": "longtail",
+      "aka": [
+        "Google Brain Ventilator Pressure Prediction",
+        "Ventilator Pressure"
+      ]
+    },
+    {
+      "a": "OpenVaccine",
+      "t": "longtail",
+      "aka": [
+        "OpenVaccine: COVID-19 mRNA Vaccine Degradation Prediction",
+        "Stanford OpenVaccine"
+      ]
+    },
+    {
+      "a": "Mechanisms of Action",
+      "t": "longtail",
+      "aka": [
+        "MoA",
+        "Mechanisms of Action (MoA) Prediction",
+        "Lish-Moa"
+      ]
+    },
+    {
+      "a": "Stanford Ribonanza RNA Folding",
+      "t": "longtail",
+      "aka": [
+        "Ribonanza"
+      ]
+    },
+    {
+      "a": "BirdCLEF",
+      "t": "longtail",
+      "aka": [
+        "BirdCLEF+",
+        "Cornell Birdcall Identification",
+        "Birdcall"
+      ]
+    },
+    {
+      "a": "SIIM-ISIC Melanoma Classification",
+      "t": "longtail",
+      "aka": [
+        "SIIM-ISIC",
+        "Melanoma Classification"
+      ]
+    },
+    {
+      "a": "Human Protein Atlas",
+      "t": "longtail",
+      "aka": [
+        "HPA Image Classification",
+        "Human Protein Atlas Image Classification"
+      ]
+    },
+    {
+      "a": "Severstal Steel Defect Detection",
+      "t": "longtail",
+      "aka": [
+        "Severstal"
+      ]
+    },
+    {
+      "a": "Planet: Understanding the Amazon from Space",
+      "t": "longtail",
+      "aka": [
+        "Planet Amazon",
+        "Understanding the Amazon from Space"
+      ]
+    },
+    {
+      "a": "Statoil Iceberg Classifier",
+      "t": "longtail",
+      "aka": [
+        "Statoil/C-CORE Iceberg Classifier Challenge",
+        "Iceberg Classifier",
+        "Statoil"
+      ]
+    },
+    {
+      "a": "State Farm Distracted Driver Detection",
+      "t": "longtail",
+      "aka": [
+        "State Farm",
+        "Distracted Driver"
+      ]
+    },
+    {
+      "a": "Quick, Draw! Doodle Recognition",
+      "t": "longtail",
+      "aka": [
+        "Quick Draw",
+        "Quick, Draw!",
+        "Doodle Recognition"
+      ]
+    },
+    {
+      "a": "March Machine Learning Mania",
+      "t": "longtail",
+      "aka": [
+        "March Madness",
+        "NCAA March Madness",
+        "Google Cloud & NCAA ML Competition"
+      ]
+    },
+    {
+      "a": "Predict Future Sales",
+      "t": "longtail",
+      "aka": [
+        "Competitive Data Science Final Project"
+      ]
+    },
+    {
+      "a": "Store Item Demand Forecasting",
+      "t": "longtail",
+      "aka": [
+        "Store Item Demand Forecasting Challenge"
+      ]
+    },
+    {
+      "a": "Hungry Geese",
+      "t": "longtail",
+      "aka": [
+        "Kaggle Hungry Geese"
+      ]
+    },
+    {
+      "a": "Rock Paper Scissors",
+      "t": "longtail",
+      "aka": [
+        "Rock, Paper, Scissors"
+      ]
+    },
+    {
+      "a": "Image Matching Challenge",
+      "t": "longtail",
+      "aka": [
+        "IMC"
+      ]
+    },
+    {
+      "a": "Isolated Sign Language Recognition",
+      "t": "longtail",
+      "aka": [
+        "Google Isolated Sign Language Recognition",
+        "ASL Signs"
+      ]
+    },
+    {
+      "a": "Detect AI Generated Text",
+      "t": "longtail",
+      "aka": [
+        "LLM - Detect AI Generated Text",
+        "DAIGT"
+      ]
+    },
+    {
+      "a": "Habitat Challenge",
+      "t": "longtail",
+      "aka": [
+        "Habitat",
+        "Habitat Navigation Challenge"
+      ]
+    },
+    {
+      "a": "AI City Challenge",
+      "t": "longtail"
+    },
+    {
+      "a": "CARLA Autonomous Driving Challenge",
+      "t": "longtail",
+      "aka": [
+        "CARLA Leaderboard",
+        "CARLA Challenge"
+      ]
+    },
+    {
+      "a": "Argoverse Challenge",
+      "t": "longtail",
+      "aka": [
+        "Argoverse"
+      ]
+    },
+    {
+      "a": "NTIRE Challenge",
+      "t": "longtail",
+      "aka": [
+        "NTIRE",
+        "New Trends in Image Restoration and Enhancement"
+      ]
+    },
+    {
+      "a": "LVIS Challenge",
+      "t": "longtail",
+      "aka": [
+        "LVIS"
+      ]
+    },
+    {
+      "a": "Places Challenge",
+      "t": "longtail",
+      "aka": [
+        "Places2 Challenge",
+        "Places Scene Recognition Challenge"
+      ]
+    },
+    {
+      "a": "VisDA",
+      "t": "longtail",
+      "aka": [
+        "Visual Domain Adaptation Challenge"
+      ]
+    },
+    {
+      "a": "DAVIS Challenge",
+      "t": "longtail",
+      "aka": [
+        "DAVIS",
+        "DAVIS Video Object Segmentation Challenge"
+      ]
+    },
+    {
+      "a": "YouTube-8M Video Understanding Challenge",
+      "t": "longtail",
+      "aka": [
+        "YouTube-8M"
+      ]
+    },
+    {
+      "a": "Gym Retro Contest",
+      "t": "longtail",
+      "aka": [
+        "OpenAI Retro Contest",
+        "Retro Contest",
+        "Sonic contest"
+      ]
+    },
+    {
+      "a": "DAWNBench",
+      "t": "longtail"
+    },
+    {
+      "a": "Jeopardy!",
+      "t": "outlier",
+      "aka": [
+        "Watson Jeopardy",
+        "IBM Watson Jeopardy",
+        "Watson on Jeopardy",
+        "Jeopardy! Challenge",
+        "IBM Watson"
+      ],
+      "q": "February 2011: IBM's Watson beat Ken Jennings and Brad Rutter on Jeopardy!, for a $1M prize."
+    },
+    {
+      "a": "Deep Blue vs. Kasparov",
+      "t": "outlier",
+      "aka": [
+        "Deep Blue",
+        "Kasparov vs Deep Blue",
+        "Kasparov",
+        "Deep Blue vs Kasparov"
+      ],
+      "q": "1997: Deep Blue beat Kasparov 3.5-2.5 in a six-game rematch. He had won the 1996 match 4-2."
+    },
+    {
+      "a": "AlphaGo vs. Lee Sedol",
+      "t": "outlier",
+      "aka": [
+        "Google DeepMind Challenge Match",
+        "AlphaGo",
+        "Lee Sedol",
+        "AlphaGo match",
+        "AlphaGo Lee Sedol"
+      ],
+      "q": "March 2016, Seoul: AlphaGo won 4-1. Lee Sedol's one win came in game four."
+    },
+    {
+      "a": "FEVER",
+      "t": "longtail",
+      "aka": [
+        "FEVER shared task",
+        "Fact Extraction and VERification"
+      ]
+    },
+    {
+      "a": "BEA Shared Task",
+      "t": "longtail",
+      "aka": [
+        "BEA 2019 Shared Task",
+        "Building Educational Applications shared task"
+      ]
+    },
+    {
+      "a": "IWSLT",
+      "t": "longtail",
+      "aka": [
+        "IWSLT evaluation campaign",
+        "International Workshop on Spoken Language Translation"
+      ]
+    },
+    {
+      "a": "ZeroSpeech",
+      "t": "longtail",
+      "aka": [
+        "ZeroSpeech Challenge",
+        "Zero Resource Speech Challenge"
+      ]
+    },
+    {
+      "a": "NIST SRE",
+      "t": "longtail",
+      "aka": [
+        "NIST Speaker Recognition Evaluation",
+        "SRE",
+        "Speaker Recognition Evaluation"
+      ]
+    },
+    {
+      "a": "Deep Noise Suppression Challenge",
+      "t": "longtail",
+      "aka": [
+        "DNS Challenge",
+        "Microsoft DNS Challenge"
+      ]
+    },
+    {
+      "a": "ComParE",
+      "t": "longtail",
+      "aka": [
+        "Interspeech Computational Paralinguistics Challenge",
+        "Computational Paralinguistics Challenge"
+      ]
+    },
+    {
+      "a": "Walmart Recruiting",
+      "t": "longtail",
+      "aka": [
+        "Walmart Store Sales",
+        "Walmart Recruiting - Store Sales Forecasting"
+      ]
+    },
+    {
+      "a": "Bike Sharing Demand",
+      "t": "longtail",
+      "aka": [
+        "Bike Sharing"
+      ]
+    },
+    {
+      "a": "Forest Cover Type Prediction",
+      "t": "longtail",
+      "aka": [
+        "Forest Cover Type",
+        "Covertype"
+      ]
+    },
+    {
+      "a": "Million Song Dataset Challenge",
+      "t": "longtail"
+    },
+    {
+      "a": "Yahoo Learning to Rank Challenge",
+      "t": "longtail",
+      "aka": [
+        "Yahoo! Learning to Rank Challenge"
+      ]
+    },
+    {
+      "a": "Criteo Display Advertising Challenge",
+      "t": "longtail",
+      "aka": [
+        "Criteo"
+      ]
+    },
+    {
+      "a": "Avazu Click-Through Rate Prediction",
+      "t": "longtail",
+      "aka": [
+        "Avazu",
+        "Avazu CTR"
+      ]
+    },
+    {
+      "a": "Outbrain Click Prediction",
+      "t": "longtail",
+      "aka": [
+        "Outbrain"
+      ]
+    },
+    {
+      "a": "BNP Paribas Cardif Claims Management",
+      "t": "longtail",
+      "aka": [
+        "BNP Paribas"
+      ]
+    },
+    {
+      "a": "Lyft 3D Object Detection",
+      "t": "longtail",
+      "aka": [
+        "Lyft",
+        "Lyft Level 5",
+        "Lyft 3D Object Detection for Autonomous Vehicles"
+      ]
+    },
+    {
+      "a": "Plant Pathology",
+      "t": "longtail",
+      "aka": [
+        "Plant Pathology 2020",
+        "Plant Pathology 2021",
+        "FGVC Plant Pathology"
+      ]
+    },
+    {
+      "a": "Plant Seedlings Classification",
+      "t": "longtail",
+      "aka": [
+        "Plant Seedlings"
+      ]
+    },
+    {
+      "a": "TGS Salt Identification",
+      "t": "longtail",
+      "aka": [
+        "TGS Salt Identification Challenge",
+        "TGS Salt"
+      ]
+    },
+    {
+      "a": "Understanding Clouds from Satellite Images",
+      "t": "longtail",
+      "aka": [
+        "Understanding Clouds"
+      ]
+    },
+    {
+      "a": "APTOS Blindness Detection",
+      "t": "longtail",
+      "aka": [
+        "APTOS",
+        "APTOS 2019 Blindness Detection",
+        "Blindness Detection"
+      ]
+    },
+    {
+      "a": "RSNA Intracranial Hemorrhage Detection",
+      "t": "longtail",
+      "aka": [
+        "Intracranial Hemorrhage"
+      ]
+    },
+    {
+      "a": "CheXpert",
+      "t": "longtail",
+      "aka": [
+        "CheXpert competition"
+      ]
+    },
+    {
+      "a": "HuBMAP",
+      "t": "longtail",
+      "aka": [
+        "Hacking the Human Body",
+        "HuBMAP - Hacking the Human Body"
+      ]
+    },
+    {
+      "a": "Ubiquant Market Prediction",
+      "t": "longtail",
+      "aka": [
+        "Ubiquant"
+      ]
+    },
+    {
+      "a": "G-Research Crypto Forecasting",
+      "t": "longtail",
+      "aka": [
+        "G-Research"
+      ]
     }
   ]
 }
