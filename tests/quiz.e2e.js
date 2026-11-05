@@ -86,6 +86,8 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.waitForSelector("#veil:not(.hidden)");
   check(await page.$$eval(".mcq-opt", (els) => els.length === 4 && els.every((e) => e.disabled)), "the four options are locked while the question is being read");
   check(!!(await page.$("#mcq.locked")) && !!(await page.$("#veil:not(.hidden)")), "a veil covers them through the preview");
+  // a stray global .locked rule once squeezed the options into a 40 px column during the preview
+  check(await page.$eval("#mcq", (el) => Math.abs(el.getBoundingClientRect().width - el.parentElement.getBoundingClientRect().width) < 1), "the options keep their full width while locked");
 
   const plan = ["key-right", "tap-wrong", "tap-right", "timeout", "key-wrong", "tap-right", "key-right"];
   const expectHits = [];

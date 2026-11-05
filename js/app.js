@@ -3521,7 +3521,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         const unlocked = seen.has(p.id);
         return `<li class="list-item lib-row">
             <span class="main"><span class="title">${esc(p.text)}</span><span class="sub">${fmt(p.answers.length)} answers${best ? ` · best ${G(best)}` : ""}</span></span>
-            <span class="row"><a class="btn sm" href="#practice-${p.id}">Play</a>${unlocked ? `<a class="btn sm" href="#answers-${p.id}">Key</a>` : `<span class="locked" title="Play it once to unlock the key" aria-label="Key locked">${LOCK}</span>`}</span>
+            <span class="row"><a class="btn sm" href="#practice-${p.id}">Play</a>${unlocked ? `<a class="btn sm" href="#answers-${p.id}">Key</a>` : `<span class="key-lock" title="Play it once to unlock the key" aria-label="Key locked">${LOCK}</span>`}</span>
           </li>`;
       };
       const extras = EXTRAS.filter(hit);

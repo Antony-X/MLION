@@ -501,7 +501,7 @@ a.list-item { cursor: pointer; }
 .list.big .title { font-size: var(--s3); letter-spacing: -0.015em; }
 .progress { height: 4px; border-radius: var(--round); background: var(--raised); overflow: hidden; margin-top: 8px; max-width: 320px; }
 .progress i { display: block; height: 100%; background: var(--ink); border-radius: var(--round); }
-.locked { width: 40px; height: 40px; display: inline-grid; place-items: center; color: var(--faint); }
+.key-lock { width: 40px; height: 40px; display: inline-grid; place-items: center; color: var(--faint); }
 .lock { width: 18px; height: 18px; }
 .chev.go-r { width: 22px; height: 22px; color: var(--muted); transform: rotate(-90deg); flex: none; }
 .lib-pack + .lib-pack { margin-top: 48px; }

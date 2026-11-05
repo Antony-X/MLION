@@ -449,8 +449,7 @@
         a.t = Math.min(1, (now - a.start) / a.dur);
         const prevX = st.x;
         if (a.tier === "miss") {
-          st.x = a.from + Math.sin(a.t * Math.PI * 7) * 16 * (1 - a.t);
-          st.shake = 3 * (1 - a.t);
+          st.x = a.from; // no gradient, no step: the ball stays where it is (a wobble here read as a glitch)
         } else if (a.tier === "overfit") {
           // overshoot the target, then oscillate back: textbook overfitting
           const e = ease.back(a.t);
@@ -496,7 +495,11 @@
 
     const RIPPLE = { baseline: [22, 1], overfit: [30, 1], indist: [48, 2], outlier: [78, 3], longtail: [120, 4] };
     function landFx(tier, x) {
-      if (tier === "miss") { st.texts.push({ x, text: "NaN", color: COL.muted, size: 16, life: 1300, max: 1300 }); return; }
+      if (tier === "miss") {
+        st.ripples.push({ x, color: TIER_COLORS.miss, size: 22, rings: 1, life: 900, max: 900 });
+        st.texts.push({ x, text: "NaN", color: COL.muted, size: 16, life: 1300, max: 1300 });
+        return;
+      }
       if (tier === "mlion") {
         if (prefersReduced()) return;
         st.flood = { t: 0, grow: 600, hold: 900, shrink: 500, inkOn: false };
@@ -507,7 +510,7 @@
     }
     function durationFor(tier) {
       if (prefersReduced()) return 250;
-      return { miss: 650, baseline: 600, overfit: 1000, indist: 800, outlier: 950, longtail: 1150, mlion: 1300 }[tier] || 800;
+      return { miss: 280, baseline: 600, overfit: 1000, indist: 800, outlier: 950, longtail: 1150, mlion: 1300 }[tier] || 800;
     }
     function calm() {
       if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
