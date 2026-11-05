@@ -169,7 +169,7 @@
         try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
         const comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
-        const master = ctx.createGain(); master.gain.value = 0.9;
+        const master = ctx.createGain(); master.gain.value = 1.8;
         bus = ctx.createGain(); bus.connect(comp).connect(master).connect(ctx.destination);
         // a small room: a second of decaying stereo noise as the impulse, mixed in quietly
         const len = Math.round(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -244,14 +244,17 @@
       longtail: { hit: 0.13, notes: [0, 4, 7, 12, 16], root: 659.25 },
       mlion: { hit: 0.16, notes: [0, 4, 7, 12, 16, 19, 24], root: 523.25 },
     };
+    const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // a major pentatonic run: any order sounds bright
+    const COUNT = { indist: 3, outlier: 6, longtail: 8, mlion: 10 }; // score ticks while the ball rolls
+    const ROLL_S = { indist: 0.8, outlier: 0.95, longtail: 1.15, mlion: 1.3 }; // how long it rolls (landscape.js durationFor)
     // A short buzz with each verdict, where the browser can (Android; iOS Safari can't).
     const buzz = (pattern) => { if (settings.haptics && navigator.vibrate) try { navigator.vibrate(pattern); } catch { /* ignore */ } };
     return {
       unlock() { ac(); },
       /** the last seconds of the clock: a dry woodblock */
-      tick() { noise(0.035, { from: 2600, q: 6, vol: 0.05, wet: 0 }); voice(1760, 0.04, { type: "sine", vol: 0.012, detune: 0, wet: 0 }); },
+      tick() { noise(0.035, { from: 2600, q: 6, vol: 0.12, wet: 0 }); voice(1760, 0.04, { type: "sine", vol: 0.03, detune: 0, wet: 0 }); },
       reject() { buzz([30, 50, 30]); voice(233, 0.12, { type: "square", vol: 0.03, bright: 900, wet: 0.1 }); voice(196, 0.18, { type: "square", vol: 0.03, bright: 800, wet: 0.1, delay: 0.11 }); },
-      submit() { noise(0.14, { from: 500, to: 2600, vol: 0.03, wet: 0.1 }); voice(660, 0.08, { type: "sine", vol: 0.02, slide: 1.5, detune: 0, wet: 0.1 }); },
+      submit() { noise(0.14, { from: 500, to: 2600, vol: 0.06, wet: 0.1 }); voice(660, 0.08, { type: "sine", vol: 0.04, slide: 1.5, detune: 0, wet: 0.1 }); },
       miss() {
         buzz(60);
         thump({ from: 110, to: 40, vol: 0.1 });
@@ -271,12 +274,36 @@
           [0, 4, 7, 12].forEach((n) => voice(st(261.63, n), 1.4, { type: "sawtooth", vol: 0.018, bright: 2400, attack: 0.08, wet: 0.7, delay: 0.1 }));
           bell(st(523.25, 36), 1.2, { vol: 0.02, delay: 0.62 });
         }
+        // the score counting up while the ball rolls: small ticks climbing a pentatonic scale, spread over the roll
+        const n = COUNT[t] || 0, roll = ROLL_S[t] || 0.8;
+        for (let i = 0; i < n; i++) bell(st(1046.5, PENTA[i]), 0.09, { vol: 0.014, ratio: 2, index: 0.8, wet: 0.08, delay: 0.12 + (roll - 0.22) * Math.pow(i / Math.max(1, n - 1), 0.85) });
       },
+      /** A rare landing: a shower of coins (small high bells, scattered), bigger the rarer, under a shimmer. */
+      jackpot(t) {
+        const n = { outlier: 7, longtail: 11, mlion: 16 }[t];
+        if (!n) return;
+        buzz(t === "mlion" ? [28, 40, 28, 40, 70] : t === "longtail" ? [24, 40, 40] : 26);
+        for (let i = 0; i < n; i++) {
+          bell(st(1318.5, PENTA[Math.floor(Math.random() * PENTA.length)]), 0.16 + Math.random() * 0.22, { vol: 0.011 + 0.009 * Math.random(), ratio: 2.76, index: 1.3, wet: 0.45, delay: 0.02 + i * (0.04 + 0.03 * Math.random()) });
+        }
+        noise(0.4 + 0.03 * n, { from: 5500, to: 10000, vol: 0.014, wet: 0.6 });
+        if (t === "longtail") [0, 4, 7].forEach((s) => voice(st(329.63, s), 0.9, { type: "sawtooth", vol: 0.012, bright: 2200, attack: 0.05, wet: 0.7 }));
+      },
+      /** Low time: one heartbeat (lub-dub), felt more than heard, heavier as the clock runs down. */
+      heart(k) {
+        buzz([14, 110, 10]);
+        thump({ from: 92, to: 40, vol: 0.1 + 0.07 * k });
+        thump({ from: 78, to: 36, vol: 0.06 + 0.05 * k, delay: 0.15 });
+        voice(55, 0.34, { type: "sine", vol: 0.03 + 0.03 * k, detune: 0, bright: 420, attack: 0.02, wet: 0.15 });
+      },
+      /** The answer beat the buzzer: a breath out. */
+      exhale() { noise(0.45, { from: 1700, to: 240, filter: "lowpass", q: 0.4, vol: 0.06, attack: 0.04, wet: 0.35 }); },
       /** n in a row: a whoosh of fire that grows with the streak, then a chord one step higher each time */
-      streak(n) {
+      streak(n, quiet) { // quiet: a jackpot has the moment, so only the fire's whoosh
         const lv = Math.min(7, n);
-        buzz(lv >= 7 ? [16, 40, 16, 40, 16, 40, 70] : Array.from({ length: Math.min(lv, 5) * 2 - 1 }, (_, i) => (i % 2 ? 40 : 14)));
+        if (!quiet) buzz(lv >= 7 ? [16, 40, 16, 40, 16, 40, 70] : Array.from({ length: Math.min(lv, 5) * 2 - 1 }, (_, i) => (i % 2 ? 40 : 14)));
         noise(0.22 + 0.05 * lv, { from: 300, to: 1800 + 500 * lv, q: 0.9, vol: 0.025 + 0.005 * lv, attack: 0.08, wet: 0.3 });
+        if (quiet) return;
         const root = st(523.25, [0, 0, 0, 2, 4, 7, 9, 12][lv]);
         [0, 4, 7].concat(lv >= 5 ? [12] : []).forEach((s, i) => bell(st(root, s), 0.35 + 0.05 * lv, { vol: 0.035, delay: 0.12 + i * 0.05 }));
         voice(root / 2, 0.5 + 0.06 * lv, { type: "sawtooth", vol: 0.012 + 0.002 * lv, bright: 1500 + 300 * lv, attack: 0.05, wet: 0.5, delay: 0.1 });
@@ -754,6 +781,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       renderIntro();
     } else if (m.t === "round" && RUN && RUN.mode === "live" && Number.isInteger(m.i) && m.i < RUN.promptIds.length) {
       cancelAnimationFrame(runRaf);
+      tenseEnd(false);
       while (RUN.results.length < m.i) { // missed a round (lag or tab asleep): count it as a miss
         const p = PROMPTS.get(RUN.promptIds[RUN.results.length]);
         RUN.results.push({ promptId: p.id, promptText: p.text, raw: null, answer: null, tier: null, score: 0, quip: null, corrected: false, timeout: true, ...(RUN.fmt === "quiz" ? { picked: -1, correct: RUN.quiz[RUN.results.length].correct, ms: answerMs(RUN.results.length) } : {}) });
@@ -811,6 +839,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     } else if (m.t === "skip" && RUN && RUN.mode === "live" && Number.isInteger(m.i) && m.i < RUN.promptIds.length && m.i > LIVE.revealed && PROMPTS.has(m.id)) {
       // the room voted this question out: a fresh one takes its slot, and nobody keeps points from it
       cancelAnimationFrame(runRaf);
+      tenseEnd(false);
       if (liveQuiz()) { const q = E.quizQuestion(DATA, LIVE.seed, m.id); if (!q) return; RUN.quiz[m.i] = q; }
       RUN.promptIds[m.i] = m.id;
       RUN.results.length = Math.min(RUN.results.length, m.i);
@@ -1964,6 +1993,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   let hudRange = [0, 0]; // score the HUD may show while the ball rolls
 
   function stopRun() {
+    tenseEnd(false);
     clearTimeout(runTimer); cancelAnimationFrame(runRaf); runTimer = 0; runRaf = 0;
     if (descent) { descent.destroy(); descent = null; }
     RUN = null;
@@ -2060,6 +2090,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="hud"><span>${RUN.endless ? "Answered" : "Loss"}</span><b id="hud-loss">${RUN.endless ? RUN.results.length : "7.00"}</b></div>
         <div class="hud hud-r"><span>Score</span><b id="hud-score">0</b></div>
         <div class="streak-wrap" aria-live="polite"><div class="streak" id="streak" hidden></div><span class="sk-quick" id="sk-quick" hidden>Quick</span></div>
+        <div class="jackpot" id="jackpot" aria-hidden="true"></div>
         <div class="play-head">
           <div class="dots" id="dots" aria-label="progress"></div>
           <div class="play-meta" id="play-meta"></div>
@@ -2179,13 +2210,80 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!res) return;
     const n = streakOf(results), before = streakOf(results.slice(0, -1));
     if (res.tier) {
+      const jp = jackpot(res.tier);
       showStreak(n, "up");
-      if (n >= 2) Sound.streak(n);
-      if (Number.isFinite(ms) && ms < QUICK_MS) { flashQuick(); Sound.quick(); }
+      if (n >= 2) Sound.streak(n, jp);
+      if (Number.isFinite(ms) && ms < QUICK_MS) { flashQuick(); if (!jp) Sound.quick(); }
     } else if (before >= 2) {
       showStreak(0, "out");
       Sound.fizzle();
     }
+  }
+
+  // ---- jackpots: a rare answer gets one clear moment when the ball lands. The stage flashes in the
+  // tier's colour and coins spill out of the ball (landscape.js), the rarity word pops over the stage,
+  // the score flares, and coins ring out. Baseline, Overfit and In-Distribution stay modest.
+  const JACKPOT_WORD = { outlier: "Rare", longtail: "Ultra rare", mlion: "Legendary" };
+  /** Returns true when the tier earned a jackpot. */
+  function jackpot(tier) {
+    const word = JACKPOT_WORD[tier];
+    if (!word) return false;
+    Sound.jackpot(tier);
+    const el = $("#jackpot"), sc = $("#hud-score");
+    if (el) {
+      clearTimeout(el._t);
+      el.textContent = word;
+      el.className = `jackpot jp-${tier}`;
+      placeJackpot(el, tier);
+      void el.offsetWidth;
+      el.classList.add("on");
+      el._t = setTimeout(() => { el.className = "jackpot"; el.textContent = ""; }, 1350);
+    }
+    if (sc) {
+      const off = () => sc.classList.remove("jp", "jp-outlier", "jp-longtail", "jp-mlion");
+      clearTimeout(sc._jp); off(); void sc.offsetWidth; sc.classList.add("jp", `jp-${tier}`);
+      sc._jp = setTimeout(off, 950);
+    }
+    return true;
+  }
+  /** The word goes in the open air over the ball (over the lion, for a gem), or under the ball when the
+   *  stage is too short for that, never on the numbers or the dots. */
+  function placeJackpot(el, tier) {
+    const s = descent && descent.spot && descent.spot();
+    if (!s || !s.h) { el.style.top = ""; return; }
+    const fs = parseFloat(getComputedStyle(el).fontSize) || 40;
+    const above = s.y - s.r * (tier === "mlion" ? 11.5 : 2.6) - s.top; // the lion grows about eleven radii tall
+    const y = above >= fs * 1.3 ? s.top + above / 2 : Math.min(s.h - 40 - fs * 0.55, s.y + s.r * 2.2 + fs * 0.6);
+    el.style.top = `${Math.round(y)}px`;
+  }
+
+  // ---- low time: the last five seconds of any answer clock. The landscape loses its colour, fog
+  // closes in on the ball, the stage's edges beat red with a heartbeat that quickens, the ball
+  // trembles and the clock pulses. An answer lets it all go at once, with a breath out.
+  const TENSE_MS = 5000;
+  const Tense = { on: false, next: 0, el: null };
+  /** Called on every frame of a running clock with the time left (ms) and the number that shows it. */
+  function tense(left, el) {
+    if (left > TENSE_MS || left <= 0) { if (Tense.on) tenseEnd(left > TENSE_MS); return; } // time added back (Sprint) is relief too
+    const k = 1 - left / TENSE_MS;
+    if (!Tense.on) { Tense.on = true; Tense.next = 0; }
+    Tense.el = el || null;
+    if (descent) descent.tension(0.3 + 0.7 * k);
+    const now = performance.now();
+    if (now < Tense.next) return;
+    Tense.next = now + 1000 - 520 * k; // about 60 beats a minute, quickening to about 125
+    Sound.heart(k);
+    if (descent) descent.beat();
+    if (el && !settings.reducedMotion) { el.classList.remove("tbeat"); void el.offsetWidth; el.classList.add("tbeat"); }
+  }
+  /** The clock stopped: exhale when the player beat it, quietly when it ran out or the round ended. */
+  function tenseEnd(exhale) {
+    if (!Tense.on) return;
+    Tense.on = false;
+    if (descent) descent.release(exhale);
+    if (Tense.el) Tense.el.classList.remove("tbeat");
+    Tense.el = null;
+    if (exhale) Sound.exhale();
   }
 
   function renderIntro() {
@@ -2447,6 +2545,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         $("#timer").classList.toggle("low", low);
         const sec = Math.ceil(left / 1000);
         if (low && sec !== lastTick && sec > 0) { lastTick = sec; Sound.tick(); }
+        tense(left, $("#timer-num"));
         if (left <= 0) { submit(true); return; }
       }
       runRaf = requestAnimationFrame(loop);
@@ -2483,6 +2582,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       $("#timer").classList.toggle("low", low);
       const sec = Math.ceil(left / 1000);
       if (low && sec !== lastTick && sec > 0) { lastTick = sec; Sound.tick(); }
+      tense(left, $("#timer-num"));
       if (left <= 0) { submit(true); return; }
     }
     runRaf = requestAnimationFrame(quizTick);
@@ -2602,6 +2702,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   /** A quiz answer is final: score it, keep it, show the verdict (a live match holds the verdict for the reveal). */
   function finishQuiz(pick, { timeout = false, silent = false } = {}) {
+    tenseEnd(!silent);
     cancelAnimationFrame(runRaf);
     const p = currentPrompt(), q = RUN.quiz[RUN.round];
     const ok = pick >= 0 && pick === q.correct;
@@ -2627,6 +2728,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function finishRound(answer, raw, { corrected = false, timeout = false, skipped = false, silent = false, struck = false } = {}) {
     if (RUN.fmt === "quiz") return finishQuiz(-1, { timeout: true, silent });
+    tenseEnd(!silent);
     cancelAnimationFrame(runRaf);
     if (RUN.aiCtl) { RUN.aiCtl.abort(); RUN.aiCtl = null; }
     const p = currentPrompt();
@@ -3620,6 +3722,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const whole = Math.ceil(left / 1000);
       if (whole > S.lastTick) S.lastTick = whole; // time was just added
       else if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
+      tense(left, secs);
       if (left <= 0) finishSprint();
     });
     $("#sp-form").addEventListener("submit", (e) => {
@@ -3666,6 +3769,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   function finishSprint() {
+    tenseEnd(false);
     const S = SPRINT;
     if (!S || S.done) return;
     S.done = true;
@@ -3905,6 +4009,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const whole = Math.ceil(left / 1000);
     if (whole > S.lastTick && S.lastTick !== Infinity) S.lastTick = whole; // time was just added
     else if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
+    tense(left, $("#sp-secs"));
     if (left <= 0) liveSprintEnd();
   }
   function spSendFinal(S) {
@@ -3912,6 +4017,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (LIVE.isHost) hostSprintFinal(LIVE.myId, m); else guestSend(m);
   }
   function liveSprintEnd() {
+    tenseEnd(false);
     const S = SPR;
     if (!S || (S.phase !== "preview" && S.phase !== "play")) return;
     clearInterval(S.loop);

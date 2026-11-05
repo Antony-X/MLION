@@ -938,6 +938,30 @@ is the lit exhibit.
     flame is static.
 - **Idle loop.** It paints at about 30 fps, stops when the tab is hidden, and pauses when the
   stage is off screen.
+- **Groove.** The ball sinks `sink()` px (0.38 R, at most 7) into the path. The lit line ends
+  behind it, and a soft contact shadow sits under it.
+- **Low time** applies to the last 5 s of any answer clock. Classic and quiz call `tense(left,
+  el)` from `tickLoop`/`quizTick`; both Sprint clocks call it too, with no stage there.
+  - The stage's colour drains (a `saturation` fill), and dark fog closes in on the ball.
+  - The stage edges beat red with `Sound.heart`: a lub-dub of two `thump`s and a low `voice`,
+    with a buzz. The beat speeds up from about 60 to about 125 bpm.
+  - The ball trembles, and the clock number pulses (`.tbeat`).
+  - `tenseEnd(exhale)` runs from `finishRound`/`finishQuiz`, `stopRun`, the live round and skip
+    handlers, and the Sprint ends. On a beaten clock it adds `Sound.exhale` and a breath of gold
+    at the ball.
+  - Descent API: `tension(k)`, `beat()`, `release(exhale)`.
+  - Reduce motion gives one still tint, with no beat and no tremble.
+- **Jackpots** are only for Outlier, Long Tail and MLion. They fire in `celebrate()` when the
+  ball lands, through `jackpot(tier)`:
+  - a full-stage flash in the tier colour, and coins from the ball (`JACKPOT` in landscape.js);
+  - the rarity word: "Rare", "Ultra rare" or "Legendary". `placeJackpot` puts it in the open
+    air above the ball, or below it when the stage is short or the lion fills it. It uses
+    `descent.spot()`.
+  - the HUD score flares;
+  - `Sound.jackpot` plays a coin shower, and the streak chord steps aside for it.
+  - `Sound.tier` also ticks the score up through a pentatonic run while the ball rolls.
+
+  The common tiers keep only their old ripple and sparks.
 
 ---
 
