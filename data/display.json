@@ -17,8 +17,7 @@
     "extra": true
   },
   "ai-leader": {
-    "scope": "Surname is enough",
-    "added": "2026-11-07"
+    "scope": "Surname is enough"
   },
   "ai-movie": {
     "offtopic": true
@@ -27,8 +26,7 @@
     "scope": "Surname is enough"
   },
   "audio-feature": {
-    "scope": "Hand-crafted descriptors, transforms or learned embeddings of sound",
-    "added": "2026-11-06"
+    "scope": "Hand-crafted descriptors, transforms or learned embeddings of sound"
   },
   "automl": {
     "extra": true
@@ -43,15 +41,13 @@
     "extra": true
   },
   "calculus-concept": {
-    "scope": "A calculus or analysis idea, not an optimizer algorithm",
-    "added": "2026-11-08"
+    "scope": "A calculus or analysis idea, not an optimizer algorithm"
   },
   "causal-inference": {
     "extra": true
   },
   "classic-cv": {
-    "scope": "Hand-crafted vision from before deep learning, no CNNs",
-    "added": "2026-11-08"
+    "scope": "Hand-crafted vision from before deep learning, no CNNs"
   },
   "cloud-ml": {
     "extra": true
@@ -70,8 +66,7 @@
     "extra": true
   },
   "cv-metric": {
-    "scope": "Scores for boxes or masks, including speed and calibration",
-    "added": "2026-11-06"
+    "scope": "Scores for boxes or masks, including speed and calibration"
   },
   "decision-tree-algo": {
     "example": "CART",
@@ -88,8 +83,7 @@
     "example": "DropConnect"
   },
   "encoder-decoder-model": {
-    "scope": "An encoder feeding a decoder, not only text models",
-    "added": "2026-11-06"
+    "scope": "An encoder feeding a decoder, not only text models"
   },
   "eponym": {
     "scope": "Type the person's surname"
@@ -161,8 +155,7 @@
     "extra": true
   },
   "ml-paper": {
-    "scope": "The title or the common name both count",
-    "added": "2026-11-08"
+    "scope": "The title or the common name both count"
   },
   "ml-slang": {
     "scope": "Community slang, not standard technical terms"
@@ -187,8 +180,7 @@
     "extra": true
   },
   "nlp-metric": {
-    "scope": "Text generation, translation, ASR, QA, parsing or language models",
-    "added": "2026-11-06"
+    "scope": "Text generation, translation, ASR, QA, parsing or language models"
   },
   "nn-family": {
     "example": "CNN",
@@ -198,21 +190,18 @@
     "extra": true
   },
   "numpy-function": {
-    "scope": "The np. prefix is optional",
-    "added": "2026-11-07"
+    "scope": "The np. prefix is optional"
   },
   "optimizer": {
     "example": "SGD"
   },
   "pandas-method": {
     "example": "read_csv",
-    "scope": "Functions and methods, not plain attributes like shape",
-    "added": "2026-11-06"
+    "scope": "Functions and methods, not plain attributes like shape"
   },
   "plot-type": {
     "example": "Scatter plot",
-    "scope": "A named kind of plot, not a library or function",
-    "added": "2026-11-06"
+    "scope": "A named kind of plot, not a library or function"
   },
   "probabilistic-model": {
     "scope": "Models, not inference algorithms",
@@ -220,8 +209,7 @@
   },
   "python-stdlib-module": {
     "example": "os",
-    "scope": "Ships with Python itself, no pip install",
-    "added": "2026-11-06"
+    "scope": "Ships with Python itself, no pip install"
   },
   "recsys": {
     "extra": true
@@ -253,24 +241,20 @@
   },
   "sklearn-utility": {
     "example": "train_test_split",
-    "scope": "Not a model or a plain transformer class",
-    "added": "2026-11-06"
+    "scope": "Not a model or a plain transformer class"
   },
   "special-token": {
-    "scope": "Brackets are optional",
-    "added": "2026-11-07"
+    "scope": "Brackets are optional"
   },
   "stat-test": {
     "extra": true
   },
   "tabular-dataset": {
     "scope": "Rows and columns or a synthetic toy set. No image, text or audio data",
-    "extra": true,
-    "added": "2026-11-08"
+    "extra": true
   },
   "text-augmentation": {
-    "scope": "Creates extra or perturbed training text, not images",
-    "added": "2026-11-06"
+    "scope": "Creates extra or perturbed training text, not images"
   },
   "text-to-image-model": {
     "extra": true
@@ -286,17 +270,14 @@
     "scope": "Not plain optimizers"
   },
   "transformer-component": {
-    "scope": "A part of a transformer layer or the stack around it",
-    "added": "2026-11-06"
+    "scope": "A part of a transformer layer or the stack around it"
   },
   "ts-feature": {
     "example": "Lag features",
-    "scope": "Features or transforms computed from a series or its timestamps",
-    "added": "2026-11-06"
+    "scope": "Features or transforms computed from a series or its timestamps"
   },
   "turing-award": {
-    "scope": "Any field of computing. Surname is enough",
-    "added": "2026-11-07"
+    "scope": "Any field of computing. Surname is enough"
   },
   "vector-db": {
     "extra": true

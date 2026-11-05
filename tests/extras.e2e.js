@@ -9,9 +9,9 @@ global.window = {}; require(path.join(ROOT, "js/data.js"));
 const D = window.MLION_DATA; const EXTRA = new Set(D.prompts.filter((p) => p.extra).map((p) => p.id).concat(D.extras.map((p) => p.id)));
 const T = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split("?")[0]); const f = path.join(ROOT, u === "/" ? "index.html" : u); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { "Content-Type": T[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(r); });
-async function runIds(b, base, hash, { extras, time }) {
+async function runIds(b, base, hash, { extras, time, launch }) {
   const ctx = await b.newContext(); await ctx.route(/fonts\./, (r) => r.abort());
-  await ctx.addInitScript((x) => { localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:settings", JSON.stringify({ extraQuestions: x })); }, extras);
+  await ctx.addInitScript(([x, l]) => { if (l) window.MLION_LAUNCH = l; localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:settings", JSON.stringify({ extraQuestions: x })); }, [extras, launch || null]);
   const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message));
   if (time) await p.clock.install({ time: new Date(time) });
   await p.goto(base + hash); await p.waitForSelector("#begin", { timeout: 15000 });
@@ -34,12 +34,23 @@ async function runIds(b, base, hash, { extras, time }) {
   check(!ex(r.ids).length && !r.errs.length, "Quiz deals only core questions by default");
   r = await runIds(b, base, "#quiz-1", { extras: true });
   check(r.ids.length === 7 && ex(r.ids).length > 0, "with the switch on, Quiz mixes extras in");
-  r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-05T12:00:00" });
-  check(r.ids.join() === "sampling-method,retrieval,ml-course,probabilistic-model,training-pathology,sklearn-estimator,cnn-architecture", "dailies before the switch-over keep their questions");
-  r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-06T12:00:00" });
-  check(r.ids.length === 7 && !ex(r.ids).length, "from 2026-11-06 the daily is core only, even with extras on");
-  // pinned: prompts added later carry a later "added" date, so this day never changes
-  check(r.ids.join() === "imputation,rnn-variant,cv-metric,quantization,hyperparam-search,explainability,text-augmentation", "2026-11-06 deals its fixed questions (new prompts dated from that day)");
+  // the daily: core only, always. Before launch every day is #1 and never deals the launch week.
+  const WEEK = D.launch, inWeek = (ids) => ids.filter((i) => WEEK.some((d) => d.includes(i)));
+  check(WEEK.length === 7 && WEEK.every((d) => d.length === 7) && new Set(WEEK.flat()).size === 49 && !ex(WEEK.flat()).length, "the launch week ships: seven days of seven core prompts, none twice");
+  const pre1 = await runIds(b, base, "#daily", { extras: true, time: "2026-11-05T12:00:00" });
+  const pre2 = await runIds(b, base, "#daily", { extras: true, time: "2026-11-06T12:00:00" });
+  for (const [r, d] of [[pre1, "11-05"], [pre2, "11-06"]]) {
+    check(r.ids.length === 7 && !ex(r.ids).length && !inWeek(r.ids).length && !r.errs.length, `before launch (${d}) the daily is core only, even with extras on, and keeps off the launch week`);
+    check(r.intro.includes("MLion #1"), `before launch (${d}) the daily is MLion #1`);
+  }
+  check(pre1.ids.join() !== pre2.ids.join(), "before launch each day still gets fresh questions");
+  // launch day is #1 and plays the hand-picked week in order; after it, the shuffle starts with what the week didn't use
+  r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-10T12:00:00", launch: "2026-11-10" });
+  check(r.ids.join() === WEEK[0].join() && r.intro.includes("MLion #1"), "launch day is MLion #1 and deals launch day 1");
+  r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-16T12:00:00", launch: "2026-11-10" });
+  check(r.ids.join() === WEEK[6].join() && r.intro.includes("MLion #7"), "the seventh day deals launch day 7");
+  r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-17T12:00:00", launch: "2026-11-10" });
+  check(r.ids.length === 7 && !ex(r.ids).length && !inWeek(r.ids).length && r.intro.includes("MLion #8"), "day 8 moves on to core prompts the launch week didn't use");
   console.log("extras e2e passed");
   await b.close(); srv.close();
 })();

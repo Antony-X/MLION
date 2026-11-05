@@ -393,14 +393,20 @@
   }
 
   // ------------------------------------------------------------- dates
-  const EPOCH = "2026-11-04"; // MLion #1
+  // Launch day: MLion #1 and Daily Quiz #1, and day 1 of the hand-picked launch week (data/launch.json).
+  // null until the game launches: every day is #1 then, and the daily deals from a pre-launch
+  // stream that never touches the launch week. Set it to the launch date ("YYYY-MM-DD") that day.
+  const LAUNCH = (typeof window !== "undefined" && window.MLION_LAUNCH) || null; // tests set window.MLION_LAUNCH
+  const epoch = () => LAUNCH || localDateString();
   function pad(n) { return String(n).padStart(2, "0"); }
   function localDateString(d = new Date()) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
   function parseDate(s) { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); }
-  function dayNumberFor(dateStr) { return Math.round((parseDate(dateStr) - parseDate(EPOCH)) / 864e5) + 1; }
-  function dateForDay(n) { return new Date(parseDate(EPOCH) + (n - 1) * 864e5).toISOString().slice(0, 10); }
+  function dayNumberFor(dateStr) { return Math.round((parseDate(dateStr) - parseDate(epoch())) / 864e5) + 1; }
+  function dateForDay(n) { return new Date(parseDate(epoch()) + (n - 1) * 864e5).toISOString().slice(0, 10); }
+  /** Whole days from `a` to `b` (both YYYY-MM-DD). */
+  function daysBetween(a, b) { return Math.round((parseDate(b) - parseDate(a)) / 864e5); }
   function addDays(dateStr, n) { return new Date(parseDate(dateStr) + n * 864e5).toISOString().slice(0, 10); }
   function msUntilLocalMidnight(now = new Date()) {
     const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
@@ -416,13 +422,20 @@
   // forced to hold one prompt per pack (that bunched small packs together: a 5-prompt pack
   // showed up in five runs in a row). Without flat, the old pack-interleaved deal (kept so
   // dailies dealt with it keep their questions).
-  function makeStream(data, seedLabel, packFilter, flat) {
+  // skipFirst (a Set of ids): the first flat cycle leaves these out, so a stream that follows a
+  // hand-picked stretch (the launch week) deals the prompts that stretch didn't use first.
+  function makeStream(data, seedLabel, packFilter, flat, skipFirst) {
     const packs = data.packs.filter((p) => !packFilter || packFilter === p.id);
     const byPack = packs.map((p) => data.prompts.filter((q) => q.pack === p.id).map((q) => q.id));
     let cycle = 0, buf = [];
     function refill() {
+      const first = cycle === 0;
       const rng = mulberry32(hashString(`${seedLabel}:${cycle++}`));
-      if (flat) { buf = buf.concat(shuffled([].concat(...byPack), rng)); return; }
+      if (flat) {
+        const ids = [].concat(...byPack), rest = first && skipFirst ? ids.filter((id) => !skipFirst.has(id)) : ids;
+        buf = buf.concat(shuffled(rest.length ? rest : ids, rng));
+        return;
+      }
       const decks = shuffled(byPack.map((ids) => shuffled(ids, rng)), rng);
       const out = [];
       let more = true;
@@ -449,10 +462,10 @@
   }
   const _runCache = new Map();
   /** The 7 prompt ids for run number `n` (1-based) of a stream. */
-  function runFor(data, streamLabel, n, packFilter, flat) {
-    const key = `${streamLabel}|${packFilter || ""}|${data.version}|${flat ? "flat" : "packs"}`;
+  function runFor(data, streamLabel, n, packFilter, flat, skipFirst) {
+    const key = `${streamLabel}|${packFilter || ""}|${data.version}|${flat ? "flat" : "packs"}|${skipFirst ? [...skipFirst].sort().join(",") : ""}`;
     let c = _runCache.get(key);
-    if (!c) { c = { stream: makeStream(data, streamLabel, packFilter, flat), runs: [] }; _runCache.set(key, c); }
+    if (!c) { c = { stream: makeStream(data, streamLabel, packFilter, flat, skipFirst), runs: [] }; _runCache.set(key, c); }
     while (c.runs.length < n) c.runs.push(c.stream.take(ROUNDS));
     return c.runs[n - 1];
   }
@@ -613,9 +626,9 @@
     }
     return mixed;
   }
-  /** Daily quiz for day number `n`: the same seven questions for everyone, dealt like the daily so days don't repeat. */
-  function dailyQuiz(data, n) {
-    return quizFor(data, `dquiz-v1:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "dquiz-v1", n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), "dquiz-reason-v1") });
+  /** Daily quiz `n` of a stream: the same seven questions for everyone, dealt like the daily so days don't repeat. */
+  function dailyQuiz(data, n, label = "dquiz-v1") {
+    return quizFor(data, `${label}:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, label, n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), label === "dquiz-v1" ? "dquiz-reason-v1" : `${label}-reason`) });
   }
   /** Solo quiz run `n` (1-based): seven questions, the prompts dealt like Unlimited's so runs don't repeat. */
   function quizRun(data, n) {
@@ -642,7 +655,7 @@
     MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
     tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
-    EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
+    LAUNCH, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,

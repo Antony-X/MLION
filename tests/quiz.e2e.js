@@ -263,17 +263,16 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   {
     const dq = await phone("dq");
     const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const asOf = { ...CORE, prompts: CORE.prompts.filter((p) => !p.added || p.added <= day), reasoning: CORE.reasoning.filter((r) => !r.added || r.added <= day) };
-    if (asOf.prompts.length !== CORE.prompts.length || asOf.reasoning.length !== CORE.reasoning.length) {
-      const upTo = asOf.prompts.concat(asOf.reasoning).reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
-      asOf.version = `${CORE.version}:asof${upTo}`;
-    }
-    const want = E.dailyQuiz(asOf, E.dayNumberFor(day));
+    // before launch: Daily Quiz #1 every day, dealt from the core prompts outside the launch week
+    const week = new Set((DATA.launch || []).flat());
+    const PRE = { ...CORE, version: `${CORE.version}:pre`, prompts: CORE.prompts.filter((p) => !week.has(p.id)) };
+    const want = E.dailyQuiz(PRE, Math.max(1, E.daysBetween("2026-11-05", day) + 1), "dquiz-pre");
     check(want.length === 7 && want.filter((q) => q.reasoning).length === 2, "the engine deals today's quiz: five prompt questions and two reasoning ones");
+    check(want.every((q) => q.reasoning || !week.has(q.promptId)), "before launch the daily quiz keeps off the launch week's prompts");
     await dq.page.goto(base + "#quiz");
     await dq.page.click('.dq-card a[href="#daily-quiz"]');
     await dq.page.waitForSelector("#begin");
-    check((await dq.page.textContent("#card")).includes(`Daily Quiz #${E.dayNumberFor(day) - E.dayNumberFor("2026-11-05") + 1}`) && (await dq.page.textContent(".beats")).includes("25 s"), "the daily quiz opens on its own intro, on the 25 s clock whatever Settings says");
+    check((await dq.page.textContent("#card")).includes("Daily Quiz #1") && (await dq.page.textContent(".beats")).includes("25 s"), "the daily quiz opens on its own intro, on the 25 s clock whatever Settings says");
     await dq.page.click("#begin");
     for (let i = 0; i < 7; i++) {
       const shown = await readQuestion(dq.page);

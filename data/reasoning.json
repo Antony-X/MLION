@@ -643,8 +643,7 @@
         "The classifier has overfit, so its cross-validated AUC carries no meaning"
       ],
       "answer": 0,
-      "why": "A classifier that separates train from test exposes covariate shift, so a validation set drawn randomly from train will not mimic test conditions.",
-      "added": "2026-11-06"
+      "why": "A classifier that separates train from test exposes covariate shift, so a validation set drawn randomly from train will not mimic test conditions."
     },
     {
       "id": "rq-47",
@@ -658,8 +657,7 @@
         "About 1.2"
       ],
       "answer": 1,
-      "why": "Imputed entries add no squared deviation but still count in n, so the variance shrinks to about 0.7 × 4 = 2.8.",
-      "added": "2026-11-06"
+      "why": "Imputed entries add no squared deviation but still count in n, so the variance shrinks to about 0.7 × 4 = 2.8."
     },
     {
       "id": "rq-48",
@@ -673,8 +671,7 @@
         "About 0.80"
       ],
       "answer": 1,
-      "why": "Undersampling inflates the odds, so multiply by the real prior odds 0.01/0.99 (balanced prior odds are 1): 4 × 0.0101 ≈ 0.04 odds, hence p ≈ 0.04.",
-      "added": "2026-11-06"
+      "why": "Undersampling inflates the odds, so multiply by the real prior odds 0.01/0.99 (balanced prior odds are 1): 4 × 0.0101 ≈ 0.04 odds, hence p ≈ 0.04."
     },
     {
       "id": "rq-49",
@@ -688,8 +685,7 @@
         "90%"
       ],
       "answer": 2,
-      "why": "It agrees with a noisy label when it is right and the label intact (0.9 × 0.9) or wrong and the label flipped (0.1 × 0.1): 0.82.",
-      "added": "2026-11-06"
+      "why": "It agrees with a noisy label when it is right and the label intact (0.9 × 0.9) or wrong and the label flipped (0.1 × 0.1): 0.82."
     },
     {
       "id": "rq-50",
@@ -703,8 +699,7 @@
         "ROC AUC 0.5 and average precision 0.02"
       ],
       "answer": 3,
-      "why": "Random scores give AUC 0.5, but precision at every recall level equals the 2% positive rate, so average precision is about 0.02.",
-      "added": "2026-11-06"
+      "why": "Random scores give AUC 0.5, but precision at every recall level equals the 2% positive rate, so average precision is about 0.02."
     },
     {
       "id": "rq-51",
@@ -718,8 +713,7 @@
         "Log loss and accuracy always rank models in exactly the same order"
       ],
       "answer": 0,
-      "why": "Log loss punishes confident mistakes without bound, so an accurate model can still assign worse probabilities than a model that always says 0.5.",
-      "added": "2026-11-06"
+      "why": "Log loss punishes confident mistakes without bound, so an accurate model can still assign worse probabilities than a model that always says 0.5."
     },
     {
       "id": "rq-52",
@@ -733,8 +727,7 @@
         "0.25"
       ],
       "answer": 3,
-      "why": "Each step multiplies w by 1 − 10·lr, which exceeds magnitude 1 only when lr > 0.2: 0.25 gives −1.5, while 0.15 gives −0.5 and still converges.",
-      "added": "2026-11-06"
+      "why": "Each step multiplies w by 1 − 10·lr, which exceeds magnitude 1 only when lr > 0.2: 0.25 gives −1.5, while 0.15 gives −0.5 and still converges."
     },
     {
       "id": "rq-53",
@@ -748,8 +741,7 @@
         "It is exactly the same hyperplane as before"
       ],
       "answer": 3,
-      "why": "Only support vectors, the points on or inside the margin, have nonzero dual weights, so removing any other point leaves the solution unchanged.",
-      "added": "2026-11-06"
+      "why": "Only support vectors, the points on or inside the margin, have nonzero dual weights, so removing any other point leaves the solution unchanged."
     },
     {
       "id": "rq-54",
@@ -763,8 +755,7 @@
         "Its norm shrinks toward zero once every point is fit"
       ],
       "answer": 0,
-      "why": "On separable data, scaling the weights up always lowers the loss, so no finite minimiser exists and the norm keeps growing.",
-      "added": "2026-11-06"
+      "why": "On separable data, scaling the weights up always lowers the loss, so no finite minimiser exists and the norm keeps growing."
     },
     {
       "id": "rq-55",
@@ -778,8 +769,7 @@
         "It cancels, since the copy carries no new information"
       ],
       "answer": 1,
-      "why": "Naive Bayes multiplies per-feature likelihoods as if they were independent, so the copy's identical likelihood ratio is counted a second time.",
-      "added": "2026-11-06"
+      "why": "Naive Bayes multiplies per-feature likelihoods as if they were independent, so the copy's identical likelihood ratio is counted a second time."
     },
     {
       "id": "rq-56",
@@ -793,8 +783,7 @@
         "Only weights whose loss gradient is exactly zero are shrunk"
       ],
       "answer": 0,
-      "why": "The L2 term is divided by the gradient RMS like any gradient, so large-gradient weights get weaker effective decay; AdamW's decay bypasses that division.",
-      "added": "2026-11-06"
+      "why": "The L2 term is divided by the gradient RMS like any gradient, so large-gradient weights get weaker effective decay; AdamW's decay bypasses that division."
     },
     {
       "id": "rq-57",
@@ -808,8 +797,7 @@
         "SGD steps become 1000× larger; Adam steps stay the same"
       ],
       "answer": 3,
-      "why": "SGD's step is lr × gradient, so it scales with the loss; Adam divides the gradient by its running RMS, which scales identically and cancels.",
-      "added": "2026-11-06"
+      "why": "SGD's step is lr × gradient, so it scales with the loss; Adam divides the gradient by its running RMS, which scales identically and cancels."
     },
     {
       "id": "rq-58",
@@ -823,8 +811,7 @@
         "It grows without bound, as with hard labels"
       ],
       "answer": 1,
-      "why": "The softmax must equal the targets, so e^gap = 0.91/0.01 = 91 and the gap is ln 91 ≈ 4.5, which is finite.",
-      "added": "2026-11-06"
+      "why": "The softmax must equal the targets, so e^gap = 0.91/0.01 = 91 and the gap is ln 91 ≈ 4.5, which is finite."
     },
     {
       "id": "rq-59",
@@ -838,8 +825,7 @@
         "It rises each epoch, because the metric is steadily increasing"
       ],
       "answer": 2,
-      "why": "In min mode a higher metric counts as no improvement, so once the patience runs out the scheduler cuts the learning rate; accuracy needs mode='max'.",
-      "added": "2026-11-06"
+      "why": "In min mode a higher metric counts as no improvement, so once the patience runs out the scheduler cuts the learning rate; accuracy needs mode='max'."
     },
     {
       "id": "rq-60",
@@ -853,8 +839,7 @@
         "It is divided by 100"
       ],
       "answer": 0,
-      "why": "BatchNorm makes the loss depend only on w divided by its norm, so L(cw) = L(w), and differentiating gives ∇L(cw) = ∇L(w)/c.",
-      "added": "2026-11-06"
+      "why": "BatchNorm makes the loss depend only on w divided by its norm, so L(cw) = L(w), and differentiating gives ∇L(cw) = ∇L(w)/c."
     },
     {
       "id": "rq-61",
@@ -868,8 +853,7 @@
         "About 1000"
       ],
       "answer": 0,
-      "why": "A ReLU keeps half the energy, so each layer halves the mean-square, leaving 0.5¹⁰ ≈ 0.001; He initialisation uses variance 2/fan_in to compensate.",
-      "added": "2026-11-06"
+      "why": "A ReLU keeps half the energy, so each layer halves the mean-square, leaving 0.5¹⁰ ≈ 0.001; He initialisation uses variance 2/fan_in to compensate."
     },
     {
       "id": "rq-62",
@@ -883,8 +867,7 @@
         "About 0.001"
       ],
       "answer": 1,
-      "why": "Momentum rises by 0.1·g but the variance estimate by only 0.001·g², so the step is about 0.1/√0.001 ≈ 3 times the learning rate.",
-      "added": "2026-11-06"
+      "why": "Momentum rises by 0.1·g but the variance estimate by only 0.001·g², so the step is about 0.1/√0.001 ≈ 3 times the learning rate."
     },
     {
       "id": "rq-63",
@@ -898,8 +881,7 @@
         "c = 64"
       ],
       "answer": 2,
-      "why": "q·k sums 64 independent unit-variance products, so its variance is 64 and its standard deviation 8; dividing by √d_k restores variance 1.",
-      "added": "2026-11-06"
+      "why": "q·k sums 64 independent unit-variance products, so its variance is 64 and its standard deviation 8; dividing by √d_k restores variance 1."
     },
     {
       "id": "rq-64",
@@ -913,8 +895,7 @@
         "64 KiB"
       ],
       "answer": 2,
-      "why": "Per token: 2 (keys and values) × 32 layers × 8 heads × 128 dims × 2 bytes = 131,072 bytes = 128 KiB, a quarter of full multi-head attention.",
-      "added": "2026-11-06"
+      "why": "Per token: 2 (keys and values) × 32 layers × 8 heads × 128 dims × 2 bytes = 131,072 bytes = 128 KiB, a quarter of full multi-head attention."
     },
     {
       "id": "rq-65",
@@ -928,8 +909,7 @@
         "Not at all, since rotations preserve the length of vectors"
       ],
       "answer": 0,
-      "why": "Rotating both vectors by a common angle leaves their dot product unchanged, so rotations by mθ and nθ are equivalent to a single rotation by (m − n)θ.",
-      "added": "2026-11-06"
+      "why": "Rotating both vectors by a common angle leaves their dot product unchanged, so rotations by mθ and nθ are equivalent to a single rotation by (m − n)θ."
     },
     {
       "id": "rq-66",
@@ -943,8 +923,7 @@
         "They are unchanged, because q·b is identical for every key"
       ],
       "answer": 3,
-      "why": "Each score becomes q·k_j + q·b, and softmax is unchanged when the same constant is added to every score in a row.",
-      "added": "2026-11-06"
+      "why": "Each score becomes q·k_j + q·b, and softmax is unchanged when the same constant is added to every score in a row."
     },
     {
       "id": "rq-67",
@@ -958,8 +937,7 @@
         "p − 20"
       ],
       "answer": 2,
-      "why": "Each layer lets information hop back 3 positions, and hops compose across layers, so 5 layers reach 5 × 3 = 15 positions back.",
-      "added": "2026-11-06"
+      "why": "Each layer lets information hop back 3 positions, and hops compose across layers, so 5 layers reach 5 × 3 = 15 positions back."
     },
     {
       "id": "rq-68",
@@ -973,8 +951,7 @@
         "Projections and feed-forward, by roughly 4.5×"
       ],
       "answer": 3,
-      "why": "Projections and feed-forward cost 12d² ≈ 7.1M multiply-adds per token versus 2nd ≈ 1.6M for scores and weighting; attention only dominates beyond n ≈ 6d ≈ 4,600.",
-      "added": "2026-11-06"
+      "why": "Projections and feed-forward cost 12d² ≈ 7.1M multiply-adds per token versus 2nd ≈ 1.6M for scores and weighting; attention only dominates beyond n ≈ 6d ≈ 4,600."
     },
     {
       "id": "rq-69",
@@ -988,8 +965,7 @@
         "12 pixels"
       ],
       "answer": 2,
-      "why": "The two convs reach 5, the pool adds 1 more (6) and doubles the step between units, so the last 3×3 conv adds 2 × 2 = 4, giving 10.",
-      "added": "2026-11-06"
+      "why": "The two convs reach 5, the pool adds 1 more (6) and doubles the step between units, so the last 3×3 conv adds 2 × 2 = 4, giving 10."
     },
     {
       "id": "rq-70",
@@ -1003,8 +979,7 @@
         "33"
       ],
       "answer": 1,
-      "why": "Output = (in − 1)·stride − 2·padding + kernel = 15·2 − 2 + 3 = 31; output_padding=1 would be needed to reach 32.",
-      "added": "2026-11-06"
+      "why": "Output = (in − 1)·stride − 2·padding + kernel = 15·2 − 2 + 3 = 31; output_padding=1 would be needed to reach 32."
     },
     {
       "id": "rq-71",
@@ -1018,8 +993,7 @@
         "Neither shift gives a shifted output, because stride destroys equivariance"
       ],
       "answer": 0,
-      "why": "Stride 2 samples every second position, so only even shifts map onto shifted outputs; an odd shift samples different positions, which is aliasing.",
-      "added": "2026-11-06"
+      "why": "Stride 2 samples every second position, so only even shifts map onto shifted outputs; an odd shift samples different positions, which is aliasing."
     },
     {
       "id": "rq-72",
@@ -1033,8 +1007,7 @@
         "0.33"
       ],
       "answer": 1,
-      "why": "IoU = TP/(TP+FP+FN) and Dice = 2TP/(2TP+FP+FN), so Dice = 2·IoU/(1+IoU) = 1/1.5 ≈ 0.67.",
-      "added": "2026-11-06"
+      "why": "IoU = TP/(TP+FP+FN) and Dice = 2TP/(2TP+FP+FN), so Dice = 2·IoU/(1+IoU) = 1/1.5 ≈ 0.67."
     },
     {
       "id": "rq-73",
@@ -1048,8 +1021,7 @@
         "The first channel's filters multiplied by 3"
       ],
       "answer": 2,
-      "why": "With one image g in all channels, the output is (w₁ + w₂ + w₃) convolved with g, so the sum is exact; the mean gives a third.",
-      "added": "2026-11-06"
+      "why": "With one image g in all channels, the output is (w₁ + w₂ + w₃) convolved with g, so the sum is exact; the mean gives a third."
     },
     {
       "id": "rq-74",
@@ -1063,8 +1035,7 @@
         "The easy negatives, outweighing the positives about five to one"
       ],
       "answer": 3,
-      "why": "99,900 easy negatives × 0.01 ≈ 1,000 against 100 positives × 2 = 200, so the swarm of easy examples swamps the rare hard ones; focal loss addresses this.",
-      "added": "2026-11-06"
+      "why": "99,900 easy negatives × 0.01 ≈ 1,000 against 100 positives × 2 = 200, so the swarm of easy examples swamps the rare hard ones; focal loss addresses this."
     },
     {
       "id": "rq-75",
@@ -1078,8 +1049,7 @@
         "They tie, since both perplexities are measured on the same text"
       ],
       "answer": 0,
-      "why": "Perplexity is per prediction unit, so convert to bits per word: log₂100 ≈ 6.6 for A versus 2.5 × log₂8 = 7.5 for B.",
-      "added": "2026-11-06"
+      "why": "Perplexity is per prediction unit, so convert to bits per word: log₂100 ≈ 6.6 for A versus 2.5 × log₂8 = 7.5 for B."
     },
     {
       "id": "rq-76",
@@ -1093,8 +1063,7 @@
         "10"
       ],
       "answer": 2,
-      "why": "Adjacent repeated letters collapse unless a blank separates them, so 'hello' needs its 5 letters plus one blank between the two l's: 6 frames.",
-      "added": "2026-11-06"
+      "why": "Adjacent repeated letters collapse unless a blank separates them, so 'hello' needs its 5 letters plus one blank between the two l's: 6 frames."
     },
     {
       "id": "rq-77",
@@ -1108,8 +1077,7 @@
         "At 6 kHz, folded back about the Nyquist frequency"
       ],
       "answer": 3,
-      "why": "Sampling at 16 kHz folds a frequency f above 8 kHz down to |f − 16 kHz|, so 10 kHz aliases to 6 kHz.",
-      "added": "2026-11-06"
+      "why": "Sampling at 16 kHz folds a frequency f above 8 kHz down to |f − 16 kHz|, so 10 kHz aliases to 6 kHz."
     },
     {
       "id": "rq-78",
@@ -1123,8 +1091,7 @@
         "About 0.6 ms"
       ],
       "answer": 1,
-      "why": "Each layer adds (k − 1)·dilation samples: 1 + 2 + … + 512 = 1023, plus the sample itself gives 1024 samples, which is 64 ms at 16 kHz.",
-      "added": "2026-11-06"
+      "why": "Each layer adds (k − 1)·dilation samples: 1 + 2 + … + 512 = 1023, plus the sample itself gives 1024 samples, which is 64 ms at 16 kHz."
     },
     {
       "id": "rq-79",
@@ -1138,8 +1105,7 @@
         "0.50"
       ],
       "answer": 2,
-      "why": "The smallest set reaching 0.85 is the top three tokens, with total mass 0.90, so the top token has 0.50/0.90 ≈ 0.56.",
-      "added": "2026-11-06"
+      "why": "The smallest set reaching 0.85 is the top three tokens, with total mass 0.90, so the top token has 0.50/0.90 ≈ 0.56."
     },
     {
       "id": "rq-80",
@@ -1153,8 +1119,7 @@
         "(400, 101)"
       ],
       "answer": 1,
-      "why": "A one-sided FFT of 400 points has 400/2 + 1 = 201 bins, and center padding gives 1 + 16000/160 = 101 frames.",
-      "added": "2026-11-06"
+      "why": "A one-sided FFT of 400 points has 400/2 + 1 = 201 bins, and center padding gives 1 + 16000/160 = 101 frames."
     }
   ]
 }

@@ -14,7 +14,6 @@
   const CORE = { version: `${DATA.version}:core`, packs: DATA.packs, prompts: DATA.prompts.filter((p) => !p.extra), reasoning: DATA.reasoning || [] };
   const WIDE = { version: `${DATA.version}:wide`, packs: DATA.packs, prompts: DATA.prompts.concat(EXTRAS), reasoning: DATA.reasoning || [] };
   const EXTRA_COUNT = WIDE.prompts.length - CORE.prompts.length;
-  const CORE_DAILY_FROM = "2026-11-06"; // dailies before this keep the questions they were played with
   const soloPool = () => (settings.extraQuestions ? WIDE : CORE);
   // The prompts a day's daily deals from: those added on or before it, so adding prompts later
   // never changes a day that has already been dealt (or is being played right now).
@@ -26,7 +25,25 @@
     const upTo = prompts.concat(reasoning).reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
     return { version: `${data.version}:asof${upTo}`, packs: data.packs, prompts, reasoning };
   }
-  const dailyIds = (date, n) => (date >= CORE_DAILY_FROM ? E.runFor(asOf(CORE, date), "daily-v3", n, null, true) : E.dailyPromptIds(asOf(DATA, date), n));
+  // ---- the daily's questions, always from the core set
+  // Launch week: the first seven days after launch are hand-picked (data/launch.json), in order.
+  const LAUNCH_DAYS = (DATA.launch || []).map((ids) => ids.filter((id) => PROMPTS.has(id)));
+  const LAUNCH_IDS = new Set(LAUNCH_DAYS.flat());
+  // Before launch: fresh core prompts every day, never the launch week's, so nobody who plays
+  // early has seen what launch players get. The deal counts days from PRE_FROM.
+  const PRE = { version: `${CORE.version}:pre`, packs: CORE.packs, prompts: CORE.prompts.filter((p) => !LAUNCH_IDS.has(p.id)), reasoning: CORE.reasoning };
+  const PRE_FROM = "2026-11-05";
+  const preLaunch = (date) => !E.LAUNCH || date < E.LAUNCH;
+  const preDay = (date) => Math.max(1, E.daysBetween(PRE_FROM, date) + 1);
+  function dailyIds(date) {
+    if (preLaunch(date)) return E.runFor(PRE, "prelaunch-v1", preDay(date), null, true);
+    const n = E.dayNumberFor(date);
+    if (n <= LAUNCH_DAYS.length) return LAUNCH_DAYS[n - 1];
+    // after the launch week, the usual shuffle; its first pass deals the prompts the week didn't use
+    return E.runFor(asOf(CORE, date), "daily-v4", n - LAUNCH_DAYS.length, null, true, LAUNCH_IDS);
+  }
+  /** MLion #n for a date: #1 every day until launch, then counted from launch day. */
+  const dayNo = (date) => Math.max(1, E.dayNumberFor(date));
   const PACKS = new Map(DATA.packs.map((p) => [p.id, p]));
   const T = E.TIERS;
   // Launch mode: the daily, endless Unlimited, live rooms and challenges. Packs and
@@ -194,7 +211,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function setMid(text) { $("#topbar-mid").textContent = text || ""; }
   function today() { return E.localDateString(); }
-  function todayNumber() { return Math.max(1, E.dayNumberFor(today())); }
+  function todayNumber() { return dayNo(today()); }
   function prettyDate(ds, opts = { weekday: "short", month: "short", day: "numeric", year: "numeric" }) {
     const [y, m, d] = ds.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString("en-US", opts);
@@ -246,12 +263,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // ----------------------------------------------------------- run specs
   function dailySpec(date) {
-    const n = E.dayNumberFor(date);
-    return { key: `daily:${date}`, mode: "daily", number: n, date, label: `MLion #${n}`, promptIds: dailyIds(date, n), secs: DEFAULT_SECS }; // fixed clock: the leaderboard compares dailies
+    const n = dayNo(date);
+    return { key: `daily:${date}`, mode: "daily", number: n, date, label: `MLion #${n}`, promptIds: dailyIds(date), secs: DEFAULT_SECS }; // fixed clock: the leaderboard compares dailies
   }
   function archiveSpec(date) {
-    const n = E.dayNumberFor(date);
-    return { key: `archive:${date}`, mode: "archive", number: n, date, label: `Archive #${n}`, promptIds: dailyIds(date, n) };
+    const n = dayNo(date);
+    return { key: `archive:${date}`, mode: "archive", number: n, date, label: `Archive #${n}`, promptIds: dailyIds(date) };
   }
   function unlimitedSpec(n) {
     return { key: `unlimited:${n}`, mode: "unlimited", number: n, label: `Unlimited #${n}`, promptIds: E.runFor(soloPool(), "unlimited-v2", n, null, true) };
@@ -266,11 +283,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
   // The daily quiz: everyone's same seven questions, on the fixed 25 s clock so the board compares.
-  const DQUIZ_FROM = "2026-11-05";
-  const dquizNumber = (date) => E.dayNumberFor(date) - E.dayNumberFor(DQUIZ_FROM) + 1;
+  // Numbered like the daily (#1 until launch); before launch it deals from the pre-launch set too.
+  const dquizNumber = dayNo;
   function dquizSpec(date) {
-    const n = E.dayNumberFor(date), num = dquizNumber(date); // deal by the day number; count from the quiz's own first day
-    const quiz = E.dailyQuiz(asOf(CORE, date), n);
+    const num = dquizNumber(date);
+    const quiz = preLaunch(date) ? E.dailyQuiz(PRE, preDay(date), "dquiz-pre") : E.dailyQuiz(asOf(CORE, date), E.dayNumberFor(date), "dquiz-v2");
     return { key: `dquiz:${date}`, mode: "dquiz", fmt: "quiz", number: num, date, label: `Daily Quiz #${num}`, promptIds: quiz.map((q) => q.promptId), quiz, secs: DEFAULT_SECS };
   }
   function quizSpec(n) {
@@ -1580,8 +1597,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((m = h.match(/^practice-(.+)$/))) return PROMPTS.has(m[1]) ? openRun(practiceSpec(m[1])) : go("library");
     if ((m = h.match(/^answers-(.+)$/))) return PROMPTS.has(m[1]) ? renderAnswersPage(m[1]) : go("library");
     if ((m = h.match(/^results-(.+)$/))) return renderResults(keyFromSlug(m[1]));
-    if ((m = h.match(/^board-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= E.EPOCH && m[1] <= today() ? renderBoard(m[1]) : go("board");
-    if ((m = h.match(/^board-quiz-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= DQUIZ_FROM && m[1] <= today() ? renderBoard(m[1], "quiz") : go("board-quiz");
+    if ((m = h.match(/^board-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= E.epoch() && m[1] <= today() ? renderBoard(m[1]) : go("board");
+    if ((m = h.match(/^board-quiz-(\d{4}-\d{2}-\d{2})$/))) return m[1] >= E.epoch() && m[1] <= today() ? renderBoard(m[1], "quiz") : go("board-quiz");
     renderHome();
   }
   window.addEventListener("hashchange", route);
@@ -1705,7 +1722,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function totalScore(results) { return results.reduce((s, r) => s + r.score, 0); }
 
   function openArchive(date) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < E.EPOCH || date > today()) return go("archive");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < E.epoch() || date > today()) return go("archive");
     if (date === today()) return go("daily");
     if (records[`daily:${date}`]) return go(`results-daily-${date}`);
     if (records[`archive:${date}`]) return go(`results-archive-${date}`);
@@ -2547,14 +2564,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   async function renderBoard(date, kind = "daily") {
     const quizBoard = kind === "quiz";
     const day = date || today();
-    const n = E.dayNumberFor(day);
+    const n = dayNo(day);
     const base = quizBoard ? "board-quiz" : "board";
     setMid("Leaderboard");
     if (!BOARD_ON) {
       app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Leaderboard</h1><p>The leaderboard isn't switched on yet.</p></div></section>`;
       return;
     }
-    const prev = day > (quizBoard ? DQUIZ_FROM : E.EPOCH) ? E.addDays(day, -1) : null;
+    const prev = day > E.epoch() ? E.addDays(day, -1) : null;
     const next = day < today() ? E.addDays(day, 1) : null;
     const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
       : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>`
@@ -2564,7 +2581,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen split">
       <div class="side">
         <div class="page-head"><h1>Leaderboard</h1></div>
-        <nav class="tabs" aria-label="Which leaderboard"><a href="#${day === today() ? "board" : `board-${day}`}" class="${quizBoard ? "" : "on"}" ${quizBoard ? "" : 'aria-current="page"'}>Daily</a><a href="#${day === today() || day < DQUIZ_FROM ? "board-quiz" : `board-quiz-${day}`}" class="${quizBoard ? "on" : ""}" ${quizBoard ? 'aria-current="page"' : ""}>Quiz</a></nav>
+        <nav class="tabs" aria-label="Which leaderboard"><a href="#${day === today() ? "board" : `board-${day}`}" class="${quizBoard ? "" : "on"}" ${quizBoard ? "" : 'aria-current="page"'}>Daily</a><a href="#${day === today() || day < E.epoch() ? "board-quiz" : `board-quiz-${day}`}" class="${quizBoard ? "on" : ""}" ${quizBoard ? 'aria-current="page"' : ""}>Quiz</a></nav>
         <div class="board-days">${arrow(prev, -1)}<p><b>${esc(prettyDate(day, { weekday: "long", month: "short", day: "numeric" }))}</b><span>${quizBoard ? `Daily Quiz #${dquizNumber(day)}` : `MLion #${n}`}</span></p>${arrow(next, 1)}</div>
         ${day === today() && !played ? `<div><a class="btn primary big" href="#${quizBoard ? "daily-quiz" : "daily"}">Play today's ${quizBoard ? "quiz" : "daily"}</a></div>` : ""}
       </div>

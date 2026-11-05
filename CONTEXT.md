@@ -97,8 +97,19 @@ safety classifier, and was deliberately not used. All MLion answers were written
 ### Other choices
 
 - **Timing:** same as Krillion (3 s preview, 25 s answer).
-- **Epoch and reset:** `EPOCH = "2026-11-04"` is day #1. The day resets at **local** midnight,
+- **Launch and numbering:** `LAUNCH` in js/engine.js is `null` until the user says the game has
+  launched (they asked for this on 2026-11-05: "do day 1 until I officially tell you I launched").
+  Until then every day is MLion #1 and Daily Quiz #1, dealt from the pre-launch set (below). On
+  launch day, set `LAUNCH = "YYYY-MM-DD"` (keep the `window.MLION_LAUNCH` test hook): that day
+  becomes #1 and the hand-picked launch week starts. The day resets at **local** midnight,
   Wordle-style, not New York time.
+- **The daily's questions** (`dailyIds(date)` in app.js), always core:
+  - before launch: `runFor(PRE, "prelaunch-v1", days since 2026-11-05 + 1)`, where `PRE` is core
+    minus the launch week, so early players never see launch-week prompts;
+  - launch days 1 to 7: `data/launch.json`, hand-picked (bundled as `DATA.launch`; the build
+    checks seven core prompts a day, none twice);
+  - after that: `runFor(asOf(CORE, date), "daily-v4", n - 7, …, LAUNCH_IDS)`, a flat shuffle whose
+    first pass skips the launch week, so week 2 doesn't repeat week 1.
 - **Share text:** `MLion #N 🦁\n<score>/<max> · loss <x.xx>\n\n<grid>`.
 
 ### Prompt display
@@ -213,8 +224,8 @@ node tools/build-single.js <out.html> --fragment --url=https://claude.ai/artifac
 
 - The lore pack's core prompts: ai-conference, ai-leader, ai-researcher, ml-competition, ml-course,
   ml-paper, ml-slang, turing-award.
-- Prompts added after launch carry `added` in display.json (2026-11-06, -07, -08), so dailies
-  dealt before those days don't change.
+- Prompts added after launch should carry `added` in display.json, so dailies dealt before then
+  don't change. The pre-launch dates were cleared on 2026-11-05 (nothing was launched).
 - Autocorrect bench (`node tools/matchbench.js`): typos right 97.9%, wrong 0.1%; other prompts'
   answers falsely accepted 0.4%.
 
@@ -437,7 +448,9 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   (`"dquiz-reason-v1"`), so days don't repeat. `dquizSpec(date)` in app.js uses `asOf(CORE, date)`;
   `asOf` now also filters `reasoning` by an optional `added` date, so adding questions never
   changes a past day.
-- Numbered from its own first day: `DQUIZ_FROM = "2026-11-05"` is Daily Quiz #1.
+- Numbered like the daily (`dquizNumber = dayNo`): #1 until launch. Before launch it deals
+  `E.dailyQuiz(PRE, preDay, "dquiz-pre")`; from launch, `E.dailyQuiz(asOf(CORE, date), n, "dquiz-v2")`.
+  The quiz has no hand-picked week.
 - Leaderboard: table `daily_quiz_scores` (`supabase/daily_quiz.sql`, additive: new table, trigger,
   policies only). The client posts `marks` (7 digits, 1 = right) and `tenths` (total answer time);
   the database recomputes `score = 100 x right`. Equal scores rank by time. Until the SQL is applied
@@ -645,9 +658,9 @@ it are dropped, answers carry `pid` so late answers to the old prompt are ignore
 - The build keeps `extra` prompts in `DATA.prompts` with `p.extra = true`, so the streams that
   dealt past dailies don't change. The app builds two views: `CORE` (no extras) and `WIDE`
   (everything, off-topic included).
-- The daily, archive days from `CORE_DAILY_FROM` (2026-11-06) on, challenges (`#vs`, `#vq`) and
-  live rooms always deal from `CORE`, so everyone shares the same questions. Dailies before that
-  date keep their old stream (`daily-v1` over the full list); new ones use `daily-v3` over core, dealt flat (see below).
+- The daily, the Daily Quiz, challenges (`#vs`, `#vq`) and live rooms always deal from `CORE`, so
+  everyone shares the same questions. (Until 2026-11-05 the daily kept an old stream over the full
+  list for past days, which let extras into the pre-launch daily; that was removed.)
 - Settings → **Extra questions** (`settings.extraQuestions`, off by default) puts `WIDE` behind a
   player's own Unlimited and Quiz runs.
 - review.html (unlisted) shows which prompts are extra and lets the owner mark moves either way.

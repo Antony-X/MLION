@@ -1,0 +1,12 @@
+{
+  "_comment": "The launch week: the daily's first seven days, hand-picked to hook new players. Day 1 is launch day (LAUNCH in js/engine.js); each day plays its seven prompts in this order. Picks favour prompts everyone can answer with deep keys (so a rare find is always possible), one or two light ones a day, and a mix of packs. Every id must be a core prompt (not extra or off-topic). Before launch the daily never deals these; after the week the usual shuffle starts with the core prompts not used here.",
+  "days": [
+    ["activation-function", "llm", "optimizer", "clustering", "cnn-architecture", "ai-researcher", "python-lib"],
+    ["loss-function", "chatbot", "classifier", "training-pathology", "accelerator", "ml-paper", "regularization"],
+    ["nn-family", "ml-slang", "classification-metric", "google-model", "prompting", "ensemble", "theorem"],
+    ["hyperparameter", "openai-model", "dim-reduction", "llm-failure", "object-detector", "turing-award", "image-augmentation"],
+    ["normalization", "meta-model", "probability-distribution", "ai-safety", "gan-variant", "ml-competition", "distance-metric"],
+    ["training-trick", "vision-language-model", "regression-metric", "eponym", "attention-variant", "cv-task", "quantization"],
+    ["transformer-component", "ai-leader", "nlp-task", "rnn-variant", "classic-cv", "tokenizer", "ai-conference"]
+  ]
+}
