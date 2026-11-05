@@ -249,10 +249,10 @@ function mockFor(who, whoName) {
   await ada.click("#adm-launch-save");
   await ada.waitForFunction(() => /Today is MLion #5/.test(document.querySelector("#adm-launch-now")?.textContent || ""));
   check(db.config.launch === daysAgo(4), "the launch day is saved");
-  await ada.fill("#adm-banner", "We launched! Tell your friends.");
+  await ada.fill("#adm-banner", "New quiz questions are in.");
   await ada.click("#adm-banner-save");
   await ada.waitForSelector("#adm-banner-clear");
-  check(db.config.banner === "We launched! Tell your friends.", "the banner is saved");
+  check(db.config.banner === "New quiz questions are in.", "the banner is saved");
   await ada.screenshot({ path: path.join(OUT, "72-admin-game.png"), fullPage: true });
 
   // ================= a player
@@ -260,7 +260,7 @@ function mockFor(who, whoName) {
   await pat.goto(base);
   await pat.waitForSelector(".home");
   await pat.waitForSelector("#announce", { timeout: 10000 });
-  check((await pat.textContent("#announce")).includes("We launched! Tell your friends."), "players see the banner on home");
+  check((await pat.textContent("#announce")).includes("New quiz questions are in."), "players see the banner on home");
   await pat.waitForFunction(() => /^#5 /.test(document.querySelector("#topbar-mid").textContent), null, { timeout: 8000 });
   check(true, "and the day number follows the launch day (#5)");
   await pat.screenshot({ path: path.join(OUT, "73-home-banner.png") });

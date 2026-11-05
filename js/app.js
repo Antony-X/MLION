@@ -4231,7 +4231,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p class="muted small">MLion #1 is the launch day's daily, and the seven hand-picked launch days play in order from there. Changing the day renumbers every daily for everyone, so set it once.</p>
       </section>
       <section class="adm-card"><h2 class="block-title">Home banner</h2>
-        <p class="muted small">A short note at the top of everyone's home page, like "We launched! Tell your friends." Up to 200 characters. A new note shows again to players who closed the last one.</p>
+        <p class="muted small">A short note at the top of everyone's home page. Up to 200 characters. A new note shows again to players who closed the last one.</p>
         <textarea class="search area" id="adm-banner" maxlength="200" aria-label="Banner text">${esc(CFG.banner || "")}</textarea>
         <div class="btn-row"><button type="button" class="btn primary" id="adm-banner-save">Show banner</button>${CFG.banner ? `<button type="button" class="btn" id="adm-banner-clear">Remove banner</button>` : ""}</div>
       </section>
