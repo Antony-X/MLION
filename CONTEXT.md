@@ -1199,7 +1199,7 @@ low-pass ("tone"), the duck gain, the output gain and the gate. Spectral targets
 - nothing above 5 kHz;
 - 2–5 kHz under 1%;
 - a −3.5 dB dip at 300 Hz on the pads, against mud;
-- spectral centroid of 750 Hz on the plateau, 450 Hz in the ravines and 370 Hz in the basin.
+- spectral centroid of 750 Hz on the plateau, 450 Hz in the ravines and 360 Hz in the basin.
 
 **Reactions.**
 - *Duck.* Every `Sound` method call ducks the music. This is per effect, so Sound's API is unchanged.
@@ -1241,7 +1241,7 @@ throw into the game):
 - Volume maps to gain as `(v/0.5)^1.2`, so 50 is the calibrated level and 100 is +7 dB.
 
 **Cost.** At most 40 oscillators (pads may use all of them; optional layers stop at 32). Renders peak at
-32–37. Offline rendering of 60 s takes 1.4 s of CPU in the basin (about 2.3% of one desktop core).
+20–22 oscillators on the plateau and in menus and 32–37 elsewhere. Offline rendering of 60 s takes 1.4 s of CPU in the basin (about 2.3% of one desktop core).
 - A stopped engine costs ~0.
 - Not measured on a phone. If a phone struggles, cut the hall IR length (`hallIR(ctx, 2.6, …)`) or
   `MAX_OSC` first.
@@ -1273,7 +1273,7 @@ throw into the game):
 
 - Answer sounds peak at −29.3 (overfit) to −22 (mlion) LUFS momentary.
 - Tier-to-music gaps are 13.6–21 dB, mostly 15–17. Streak chords sit 9.5–16 dB above.
-- Music alone peaks around −28 dBFS. The 90 s demo mix measures −36.4 LUFS with a −12 dBFS peak and 0
+- Music alone peaks around −28 dBFS. The 90 s demo mix measures −36.3 LUFS with a −12 dBFS peak and 0
   clipped samples.
 
 **Unverified.**
