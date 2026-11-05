@@ -4041,12 +4041,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       });
     });
     $("#reset").addEventListener("click", () => {
-      showModal("Reset all progress?", `<p class="muted">Every run, streak and stat in this browser goes. Your settings and name stay. This can't be undone.</p>
+      showModal("Reset all progress?", `<p class="muted">Every run, streak and stat in this browser goes. Your settings, name and login stay. Scores already on the leaderboard stay there. This can't be undone.</p>
         <div class="btn-row"><button class="btn" id="rs-no">Keep it</button><button class="btn danger" id="rs-yes">Delete everything</button></div>`);
       $("#rs-no").addEventListener("click", closeModal);
       $("#rs-yes").addEventListener("click", () => {
-        const keep = new Set(["mlion:settings", "mlion:name", "mlion:reset"]);
-        try { Object.keys(localStorage).filter((k) => k.startsWith("mlion:") && !keep.has(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
+        // keeps settings, name, login and the game's config; this browser's progress starts again from now
+        wipeLocal((k) => CFG_KEEP.has(k) || k === "mlion:name" || k.startsWith(SB_STORE));
+        LS.set("since", new Date().toISOString());
         records = {}; seen = new Set(); practiceBest = {}; sprints = {};
         closeModal(); toast("All progress reset"); go("home");
       });
