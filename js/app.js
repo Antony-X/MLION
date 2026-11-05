@@ -3570,7 +3570,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ["#unlimited", "Unlimited", "More runs of seven, any time"],
       ["#quiz", "Quiz", "Four answers, one fits. A daily one too"],
       ["#sprint", "Sprint", "One prompt, 60 seconds, as many as you can"],
-      ["#live", "Play with friends", "A live room, or a challenge link"],
+      ["#live", "Play with friends", "A live room (Classic, Quiz or Sprint), or a challenge link"],
     ];
     app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>How to play</h1></div>${howHtml()}
       <div class="btn-row"><a class="btn primary big" href="#daily">Play today</a><a class="btn big" href="#faq">FAQ</a></div>
@@ -3613,7 +3613,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           ${[
             ["previewCorrections", "Confirm autocorrect", "Off: a close spelling counts at once"],
             ["clearRejected", "Clear wrong answers", "Empty the box after a miss"],
-            ["extraQuestions", "Extra questions", `${EXTRA_COUNT} more outside the IOAI syllabus (tools, datasets, AI in pop culture) in your Unlimited and Quiz runs`],
+            ["extraQuestions", "Extra questions", `${EXTRA_COUNT} more outside the IOAI syllabus (tools, datasets, AI in pop culture) in your Unlimited, Quiz and Sprint runs`],
             ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
           ].map(row).join("")}`)}
         ${group("Feel", [["sound", "Sound", ""], ...("vibrate" in navigator && matchMedia("(pointer: coarse)").matches ? [["haptics", "Vibration", "A short buzz with each verdict"]] : []), ["reducedMotion", "Reduce motion", "No rolling ball or camera moves"]].map(row).join(""))}
