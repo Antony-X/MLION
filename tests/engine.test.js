@@ -343,10 +343,48 @@ ok("score bands");
   for (const name of bad) assert.ok(!E.nameOk(name), `"${name}" should be refused`);
   for (const name of good) assert.ok(E.nameOk(name), `"${name}" should be allowed`);
   ok("leaderboard name filter");
-  const sql = fs.readFileSync(path.join(__dirname, "..", "supabase", "names.sql"), "utf8");
-  assert.ok(sql.includes(E.NAME_PARTS_SRC.replace(/'/g, "''")) && sql.includes(E.NAME_WORDS_SRC.replace(/'/g, "''")),
-    "supabase/names.sql is out of date: run node tools/names-sql.js");
+  // ways past the first filter (pre-launch audit): look-alike letters, vowel swaps, kys, staff-like names, garbling characters
+  const sneaky = ["сunt", "ｆｕｃｋ", "𝐟𝐮𝐜𝐤", "ꜰᴜᴄᴋ", "fυck", "ⓕⓤⓒⓚ", "fvck", "cvnt", "niqqa", "f@ggot", "fggot", "$hit", "sh!t", "n1gg3r", "fúck",
+    "kys", "KYS", "kill yourself", "admin", "Admin", "The Admin", "adm1n", "Moderator", "MLion", "МLion", "M Lion", "MLion HQ", "Official", "support",
+    "ХУЙ", "СУКА", "a‮b", "x​y", "bad\nname", "ź̂̃x"];
+  for (const name of sneaky) assert.ok(!E.nameOk(name), `"${name}" should be refused`);
+  const fine = ["Badminton", "Никита", "Наташа", "Серёжа", "Михаил", "Νίκος", "Łukasz", "Søren", "Jürgen", "José", "Zoë", "Kavya", "Vivek", "Ivan", "Iqbal", "Raghav", "Hugo", "Dave", "Gustav", "Nguyen", "Lukas", "Mustafa", "é"];
+  for (const name of fine) assert.ok(E.nameOk(name), `"${name}" should be allowed`);
+  ok("name filter: look-alikes, vowel swaps, kys, reserved names and garbling characters");
+  // the database runs the same check: supabase/names_v2.sql must be what tools/names-sql.js writes now
+  // (names.sql is the first version, already run on the project; v2 replaces its function)
+  const gen = require(path.join(__dirname, "..", "tools", "names-sql.js"));
+  assert.strictEqual(fs.readFileSync(gen.OUT, "utf8"), gen.sql, "supabase/names_v2.sql is out of date: run node tools/names-sql.js");
+  for (const src of [E.NAME_PARTS_SRC, E.NAME_WORDS_SRC, E.NAME_RESERVED_SRC, E.NAME_BASE_FROM, E.NAME_FOLD_FROM, E.NAME_BAD_CHARS_SRC]) assert.ok(gen.sql.includes(src.replace(/'/g, "''")));
+  assert.strictEqual([...E.NAME_BASE_FROM].length, [...E.NAME_BASE_TO].length, "base map: one letter for each");
+  assert.strictEqual([...E.NAME_FOLD_FROM].length, [...E.NAME_FOLD_TO].length, "look-alike map: one letter for each");
+  assert.ok([...E.NAME_BASE_FROM + E.NAME_FOLD_FROM].every((c) => c.length === 1), "maps hold single UTF-16 units, like SQL translate()");
   ok("the database name check matches the page's");
+}
+
+// --- launch day: a date in the code; the database may move it, never clear it
+{
+  assert.strictEqual(E.LAUNCH_DATE === null || E.isDay(E.LAUNCH_DATE), true, "LAUNCH_DATE is null or a real YYYY-MM-DD date");
+  assert.strictEqual(E.LAUNCH, E.LAUNCH_DATE, "the engine starts from LAUNCH_DATE");
+  E.setLaunch("2026-11-20"); assert.strictEqual(E.LAUNCH, "2026-11-20", "a valid date from the database wins");
+  for (const junk of [null, undefined, "", "soon", "2026-13-01", "2026-02-30", 20261120, "2026-11-20T00:00:00Z"]) {
+    E.setLaunch("2026-11-20"); E.setLaunch(junk);
+    assert.strictEqual(E.LAUNCH, E.LAUNCH_DATE, `${JSON.stringify(junk)} from the database falls back to LAUNCH_DATE`);
+  }
+  // with a date in the code, a null from the database must not clear it (fresh engine, LAUNCH_DATE patched in)
+  const src0 = fs.readFileSync(path.join(__dirname, "..", "js", "engine.js"), "utf8");
+  assert.ok(/\n  const LAUNCH_DATE = (null|"\d{4}-\d{2}-\d{2}");\n/.test(src0), "LAUNCH_DATE is a one-line constant");
+  const src1 = src0.replace(/\n  const LAUNCH_DATE = (null|"\d{4}-\d{2}-\d{2}");\n/, '\n  const LAUNCH_DATE = "2026-11-12";\n');
+  const m = { exports: {} };
+  new Function("module", "exports", src1)(m, m.exports);
+  const E2 = m.exports;
+  assert.strictEqual(E2.LAUNCH, "2026-11-12");
+  E2.setLaunch(null); assert.strictEqual(E2.LAUNCH, "2026-11-12", "a null launch day from the database keeps the coded date");
+  E2.setLaunch("2026-11-13"); assert.strictEqual(E2.LAUNCH, "2026-11-13", "a valid date from the database still moves it");
+  E2.setLaunch("not a date"); assert.strictEqual(E2.LAUNCH, "2026-11-12", "and junk goes back to the coded date");
+  assert.strictEqual(E2.dayNumberFor("2026-11-12"), 1);
+  E.setLaunch(null);
+  ok("launch day: coded date, database override only with a valid date, never cleared");
 }
 
 const src = fs.readFileSync(path.join(__dirname, "..", "js", "data.js"), "utf8");

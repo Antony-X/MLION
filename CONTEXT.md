@@ -97,12 +97,41 @@ safety classifier, and was deliberately not used. All MLion answers were written
 ### Other choices
 
 - **Timing:** same as Krillion (3 s preview, 25 s answer).
-- **Launch and numbering:** `LAUNCH` in js/engine.js is `null` until the user says the game has
+- **Launch and numbering:** `LAUNCH_DATE` in js/engine.js is `null` until the user says the game has
   launched (they asked for this on 2026-11-05: "do day 1 until I officially tell you I launched").
   Until then every day is MLion #1 and Daily Quiz #1, dealt from the pre-launch set (below). On
-  launch day, set `LAUNCH = "YYYY-MM-DD"` (keep the `window.MLION_LAUNCH` test hook): that day
-  becomes #1 and the hand-picked launch week starts. The day resets at **local** midnight,
-  Wordle-style, not New York time.
+  launch day it becomes `"YYYY-MM-DD"` (steps: "Launch-day steps" below): that day becomes #1 and the
+  hand-picked launch week starts. The day resets at **local** midnight, Wordle-style, not New York time.
+  - The launch day the game uses (`E.LAUNCH`) is, in order: a test's `window.MLION_LAUNCH`; else the
+    admin panel's `app_config.launch` **if it is a real YYYY-MM-DD date**; else `LAUNCH_DATE`. So the
+    database can move the date, but a null or junk value from it never clears the date in the code
+    (`E.setLaunch`, engine test "launch day").
+  - Why it's in the code (pre-launch audit B1): the config row arrives after the first screen, so a first
+    visit used to play the pre-launch set as "MLion #1" and could post it to the launch board.
+  - Belt and braces in app.js: a browser with no cached config waits up to 2 s for it before dealing
+    `#daily` / `#daily-quiz` (`withConfig`). If a config that moves the launch day arrives mid-run, the run
+    from the old set is dropped and today's real one opens with a toast; a daily or quiz already finished
+    today from the old set moves to `records["stale:<key>"]` (mode `stale`: out of stats, streak and board)
+    so the real one can be played (`shelveStale`, also run at boot). `postDaily` refuses any run whose
+    questions aren't what its day deals now (`dealtNow`), so the old set can never reach the board.
+
+### Launch-day steps
+
+Decide the date D (local dates, `YYYY-MM-DD`). Everything below can be done the evening before:
+a future `LAUNCH_DATE` changes nothing until D (days before it are still pre-launch #1).
+
+1. Back up the database (`supabase db dump`; the free plan has no backups), then in the admin panel run
+   Game → Reset all players to clear beta scores. Run `supabase/quiz_speed.sql` if it hasn't been run.
+2. In `js/engine.js`, change the one line `const LAUNCH_DATE = null;` to `const LAUNCH_DATE = "D";`.
+3. `node tools/build.js` (re-stamps `?v=` hashes and the service worker list), then
+   `node tests/engine.test.js` and the e2e suites (at least e2e, board, launch, pwa).
+4. Commit, `git tag launch-1`, push to `claude/mlion-game` (Pages deploys in about a minute).
+5. Admin panel → Game: set the same launch day (the Tomorrow button the evening before), or leave it
+   empty: an empty value no longer undoes the code. A *different* valid date there wins over the code.
+6. After midnight on D, open the site in a private window: the header says MLion #1 and the first prompt
+   is "Name an optimizer used to train neural networks" (launch day 1).
+7. To undo before anyone plays: set `LAUNCH_DATE` back to `null`, build, push, and clear the admin
+   panel's launch day.
 - **The dailies' questions** come from `data/daily.json` (bundled as `DATA.daily`; the build
   validates it). `pool`: 71 hand-picked core prompts a typical IOAI contestant can answer at once
   (the user, 2026-11-05: "like name an optimizer"; RAG, PEFT, quantization formats, special tokens,
@@ -133,6 +162,8 @@ js/engine.js          tiers, normalization, matching layers, scheduling, share t
 js/data.js            GENERATED bundle: window.MLION_DATA = {version, packs, prompts, extras}
 js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas (play stage), streak flame, tier glyphs, lion mark (MARK: Leo's curve + the ball)
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
+js/vendor/            third-party scripts served with the game (supabase-2.118.0.js), so launch doesn't depend on a CDN
+supabase/*.sql        additive SQL the owner runs by hand in the SQL editor (names_v2.sql after names.sql)
 data/packs.json       7 packs (id, name, emoji, tagline)
 data/prompts/*.json   134 prompt files, one per prompt (schema below)
 data/display.json     per-prompt example / scope / offtopic overrides
@@ -160,6 +191,7 @@ npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
 npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint (needs network: unpkg.com + public.cloud.shiftr.io)
 npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
+npm run e2e:launch # launch.e2e.js: launch-day race, broken links, two tabs, Supabase down, no CDN (no network)
 ```
 
 ### Artifact build
@@ -391,6 +423,14 @@ intro → preview (3 s, input locked) → answering (default 25 s) → feedback 
 
 - The run is saved to `localStorage` (`mlion:run:<key>`). The timer is absolute, so reloading
   doesn't reset it.
+- **Several tabs (pre-launch audit S14).** Saves of `records`, `seen`, `practice`, `sprints` and
+  `boardPosted` re-read storage and change only their own entry, and a `storage` listener keeps each
+  tab's copy current, so a second tab can't overwrite what another saved. If another tab finishes the run
+  this tab is playing (same key), this tab stops and shows that result ("You finished this in another
+  tab"); finishing second never overwrites (first finish counts); an endless Unlimited session that
+  collides takes the next free number. A save that fails (storage full or blocked) now says so.
+- **A broken `#link`** (bad `%` escape, or any screen that throws while drawing) shows home with "That
+  link didn't work…"; the error is still rethrown afterwards so tests see it (`route()` wraps `routeTo()`).
 - A wrong answer shows "no gradient. try again".
 - A correction rewrites the input, and Step confirms it.
 - Suggestions show as tappable chips.
@@ -601,6 +641,22 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   files cache-first (hashed URLs), Google Fonts stale-while-revalidate, everything else (Supabase,
   MQTT) untouched. `tools/build.js` stamps the precache list into `sw.js`. Registers only on https
   (or when `mlion:sw` is set, which `tests/pwa.e2e.js` does to play the daily offline).
+- **Atomic updates (pre-launch audit S15; GitHub Pages sends `max-age=600`, and ignores `?v=`).**
+  - The worker installs all of `ASSETS` with `cache: "reload"` (never the browser's HTTP cache) and checks
+    each stamped file's content against its `?v=` hash (the build's FNV-1a, copied into sw.js), and that
+    the page it stores loads exactly those stamps. Any mismatch fails the install, so the old worker keeps
+    serving; the browser retries later. At run time a stamped file is only cached when its content has
+    that hash, so a stale page asking for an old `?v=` can never store new content under the old name.
+  - Navigations fetch with `cache: "no-cache"` (a 304 when unchanged); the offline copy is replaced only
+    by a page that loads this worker's files.
+  - No `skipWaiting` on install. The new worker waits; the page (app.js, "Updates") hands over when no game,
+    room or join is running: on the next screen change (`route()` → `swApply`) or when the tab is hidden.
+    It asks the waiting worker for its `ASSETS`; if this page already runs those files it just hands over,
+    otherwise it reloads once onto the new version. If another tab let the new worker in while this tab
+    is mid-game, this tab reloads when its game ends. The first install takes over without a reload.
+  - `tests/pwa.e2e.js` covers it: a wrong-content `?v=` is never cached; a new deploy waits during a daily,
+    then home → one reload → new app.js, one cache left, offline daily on the new release; a release whose
+    files don't match their stamps never installs.
 - The menu shows "Install the app" when the browser fires `beforeinstallprompt`.
 
 ### Live match (real time)
@@ -790,8 +846,22 @@ it are dropped, answers carry `pid` so late answers to the old prompt are ignore
 - Supabase project **MLion** (ref `ozqnznvxxxnefeetidwq`, in the user's org). The URL and
   publishable key are in `BOARD_CONFIG` in js/app.js (public by design; RLS protects the data).
   Schema, rules and grants: `supabase/schema.sql` (already applied; safe to re-run).
-- Opt-in: only players who log in appear. Login is OAuth with PKCE via supabase-js (UMD from
-  jsdelivr, loaded only for people who have logged in or are coming back from login). Buttons
+- Opt-in: only players who log in appear. Login is OAuth with PKCE via supabase-js (the UMD build,
+  vendored as `js/vendor/supabase-2.118.0.js`: @supabase/supabase-js 2.118.0 `dist/umd/supabase.js`,
+  byte-identical on jsDelivr and unpkg, sha256 checked by tests/launch.e2e.js; loaded only for people who
+  have logged in or are coming back from login). To upgrade, download the new UMD file under a new
+  versioned name, point `SB_SRC` at it and update the hash in the test. The MQTT library for live rooms
+  still comes from unpkg (another change handles it).
+- **Midnight:** a daily posts to the day it was dealt for (`rec.date`), on that day or the next
+  (`postableDay`: a run that crossed midnight), as long as the database's UTC ±1 window still takes it.
+  The results of such a run show the board box under "Yesterday's leaderboard". A login also posts
+  yesterday's finished daily. No SQL change was needed. Test: the midnight block in tests/board.e2e.js.
+- **When Supabase is down or paused:** every call has a 10 s timeout (`timedFetch`, also given to
+  supabase-js as its `fetch`); the mini board says "The leaderboard can't be reached right now…",
+  Publish says the same, the board page says it couldn't load, and the game plays on. A failed call
+  only counts as "account deleted" when the project answers `/auth/v1/settings` (`boardUp`), so a paused
+  project's "not found" no longer logs everyone out. Test: tests/launch.e2e.js (project answering 404 and
+  a config request that never answers). Buttons
   show only for providers switched on in the dashboard (read from `/auth/v1/settings`). Discord
   is on. Google needs an OAuth client from Google Cloud Console (not done yet).
 - Auth URL config: site URL https://antony-x.github.io/MLION/; the redirect allowlist also has
@@ -824,6 +894,8 @@ The user asked for "an admin panel I can use to do everything, easily and visual
   `window.MLION_LAUNCH` still wins). `cfgFetch()` refreshes it after start (plain REST with the
   publishable key; skipped in test browsers unless `MLION_BOARD` points at a fake). On the idle home page
   a change re-renders (day number, banner); a new `reset_at` clears the device and reloads.
+  The Game tab shows the launch day the game actually uses (`E.LAUNCH`, so `LAUNCH_DATE` from the code
+  when the row is empty); clearing the row with a date in the code says the code's date stands.
 - **Device reset:** `mlion:since` marks when this browser's progress began (1970 if it already had
   progress when this shipped). When `reset_at > since`, every `mlion:*` key except settings, reset,
   cfg and since goes, then `since = now`. Test browsers skip it unless `MLION_RESET_TEST`. The admin's
@@ -853,8 +925,20 @@ with no swear words on the board.
   Latin and Cyrillic, Georgian in Latin and Georgian): leetspeak digits, "ph"→f, stretched letters
   ("fuuuck"); `NAME_PARTS` match anywhere, `NAME_WORDS` only as a whole word (Hancock, Dickens, class,
   therapist pass). Used for publish, Change name, the default name from Discord, and Settings' name.
-  `supabase/names.sql` (generated by `node tools/names-sql.js`; the engine test fails if it's stale) adds
-  `public.name_ok()` and a `profiles` trigger raising 23514, so the API refuses a bad name too.
+  `supabase/names.sql` (the first version, already run) adds `public.name_ok()` and a `profiles` trigger
+  raising 23514, so the API refuses a bad name too.
+- **Name filter v2 (pre-launch audit S10).** `supabase/names_v2.sql` (new, additive; **run it in the SQL
+  editor after names.sql**) replaces `name_ok()`; it is generated by `node tools/names-sql.js` and the
+  engine test fails if it is stale. Both sides: NFKD (fullwidth, maths, circled letters), lower case,
+  accents dropped, leetspeak `0134578 9 @ $ ! |`, small capitals, then a second pass with Cyrillic and
+  Greek look-alikes read as Latin (`сunt`); patterns take u/v and g/q (`fvck`, `niqqa`); new entries
+  `fggot`, `kill yourself`, `kys`, `fgt`; reserved names (`NAME_RESERVED`: admin, administrator,
+  moderator, official, support) may not start or end a word, and `mlion` may not appear at all; control,
+  bidi, zero-width characters and 3+ stacked combining marks are refused. The maps are SQL `translate()`
+  strings shared by both sides (Cyrillic capitals are mapped explicitly in case the database's `lower()`
+  is ASCII-only). Checked against Postgres 18 (PGlite) on 77k names (every answer and word in the data,
+  fuzzed look-alikes): no difference from the page. The publish and rename forms also check the name as
+  typed, before cleaning drops `@`/`$`/`!`. No Georgian lists.
 - Test: `tests/board.e2e.js` (second browser: top five, anon sign-in off/on, swear name, publish, the
   database check, no auto-post).
 
@@ -1079,6 +1163,12 @@ is the lit exhibit.
 ---
 
 ## 11. Open items and next steps
+
+- **Pre-launch fixes (2026-11-05, audit items B1, S7, S10, N7, S15, S14, S16/S5 behaviour, S12):** done in
+  code; the owner still has to run `supabase/names_v2.sql` in the SQL editor (after `names.sql`), and
+  follow "Launch-day steps" in §3. Not changed on purpose: the daily prompt pool (audit S6: with 71
+  pool prompts the first repeat comes on day 11, and 210 of 400 days reuse a prompt from the previous six;
+  the Daily Quiz does on 41 of 400). The owner decides.
 
 0. **Overnight 2026-11-05 (branch `overnight`, not pushed):** paste `supabase/daily_quiz.sql` into the
    Supabase SQL editor to open the quiz leaderboard; test locally; then merge `overnight` into

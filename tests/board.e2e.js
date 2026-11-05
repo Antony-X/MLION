@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Leaderboard end-to-end test against a stand-in Supabase (no real accounts needed).
  *   node tests/board.e2e.js
- * The page loads the real supabase-js from the CDN; every request to the fake project
+ * The page loads the real supabase-js (js/vendor, served with the game); every request to the fake project
  * (https://mock.supabase.test) is answered here, including the PKCE login round trip. */
 "use strict";
 const { chromium } = require("playwright");
@@ -202,12 +202,14 @@ async function mockRoute(route) {
 
   // a finished daily (as if just played), scoring 6-5-4-3-2-1-0 = 300
   const tiers = ["mlion", "longtail", "outlier", "indist", "overfit", "baseline", "miss"];
-  await page.evaluate(({ today, tiers }) => {
+  const todaysIds = async (p) => { await p.goto(base + "#daily"); await p.waitForSelector("#answer"); return p.evaluate((t) => JSON.parse(localStorage.getItem(`mlion:run:daily:${t}`)).promptIds, today); }; // what today's daily deals: only a run of those may be posted
+  const ids1 = await todaysIds(page);
+  await page.evaluate(({ today, tiers, ids }) => {
     const pts = { mlion: 100, longtail: 85, outlier: 60, indist: 30, overfit: 15, baseline: 10, miss: 0 };
-    const results = tiers.map((t, i) => ({ promptId: "nope-" + i, promptText: "Q" + i, answer: t === "miss" ? null : "A" + i, raw: "", tier: t === "miss" ? null : t, score: pts[t] }));
+    const results = tiers.map((t, i) => ({ promptId: ids[i], promptText: "Q" + i, answer: t === "miss" ? null : "A" + i, raw: "", tier: t === "miss" ? null : t, score: pts[t] }));
     const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: results.map((r) => r.promptId), results, score: 300, tiers, completedAt: Date.now(), secs: 25 };
     localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
-  }, { today, tiers });
+  }, { today, tiers, ids: ids1 });
   await page.goto("about:blank"); // a fresh load, so the app reads the record we just stored
   await page.goto(base + `#results-daily-${today}`);
   await page.waitForSelector("#board-box [data-login]", { timeout: 10000 }).catch(async (e) => { console.log(await page.evaluate(() => location.href + " :: " + (document.querySelector("#board-box") || {}).outerHTML + " :: " + JSON.stringify(Object.keys(localStorage)))); throw e; });
@@ -331,12 +333,13 @@ async function mockRoute(route) {
   await p2.goto(base);
   await p2.waitForSelector(".home");
   const tiers2 = ["mlion", "longtail", "longtail", "outlier", "outlier", "indist", "overfit"]; // 100+85+85+60+60+30+15 = 435
-  await p2.evaluate(({ today, tiers }) => {
+  const ids2 = await todaysIds(p2);
+  await p2.evaluate(({ today, tiers, ids }) => {
     const pts = { mlion: 100, longtail: 85, outlier: 60, indist: 30, overfit: 15, baseline: 10, miss: 0 };
-    const results = tiers.map((t, i) => ({ promptId: "nope-" + i, promptText: "Q" + i, answer: "A" + i, raw: "", tier: t, score: pts[t] }));
+    const results = tiers.map((t, i) => ({ promptId: ids[i], promptText: "Q" + i, answer: "A" + i, raw: "", tier: t, score: pts[t] }));
     const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: results.map((r) => r.promptId), results, score: 435, tiers, completedAt: Date.now(), secs: 25 };
     localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
-  }, { today, tiers: tiers2 });
+  }, { today, tiers: tiers2, ids: ids2 });
   await p2.goto("about:blank");
   await p2.goto(base + `#results-daily-${today}`);
   await p2.waitForSelector("#mini-board .mb-list li");
@@ -390,6 +393,36 @@ async function mockRoute(route) {
   await p2.waitForFunction(() => !/On the leaderboard as/.test(document.querySelector("#drawer-acct")?.textContent || "") && !!document.querySelector("#board-box #pub-btn"), null, { timeout: 8000 });
   check(!db.profiles.has(ANON), "the browser drops the dead login; Publish is offered again");
   await ctx2.close();
+
+  // ---- a daily that crosses midnight: started at 23:59, finished after 00:00, it still posts, to its own day
+  anonGone = false;
+  db.scores = db.scores.filter((r) => r.user_id !== ANON);
+  const ctx3 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  await ctx3.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx3.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx3.route(`${MOCK}/**`, mockRoute);
+  const p3 = await ctx3.newPage();
+  p3.on("pageerror", (e) => { errors.push(e.message); console.log("  page error: " + e.message); });
+  const [ty, tm, td] = today.split("-").map(Number);
+  await p3.clock.install({ time: new Date(ty, tm - 1, td, 23, 59, 0) });
+  const ids3 = await todaysIds(p3);
+  await p3.evaluate(({ today, ids }) => { // finished at 00:01 the next day
+    const results = ids.map((id, i) => ({ promptId: id, promptText: "Q" + i, answer: "A" + i, raw: "", tier: "outlier", score: 60 }));
+    const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: ids, results, score: 420, tiers: ids.map(() => "outlier"), completedAt: new Date(Date.now() + 120000).getTime(), secs: 25 };
+    localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
+  }, { today, ids: ids3 });
+  await p3.clock.setSystemTime(new Date(ty, tm - 1, td + 1, 0, 1, 0));
+  await p3.goto("about:blank");
+  await p3.goto(base + `#results-daily-${today}`);
+  check((await p3.evaluate(() => new Date().getDate())) === new Date(ty, tm - 1, td + 1).getDate(), "the page's clock is now past midnight");
+  await p3.waitForSelector("#board-box #pub-btn", { timeout: 15000 });
+  check(/Yesterday's leaderboard/.test(await p3.textContent("#board-box")), "the results of last night's daily still offer Publish, under yesterday's board");
+  await p3.click("#pub-btn");
+  await p3.fill("#pub-name", "Hopper");
+  await p3.click("#pub-go");
+  await p3.waitForFunction(() => /of \d+ yesterday as Hopper/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
+  check(db.scores.some((r) => r.user_id === ANON && r.day === today && r.score === 420), "it posts 420 to the day the run was dealt for, not the new day");
+  await ctx3.close();
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();

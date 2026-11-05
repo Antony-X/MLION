@@ -424,11 +424,18 @@
   // ------------------------------------------------------------- dates
   // Launch day: MLion #1 and Daily Quiz #1, and day 1 of the hand-picked launch week (data/daily.json).
   // null until the game launches: every day is #1 then, and the daily deals from a pre-launch
-  // stream that never touches the launch week. Set it to the launch date ("YYYY-MM-DD") that day.
+  // stream that never touches the launch week.
+  // ON LAUNCH DAY, set LAUNCH_DATE to that date ("YYYY-MM-DD"). It is in the code so a first visit
+  // gets the right daily at once, without waiting for the database (CONTEXT.md, "Launch-day steps").
+  const LAUNCH_DATE = null;
   const LAUNCH_HOOK = (typeof window !== "undefined" && window.MLION_LAUNCH) || null; // tests set window.MLION_LAUNCH
-  let LAUNCH = LAUNCH_HOOK;
-  /** The launch day an admin set in the admin panel (app_config.launch); a test's window.MLION_LAUNCH wins. */
-  function setLaunch(d) { if (!LAUNCH_HOOK) LAUNCH = typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null; }
+  /** A real calendar date written YYYY-MM-DD. */
+  const isDay = (d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(parseDate(d)).toISOString().slice(0, 10) === d;
+  let LAUNCH = LAUNCH_HOOK || LAUNCH_DATE;
+  /** The launch day an admin set in the admin panel (app_config.launch). Only a valid date counts: anything
+   * else (null included) falls back to LAUNCH_DATE, so the database can't undo the date in the code.
+   * A test's window.MLION_LAUNCH wins over both. */
+  function setLaunch(d) { if (!LAUNCH_HOOK) LAUNCH = isDay(d) ? d : LAUNCH_DATE; }
   const epoch = () => LAUNCH || localDateString();
   function pad(n) { return String(n).padStart(2, "0"); }
   function localDateString(d = new Date()) {
@@ -740,15 +747,22 @@
   // Names on the leaderboard can't be swear words or slurs (English, Spanish/French, Russian in both
   // scripts). The same patterns run in the database (supabase/names.sql,
   // written by tools/names-sql.js), so a name typed past the page is refused there too.
-  // A name is lowercased, accents dropped (Latin only), digits read as letters (0→o, 1→i, 3→e, 4→a,
-  // 5→s, 7→t, 8→b), "ph" read as "f", and every repeated letter may repeat more ("fuuuck").
+  // A name is NFKD-normalised (fullwidth and maths letters become plain ones), lowercased, accents dropped,
+  // digits and symbols read as letters (0→o, 1→i, 3→e, 4→a, 5→s, 7→t, 8→b, 9→g, @→a, $→s, !→i, |→l),
+  // small capitals read as letters, and "ph" read as "f". It is checked twice: as it is (for the Russian
+  // lists) and with Cyrillic and Greek look-alikes read as Latin letters ("сunt" with a Cyrillic с).
+  // In every pattern a repeated letter may repeat more ("fuuuck"), u may be v ("fvck") and g may be q ("niqqa").
   // NAME_PARTS match anywhere in the name with spaces and dots removed; NAME_WORDS only as a whole word
-  // or the whole name (so "Hancock", "Dickens", "class" and "therapist" stay fine).
+  // or the whole name (so "Hancock", "Dickens", "class" and "therapist" stay fine). NAME_RESERVED (staff-like
+  // names) may not start or end a word or the whole name. Control, bidi and zero-width characters and
+  // stacks of three or more combining marks ("zalgo") are refused outright.
+  // The database runs exactly this (supabase/names_v2.sql, written by tools/names-sql.js).
   const NAME_PARTS = [
     "fuck", "shit", "cunt", "nigger", "nigga", "faggot", "bitch", "whore", "slut", "twat", "pussy", "porn",
     "dildo", "retard", "motherf", "asshole", "arsehole", "jizz", "penis", "vagina", "boob", "bastard",
     "bollock", "bellend", "wanker", "wanking", "pedophil", "paedophil", "molest", "incest", "hitler", "kkk",
     "piss", "blowjob", "handjob", "orgasm", "douchebag", "hentai", "cumshot",
+    "fggot", "killyourself", "killurself", "killyoself", "mlion",
     "blyat", "blyad", "pizd", "ebat", "eblan", "mudak", "pidor", "pidar", "gandon", "zalup", "huesos", "nahui", "nahuy",
     "бля", "пизд", "хуй", "хуе", "хуя", "ебат", "ебан", "еблан", "ебло", "пидор", "пидар", "педик", "мудак", "гандон", "залуп", "шлюх",
   ];
@@ -758,28 +772,55 @@
     "horny", "semen", "sperm", "dyke", "tranny", "homo", "spic", "chink", "gook", "kike", "coon", "negro", "wetback", "jap",
     "slag", "skank", "hoe", "hoes", "thot", "douche", "boner", "puta", "puto", "putain", "merde", "mierda", "cabron", "pendejo",
     "suka", "hui", "huy", "xui", "xuy", "blya", "сука", "ебу",
+    "fgt", "kys",
   ];
-  /** "fuck" → "f+u+c+k+", "nigger" → "n+i+g{2,}e+r+": each run of a letter may be longer. */
-  const runPattern = (w) => w.replace(/(.)\1*/gu, (run, c) => (run.length > 1 ? `${c}{${run.length},}` : `${c}+`));
+  const NAME_RESERVED = ["admin", "administrator", "moderator", "official", "support"];
+  // Character maps, applied like SQL translate(): NAME_BASE_FROM[i] → NAME_BASE_TO[i]. Same length, BMP only.
+  // The base map ends with the Cyrillic capitals, in case the database's lower() only knows ASCII.
+  const NAME_BASE_FROM = "01345789@$!|€łøđıħᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘʀꜱᴛᴜᴠᴡʏᴢАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+  const NAME_BASE_TO = "oieastbgasilelodihabcdefghijklmnoprstuvwyzабвгдежзийклмнопрстуфхцчшщъыьэюя";
+  // Cyrillic and Greek letters that look like Latin ones (upper case too, in case lower() leaves them).
+  // Not the final sigma: JavaScript lower-cases a final Σ to ς, the database to σ.
+  const NAME_FOLD_FROM = "авекмнорстухіјѕԁӏԛԝүһьпигшАВЕКМНОРСТУХІЈЅαβγεηικνορτυχωμΑΒΕΖΗΙΚΜΝΟΡΤΥΧ";
+  const NAME_FOLD_TO = "abekmhopctyxijsdlqwyhbnurwabekmhopctyxijsabyenikvoptuxwuabezhikmnoptyx";
+  const NAME_MARKS = "[\\u0300-\\u036f]";
+  const NAME_BAD_CHARS_SRC = "[\\u0001-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]"
+    + "|[\\u0300-\\u036f\\u0483-\\u0489\\u0591-\\u05bd\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{3,}";
+  const NAME_OTHER_SRC = "[^a-z0-9ა-ჿа-я]+"; // anything but Latin, Georgian and Cyrillic letters and digits
+  const NAME_OTHER = new RegExp(NAME_OTHER_SRC, "gu");
+  const translate = (s, from, to) => { let out = ""; for (const c of s) { const i = from.indexOf(c); out += i < 0 ? c : to[i]; } return out; };
+  /** The name as the checks read it: NFKD, lower case, no accents, digits and symbols read as letters, "ph" as "f". */
+  function nameNorm(s) {
+    const t = String(s || "").normalize("NFKD").toLowerCase().replace(new RegExp(NAME_MARKS, "gu"), "");
+    return translate(t, NAME_BASE_FROM, NAME_BASE_TO).replace(/ph/g, "f");
+  }
+  /** nameNorm's output with Cyrillic and Greek look-alikes read as Latin letters. */
+  const nameFold = (s) => translate(s, NAME_FOLD_FROM, NAME_FOLD_TO).replace(/ph/g, "f");
+  // Look-alike letters a pattern also takes: "fvck", "niqqa".
+  const NAME_ALT = { u: "uv", g: "gq" };
+  /** "fuck" → "f+[uv]+c+k+", "nigger" → "n+i+[gq]{2,}e+r+": each run of a letter may be longer. */
+  const runPattern = (w) => nameNorm(w).replace(/(.)\1*/gu, (run, c) => {
+    const cls = NAME_ALT[c] ? `[${NAME_ALT[c]}]` : c;
+    return run.length > 1 ? `${cls}{${run.length},}` : `${cls}+`;
+  });
   const NAME_PARTS_SRC = NAME_PARTS.map(runPattern).join("|");
   const NAME_WORDS_SRC = NAME_WORDS.map(runPattern).join("|");
+  const NAME_RESERVED_SRC = NAME_RESERVED.map(runPattern).join("|");
   const NAME_PARTS_RE = new RegExp(NAME_PARTS_SRC, "u");
   const NAME_WORDS_RE = new RegExp(`^(?:${NAME_WORDS_SRC})$`, "u");
-  const NAME_LEET = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t", 8: "b" };
-  const NAME_OTHER = /[^a-z0-9ა-ჿа-я]+/gu; // anything but Latin, Georgian and Cyrillic letters and digits
-  function nameNorm(s) {
-    return String(s || "").toLowerCase()
-      .replace(/[À-ɏ]/g, (c) => c.normalize("NFKD")[0]) // é → e (Cyrillic й stays й)
-      .replace(/ё/g, "е")
-      .replace(/[0134578]/g, (d) => NAME_LEET[d])
-      .replace(/ph/g, "f");
-  }
-  /** False for a name that has a swear word or slur in it. */
+  const NAME_RESERVED_RE = new RegExp(`^(?:${NAME_RESERVED_SRC})|(?:${NAME_RESERVED_SRC})$`, "u");
+  const NAME_BAD_CHARS_RE = new RegExp(NAME_BAD_CHARS_SRC, "u");
+  /** False for a name with a swear word, slur or staff-like name in it, or with characters that garble a row. */
   function nameOk(name) {
-    const s = nameNorm(name);
-    const joined = s.replace(NAME_OTHER, "");
-    if (NAME_PARTS_RE.test(joined)) return false;
-    return !s.split(NAME_OTHER).concat(joined).some((t) => t && NAME_WORDS_RE.test(t));
+    const raw = String(name || "");
+    if (NAME_BAD_CHARS_RE.test(raw)) return false;
+    const base = nameNorm(raw);
+    for (const s of [base, nameFold(base)]) {
+      const joined = s.replace(NAME_OTHER, "");
+      if (NAME_PARTS_RE.test(joined) || NAME_RESERVED_RE.test(joined)) return false;
+      if (s.split(NAME_OTHER).concat(joined).some((t) => t && (NAME_WORDS_RE.test(t) || NAME_RESERVED_RE.test(t)))) return false;
+    }
+    return true;
   }
 
   function tierEmoji(t) { return t && TIERS[t] ? TIERS[t].emoji : MISS_EMOJI; }
@@ -801,12 +842,13 @@
     MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
     tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
-    setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
+    LAUNCH_DATE, isDay, setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, quizPoints, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
-    nameOk, nameNorm, NAME_PARTS_SRC, NAME_WORDS_SRC,
+    nameOk, nameNorm, nameFold, NAME_PARTS_SRC, NAME_WORDS_SRC, NAME_RESERVED_SRC, NAME_BASE_FROM, NAME_BASE_TO,
+    NAME_FOLD_FROM, NAME_FOLD_TO, NAME_MARKS, NAME_BAD_CHARS_SRC, NAME_OTHER_SRC,
   };
   Object.defineProperty(api, "LAUNCH", { get: () => LAUNCH, enumerable: true }); // live: the admin panel can set it after load
   return api;
