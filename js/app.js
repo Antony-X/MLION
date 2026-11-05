@@ -667,7 +667,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // derived from a random room secret that travels only in the invite link's #fragment, so the relay
   // and anyone listening on it see ciphertext and can't forge anything. claude.ai blocks outside
   // WebSockets inside artifacts, so there live mode points to the web version.
-  const WEB_URL = "https://antony-x.github.io/MLION/";
+  const WEB_URL = ((document.querySelector('meta[property="og:url"]') || {}).content || "").trim(); // the public site (SITE_URL in tools/build.js)
   const MQTT_SRC = "js/vendor/mqtt-4.3.7.min.js"; // vendored (MIT), so live play doesn't hang on a CDN
   const BROKER = "wss://public.cloud.shiftr.io"; // the relay: change it here and only here
   const BROKER_LOGIN = { username: "public", password: "public" };
@@ -3747,7 +3747,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${isQ ? `${hits} of ${n} right · ${fmtSecs(rec.tenths || 0)}` : `${accepted} of ${n} answers accepted`}</p>
           <div class="btn-row">
             ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send my score"}</button>
-              <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
+              <a class="btn big" href="#challenge">New challenge</a>${window.MLION_CARD ? `<button class="btn big" id="share">Share image</button>` : ""}` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
           ${boardable && BOARD_ON ? `<div class="board-box" id="board-box" data-key="${esc(rec.key)}"></div>` : ""}
@@ -3788,6 +3788,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (sb) sb.addEventListener("click", async () => {
       const url = settings.shareLink ? siteUrl() : "";
       const text = url ? `${share}\n\n${url}` : share;
+      // The share sheet (js/sharecard.js): an image of the run, plus the text grid. A challenge's text is its link (#send-vs).
+      if (window.MLION_CARD) return MLION_CARD.open({ rec, text: isVs ? null : text, url: SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL, packName: rec.mode === "pack" ? PACKS.get(rec.pack).name : "", ui: { showModal, toast, copyText } });
       if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
         try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === "AbortError") return; }
       }

@@ -143,11 +143,14 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   check(list.includes("Out of time") && list.includes(`You picked ${run1[1].options[(run1[1].correct + 1) % 4]}`), "wrong picks and the timeout are spelled out");
   check(await noSideScroll(page), "no horizontal scroll on the results");
   await page.screenshot({ path: path.join(OUT, "45-quiz-results.png"), fullPage: true });
-  await page.click("#share");
+  await page.click("#share"); // opens the share sheet (image + text)
+  await page.click("#card-text");
+  await page.waitForFunction(() => /Text copied/.test(document.querySelector("#toast").textContent), null, { timeout: 4000 });
   const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   const grid = expectHits.map((h) => (h ? "🟩" : "⬛")).join("");
   check(clip.startsWith(`MLion Quiz #1 🦁\n${hits * 100}/700 · loss ${((700 - hits * 100) / 100).toFixed(2)} · 10 s\n\n${grid}`), "share text has the usual shape with a quiz grid");
   console.log(clip.split("\n").map((l) => "    | " + l).join("\n"));
+  await page.click("#mclose");
 
   // ---- records: a quiz is its own mode; stats and the daily are untouched
   const recs = await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:records")));
