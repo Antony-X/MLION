@@ -97,7 +97,10 @@ const probe = (page) => page.evaluate(() => {
   await page.click(".topbar", { position: { x: 200, y: 4 } }); // a neutral tap
   await sleep(1200);
   p = await probe(page);
-  check(p && p.on && p.view === "menu", `menus get the calm variant (view ${p && p.view})`);
+  check(p && !p.on && p.view === "menu", `menus stay silent (view ${p && p.view})`);
+  await page.evaluate(() => window.MLION_MUSIC.current.view("play")); // the rest as during a run
+  await sleep(500);
+  check((await probe(page)).on, "and it plays again in a run");
   await page.fill("#music-vol", "20");
   await page.dispatchEvent("#music-vol", "change");
   await sleep(200);

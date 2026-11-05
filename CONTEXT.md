@@ -1280,6 +1280,6 @@ throw into the game):
 - Never listened to: everything above is measurements of headless renders.
 - Not run on a phone or in iOS Safari. iOS can suspend the context after interruptions; the
   `statechange` listener and gesture handlers resume it, but untested there.
-- Whether the menu variant should be silence is a taste call. Tune by ear with `LEVEL`, `MASTER`,
+- Menus and the home page are silent (owner, 2026-11-05: "before u click stuff audio should be very very quiet... or remove it"): `wanted()` needs a play or results view. MASTER was also halved (about −6 dB) after the first listen. Tune by ear with `LEVEL`, `MASTER`,
   `SCENE_DB`, `DUCK` and `TIER_DUCK` at the top of music.js. Then re-render and check that the gaps
   stay 12–18 dB.
