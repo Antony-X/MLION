@@ -105,7 +105,7 @@
   // ------------------------------------------------------------ storage
   const LS = {
     get(k, d) { try { const v = localStorage.getItem("mlion:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-    set(k, v) { try { localStorage.setItem("mlion:" + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+    set(k, v) { try { localStorage.setItem("mlion:" + k, JSON.stringify(v)); return true; } catch { return false; } }, // false: storage full or blocked
     del(k) { try { localStorage.removeItem("mlion:" + k); } catch { /* ignore */ } },
   };
   // Launch reset (the user, 2026-11-05: "we need to clear beta players"). The first visit after this ships drops
@@ -145,11 +145,21 @@
   function saveSettings() { LS.set("settings", settings); applySettings(); }
   applySettings();
 
-  let records = LS.get("records", {}); // run key -> finished record
+  let records = LS.get("records", {}) || {}; // run key -> finished record
   let seen = new Set(LS.get("seen", [])); // prompt ids the player has answered
-  let practiceBest = LS.get("practice", {}); // prompt id -> best tier
-  function saveRecord(rec) { records[rec.key] = rec; LS.set("records", records); }
-  function markSeen(id) { if (!seen.has(id)) { seen.add(id); LS.set("seen", [...seen]); } }
+  let practiceBest = LS.get("practice", {}) || {}; // prompt id -> best tier
+  // Several tabs share these. A write re-reads what is stored and changes only its own entry, so a second tab
+  // can't overwrite what another one saved; the storage listener ("other tabs" below) keeps each copy current.
+  function saveRecord(rec) {
+    records = Object.assign(LS.get("records", {}) || {}, { [rec.key]: rec });
+    if (!LS.set("records", records)) toast("Couldn't save this run: the browser's storage is full or blocked.");
+  }
+  function markSeen(id) {
+    if (seen.has(id)) return;
+    seen = new Set(LS.get("seen", []) || []);
+    seen.add(id);
+    LS.set("seen", [...seen]);
+  }
 
   // -------------------------------------------------------------- sound
   const Sound = (() => {
@@ -371,7 +381,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function statsSummary() {
     const ds = dailyRecords();
-    const all = Object.values(records).filter((r) => !isQuizMode(r.mode)); // quiz runs score 100 a hit, not by rarity: kept out of the tier stats
+    const all = Object.values(records).filter((r) => !isQuizMode(r.mode) && r.mode !== "stale"); // quiz runs score 100 a hit, not by rarity: kept out of the tier stats
     const best = ds.reduce((m, r) => Math.max(m, r.score), 0);
     const avg = ds.length ? Math.round(ds.reduce((s, r) => s + r.score, 0) / ds.length) : 0;
     const tierCounts = Object.fromEntries([...E.TIER_IDS, "miss"].map((t) => [t, 0]));
@@ -427,6 +437,32 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       : E.dailyQuiz(DAILY, n - QUIZ_DAYS.length, "dquiz-v3");
     return { key: `dquiz:${date}`, mode: "dquiz", fmt: "quiz", number: num, date, label: `Daily Quiz #${num}`, promptIds: quiz.map((q) => q.promptId), quiz, secs: DEFAULT_SECS };
   }
+  /** Whether a daily or Daily Quiz run holds the questions its day deals now. One dealt before this browser
+   * learned the launch day holds another set, and must not go on that day's board. */
+  function dealtNow(run) {
+    if (!run || !run.date || !Array.isArray(run.promptIds)) return false;
+    const spec = run.mode === "dquiz" ? dquizSpec(run.date) : dailySpec(run.date);
+    return run.promptIds.join() === spec.promptIds.join();
+  }
+  /** After the launch day changed: a daily or quiz finished today from the old set moves aside (out of the
+   * stats and off the board), so today's real one can be played. */
+  function shelveStale() {
+    const stored = LS.get("records", {}) || {};
+    let moved = false;
+    for (const k of [`daily:${today()}`, `dquiz:${today()}`]) {
+      const rec = stored[k];
+      if (rec && !dealtNow(rec)) { delete stored[k]; stored[`stale:${k}`] = { ...rec, key: `stale:${k}`, mode: "stale" }; moved = true; }
+    }
+    if (moved) { records = stored; LS.set("records", records); }
+    return moved;
+  }
+  /** A daily can go on its day's board that day, or the next (a run that crossed midnight) while the database still
+   * takes that day: it takes UTC day ±1 (supabase/schema.sql). */
+  function postableDay(date) {
+    const t = today();
+    return date === t || (date === E.addDays(t, -1) && date >= E.addDays(new Date().toISOString().slice(0, 10), -1));
+  }
+  const dayWord = (date) => (date === today() ? "today" : "yesterday"); // for a postable day
   function quizSpec(n) {
     const quiz = E.quizRun(soloPool(), n);
     return { key: `quiz:${n}`, mode: "quiz", fmt: "quiz", number: n, label: `Quiz #${n}`, promptIds: quiz.map((q) => q.promptId), quiz };
@@ -1775,7 +1811,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // so links survive hosts that only pass simple fragments through.
   const SIMPLE = {
     "": renderHome, home: renderHome,
-    daily: () => openRun(dailySpec(today())),
+    daily: () => withConfig(() => openRun(dailySpec(today()))),
     unlimited: renderUnlimited, quiz: renderQuizHub, packs: renderPacks, archive: renderArchive, library: renderLibrary,
     stats: renderStats, how: renderHow, faq: renderFaq, prefs: renderSettings,
     challenge: renderChallenge,
@@ -1784,7 +1820,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     rooms: () => go("live"), // old links: the room list is part of #live now
     board: () => renderBoard(""),
     "board-quiz": () => renderBoard("", "quiz"),
-    "daily-quiz": () => openRun(dquizSpec(today())),
+    "daily-quiz": () => withConfig(() => openRun(dquizSpec(today()))),
     sprint: () => renderSprint(""),
   };
   const slugFor = (key) => key.replace(/:/g, "-");
@@ -1803,14 +1839,29 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (location.hash.replace(/^#/, "") === name) route();
     else location.hash = name;
   }
+  const BAD_LINK = "That link didn't work, so here's the home page.";
+  /** A screen that fails to draw (a broken or mangled link) falls back to home instead of a blank page. */
   function route() {
+    try { routeTo(); } catch (err) {
+      setTimeout(() => { throw err; }); // still reported as an error, after the page has recovered
+      try { stopRun(); history.replaceState(null, "", location.pathname + location.search + "#home"); renderHome(); } catch { /* nothing more to do */ }
+      toast(BAD_LINK);
+    }
+    swApply(); // between games: a waiting new version can take over now
+  }
+  function routeTo() {
     closeDrawer();
     closeModal();
     if (!(LIVE.active && RUN && RUN.mode === "live")) stopRun();
     clearScreenTimers();
     unmountHomeHero();
     window.scrollTo(0, 0);
-    const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
+    let h;
+    try { h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-"); } catch { // "#%E0%A4%A": not a valid escape
+      h = "home";
+      history.replaceState(null, "", location.pathname + location.search + "#home");
+      toast(BAD_LINK);
+    }
     if ((LIVE.active && h !== liveHash()) || (joinState && h !== `live-${joinState.code}`)) leaveLive();
     syncChat();
     if (h !== "live" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
@@ -2782,16 +2833,28 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (RUN.mode === "practice") {
       const r = RUN.results[0];
       const prev = practiceBest[r.promptId];
-      if (!prev || (r.tier && (!T[prev] || T[r.tier].score > T[prev].score))) { practiceBest[r.promptId] = r.tier || "miss"; LS.set("practice", practiceBest); }
+      if (!prev || (r.tier && (!T[prev] || T[r.tier].score > T[prev].score))) { practiceBest = Object.assign(LS.get("practice", {}) || {}, { [r.promptId]: r.tier || "miss" }); LS.set("practice", practiceBest); }
       LS.set("lastPractice", rec);
       stopRun();
       return renderResults("practice", rec);
     }
+    // Another tab may have finished a run under this key meanwhile. The first finish counts (a daily is played
+    // once); an endless Unlimited session just takes the next free number.
+    const stored = LS.get("records", {}) || {};
+    if (stored[rec.key] && RUN.endless) {
+      let k = RUN.number; while (stored[`unlimited:${k}`]) k++;
+      Object.assign(rec, { key: `unlimited:${k}`, number: k, label: `Unlimited #${k}` });
+    } else if (stored[rec.key]) {
+      records = stored;
+      LS.del("run:" + RUN.key);
+      stopRun();
+      toast("You finished this in another tab. That result counts.");
+      return go(`results-${slugFor(rec.key)}`);
+    }
     saveRecord(rec);
     LS.del("run:" + RUN.key);
-    const key = RUN.key;
     stopRun();
-    go(`results-${slugFor(key)}`);
+    go(`results-${slugFor(rec.key)}`);
   }
 
   // Global keyboard: Enter continues from feedback.
@@ -2816,7 +2879,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const BOARD_CONFIG = { url: "https://ozqnznvxxxnefeetidwq.supabase.co", key: "sb_publishable_xztj1Nx4sRbgltpd0u3XWg_2cASIAG5" };
   const BOARD_CFG = window.MLION_BOARD || BOARD_CONFIG; // tests inject a fake project
   const BOARD_ON = !!(BOARD_CFG.url && BOARD_CFG.key) && /^https?:$/.test(location.protocol) && window.top === window;
-  const SB_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js";
+  const SB_SRC = "js/vendor/supabase-2.118.0.js"; // @supabase/supabase-js 2.118.0, dist/umd/supabase.js, served with the game (no CDN)
+  // If the project is down or paused, every leaderboard and login call gives up after a while and says so;
+  // the game itself never waits on it.
+  const BOARD_DOWN = "The leaderboard can't be reached right now. Your game still counts here.";
+  const SB_TIMEOUT_MS = 10000;
+  function timedFetch(url, opts = {}) {
+    if (opts.signal) return fetch(url, opts);
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), SB_TIMEOUT_MS);
+    return fetch(url, { ...opts, signal: ctl.signal }).finally(() => clearTimeout(t));
+  }
+  /** Whether the project answers at all (a paused or broken one doesn't), so a failed call isn't read as "account gone". */
+  const boardUp = () => timedFetch(`${BOARD_CFG.url}/auth/v1/settings`, { headers: { apikey: BOARD_CFG.key } }).then((r) => r.ok, () => false);
   const SB_STORE = "mlion:sb";
   const PROVIDERS = [["google", "Google"], ["discord", "Discord"]];
   // anon: a publish-only account made by "Publish my score" (Supabase anonymous sign-in), no login
@@ -2831,6 +2905,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (!window.supabase || !window.supabase.createClient) { sbLoading = null; return rej(new Error("no supabase")); }
         sbClient = window.supabase.createClient(BOARD_CFG.url, BOARD_CFG.key, {
           auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: SB_STORE },
+          global: { fetch: timedFetch },
         });
         res(sbClient);
       };
@@ -2891,7 +2966,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           AUTH.admin = AUTH.anon ? false : await checkAdmin();
           if (AUTH.uid !== uid) return;
           if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
-          if (!AUTH.anon) await postDaily(records[`daily:${today()}`]); // a login posts by itself; a publish-only account waits for the button
+          if (!AUTH.anon) for (const d of [today(), E.addDays(today(), -1)]) await postDaily(records[`daily:${d}`]); // a login posts by itself (yesterday's too, for a run that crossed midnight); a publish-only account waits for the button
         } catch { /* offline: the board page retries */ }
       }
       boardRedraw();
@@ -2922,8 +2997,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const postMark = (rec) => (rec.mode === "dquiz" ? `q:${rec.date}` : rec.date);
   const isPosted = (rec) => !!(rec && AUTH.user && boardPosted[postMark(rec)] === AUTH.user.id);
   async function postDaily(rec) {
-    if (!sbClient || !AUTH.user || !AUTH.profile || !rec || rec.date !== today() || rec.tiers.length !== E.ROUNDS) return false;
+    if (!sbClient || !AUTH.user || !AUTH.profile || !rec || !postableDay(rec.date) || rec.tiers.length !== E.ROUNDS) return false;
     if (rec.mode !== "daily" && rec.mode !== "dquiz") return false;
+    if (!dealtNow(rec)) return false; // dealt from another set (before the launch day reached this browser)
     const quiz = rec.mode === "dquiz", mark = postMark(rec);
     if (boardPosted[mark] === AUTH.user.id) return true;
     const quizRow = quiz && { user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)),
@@ -2936,7 +3012,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ({ error } = await sbClient.from("daily_quiz_scores").insert(plain));
     }
     if (error && error.code !== "23505") return false;
-    boardPosted[mark] = AUTH.user.id;
+    Object.assign(boardPosted, LS.get("boardPosted", {}) || {}, { [mark]: AUTH.user.id }); // keep what another tab posted
     LS.set("boardPosted", boardPosted);
     return true;
   }
@@ -2964,6 +3040,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const err = res && res.error;
     if (!err && res.data && res.data.user) return false;
     if (err && !(err.status === 401 || err.status === 403 || err.status === 404 || /not.?found|jwt|session/i.test(`${err.code || ""} ${err.message || ""}`))) return false;
+    if (!(await boardUp())) return false; // a paused or broken project answers "not found" too: that is no proof
     try { await sbClient.auth.signOut({ scope: "local" }); } catch { /* ignore */ }
     AUTH.uid = null; AUTH.user = null; AUTH.profile = null; AUTH.admin = false; AUTH.anon = false; AUTH.loading = null;
     toast(GONE);
@@ -3002,7 +3079,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (!AUTH.user) {
         LS.set("name", name); // the new account's profile takes this name
         const { data, error } = await sb.auth.signInAnonymously();
-        if (error) return /anonymous/i.test(`${error.code || ""} ${error.message || ""}`) ? "Publishing without a login isn't switched on yet. Log in instead." : "Couldn't publish. Try again.";
+        if (error) return /anonymous/i.test(`${error.code || ""} ${error.message || ""}`) ? "Publishing without a login isn't switched on yet. Log in instead." : (await boardUp()) ? "Couldn't publish. Try again." : BOARD_DOWN;
         await onSession(data && data.session);
       } else await (AUTH.loading || Promise.resolve());
       if (!AUTH.profile) return "Couldn't publish. Try again.";
@@ -3015,7 +3092,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function publishModal(rec) {
     const quiz = rec.mode === "dquiz";
     const cur = (AUTH.profile && AUTH.profile.name) || myName() || "";
-    showModal("Publish your score", `<p class="muted">Your ${rec.score} goes on today's ${quiz ? "quiz " : ""}leaderboard under this name. Everyone can see it.</p>
+    showModal("Publish your score", `<p class="muted">Your ${rec.score} goes on ${dayWord(rec.date)}'s ${quiz ? "quiz " : ""}leaderboard under this name. Everyone can see it.</p>
       <form id="pub-form" class="vs-form"><input class="search" id="pub-name" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(cur)}" aria-label="Name on the leaderboard">
       <p class="pub-err" id="pub-err" role="alert"></p>
       <div class="btn-row"><button class="btn primary" type="submit" id="pub-go">Publish</button></div></form>`);
@@ -3065,7 +3142,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // project's public auth settings, so turning Google on later needs no code change.
   let providersOn = null;
   function loadProviders() {
-    if (!providersOn) providersOn = fetch(`${BOARD_CFG.url}/auth/v1/settings`, { headers: { apikey: BOARD_CFG.key } })
+    if (!providersOn) providersOn = timedFetch(`${BOARD_CFG.url}/auth/v1/settings`, { headers: { apikey: BOARD_CFG.key } })
       .then((r) => r.json())
       .then((j) => PROVIDERS.filter(([id]) => j && j.external && j.external[id]))
       .catch(() => { providersOn = null; return []; });
@@ -3120,17 +3197,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const quiz = kind === "quiz";
     const order = quiz ? "score.desc,tenths.asc,created_at.asc" : "score.desc,created_at.asc";
     const url = `${BOARD_CFG.url}/rest/v1/${BOARDS[kind].table}?select=user_id,score${quiz ? ",tenths" : ""},profiles(name)&day=eq.${day}&order=${order}&limit=${n}`;
-    const r = await fetch(url, { headers: { apikey: BOARD_CFG.key } });
+    const r = await timedFetch(url, { headers: { apikey: BOARD_CFG.key } });
     if (!r.ok) throw new Error(String(r.status));
     return (await r.json()).slice(0, n);
   }
   async function fillMiniBoard(el, day, kind) {
-    const href = kind === "quiz" ? "#board-quiz" : "#board";
+    const href = boardHref(day, kind);
     let rows;
-    try { rows = await boardTop(day, kind); } catch { if (el.isConnected) el.innerHTML = ""; return; }
+    try { rows = await boardTop(day, kind); } catch { if (el.isConnected) el.innerHTML = `<p class="muted small">${BOARD_DOWN}</p>`; return; }
     if (!el.isConnected) return;
     let rank = 0, last = null;
-    el.innerHTML = `<div class="mb-head"><span>Today's leaderboard</span><a href="${href}">See all</a></div>
+    el.innerHTML = `<div class="mb-head"><span>${day === today() ? "Today's" : "Yesterday's"} leaderboard</span><a href="${href}">See all</a></div>
       ${rows.length ? `<ol class="mb-list">${rows.map((row, i) => {
         const tie = kind === "quiz" ? `${row.score}|${row.tenths}` : row.score;
         if (tie !== last) { rank = i + 1; last = tie; }
@@ -3139,10 +3216,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       }).join("")}</ol>` : `<p class="muted small">No scores yet. Be the first.</p>`}`;
   }
 
+  const boardHref = (day, kind) => `#${kind === "quiz" ? "board-quiz" : "board"}${day === today() ? "" : `-${day}`}`;
   // The box under today's results: publish (or where you placed), then today's top five.
   async function fillBoardBox(box, rec) {
     if (!BOARD_ON || !rec) return;
-    const kind = rec.mode === "dquiz" ? "quiz" : "daily", href = kind === "quiz" ? "#board-quiz" : "#board";
+    const kind = rec.mode === "dquiz" ? "quiz" : "daily", href = boardHref(rec.date, kind);
+    if (!dealtNow(rec)) { box.innerHTML = `<p class="muted small">This run was dealt from an older set of questions, so it can't go on the leaderboard.</p>`; return; }
     if (!AUTH.ready) { box.innerHTML = `<p class="muted small">Checking the leaderboard…</p>`; return; }
     const mini = `<div class="mini-board" id="mini-board"></div>`;
     const drawMini = () => { const m = $("#mini-board", box); if (m) fillMiniBoard(m, rec.date, kind); };
@@ -3158,7 +3237,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!ok && await accountGone()) return;
     const r = ok ? await rankFor(rec.date, AUTH.user.id, kind).catch(() => null) : null;
     if (!box.isConnected) return;
-    box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
+    box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} ${dayWord(rec.date)} as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
       : kind === "quiz" ? "" // the quiz board isn't open on this server yet
       : `<p class="muted small">Couldn't post your score. <a href="${href}">Leaderboard</a></p>`) + mini;
     drawMini();
@@ -3282,6 +3361,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     setMid(rec.label);
     const share = E.shareText({ mode: rec.mode, number: rec.number, score: rec.score, tiers: rec.tiers, secs: rec.secs, label: rec.mode === "pack" ? PACKS.get(rec.pack).name : rec.label });
     const isDailyToday = (rec.mode === "daily" || rec.mode === "dquiz") && rec.date === today();
+    const boardable = (rec.mode === "daily" || rec.mode === "dquiz") && postableDay(rec.date); // yesterday's too: a run that crossed midnight
     const picked = !BROWSE && (rec.mode === "pack" || rec.mode === "practice"); // those pages are hidden
     const nextHref = picked ? "#unlimited" : rec.mode === "unlimited" ? "#unlimited-play" :
       rec.mode === "quiz" || rec.mode === "dquiz" ? `#quiz-${nextQuiz()}` :
@@ -3308,7 +3388,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
               <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
-          ${isDailyToday && BOARD_ON ? `<div class="board-box" id="board-box" data-key="${esc(rec.key)}"></div>` : ""}
+          ${boardable && BOARD_ON ? `<div class="board-box" id="board-box" data-key="${esc(rec.key)}"></div>` : ""}
           ${isDailyToday ? `<p class="countdown">${rec.mode === "dquiz" ? "Next quiz in" : "Next descent in"} <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
         </div>
       </div>
@@ -3668,7 +3748,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (box) { box.disabled = true; box.blur(); } // an Enter typed as time runs out must not press anything
     const prev = sprints[S.p.id];
     const best = !prev || S.pts > prev.best;
-    sprints[S.p.id] = { best: best ? S.pts : prev.best, n: best ? S.found.length : prev.n, plays: (prev ? prev.plays : 0) + 1, at: Date.now() };
+    const mine = { best: best ? S.pts : prev.best, n: best ? S.found.length : prev.n, plays: (prev ? prev.plays : 0) + 1, at: Date.now() };
+    sprints = Object.assign(LS.get("sprints", {}) || {}, { [S.p.id]: mine }); // keep what another tab saved
     LS.set("sprints", sprints);
     if (S.found.length) Sound.tier(S.found.some((a) => a.t === "mlion") ? "mlion" : "outlier"); else Sound.miss();
     renderSprintDone(S, prev, best);
@@ -4338,6 +4419,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         try {
           const d = JSON.parse($("#imp-t").value);
           let n = 0;
+          records = LS.get("records", {}) || {}; seen = new Set(LS.get("seen", []) || []); sprints = LS.get("sprints", {}) || {}; // and what other tabs saved
           for (const [k, r] of Object.entries(d.records || {})) {
             if (!r || !Array.isArray(r.results)) continue;
             if (!records[k] || records[k].score < r.score) { records[k] = r; n++; }
@@ -4381,23 +4463,45 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     CFG = next;
     LS.set("cfg", CFG);
     if (!changed) return;
+    const launchWas = E.LAUNCH;
     E.setLaunch(CFG.launch);
     const idleHome = !RUN && !LIVE.active && /^#?(home)?$/.test(location.hash);
     if (resetDue(CFG)) { // mid-game, it waits for the next visit (the cached row does it then)
       if (idleHome) { wipeLocal(); LS.set("since", new Date().toISOString()); location.reload(); }
       return;
     }
+    if (E.LAUNCH !== launchWas) {
+      // The launch day moved, so today's daily may be another set. A daily from the old set, in progress or
+      // finished, can't be posted (dealtNow); it is put aside and today's real one opens.
+      const shelved = shelveStale();
+      const stale = RUN && (RUN.mode === "daily" || RUN.mode === "dquiz") && RUN.date === today() && !dealtNow(RUN);
+      const onStale = location.hash.match(/^#results-(daily|dquiz)-(\d{4}-\d{2}-\d{2})$/);
+      if (stale) LS.del("run:" + RUN.key);
+      if (stale || (onStale && shelved && !records[`${onStale[1]}:${onStale[2]}`])) {
+        toast("Today's questions just changed. Here is today's set.");
+        return stale ? route() : go(onStale[1] === "dquiz" ? "daily-quiz" : "daily");
+      }
+      if (shelved && idleHome) return route();
+    }
     if (idleHome) route(); // the day number and the banner
   }
   let cfgLoading = null;
   function cfgFetch() {
     if (!BOARD_ON || (navigator.webdriver && !window.MLION_BOARD)) return Promise.resolve(); // tests never read the live project's settings
-    if (!cfgLoading) cfgLoading = fetch(`${BOARD_CFG.url}/rest/v1/app_config?select=launch,banner,reset_at&id=eq.1`, { headers: { apikey: BOARD_CFG.key }, cache: "no-store" })
+    if (!cfgLoading) cfgLoading = timedFetch(`${BOARD_CFG.url}/rest/v1/app_config?select=launch,banner,reset_at&id=eq.1`, { headers: { apikey: BOARD_CFG.key }, cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((rows) => { if (Array.isArray(rows) && rows[0]) cfgUse(rows[0]); })
       .catch(() => { /* offline: the cached row stands */ })
       .finally(() => { cfgLoading = null; });
     return cfgLoading;
+  }
+  /** A browser that has never seen the config (a first visit) waits up to 2 s for it before dealing a daily, so a
+   * launch day set in the admin panel applies at once. LAUNCH_DATE in engine.js covers the common case anyway. */
+  function withConfig(open) {
+    if (!cfgLoading || LS.get("cfg", null)) return open();
+    const h = location.hash, wait = cfgLoading;
+    app.innerHTML = `<p class="boot" aria-hidden="true"><span></span></p>`;
+    Promise.race([wait, new Promise((r) => setTimeout(r, 2000))]).then(() => { if (location.hash === h && !RUN) open(); });
   }
 
   // #admin (user, 2026-11-05: "an admin panel I can use to do everything, easily and visually"). It works for
@@ -4455,7 +4559,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const fig = (v, l) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`;
       const top = (rows, quiz) => (rows && rows.length ? `<ol class="adm-top">${rows.map((r) => `<li><span>${esc(r.name)}</span><b>${r.score}</b>${quiz ? `<em>${(r.tenths / 10).toFixed(1)} s</em>` : ""}</li>`).join("")}</ol>` : `<p class="muted">No scores yet today.</p>`);
       body.innerHTML = `
-        <p class="adm-launch">${esc(launchWords(CFG.launch))}</p>
+        <p class="adm-launch">${esc(launchWords(E.LAUNCH))}</p>
         <div class="stat-grid adm-figs">${fig(o.players, "Players")}${fig(o.new_today, "Joined today")}${fig(o.new_week, "Joined this week")}${fig(o.daily_today, "Dailies today")}${fig(o.quiz_today, "Daily quizzes today")}</div>
         <section><h2 class="block-title">Last 14 days</h2>
           <div class="adm-chart" role="img" aria-label="Dailies and daily quizzes posted each day">${days.map((d) => `
@@ -4541,7 +4645,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const L = CFG.launch || "";
     body.innerHTML = `
       <section class="adm-card"><h2 class="block-title">Launch day</h2>
-        <p class="adm-launch" id="adm-launch-now">${esc(launchWords(L))}</p>
+        <p class="adm-launch" id="adm-launch-now">${esc(launchWords(E.LAUNCH))}</p>
         <div class="adm-bar"><input type="date" class="search adm-date" id="adm-launch" value="${L}" aria-label="Launch day">
           <button type="button" class="btn sm" data-d="0">Today</button><button type="button" class="btn sm" data-d="1">Tomorrow</button></div>
         <p class="muted small" id="adm-launch-preview"></p>
@@ -4562,7 +4666,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     inp.addEventListener("input", preview);
     $$("[data-d]", body).forEach((b) => b.addEventListener("click", () => { inp.value = E.addDays(today(), +b.dataset.d); preview(); }));
     const saveLaunch = async (v) => {
-      try { cfgUse(await adminCall("admin_set_launch", { p_launch: v || null })); toast(v ? `Launch day saved. ${launchWords(v).split(". ")[1] || ""}` : "Back to not launched"); adminGame(); } catch (err) { adminFail(err); }
+      try { cfgUse(await adminCall("admin_set_launch", { p_launch: v || null })); toast(v ? `Launch day saved. ${launchWords(v).split(". ")[1] || ""}` : E.LAUNCH_DATE ? `Cleared. The launch day in the code stands: ${E.LAUNCH_DATE}` : "Back to not launched"); adminGame(); } catch (err) { adminFail(err); }
     };
     $("#adm-launch-save").addEventListener("click", () => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(inp.value)) return toast("Pick a day first");
@@ -4634,8 +4738,57 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // An installable app that opens offline: the service worker runs on the live site (https),
   // or anywhere once mlion:sw is set (the offline test does that on localhost).
+  // Updates: a new release's worker installs in the background and waits. When no game or room is running here
+  // (a screen change, or the tab going to the background), it takes over and the page reloads once onto the new
+  // version, unless this page already is that version. So this page's files and the worker's never mix.
+  const SW = { pending: null, reloading: false };
+  /** The stamped files this page runs (index.html's script and style links). */
+  const ownStamps = () => $$('script[src*="?v="], link[rel="stylesheet"][href*="?v="]').map((el) => el.getAttribute("src") || el.getAttribute("href"));
+  const swBusy = () => !!(RUN || LIVE.active || (typeof joinState !== "undefined" && joinState));
+  function swReload() {
+    if (SW.reloading) return;
+    if (swBusy()) { SW.later = true; return; } // another tab let the new worker in: reload once this game is over
+    SW.reloading = true;
+    location.reload();
+  }
+  function swApply() {
+    if (SW.later) return swReload();
+    const w = SW.pending;
+    if (!w || swBusy()) return;
+    SW.pending = null;
+    const ch = new MessageChannel();
+    let asked = false;
+    const take = (assets) => {
+      if (asked) return;
+      asked = true;
+      SW.reload = !(Array.isArray(assets) && ownStamps().every((u) => assets.includes(u))); // already that version: no reload
+      w.postMessage({ t: "skip" });
+    };
+    ch.port1.onmessage = (e) => take(e.data && e.data.assets);
+    w.postMessage({ t: "assets" }, [ch.port2]);
+    setTimeout(() => take(null), 1500); // an old worker that doesn't answer: reload to be safe
+  }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || LS.get("sw"))) {
-    addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* private mode, or blocked */ }); });
+    let controlled = !!navigator.serviceWorker.controller; // the very first install takes over without a reload
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!controlled) { controlled = true; return; }
+      if (SW.reload !== false) swReload();
+      SW.reload = undefined;
+    });
+    addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").then((reg) => {
+        const waitFor = (w) => { if (w && navigator.serviceWorker.controller) { SW.pending = w; swApply(); } };
+        if (reg.waiting) waitFor(reg.waiting);
+        reg.addEventListener("updatefound", () => {
+          const w = reg.installing;
+          if (w) w.addEventListener("statechange", () => { if (w.state === "installed") waitFor(w); });
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) swApply();
+          else reg.update().catch(() => { /* offline */ });
+        });
+      }).catch(() => { /* private mode, or blocked */ });
+    });
   }
   let installEvt = null;
   addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; $("#install").hidden = false; });
@@ -4662,11 +4815,30 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     kb();
   }
 
+  // ---- other tabs: another tab of the game saved progress. Take its copy, so nothing here writes over it; a run this
+  // tab is still playing that the other tab has finished ends here and shows that result.
+  addEventListener("storage", (e) => {
+    if (e.storageArea !== localStorage || (e.key && !e.key.startsWith("mlion:"))) return;
+    const k = e.key ? e.key.slice(6) : null; // null: the whole storage was cleared
+    if (k === null || k === "records") records = LS.get("records", {}) || {};
+    if (k === null || k === "seen") seen = new Set(LS.get("seen", []) || []);
+    if (k === null || k === "practice") practiceBest = LS.get("practice", {}) || {};
+    if (k === null || k === "sprints") sprints = LS.get("sprints", {}) || {};
+    if (k !== null && k !== "records") return;
+    if (RUN && RUN.mode !== "live" && RUN.mode !== "practice" && !RUN.endless && records[RUN.key]) {
+      const key = RUN.key;
+      stopRun();
+      toast("You finished this in another tab. That result counts.");
+      go(`results-${slugFor(key)}`);
+    }
+  });
+
   V.initBackdrop();
   // every answer key in the game, so a real answer from elsewhere is offered, never auto-corrected
   (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => E.setLexicon(DATA.prompts.concat(EXTRAS)));
   if (!BOARD_ON) $$('#drawer a[href="#board"]').forEach((a) => a.remove());
   boardBoot();
   cfgFetch();
+  shelveStale(); // a daily finished today from a set the launch day has since replaced
   route();
 })();

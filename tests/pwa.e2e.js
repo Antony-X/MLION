@@ -13,9 +13,12 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };
 const served = [];
+const override = new Map(); // path -> body: a "new deploy" for the update test
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   served.push(url);
+  const key = url === "/" ? "/index.html" : url;
+  if (override.has(key)) { res.writeHead(200, { "Content-Type": TYPES[path.extname(key)] || "text/plain" }); return res.end(override.get(key)); }
   const file = path.join(ROOT, url === "/" ? "index.html" : url);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("nf"); }
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
@@ -65,6 +68,63 @@ const check = (cond, msg) => { if (!cond) throw new Error("FAIL: " + msg); conso
 
   // the Install entry stays hidden until the browser offers installation
   check(await page.$eval("#install", (b) => b.hidden), "the menu's Install entry is hidden until the browser offers it");
+
+  // ---- updates are atomic: a stamped file is only stored with the content its hash names
+  await ctx.setOffline(false);
+  await page.goto(base);
+  await page.waitForSelector(".wordmark");
+  const bogus = await page.evaluate(async () => {
+    await fetch("js/app.js?v=bogus1"); // the server ignores ?v, like GitHub Pages: this is today's app.js under a wrong name
+    await new Promise((r) => setTimeout(r, 300));
+    const c = await caches.open((await caches.keys()).find((k) => k.startsWith("mlion-")));
+    return !!(await c.match("js/app.js?v=bogus1"));
+  });
+  check(!bogus, "a file whose content doesn't match its ?v= stamp is served but never cached under that name");
+
+  // ---- a new deploy: new app.js, index.html and sw.js. While a daily is running nothing changes; on the
+  // next screen between games the new worker takes over and the page reloads once onto the new files.
+  const E = require("../js/engine.js");
+  const oldApp = linked.find((u) => u.startsWith("js/app.js"));
+  const appSrc = fs.readFileSync(path.join(ROOT, "js/app.js"), "utf8") + "\n// a new release\n";
+  const newApp = `js/app.js?v=${E.hashString(appSrc).toString(36)}`;
+  const pageApp = () => page.evaluate(() => document.querySelector('script[src*="js/app.js"]').getAttribute("src"));
+  check((await pageApp()) === oldApp, "the page runs the old release");
+  override.set("/js/app.js", appSrc);
+  override.set("/index.html", html.replace(oldApp, newApp));
+  override.set("/sw.js", sw.replace(JSON.stringify(oldApp), JSON.stringify(newApp)));
+  await page.evaluate(() => { window.__before = true; location.hash = "daily"; }); // same page, now mid-daily
+  await page.waitForSelector("#answer", { timeout: 15000 });
+  await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg.update(); });
+  await page.waitForFunction(async () => { const reg = await navigator.serviceWorker.getRegistration(); return !!reg.waiting; }, null, { timeout: 15000, polling: 200 });
+  await page.waitForTimeout(800);
+  check(await page.evaluate(() => window.__before === true && !!document.querySelector("#answer")), "mid-daily: the new worker waits and the page is left alone");
+  const reloaded = page.waitForEvent("load", { timeout: 15000 });
+  await page.evaluate(() => { location.hash = "home"; });
+  await reloaded;
+  await page.waitForSelector(".wordmark");
+  check(await page.evaluate(() => window.__before === undefined), "back home between games: the page reloaded once");
+  check((await pageApp()) === newApp, "and runs the new release");
+  await page.waitForTimeout(500);
+  const keys = await page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith("mlion-")));
+  const newCached = await page.evaluate(async (u) => !!(await caches.match(u)), newApp);
+  check(keys.length === 1 && newCached, "one cache left, holding the new release");
+  await ctx.setOffline(true);
+  await page.goto(base + "#daily");
+  await page.waitForSelector("#answer", { timeout: 15000 });
+  check((await pageApp()) === newApp, "offline after the update: the daily opens on the new release");
+  await ctx.setOffline(false);
+  // a worker whose files come back as another version (a cache still holding the old ones) never installs
+  override.set("/sw.js", sw.replace(JSON.stringify(oldApp), JSON.stringify("js/app.js?v=zzzzzz")));
+  await page.goto(base);
+  await page.waitForSelector(".wordmark");
+  const staleInstalled = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.getRegistration();
+    await reg.update().catch(() => null);
+    await new Promise((r) => setTimeout(r, 1500));
+    return !!(reg.waiting || reg.installing);
+  });
+  check(!staleInstalled, "a release whose files don't match their stamps fails to install; the working version stays");
+  override.clear();
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await ctx.close();
   await browser.close();
