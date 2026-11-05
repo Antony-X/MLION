@@ -396,7 +396,10 @@
   // Launch day: MLion #1 and Daily Quiz #1, and day 1 of the hand-picked launch week (data/daily.json).
   // null until the game launches: every day is #1 then, and the daily deals from a pre-launch
   // stream that never touches the launch week. Set it to the launch date ("YYYY-MM-DD") that day.
-  const LAUNCH = (typeof window !== "undefined" && window.MLION_LAUNCH) || null; // tests set window.MLION_LAUNCH
+  const LAUNCH_HOOK = (typeof window !== "undefined" && window.MLION_LAUNCH) || null; // tests set window.MLION_LAUNCH
+  let LAUNCH = LAUNCH_HOOK;
+  /** The launch day an admin set in the admin panel (app_config.launch); a test's window.MLION_LAUNCH wins. */
+  function setLaunch(d) { if (!LAUNCH_HOOK) LAUNCH = typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null; }
   const epoch = () => LAUNCH || localDateString();
   function pad(n) { return String(n).padStart(2, "0"); }
   function localDateString(d = new Date()) {
@@ -710,15 +713,17 @@
     return `${tag} 🦁\n${score}/${tiers.length * 100} · loss ${loss.toFixed(2)}${clock}\n\n${grid}`;
   }
 
-  return {
+  const api = {
     TIERS, TIER_IDS, TIERS_BY_SCORE, MISS_EMOJI, ROUNDS, MAX_SCORE, PREVIEW_MS, ANSWER_MS,
     MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
     tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
-    LAUNCH, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
+    setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
   };
+  Object.defineProperty(api, "LAUNCH", { get: () => LAUNCH, enumerable: true }); // live: the admin panel can set it after load
+  return api;
 });

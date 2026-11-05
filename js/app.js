@@ -119,6 +119,25 @@
       localStorage.setItem("mlion:reset", RESET_ID);
     }
   } catch { /* storage unavailable */ }
+  // The admin panel (#admin) sets three things everyone's game reads: the launch day (MLion #1), a home banner, and
+  // `reset_at`, the moment an admin reset every player. They live in one public row (Supabase app_config), cached
+  // here so the day number is right from the first paint; cfgFetch() refreshes it after start.
+  const CFG_KEEP = new Set(["mlion:settings", "mlion:reset", "mlion:cfg", "mlion:since"]);
+  let CFG = LS.get("cfg", null) || {};
+  E.setLaunch(CFG.launch);
+  function wipeLocal(keep = (k) => CFG_KEEP.has(k)) {
+    try { Object.keys(localStorage).filter((k) => k.startsWith("mlion:") && !keep(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
+  }
+  /** An admin reset everyone after this browser's progress began (`mlion:since`). Test browsers are left alone. */
+  const resetDue = (c) => !!(c && c.reset_at) && !(navigator.webdriver && !window.MLION_RESET_TEST)
+    && Date.parse(c.reset_at) > Date.parse(LS.get("since", "") || "1970-01-01T00:00:00Z");
+  try {
+    if (!LS.get("since", "")) { // progress from before this shipped counts as old
+      const old = Object.keys(localStorage).some((k) => k.startsWith("mlion:") && !CFG_KEEP.has(k) && k !== "mlion:seenHow");
+      LS.set("since", old ? "1970-01-01T00:00:00Z" : new Date().toISOString());
+    }
+    if (resetDue(CFG)) { wipeLocal(); LS.set("since", new Date().toISOString()); }
+  } catch { /* storage unavailable */ }
   const sysReduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, haptics: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false };
   let settings = Object.assign({}, DEFAULTS, LS.get("settings", {}));
@@ -1671,6 +1690,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     unlimited: renderUnlimited, quiz: renderQuizHub, packs: renderPacks, archive: renderArchive, library: renderLibrary,
     stats: renderStats, how: renderHow, faq: renderFaq, prefs: renderSettings,
     challenge: renderChallenge,
+    admin: renderAdmin,
     live: () => openLive(""),
     rooms: () => go("live"), // old links: the room list is part of #live now
     board: () => renderBoard(""),
@@ -1759,6 +1779,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     ].filter(([href]) => BOARD_ON || href !== "#board");
     const html = `<section class="screen home">
       <canvas id="hero3d" aria-hidden="true"></canvas>
+      ${bannerHtml()}
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
         <p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>
@@ -1784,9 +1805,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       sec.className = "screen home";
       sec.querySelectorAll(":scope > :not(.home-hero)").forEach((el) => el.remove());
       pre.before(tpl.content.querySelector("#hero3d"));
+      const ann = tpl.content.querySelector("#announce");
+      if (ann) pre.before(ann);
       pre.after(...tpl.content.querySelectorAll(".home > :not(canvas):not(.home-hero)"));
     } else app.replaceChildren(tpl.content);
     $$(".modes a.friend").forEach((a) => a.addEventListener("click", () => LS.set("liveFmt", a.dataset.fmt))); // the room opens in that format
+    const annX = $("#announce-x");
+    if (annX) annX.addEventListener("click", () => { LS.set("bannerSeen", CFG.banner); $("#announce").remove(); });
     if (mountHomeHero()) document.body.dataset.view = "home"; // the 3D descent replaces the flat backdrop
     else scene("home", { progress, animate: true });
     if (rec) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); if (today() !== date) route(); });
@@ -2618,7 +2643,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const SB_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js";
   const SB_STORE = "mlion:sb";
   const PROVIDERS = [["google", "Google"], ["discord", "Discord"]];
-  const AUTH = { uid: null, user: null, profile: null, ready: !BOARD_ON };
+  const AUTH = { uid: null, user: null, profile: null, admin: false, ready: !BOARD_ON };
   const boardPosted = LS.get("boardPosted", {}) || {};
   let sbClient = null, sbLoading = null;
 
@@ -2672,10 +2697,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const user = (session && session.user) || null;
     const uid = user ? user.id : null;
     if (uid === AUTH.uid) return;
-    AUTH.uid = uid; AUTH.user = user; AUTH.profile = null;
+    AUTH.uid = uid; AUTH.user = user; AUTH.profile = null; AUTH.admin = false;
     if (user) {
       try {
         AUTH.profile = await loadProfile(user);
+        if (AUTH.uid !== uid) return;
+        AUTH.admin = await checkAdmin();
         if (AUTH.uid !== uid) return;
         if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
         await postDaily(records[`daily:${today()}`]);
@@ -2727,7 +2754,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   async function boardLogout() {
     try { if (sbClient) await sbClient.auth.signOut(); } catch { /* ignore */ }
-    AUTH.uid = null; AUTH.user = null; AUTH.profile = null;
+    AUTH.uid = null; AUTH.user = null; AUTH.profile = null; AUTH.admin = false;
     boardRedraw();
   }
   function boardRename() {
@@ -2752,7 +2779,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function boardRedraw() {
     drawAccount();
     const h = location.hash.replace(/^#/, "");
-    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h)) return route();
+    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h) || h === "admin") return route();
     const box = $("#board-box");
     if (box) fillBoardBox(box, records[box.dataset.key || `daily:${today()}`]);
   }
@@ -2775,7 +2802,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!BOARD_ON || !AUTH.ready) { box.innerHTML = ""; return; }
     if (AUTH.user) {
       box.innerHTML = `<p class="acct-who">Logged in as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b></p>
-        <div class="btn-row"><button class="btn sm" id="acct-name">Change name</button><button class="btn sm" id="acct-out">Log out</button></div>`;
+        <div class="btn-row">${AUTH.admin ? `<a class="btn sm acct-admin" href="#admin">Admin panel</a>` : ""}<button class="btn sm" id="acct-name">Change name</button><button class="btn sm" id="acct-out">Log out</button></div>`;
       $("#acct-out", box).addEventListener("click", () => { closeDrawer(); boardLogout(); });
       $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
     } else {
@@ -4021,6 +4048,233 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     });
   }
 
+  // ========================================================= config + admin panel
+  /** The admin's home banner, until this player closes that note. */
+  function bannerHtml() {
+    const b = CFG.banner;
+    if (!b || LS.get("bannerSeen", "") === b) return "";
+    return `<aside class="announce" id="announce" role="status"><p>${esc(b)}</p><button class="icon-btn" id="announce-x" aria-label="Close the note">${XICON}</button></aside>`;
+  }
+  /** Take a config row: cache it, set the launch day, and if an admin reset everyone, clear this browser. */
+  function cfgUse(row) {
+    if (!row || typeof row !== "object") return;
+    const next = { launch: /^\d{4}-\d{2}-\d{2}$/.test(row.launch || "") ? row.launch : null, banner: String(row.banner || "").slice(0, 200), reset_at: row.reset_at || null };
+    const changed = JSON.stringify(next) !== JSON.stringify({ launch: CFG.launch || null, banner: CFG.banner || "", reset_at: CFG.reset_at || null });
+    CFG = next;
+    LS.set("cfg", CFG);
+    if (!changed) return;
+    E.setLaunch(CFG.launch);
+    const idleHome = !RUN && !LIVE.active && /^#?(home)?$/.test(location.hash);
+    if (resetDue(CFG)) { // mid-game, it waits for the next visit (the cached row does it then)
+      if (idleHome) { wipeLocal(); LS.set("since", new Date().toISOString()); location.reload(); }
+      return;
+    }
+    if (idleHome) route(); // the day number and the banner
+  }
+  let cfgLoading = null;
+  function cfgFetch() {
+    if (!BOARD_ON || (navigator.webdriver && !window.MLION_BOARD)) return Promise.resolve(); // tests never read the live project's settings
+    if (!cfgLoading) cfgLoading = fetch(`${BOARD_CFG.url}/rest/v1/app_config?select=launch,banner,reset_at&id=eq.1`, { headers: { apikey: BOARD_CFG.key }, cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rows) => { if (Array.isArray(rows) && rows[0]) cfgUse(rows[0]); })
+      .catch(() => { /* offline: the cached row stands */ })
+      .finally(() => { cfgLoading = null; });
+    return cfgLoading;
+  }
+
+  // #admin (user, 2026-11-05: "an admin panel I can use to do everything, easily and visually"). It works for
+  // Discord accounts listed in public.admins; every call is checked by the database (supabase/admin.sql), so
+  // this page guards nothing itself. Tabs: Overview, Players, Scores, Game (launch day, banner, reset).
+  const ADMIN = { tab: "overview", day: "", kind: "daily", q: "" };
+  async function checkAdmin() {
+    try { const { data, error } = await sbClient.rpc("is_admin"); return !error && data === true; } catch { return false; }
+  }
+  async function adminCall(fn, args) {
+    const { data, error } = await sbClient.rpc(fn, args || {});
+    if (error) throw error;
+    return data;
+  }
+  const adminFail = (e) => toast(e && e.code === "42501" ? "Only admins can do that" : `That didn't work: ${(e && e.message) || "no connection"}`);
+  const whenTs = (ts) => (ts ? new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "never");
+  function agoTs(ts) {
+    if (!ts) return "never";
+    const m = Math.max(0, Math.round((Date.now() - Date.parse(ts)) / 60000));
+    return m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+  }
+  /** What a launch day means today, in words. */
+  function launchWords(L) {
+    const t = today();
+    if (!L) return "Not launched yet: every day is MLion #1, from a warm-up set of prompts.";
+    if (L > t) return `Launches ${prettyDate(L)}. Until then every day is MLion #1.`;
+    return `Launched ${prettyDate(L)}. Today is MLion #${E.daysBetween(L, t) + 1}.`;
+  }
+  function renderAdmin() {
+    setMid("Admin");
+    const head = (p) => `<div class="page-head"><h1>Admin</h1><p>${p}</p></div>`;
+    const page = (inner) => { app.innerHTML = `<section class="screen narrow admin">${inner}</section>`; };
+    if (!BOARD_ON) return page(head("The admin panel needs the leaderboard's database, which this copy of the game doesn't use."));
+    if (!AUTH.ready) return page(head("Checking your login…"));
+    if (!AUTH.user) { page(head("Log in with the Discord account that runs MLion.") + loginButtons()); wireLogin(app); return; }
+    if (!AUTH.admin) return page(head(`This page is for MLion's admins. You're logged in as ${esc((AUTH.profile && AUTH.profile.name) || "a player")}.`));
+    const tabs = [["overview", "Overview"], ["players", "Players"], ["scores", "Scores"], ["game", "Game"]];
+    page(`${head("Who plays, the leaderboards, the launch day and the home banner.")}
+      <div class="adm-tabs" role="tablist" aria-label="Admin">${tabs.map(([k, l]) => `<button type="button" role="tab" class="adm-tab${ADMIN.tab === k ? " on" : ""}" aria-selected="${ADMIN.tab === k}" data-t="${k}">${l}</button>`).join("")}</div>
+      <div id="adm-body" class="adm-body" role="tabpanel"><p class="muted">Loading…</p></div>`);
+    $$(".adm-tab").forEach((b) => b.addEventListener("click", () => { ADMIN.tab = b.dataset.t; renderAdmin(); }));
+    ({ overview: adminOverview, players: adminPlayers, scores: adminScores, game: adminGame })[ADMIN.tab]();
+  }
+  /** Run a loader into #adm-body; drop the result if the page moved on meanwhile. */
+  async function adminLoad(fn, args, draw) {
+    const body = $("#adm-body");
+    let data;
+    try { data = await adminCall(fn, args); } catch (e) { if (body.isConnected) body.innerHTML = `<p class="muted">Couldn't load this: ${esc((e && e.message) || "no connection")}.</p>`; return; }
+    if (body.isConnected) draw(body, data);
+  }
+
+  function adminOverview() {
+    adminLoad("admin_overview", {}, (body, o) => {
+      const days = o.days || [], max = Math.max(1, ...days.map((d) => d.daily + d.quiz));
+      const fig = (v, l) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`;
+      const top = (rows, quiz) => (rows && rows.length ? `<ol class="adm-top">${rows.map((r) => `<li><span>${esc(r.name)}</span><b>${r.score}</b>${quiz ? `<em>${(r.tenths / 10).toFixed(1)} s</em>` : ""}</li>`).join("")}</ol>` : `<p class="muted">No scores yet today.</p>`);
+      body.innerHTML = `
+        <p class="adm-launch">${esc(launchWords(CFG.launch))}</p>
+        <div class="stat-grid adm-figs">${fig(o.players, "Players")}${fig(o.new_today, "Joined today")}${fig(o.new_week, "Joined this week")}${fig(o.daily_today, "Dailies today")}${fig(o.quiz_today, "Daily quizzes today")}</div>
+        <section><h2 class="block-title">Last 14 days</h2>
+          <div class="adm-chart" role="img" aria-label="Dailies and daily quizzes posted each day">${days.map((d) => `
+            <div class="col" title="${esc(prettyDate(d.day))}: ${d.daily} dailies, ${d.quiz} quizzes, ${d.joined} joined"><b>${d.daily + d.quiz || ""}</b>
+              <span class="stack"><i class="d" style="height:${(100 * d.daily / max).toFixed(1)}%"></i><i class="q" style="height:${(100 * d.quiz / max).toFixed(1)}%"></i></span>
+              <em>${+d.day.slice(8)}</em></div>`).join("")}</div>
+          <p class="adm-legend"><span class="d"></span>Dailies <span class="q"></span>Daily quizzes</p></section>
+        <div class="adm-two">
+          <section><h2 class="block-title">Today's daily</h2>${top(o.top_daily)}</section>
+          <section><h2 class="block-title">Today's quiz</h2>${top(o.top_quiz, true)}</section>
+        </div>`;
+    });
+  }
+
+  function adminPlayers() {
+    const body = $("#adm-body");
+    body.innerHTML = `<form class="adm-bar" id="adm-q-form" role="search"><input class="search" id="adm-q" type="search" placeholder="Search by name" value="${esc(ADMIN.q)}" aria-label="Search players"><button class="btn" type="submit">Search</button></form><div id="adm-list"><p class="muted">Loading…</p></div>`;
+    $("#adm-q-form").addEventListener("submit", (e) => { e.preventDefault(); ADMIN.q = $("#adm-q").value.trim(); adminPlayers(); });
+    adminLoad("admin_players", { p_q: ADMIN.q, p_limit: 200 }, (b, rows) => {
+      const list = $("#adm-list", b);
+      list.innerHTML = rows.length ? `<p class="muted small">${rows.length === 200 ? "The newest 200" : rows.length} player${rows.length === 1 ? "" : "s"}${ADMIN.q ? ` matching “${esc(ADMIN.q)}”` : ""}</p>
+        <ul class="adm-rows">${rows.map((r) => `<li data-id="${esc(r.id)}" data-name="${esc(r.name)}">
+          <div class="who"><b>${esc(r.name)}</b>${r.admin ? `<span class="adm-tag">Admin</span>` : ""}${r.account && r.account !== r.name ? `<span class="muted">${esc(r.account)} on Discord</span>` : ""}</div>
+          <p class="meta">Joined ${whenTs(r.created_at)} · ${r.daily} ${r.daily === 1 ? "daily" : "dailies"} · ${r.quiz} ${r.quiz === 1 ? "quiz" : "quizzes"}${r.best != null ? ` · best ${r.best}` : ""} · last login ${agoTs(r.last_seen)}</p>
+          <div class="acts"><button type="button" class="btn sm" data-a="rename">Rename</button>${r.admin ? "" : `<button type="button" class="btn sm danger" data-a="delete">Delete</button>`}</div>
+        </li>`).join("")}</ul>` : `<p class="muted">${ADMIN.q ? "No player matches that name." : "No players yet."}</p>`;
+      $$(".adm-rows [data-a]", list).forEach((btn) => btn.addEventListener("click", () => {
+        const li = btn.closest("li"), id = li.dataset.id, name = li.dataset.name;
+        if (btn.dataset.a === "rename") {
+          showModal(`Rename ${name}`, `<p class="muted">The name everyone sees on the leaderboards. Up to 16 characters.</p>
+            <form id="adm-rn" class="vs-form"><input class="search" id="adm-rn-name" maxlength="16" value="${esc(name)}" aria-label="New name"><div class="btn-row"><button class="btn primary" type="submit">Save name</button></div></form>`);
+          const inp = $("#adm-rn-name"); inp.focus(); inp.select();
+          $("#adm-rn").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            try { await adminCall("admin_rename", { p_user: id, p_name: inp.value.trim() }); closeModal(); toast("Name saved"); adminPlayers(); } catch (err) { adminFail(err); }
+          });
+        } else {
+          showModal(`Delete ${name}?`, `<p class="muted">Their account, their name and every score they posted go. They can log in again later, as a new player. This can't be undone.</p>
+            <div class="btn-row"><button class="btn" id="adm-keep">Keep them</button><button class="btn danger" id="adm-del">Delete player</button></div>`);
+          $("#adm-keep").addEventListener("click", closeModal);
+          $("#adm-del").addEventListener("click", async () => {
+            try { await adminCall("admin_delete_player", { p_user: id }); closeModal(); toast(`${name} deleted`); adminPlayers(); } catch (err) { adminFail(err); }
+          });
+        }
+      }));
+    });
+  }
+
+  function adminScores() {
+    const body = $("#adm-body"), day = ADMIN.day || today();
+    body.innerHTML = `<div class="adm-bar"><input type="date" class="search adm-date" id="adm-day" value="${day}" max="${today()}" aria-label="Day">
+      <div class="vs-sizes" role="radiogroup" aria-label="Board">${[["daily", "Daily"], ["quiz", "Daily quiz"]].map(([k, l]) => `<button type="button" class="vs-size adm-kind${ADMIN.kind === k ? " on" : ""}" role="radio" aria-checked="${ADMIN.kind === k}" data-k="${k}">${l}</button>`).join("")}</div></div>
+      <div id="adm-list"><p class="muted">Loading…</p></div>`;
+    $("#adm-day").addEventListener("change", (e) => { ADMIN.day = /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) ? e.target.value : ""; adminScores(); });
+    $$(".adm-kind").forEach((b) => b.addEventListener("click", () => { ADMIN.kind = b.dataset.k; adminScores(); }));
+    const kind = ADMIN.kind;
+    adminLoad("admin_scores", { p_day: day, p_kind: kind }, (b, rows) => {
+      const list = $("#adm-list", b);
+      const detail = (r) => (kind === "quiz"
+        ? `<span class="adm-marks">${[...String(r.detail || "")].map((c) => (c === "1" ? "●" : "○")).join("")}</span> ${((r.tenths || 0) / 10).toFixed(1)} s`
+        : `<span class="adm-tiers">${decTiers(String(r.detail || "")).map((t) => G(t === "miss" ? null : t)).join("")}</span>`);
+      list.innerHTML = rows.length ? `<p class="muted small">${rows.length} ${kind === "quiz" ? "quiz" : "daily"} score${rows.length === 1 ? "" : "s"} on ${esc(prettyDate(day))}</p>
+        <ol class="adm-rows scores">${rows.map((r, i) => `<li data-id="${esc(r.user_id)}" data-name="${esc(r.name)}">
+          <span class="rank">${i + 1}</span><div class="who"><b>${esc(r.name)}</b><span class="muted">${detail(r)}</span></div><b class="pts">${r.score}</b>
+          <div class="acts"><button type="button" class="btn sm danger" data-a="remove">Remove</button></div></li>`).join("")}</ol>`
+        : `<p class="muted">No ${kind === "quiz" ? "quiz" : "daily"} scores on ${esc(prettyDate(day))}.</p>`;
+      $$(".adm-rows [data-a=remove]", list).forEach((btn) => btn.addEventListener("click", () => {
+        const li = btn.closest("li"), name = li.dataset.name;
+        showModal(`Remove ${name}'s score?`, `<p class="muted">It leaves the ${esc(prettyDate(day))} ${kind === "quiz" ? "quiz" : "daily"} board. ${esc(name)} keeps their account. This can't be undone.</p>
+          <div class="btn-row"><button class="btn" id="adm-keep">Keep it</button><button class="btn danger" id="adm-rm">Remove score</button></div>`);
+        $("#adm-keep").addEventListener("click", closeModal);
+        $("#adm-rm").addEventListener("click", async () => {
+          try { await adminCall("admin_remove_score", { p_kind: kind, p_user: li.dataset.id, p_day: day }); closeModal(); toast("Score removed"); adminScores(); } catch (err) { adminFail(err); }
+        });
+      }));
+    });
+  }
+
+  async function adminGame() {
+    await cfgFetch(); // show the settings as they are now, not as this browser last saw them
+    const body = $("#adm-body");
+    if (!body || ADMIN.tab !== "game") return;
+    const L = CFG.launch || "";
+    body.innerHTML = `
+      <section class="adm-card"><h2 class="block-title">Launch day</h2>
+        <p class="adm-launch" id="adm-launch-now">${esc(launchWords(L))}</p>
+        <div class="adm-bar"><input type="date" class="search adm-date" id="adm-launch" value="${L}" aria-label="Launch day">
+          <button type="button" class="btn sm" data-d="0">Today</button><button type="button" class="btn sm" data-d="1">Tomorrow</button></div>
+        <p class="muted small" id="adm-launch-preview"></p>
+        <div class="btn-row"><button type="button" class="btn primary" id="adm-launch-save">Save launch day</button>${L ? `<button type="button" class="btn" id="adm-launch-clear">Back to not launched</button>` : ""}</div>
+        <p class="muted small">MLion #1 is the launch day's daily, and the seven hand-picked launch days play in order from there. Changing the day renumbers every daily for everyone, so set it once.</p>
+      </section>
+      <section class="adm-card"><h2 class="block-title">Home banner</h2>
+        <p class="muted small">A short note at the top of everyone's home page, like "We launched! Tell your friends." Up to 200 characters. A new note shows again to players who closed the last one.</p>
+        <textarea class="search area" id="adm-banner" maxlength="200" aria-label="Banner text">${esc(CFG.banner || "")}</textarea>
+        <div class="btn-row"><button type="button" class="btn primary" id="adm-banner-save">Show banner</button>${CFG.banner ? `<button type="button" class="btn" id="adm-banner-clear">Remove banner</button>` : ""}</div>
+      </section>
+      <section class="adm-card adm-danger"><h2 class="block-title">Reset all players</h2>
+        <p>Deletes every daily and quiz score and every player account except admins. Everyone's saved progress on their own devices clears the next time they open MLion; settings stay. This can't be undone.</p>
+        <div class="adm-bar"><input class="search" id="adm-reset-word" placeholder="Type RESET" autocomplete="off" spellcheck="false" aria-label="Type RESET to confirm"><button type="button" class="btn danger" id="adm-reset" disabled>Reset everyone</button></div>
+      </section>`;
+    const inp = $("#adm-launch");
+    const preview = () => { $("#adm-launch-preview").textContent = inp.value && inp.value !== L ? `After saving: ${launchWords(inp.value)}` : ""; };
+    inp.addEventListener("input", preview);
+    $$("[data-d]", body).forEach((b) => b.addEventListener("click", () => { inp.value = E.addDays(today(), +b.dataset.d); preview(); }));
+    const saveLaunch = async (v) => {
+      try { cfgUse(await adminCall("admin_set_launch", { p_launch: v || null })); toast(v ? `Launch day saved. ${launchWords(v).split(". ")[1] || ""}` : "Back to not launched"); adminGame(); } catch (err) { adminFail(err); }
+    };
+    $("#adm-launch-save").addEventListener("click", () => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(inp.value)) return toast("Pick a day first");
+      saveLaunch(inp.value);
+    });
+    if ($("#adm-launch-clear")) $("#adm-launch-clear").addEventListener("click", () => saveLaunch(null));
+    const saveBanner = async (text) => {
+      try { cfgUse(await adminCall("admin_set_banner", { p_text: text })); LS.del("bannerSeen"); toast(text ? "Banner is up" : "Banner removed"); adminGame(); } catch (err) { adminFail(err); }
+    };
+    $("#adm-banner-save").addEventListener("click", () => { const t = $("#adm-banner").value.trim(); if (!t) return toast("Write the note first"); saveBanner(t); });
+    if ($("#adm-banner-clear")) $("#adm-banner-clear").addEventListener("click", () => saveBanner(""));
+    const word = $("#adm-reset-word"), go = $("#adm-reset");
+    word.addEventListener("input", () => { go.disabled = word.value.trim() !== "RESET"; });
+    go.addEventListener("click", async () => {
+      go.disabled = true;
+      let r;
+      try { r = await adminCall("admin_reset_all", { p_confirm: "RESET" }); } catch (err) { go.disabled = false; return adminFail(err); }
+      // This device clears too, but keeps your login, and counts as starting after the reset
+      wipeLocal((k) => CFG_KEEP.has(k) || k.startsWith(SB_STORE));
+      LS.set("since", new Date(Math.max(Date.now(), Date.parse(r.reset_at) + 1000)).toISOString());
+      records = {}; seen = new Set(); practiceBest = {}; sprints = {};
+      cfgUse({ ...CFG, reset_at: r.reset_at });
+      showModal("Everyone is reset", `<p>Removed ${r.players} player${r.players === 1 ? "" : "s"}, ${r.daily} daily score${r.daily === 1 ? "" : "s"} and ${r.quiz} quiz score${r.quiz === 1 ? "" : "s"}. Admin accounts stay.</p>
+        <p class="muted">Each player's device clears their saved progress the next time they open MLion.</p>
+        <div class="btn-row"><button class="btn primary" id="adm-done">Done</button></div>`);
+      $("#adm-done").addEventListener("click", closeModal);
+      adminGame();
+    });
+  }
+
   // ======================================================= drawer/modal
   function openDrawer() {
     document.body.classList.add("drawer-open");
@@ -4095,5 +4349,6 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => E.setLexicon(DATA.prompts.concat(EXTRAS)));
   if (!BOARD_ON) $$('#drawer a[href="#board"]').forEach((a) => a.remove());
   boardBoot();
+  cfgFetch();
   route();
 })();

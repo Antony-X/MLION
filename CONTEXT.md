@@ -779,6 +779,37 @@ it are dropped, answers carry `pid` so late answers to the old prompt are ignore
 - Test: `node tests/board.e2e.js` runs against a stand-in project (route-mocked), including the
   PKCE round trip. A real Discord login has to be done by a person.
 
+### Admin panel (`#admin`, added 2026-11-05)
+
+The user asked for "an admin panel I can use to do everything, easily and visually".
+- **Database: `supabase/admin.sql`** (additive, applied in the SQL editor). `public.admins(discord_id)`
+  lists admins by Discord user id (`auth.identities.identity_data->>'sub'`), so an admin stays one even if
+  their account is deleted and made again. `admin_of(uuid)` and `is_admin()` check it. Every `admin_*`
+  function is `security definer`, calls `admin_guard()` (raises 42501 for non-admins), and is executable
+  by `authenticated` only. The page guards nothing itself.
+- **Functions:** `admin_overview()` (players, joined today/week, plays today, 14 days of daily/quiz posts,
+  today's top 5 each), `admin_players(q, limit)` (with the Discord name, play counts, best, last login, and
+  whether each is an admin), `admin_scores(day, kind)`, `admin_remove_score(kind, user, day)`,
+  `admin_rename(user, name)`, `admin_delete_player(user)` (deletes the auth user; profile and scores
+  cascade; refuses admins), `admin_set_launch(date|null)`, `admin_set_banner(text)`, `admin_reset_all('RESET')`
+  (every score, every non-admin account, and `app_config.reset_at = now()`).
+- **`public.app_config`**: one public row (`launch`, `banner`, `reset_at`). The game caches it as
+  `mlion:cfg` and applies it at start (`E.setLaunch`; engine `LAUNCH` is now a live getter, and a test's
+  `window.MLION_LAUNCH` still wins). `cfgFetch()` refreshes it after start (plain REST with the
+  publishable key; skipped in test browsers unless `MLION_BOARD` points at a fake). On the idle home page
+  a change re-renders (day number, banner); a new `reset_at` clears the device and reloads.
+- **Device reset:** `mlion:since` marks when this browser's progress began (1970 if it already had
+  progress when this shipped). When `reset_at > since`, every `mlion:*` key except settings, reset,
+  cfg and since goes, then `since = now`. Test browsers skip it unless `MLION_RESET_TEST`. The admin's
+  own device clears at once but keeps its login.
+- **Page:** tabs Overview (figures, a 14-day stacked bar chart, today's top 5), Players (search by
+  leaderboard or Discord name, rename, delete with a confirm), Scores (any day, Daily or Daily quiz,
+  remove a score), Game (launch day with Today/Tomorrow and a "today would be #N" preview, home banner,
+  Reset all players behind typing RESET). Admins get an "Admin panel" button in the menu's account box.
+- **Home banner:** `#announce` above the hero; closing it stores `mlion:bannerSeen` (the text), so a new
+  note shows again.
+- Test: `tests/admin.e2e.js` (fake project; an admin and a non-admin browser).
+
 ## 8. Visual design (taste-skill redesign)
 
 The user asked to ingest https://github.com/leonxlnx/taste-skill (`skills/taste-skill/SKILL.md`
