@@ -16,7 +16,7 @@
     { "a": "Language Models are Few-Shot Learners", "t": "baseline", "aka": ["GPT-3"], "q": "175 billion parameters and no gradient updates: the few-shot examples just go in the prompt." },
 
     { "a": "Long Short-Term Memory", "t": "overfit", "aka": ["LSTM"], "q": "Hochreiter's 1991 thesis diagnosed vanishing gradients. The 1997 paper's \"constant error carousel\" was the fix." },
-    { "a": "Learning representations by back-propagating errors", "t": "overfit", "aka": ["Backpropagation", "Backprop", "Rumelhart Hinton Williams"], "q": "Nature, 1986. Linnainmaa had reverse-mode autodiff in 1970 and Werbos applied it to networks in 1974." },
+    { "a": "Learning representations by back-propagating errors", "t": "overfit", "aka": ["Backpropagation", "Backprop", "Rumelhart Hinton Williams"], "q": "Nature, 1986. Linnainmaa had reverse-mode autodiff in 1970, and Werbos proposed it for neural networks in 1974." },
     { "a": "Efficient Estimation of Word Representations in Vector Space", "t": "overfit", "aka": ["Word2Vec", "CBOW", "Skip-gram", "Mikolov word2vec"], "q": "Introduced CBOW and skip-gram. The party trick: vector(king) - vector(man) + vector(woman) lands near queen." },
 
     { "a": "Dropout: A Simple Way to Prevent Neural Networks from Overfitting", "t": "indist", "aka": ["Dropout"], "q": "Hinton has said the idea came from a bank rotating its tellers so they could not conspire to commit fraud." },

@@ -265,6 +265,7 @@
   },
   "tabular-dataset": {
     "scope": "Rows and columns or a synthetic toy set. No image, text or audio data",
+    "extra": true,
     "added": "2026-11-08"
   },
   "text-augmentation": {
