@@ -1025,7 +1025,11 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
   /* live only (solo has room): a shorter stage keeps loss and score; the progress row goes */
   .play.quiz:has(#live-strip):has(.rq-text) .stage { height: 104px; }
   .play.quiz:has(#live-strip):has(.rq-text) .play-head { display: none; }
-  .play.quiz:has(#live-strip):has(.rq-text) .mcq-opt { min-height: 52px; }
+  .play.quiz:has(#live-strip):has(.rq-text) .mcq-opt { min-height: 52px; padding-block: 9px; font-size: 16px; line-height: 1.28; }
+  /* the rivals' status and the skip vote move under the options: the four answers come first */
+  .play.quiz:has(#live-strip):has(.rq-text) :is(.live-rivals, .live-skip) { order: 1; }
+  .play.quiz:has(#live-strip):has(.rq-text) .mcq { gap: 8px; }
+  .play.quiz:has(#live-strip):has(.rq-text) .prompt-text.rq-text { font-size: 16px; line-height: 1.4; }
   .play.quiz:has(.rq-text) .prompt-note { display: none; }
 }
 /* the category above a reasoning question reads as a quiet label, not a tracked-caps eyebrow */
