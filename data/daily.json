@@ -1,5 +1,5 @@
 {
-  "_comment": "What the shared dailies deal. 'pool': the prompts the daily and the Daily Quiz may use, hand-picked so a typical IOAI contestant can answer at once (syllabus concepts and well-known names, like 'Name an optimizer'); practice-heavy prompts (RAG, PEFT, quantization formats, special tokens, pandas, sklearn utilities...) stay out and remain in Unlimited, Quiz and live rooms. A new prompt joins the daily only when added here. 'launch': the launch week, seven days of seven pool prompts played in order from launch day (LAUNCH in js/engine.js), easiest first. Before launch the daily deals the whole pool, fresh each day; after the launch week the shuffle starts with the pool prompts the week didn't use.",
+  "_comment": "What the shared dailies deal. 'pool': the prompts the daily and the Daily Quiz may use, hand-picked so a typical IOAI contestant can answer at once (syllabus concepts and well-known names, like 'Name an optimizer'); practice-heavy prompts (RAG, PEFT, quantization formats, special tokens, pandas, sklearn utilities...) stay out and remain in Unlimited, Quiz and live rooms. A new prompt joins the daily only when added here. 'launch': the launch week, seven days of seven pool prompts played in order from launch day (LAUNCH in js/engine.js), easiest first. Before launch the daily deals the whole pool, fresh each day; after the launch week the shuffle starts with the pool prompts the week didn't use. 'quiz': the Daily Quiz's hand-picked days from launch, seven questions from data/reasoning.json each, easy ones first; after them it deals the whole bank. Before launch the Daily Quiz deals the whole bank, fresh each day.",
   "pool": [
     "optimizer", "activation-function", "loss-function", "classifier", "clustering", "regression-model",
     "cnn-architecture", "nn-family", "ml-notation", "chatbot", "ai-researcher", "python-lib", "hyperparameter",
@@ -21,5 +21,28 @@
     ["learning-paradigm", "meta-model", "ensemble", "object-detector", "distance-metric", "theorem", "llm-failure"],
     ["training-trick", "cv-task", "regression-metric", "gan-variant", "embedding-model", "ml-competition", "calculus-concept"],
     ["transformer-component", "segmentation-model", "preprocessing", "pooling", "classic-nlp", "ml-course", "turing-award"]
+  ],
+  "quiz": [
+    ["rq-101", "rq-102", "rq-103", "rq-104", "rq-105", "rq-106", "rq-107"],
+    ["rq-108", "rq-109", "rq-110", "rq-111", "rq-112", "rq-113", "rq-114"],
+    ["rq-115", "rq-116", "rq-117", "rq-118", "rq-119", "rq-120", "rq-121"],
+    ["rq-122", "rq-123", "rq-124", "rq-125", "rq-126", "rq-127", "rq-128"],
+    ["rq-129", "rq-130", "rq-131", "rq-132", "rq-133", "rq-134", "rq-135"],
+    ["rq-136", "rq-137", "rq-138", "rq-139", "rq-140", "rq-141", "rq-142"],
+    ["rq-143", "rq-144", "rq-145", "rq-146", "rq-147", "rq-148", "rq-149"],
+    ["rq-150", "rq-151", "rq-152", "rq-153", "rq-154", "rq-155", "rq-156"],
+    ["rq-157", "rq-158", "rq-159", "rq-160", "rq-161", "rq-162", "rq-163"],
+    ["rq-164", "rq-165", "rq-166", "rq-167", "rq-168", "rq-169", "rq-170"],
+    ["rq-171", "rq-172", "rq-173", "rq-174", "rq-175", "rq-176", "rq-177"],
+    ["rq-178", "rq-179", "rq-180", "rq-181", "rq-182", "rq-183", "rq-184"],
+    ["rq-185", "rq-186", "rq-187", "rq-188", "rq-189", "rq-190", "rq-191"],
+    ["rq-192", "rq-193", "rq-194", "rq-195", "rq-196", "rq-197", "rq-198"],
+    ["rq-199", "rq-200", "rq-201", "rq-202", "rq-203", "rq-204", "rq-205"],
+    ["rq-206", "rq-207", "rq-208", "rq-209", "rq-210", "rq-211", "rq-212"],
+    ["rq-213", "rq-214", "rq-215", "rq-216", "rq-217", "rq-218", "rq-219"],
+    ["rq-220", "rq-221", "rq-222", "rq-223", "rq-224", "rq-225", "rq-226"],
+    ["rq-227", "rq-228", "rq-229", "rq-230", "rq-231", "rq-232", "rq-233"],
+    ["rq-234", "rq-235", "rq-236", "rq-237", "rq-238", "rq-239", "rq-240"],
+    ["rq-241", "rq-242", "rq-243", "rq-244", "rq-245", "rq-246", "rq-247"]
   ]
 }

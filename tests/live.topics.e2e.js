@@ -80,8 +80,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   for (const pg of [ana, ben]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
   await Promise.all([unlocked(ana), unlocked(ben)]);
   const s0 = await state(ana), b0 = await state(ben);
-  check(s0.n === 4 && s0.ids.every((id) => PROMPT.get(id) && PROMPT.get(id).pack === "theory"), `every question is from Math & Theory (${s0.ids.join(", ")})`);
-  check(!s0.ids.some((id) => id.startsWith("rq-")), "a topic match has no reasoning questions");
+  const BANK = new Map(E.quizBank(DATA).map((r) => [r.id, r]));
+  check(s0.n === 4 && s0.ids.every((id) => BANK.has(id) && BANK.get(id).pack === "theory"), `every question is a Math & Theory bank question (${s0.ids.join(", ")})`);
   assert.deepStrictEqual(b0.quiz, s0.quiz);
   assert.deepStrictEqual(s0.quiz, E.quizFor(CORE, s0.seed, 4, { promptIds: s0.ids, reasoningIds: [] }).map((q) => ({ promptId: q.promptId, options: q.options, correct: q.correct, from: q.from })));
   check(true, "the guest builds exactly the host's questions");

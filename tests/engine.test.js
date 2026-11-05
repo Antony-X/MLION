@@ -146,14 +146,16 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
     });
   }
 
-  // deterministic, and the seed matters
-  const a1 = E.quizFor(DATA, "seed-a", 7), a2 = E.quizFor(DATA, "seed-a", 7), b1 = E.quizFor(DATA, "seed-b", 7);
-  assert.deepStrictEqual(a1, a2); ok("quiz: same seed, same questions");
-  assert.notDeepStrictEqual(a1, b1); ok("quiz: another seed, other questions");
-  assert.strictEqual(a1.length, 7); assert.strictEqual(new Set(a1.map((q) => q.promptId)).size, 7); ok("quiz: seven questions from seven prompts");
-  const promptQs = (qs) => qs.filter((q) => !q.reasoning).map((q) => q.promptId);
-  assert.deepStrictEqual(promptQs(E.quizFor(DATA, "seed-a", 25)).slice(0, promptQs(a1).length), promptQs(a1)); ok("quiz: a longer run starts with the shorter one's prompts");
-  assert.deepStrictEqual(E.quizQuestion(DATA, "seed-a", a1[3].promptId), a1[3]); ok("quiz: one question is rebuilt on its own (live skips rely on it)");
+  // The generated "which one fits a prompt?" questions are the fallback when the bank runs short:
+  // test them on the data without its bank. Deterministic, and the seed matters.
+  const GEN = Object.assign({}, DATA, { reasoning: [] });
+  const a1 = E.quizFor(GEN, "seed-a", 7), a2 = E.quizFor(GEN, "seed-a", 7), b1 = E.quizFor(GEN, "seed-b", 7);
+  assert.deepStrictEqual(a1, a2); ok("quiz (generated): same seed, same questions");
+  assert.notDeepStrictEqual(a1, b1); ok("quiz (generated): another seed, other questions");
+  assert.strictEqual(a1.length, 7); assert.strictEqual(new Set(a1.map((q) => q.promptId)).size, 7); ok("quiz (generated): seven questions from seven prompts");
+  const promptQs = (qs) => qs.map((q) => q.promptId);
+  assert.deepStrictEqual(promptQs(E.quizFor(GEN, "seed-a", 25)).slice(0, 7), promptQs(a1)); ok("quiz (generated): a longer run starts with the shorter one's prompts");
+  assert.deepStrictEqual(E.quizQuestion(GEN, "seed-a", a1[3].promptId), a1[3]); ok("quiz (generated): one question is rebuilt on its own (live skips rely on it)");
 
   // every on-topic prompt can make a question, across many seeds; each keeps every invariant
   let built = 0, positions = [0, 0, 0, 0];
@@ -166,56 +168,57 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
       positions[q.correct]++; built++;
     }
   }
-  ok(`quiz: ${built} questions over every prompt: one right option, three options the matcher turns down (${Date.now() - t0} ms)`);
-  assert.ok(Math.min(...positions) > built * 0.18, "right option position is spread " + positions); ok("quiz: the right option lands in every slot " + positions.join("/"));
+  ok(`quiz (generated): ${built} questions over every prompt: one right option, three options the matcher turns down (${Date.now() - t0} ms)`);
+  assert.ok(Math.min(...positions) > built * 0.18, "right option position is spread " + positions); ok("quiz (generated): the right option lands in every slot " + positions.join("/"));
   // distractors are drawn from the question's own pack, from three different prompts
   let samePack = 0, distinct = 0;
   let promptCount = 0;
-  for (const q of a1.concat(E.quizFor(DATA, "seed-c", 25)).filter((x) => !x.reasoning)) {
+  for (const q of a1.concat(E.quizFor(GEN, "seed-c", 25))) {
     promptCount++;
     const p = byId.get(q.promptId);
     const ds = q.from.filter((_, i) => i !== q.correct);
     samePack += ds.every((id) => byId.get(id).pack === p.pack) ? 1 : 0;
     distinct += new Set(ds).size === 3 ? 1 : 0;
   }
-  assert.strictEqual(samePack, promptCount); assert.strictEqual(distinct, promptCount); ok("quiz: distractors come from three other prompts of the same pack");
-  // reasoning questions: two of every seven, never side by side, rebuilt exactly from the dealt ids
+  assert.strictEqual(samePack, promptCount); assert.strictEqual(distinct, promptCount); ok("quiz (generated): distractors come from three other prompts of the same pack");
+  // The bank: every quiz question is a hand-written one; retired ones are looked up but never dealt
   {
-    const R = DATA.reasoning || [];
-    assert.ok(R.length >= 40, "the bundle carries the reasoning questions");
+    const R = DATA.reasoning || [], BANK = E.quizBank(DATA), live = new Set(BANK.map((r) => r.id));
+    assert.ok(BANK.length >= 140 && BANK.length < R.length, "the bundle carries the bank and the retired questions");
     for (const r of R) {
       const q = E.quizQuestion(DATA, "any", r.id);
       assert.ok(q.reasoning && q.options.join("|") === r.options.join("|") && q.correct === r.answer, `${r.id} keeps its options and answer`);
     }
+    const slots = [0, 0, 0, 0]; BANK.forEach((r) => slots[r.answer]++);
+    assert.ok(Math.min(...slots) >= BANK.length / 4 - 2, "the right option is spread over the slots " + slots);
     for (let s = 0; s < 30; s++) {
       const qs = E.quizFor(DATA, `mix-${s}`, 7);
-      const at = qs.map((q, i) => (q.reasoning ? i : -1)).filter((i) => i >= 0);
-      assert.strictEqual(qs.length, 7); assert.strictEqual(at.length, 2, "two reasoning questions in seven");
-      assert.ok(at[1] - at[0] > 1, "reasoning questions side by side");
+      assert.strictEqual(qs.length, 7); assert.ok(qs.every((q) => q.reasoning && live.has(q.promptId)), "seven live bank questions");
+      assert.strictEqual(new Set(qs.map((q) => q.promptId)).size, 7);
       const again = E.quizFor(DATA, `mix-${s}`, 7, { promptIds: qs.map((q) => q.promptId) });
       assert.deepStrictEqual(again, qs, "a live guest rebuilds the host's questions exactly");
     }
-    assert.strictEqual(E.quizFor(DATA, "five", 5).filter((q) => q.reasoning).length, 1);
-    assert.strictEqual(E.quizFor(DATA, "one", 1).filter((q) => q.reasoning).length, 0);
     const seen = new Set();
-    const runs = Math.floor(R.length / 2);
-    for (let n = 1; n <= runs; n++) for (const q of E.quizRun(DATA, n).filter((x) => x.reasoning)) {
-      assert.ok(!seen.has(q.promptId), `solo run ${n} repeats a reasoning question before the bank is used up`);
+    const runs = Math.floor(BANK.length / 7);
+    for (let n = 1; n <= runs; n++) for (const q of E.quizRun(DATA, n)) {
+      assert.ok(q.reasoning && live.has(q.promptId), `solo run ${n} deals a live bank question`);
+      assert.ok(!seen.has(q.promptId), `solo run ${n} repeats a question before the bank is used up`);
       seen.add(q.promptId);
     }
-    assert.strictEqual(seen.size, runs * 2);
-    ok(`quiz: reasoning questions (${R.length}): 2 of 7, apart, rebuilt exactly, solo runs use the bank before repeating`);
+    assert.strictEqual(seen.size, runs * 7);
+    assert.ok(E.dailyQuiz(DATA, 3, "dquiz-x").every((q) => q.reasoning && live.has(q.promptId)), "the daily quiz deals the bank");
+    ok(`quiz bank (${BANK.length}, ${R.length - BANK.length} retired): seven a run, rebuilt exactly, solo runs use the bank before repeating`);
   }
 
   // off-topic prompts never appear: not as the question, not as a source
   const extraIds = new Set((DATA.extras || []).map((p) => p.id));
   assert.ok(extraIds.size > 0, "the bundle ships off-topic extras");
-  for (let s = 0; s < 40; s++) for (const q of E.quizFor(DATA, `off-${s}`, 10)) {
+  for (let s = 0; s < 40; s++) for (const q of E.quizFor(GEN, `off-${s}`, 10)) {
     assert.ok(!extraIds.has(q.promptId) && q.from.every((id) => !extraIds.has(id)), "an off-topic prompt reached a quiz");
   }
   const copy = (p) => JSON.parse(JSON.stringify(p, (k, v) => (k === "_index" ? undefined : v))); // the matcher's cached index is a Map
   const flagged = { ...copy(byId.get("activation-function")), id: "off-topic-copy", offtopic: true };
-  const withFlag = { ...DATA, prompts: DATA.prompts.concat([flagged]), version: "flagged" };
+  const withFlag = { ...GEN, prompts: DATA.prompts.concat([flagged]), version: "flagged" };
   assert.strictEqual(E.quizQuestion(withFlag, "x", "off-topic-copy"), null);
   for (let s = 0; s < 40; s++) for (const q of E.quizFor(withFlag, `flag-${s}`, 10, { promptIds: ["off-topic-copy"] })) {
     assert.ok(q.promptId !== "off-topic-copy" && !q.from.includes("off-topic-copy"), "a prompt flagged offtopic reached a quiz");

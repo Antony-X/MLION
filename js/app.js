@@ -5,7 +5,7 @@
   const V = window.MLION_VISUALS;
   const DATA = window.MLION_DATA;
   const EXTRAS = DATA.extras || []; // off-topic prompts: practice only, never in a run
-  const REASONING = (DATA.reasoning || []).map((r) => ({ id: r.id, text: r.q, title: r.title, cat: r.cat, reasoning: true,
+  const REASONING = (DATA.reasoning || []).map((r) => ({ id: r.id, text: r.q, title: r.title, cat: r.cat, lvl: r.lvl, reasoning: true,
     answers: [{ a: r.options[r.answer], t: "baseline", q: r.why }] }));
   const PROMPTS = new Map(DATA.prompts.concat(EXTRAS, REASONING).map((p) => [p.id, p]));
   // Core questions follow the IOAI syllabus. Extra ones (display.json `extra`, plus the off-topic
@@ -285,11 +285,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
   // The daily quiz: everyone's same seven questions, on the fixed 25 s clock so the board compares.
-  // Numbered like the daily (#1 until launch), and dealt from the same hand-picked pool.
+  // Numbered like the daily (#1 until launch). From launch, days 1..QUIZ_DAYS.length play the
+  // hand-picked days in data/daily.json `quiz`; later days deal from the whole bank.
+  const QUIZ_BANK = E.quizBank(DATA);
+  const QUIZ_DAYS = ((DATA.daily && DATA.daily.quiz) || []).filter((ids) => ids.every((id) => PROMPTS.has(id)));
   const dquizNumber = dayNo;
   function dquizSpec(date) {
     const num = dquizNumber(date);
-    const quiz = preLaunch(date) ? E.dailyQuiz(DAILY, preDay(date), "dquiz-pre") : E.dailyQuiz(asOf(DAILY, date), E.dayNumberFor(date), "dquiz-v2");
+    const n = E.dayNumberFor(date);
+    const quiz = preLaunch(date) ? E.dailyQuiz(DAILY, preDay(date), "dquiz-pre2")
+      : n <= QUIZ_DAYS.length ? E.quizFor(DAILY, `dquiz-v3:${n}`, E.QUIZ_ROUNDS, { promptIds: QUIZ_DAYS[n - 1] })
+      : E.dailyQuiz(DAILY, n - QUIZ_DAYS.length, "dquiz-v3");
     return { key: `dquiz:${date}`, mode: "dquiz", fmt: "quiz", number: num, date, label: `Daily Quiz #${num}`, promptIds: quiz.map((q) => q.promptId), quiz, secs: DEFAULT_SECS };
   }
   function quizSpec(n) {
@@ -559,7 +565,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       liveSprintStop();
       if (m.fmt === "sprint") return liveSprintStart(m);
       // a quiz match: every page builds the same questions from the room's seed and the host's prompt list
-      const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [], ...(Array.isArray(m.topics) && m.topics.length ? { reasoningIds: [] } : {}) }) : null; // a topic match has no reasoning questions
+      const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [], ...(Array.isArray(m.topics) && m.topics.length ? { reasoningIds: [] } : {}) }) : null; // the host's dealt bank ids, rebuilt exactly
       if (quiz) LIVE.n = quiz.length;
       LIVE.mfmt = quiz ? "quiz" : "rarity"; LIVE.quiz = quiz;
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
@@ -662,8 +668,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** The packs a room plays (empty: every topic), and the prompt ids they hold. */
   const liveTopics = () => (Array.isArray(LIVE.topics) ? LIVE.topics.filter((id) => PACKS.has(id)) : []);
-  function livePool(sprint) { // a sprint needs prompts with enough answers to fill its minute
+  function livePool(sprint, quiz) { // a sprint needs prompts with enough answers to fill its minute
     const t = liveTopics();
+    if (quiz) return QUIZ_BANK.filter((r) => !t.length || t.includes(r.pack)).map((r) => r.id); // a quiz deals bank questions, by topic
     return CORE.prompts.filter((p) => (!t.length || t.includes(p.pack)) && (!sprint || sprintOk(p))).map((p) => p.id);
   }
   function topicPicker() {
@@ -766,9 +773,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
     const topics = liveTopics();
     const sprint = LIVE.fmt === "sprint";
-    const pool = livePool(sprint);
+    const pool = livePool(sprint, LIVE.fmt === "quiz");
     if (topics.length && pool.length < LIVE.n) { LIVE.n = pool.length; toast(`These topics have ${pool.length} ${sprint ? "prompts" : "questions"}, so the match has ${pool.length}`); }
-    let ids = topics.length || sprint ? E.shuffled(pool, E.mulberry32(E.hashString(seed))).slice(0, LIVE.n) : challengePromptIds(seed, LIVE.n);
+    let ids = topics.length || sprint || LIVE.fmt === "quiz" ? E.shuffled(pool, E.mulberry32(E.hashString(seed))).slice(0, LIVE.n) : challengePromptIds(seed, LIVE.n);
     let fresh = [];
     const used = new Set(LS.get("liveUsed", []));
     if (LIVE.noRepeat !== false) {
@@ -776,7 +783,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (fresh.length >= LIVE.n) ids = fresh.slice(0, LIVE.n);
     }
     if (LIVE.fmt === "quiz") { // the host fixes which prompts get a question, so every page builds the same ones
-      // a topic match keeps to its topics: no reasoning questions (they span every topic)
+      // the dealt ids are all bank questions (of the match's topics, if any), so every page builds exactly them
       const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : topics.length ? E.shuffled(pool, E.mulberry32(E.hashString(seed))) : ids, ...(topics.length ? { reasoningIds: [] } : {}) });
       if (!quiz.length) { LIVE.phase = "lobby"; toast("This question set can't make a quiz"); return; }
       ids = quiz.map((q) => q.promptId);
@@ -820,7 +827,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.timers.forEach(clearTimeout); LIVE.timers = []; // this question's time cap and any pending reveal
     const inMatchIds = new Set(RUN.promptIds);
     const used = new Set(LS.get("liveUsed", []));
-    const pool = livePool().filter((id) => !inMatchIds.has(id));
+    const pool = livePool(false, liveQuiz()).filter((id) => !inMatchIds.has(id));
     const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !used.has(id)) : pool;
     const from = fresh.length ? fresh : pool;
     if (!from.length) return;
@@ -1885,7 +1892,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (descent) descent.calm();
     $("#card").innerHTML = `<div class="round quiz">
       <div class="ask">
-        ${p.reasoning ? `<p class="rq-eyebrow">Reasoning · ${esc(p.cat)}</p>` : ""}
+        ${p.reasoning ? `<p class="rq-eyebrow">${esc(p.cat)}${p.lvl ? ` · ${esc(p.lvl)}` : ""}</p>` : ""}
         <p class="prompt-text${p.reasoning ? " rq-text" : ""}" id="prompt-text">${esc(p.text)}</p>
         <p class="prompt-note">${p.reasoning ? "Pick the best answer." : `${p.scope ? `${esc(p.scope)}. ` : ""}Which one fits?`}</p>
       </div>
@@ -3454,7 +3461,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
-        <div class="page-head"><h1>Quiz</h1><p>Seven questions a run, four answers each. Most ask which answer fits a prompt; two a run are reasoning questions with a longer clock and an explanation after. ${E.QUIZ_POINTS} a right answer.</p></div>
+        <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run, four answers each, and a short explanation after every one. ${E.QUIZ_POINTS} a right answer.</p></div>
         ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
         <h2 class="block-title dq-practice">Practice runs</h2>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}

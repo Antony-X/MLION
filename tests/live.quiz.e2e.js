@@ -114,7 +114,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check((await ben.textContent(".mq-opts li.right b")) === right0, "the reveal lights the right option");
   check((await ben.textContent(".mq-opts li.right .mcq-who")).includes("Ana") && (await ben.textContent(`.mq-opts li:nth-child(${wrong0 + 1}) .mcq-who`)).includes("Ben"), "the reveal shows who picked what");
   const froms = await ben.$$eval(".mq-opts li:not(.right) .mcq-from", (els) => els.map((e) => e.textContent));
-  const wantFroms = Q0.from ? Q0.options.map((_, k) => k).filter((k) => k !== Q0.correct && Q0.from[k]).map((k) => `That's ${kindOf(Q0.from[k])}`) : []; // a reasoning question's options come from nowhere else
+  const wantFroms = Q0.from ? Q0.options.map((_, k) => k).filter((k) => k !== Q0.correct && Q0.from[k]).map((k) => `That's ${kindOf(Q0.from[k])}`) : []; // a bank question's options come from nowhere else
   check(JSON.stringify(froms) === JSON.stringify(wantFroms), "wrong options are labelled with the prompt they came from");
   check((await standings(ben)) === "Ana 100, Ben 0", "standings: Ana 100, Ben 0");
   await ana.waitForFunction(() => document.querySelector("#hud-score").textContent.trim() === "100", null, { timeout: 6000 });
@@ -170,7 +170,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(await ana.evaluate((id) => !window.MLION_LIVE_STATE.players.get(id).ans[3], benId), "the host ignores a pick that isn't one of the four options");
   await forge((Q3.correct + 1) % 4, 99999999); // a wrong pick with an absurd time
   await ana.waitForFunction((id) => { const a = window.MLION_LIVE_STATE.players.get(id).ans[3]; return a && a.ms; }, benId, { timeout: 8000 });
-  const clamp = (await state(ana)).ids[3].startsWith("rq-") ? 24000 : 10000; // a reasoning question runs 2.4x the clock
+  const clamp = (await state(ana)).ids[3].startsWith("rq-") ? 14000 : 10000; // a bank question runs 1.4x the clock
   check((await ana.evaluate((id) => window.MLION_LIVE_STATE.players.get(id).ans[3].ms, benId)) === clamp, `the host clamps a forged answer time to the clock (${clamp / 1000} s)`);
   await ana.waitForTimeout(1500);
   await ana.click(`.mcq-opt[data-i="${(Q3.correct + 1) % 4}"]`);

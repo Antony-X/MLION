@@ -490,23 +490,25 @@
   const QUIZ_POINTS = 100;
   const QUIZ_ROUNDS = 7;
   const QUIZ_HIT_EMOJI = "🟩";
-  // Reasoning questions (data.reasoning, ids rq-NN): hand-written, four options, one right. They
-  // take two of every seven quiz slots and get a longer clock, since there is a paragraph to read.
-  const REASONING_SHARE = 2 / 7;
-  const REASONING_CLOCK = 2.4; // a reasoning question gets 2.4x the clock: 25 s becomes 60 s
+  // The quiz bank (data.reasoning, ids rq-NN): short hand-written questions, four options, one right.
+  // They fill every quiz slot; the generated "which one fits a prompt?" questions are only a fallback
+  // for when the bank runs short. Retired questions are never dealt, only looked up for old results.
+  const REASONING_SHARE = 1;
+  const REASONING_CLOCK = 1.4; // a bank question gets 1.4x the clock (25 s becomes 35 s): a sentence and four options to read
   const isReasoningId = (id) => typeof id === "string" && id.startsWith("rq-");
-  const reasoningCount = (data, n) => Math.min((data.reasoning || []).length, Math.round(n * REASONING_SHARE));
+  const quizBank = (data) => (data.reasoning || []).filter((r) => !r.retired);
+  const reasoningCount = (data, n) => Math.min(quizBank(data).length, Math.round(n * REASONING_SHARE));
   function reasoningQuestion(data, id) {
     const r = (data.reasoning || []).find((x) => x.id === id);
     return r ? { promptId: r.id, options: r.options.slice(), correct: r.answer, from: r.options.map(() => null), reasoning: true } : null;
   }
   function reasoningStream(data, label) {
-    return makeStream({ packs: [{ id: "rq" }], prompts: (data.reasoning || []).map((r) => ({ id: r.id, pack: "rq" })) }, label, null, true);
+    return makeStream({ packs: [{ id: "rq" }], prompts: quizBank(data).map((r) => ({ id: r.id, pack: "rq" })) }, label, null, true);
   }
   const _reasonRuns = new Map();
   /** The reasoning ids for solo quiz run `n`: dealt in order from one stream, so runs don't repeat until the bank is used up. */
   function reasoningRun(data, n, per, label = "reason-v1") {
-    const key = `${label}|${(data.reasoning || []).map((r) => r.id).join()}|${per}`;
+    const key = `${label}|${quizBank(data).map((r) => r.id).join()}|${per}`;
     let c = _reasonRuns.get(key);
     if (!c) { c = { stream: reasoningStream(data, label), runs: [] }; _reasonRuns.set(key, c); }
     while (c.runs.length < n) c.runs.push(c.stream.take(per));
@@ -626,13 +628,13 @@
     }
     return mixed;
   }
-  /** Daily quiz `n` of a stream: the same seven questions for everyone, dealt like the daily so days don't repeat. */
+  /** Daily quiz `n` of a stream: the same seven bank questions for everyone, dealt so days don't repeat until the bank is used up. */
   function dailyQuiz(data, n, label = "dquiz-v1") {
-    return quizFor(data, `${label}:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, label, n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), label === "dquiz-v1" ? "dquiz-reason-v1" : `${label}-reason`) });
+    return quizFor(data, `${label}:${n}`, QUIZ_ROUNDS, { promptIds: [], reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), label === "dquiz-v1" ? "dquiz-reason-v1" : `${label}-reason`) });
   }
-  /** Solo quiz run `n` (1-based): seven questions, the prompts dealt like Unlimited's so runs don't repeat. */
+  /** Solo quiz run `n` (1-based): seven bank questions, dealt from one stream so runs don't repeat until the bank is used up. */
   function quizRun(data, n) {
-    return quizFor(data, `quiz-v2:${n}`, QUIZ_ROUNDS, { promptIds: runFor(data, "quiz-v2", n, null, true), reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS)) });
+    return quizFor(data, `quiz-v3:${n}`, QUIZ_ROUNDS, { promptIds: [], reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), "bank-v1") });
   }
 
   // -------------------------------------------------------------- share
@@ -657,7 +659,7 @@
     mulberry32, hashString, shuffled,
     LAUNCH, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
-    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun,
+    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
   };

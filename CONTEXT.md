@@ -388,6 +388,20 @@ intro → preview (3 s, input locked) → answering (default 25 s) → feedback 
 
 ### Quiz (multiple choice), added 2026-11-05
 
+**Since 2026-11-05 (afternoon) every quiz slot is a hand-written bank question** (`data/reasoning.json`,
+ids rq-101..rq-247, 147 of them; `E.quizBank(data)`). The user found the first version weak: the
+generated "which one fits?" questions often had obscure right answers and random wrong options, and the
+80 reasoning MCQs (rq-01..rq-80) were paragraph-long and mostly arithmetic or niche (KV-cache bytes,
+STFT frames, CTC). Bank rules: one short question an IOAI contestant can answer from ML knowledge, no
+arithmetic, wrong options are believable misconceptions of similar length (the right option is the
+longest in only ~24% of questions, about chance; answer slots balanced), `lvl` easy/medium shown with
+`cat` above the question, `pack` = the topic a live topic match deals it under, and a one-line `why`.
+rq-01..80 are kept with `retired: true` (never dealt; old results still open). Clock: 1.4x
+(`REASONING_CLOCK`), so 35 s on the daily's 25 s. Solo runs deal one stream (`"bank-v1"`); vq challenges
+and live rooms (all topics or chosen topics) deal from the bank too, and guests rebuild the host's ids
+exactly. The generator below is now only a fallback when the bank runs short (e.g. a stack-only topic
+match asks for more than its 4 questions).
+
 Four options, one fits. Everything is generated from the existing prompt data; no written
 content and no LLM. Same shape in solo, async challenges and live rooms.
 
@@ -445,6 +459,10 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 
 ### Daily Quiz (added overnight 2026-11-05)
 
+- (Updated 2026-11-05: all seven are bank questions. Before launch `E.dailyQuiz(DAILY, preDay,
+  "dquiz-pre2")` deals the bank; from launch, days 1..21 play the hand-picked days in data/daily.json
+  `quiz` (easy first), then `E.dailyQuiz(DAILY, n - 21, "dquiz-v3")`. The rest of this section is the
+  first version.)
 - One shared seven-question quiz a day: five prompt questions and two reasoning MCQs, on the fixed
   25 s clock (reasoning questions get 2.4x). `E.dailyQuiz(data, dayNumber)` deals the prompts like
   the daily (`runFor(data, "dquiz-v1", n)`) and the reasoning questions from their own stream

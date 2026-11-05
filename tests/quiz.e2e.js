@@ -70,7 +70,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   check(!!(await page.$('#drawer a.nav[href="#quiz"]')), "the drawer has a Quiz link");
   await page.click('.modes a[href="#quiz"]');
   await page.waitForSelector('a.btn[href="#quiz-1"]');
-  check((await page.textContent(".page-head")).includes("Seven questions a run"), "the hub explains the mode");
+  check((await page.textContent(".page-head")).includes("Seven hand-written questions a run"), "the hub explains the mode");
   await page.screenshot({ path: path.join(OUT, "40-quiz-hub.png") });
 
   // ---- a solo run: 7 questions, key / tap / wrong / timeout
@@ -103,9 +103,10 @@ const hexName = (s) => Buffer.from(s).toString("hex");
       await page.screenshot({ path: path.join(OUT, "42-quiz-round.png") });
     }
     if (q.reasoning && !expectHits.some((_, k) => run1[k].reasoning)) { // the first reasoning question of the run
-      check((await page.textContent(".rq-eyebrow")).startsWith("Reasoning · "), "a reasoning question shows its topic above the paragraph");
-      await page.waitForFunction(() => parseFloat(document.querySelector("#timer-num").textContent) > 12, null, { timeout: 5000 });
-      check(parseFloat(await page.textContent("#timer-num")) <= 24, "a reasoning question gets 2.4x the clock (24 s on a 10 s setting)");
+      const r = DATA.reasoning.find((x) => x.id === q.promptId);
+      check((await page.textContent(".rq-eyebrow")) === `${r.cat} · ${r.lvl}`, "a bank question shows its topic and level above the question");
+      await page.waitForFunction(() => parseFloat(document.querySelector("#timer-num").textContent) > 10.5, null, { timeout: 5000 });
+      check(parseFloat(await page.textContent("#timer-num")) <= 14, "a bank question gets 1.4x the clock (14 s on a 10 s setting)");
       check(await page.$$eval(".mcq-opt", (els) => els.every((e) => e.getBoundingClientRect().bottom <= window.innerHeight)), "a reasoning question's options fit on the screen too");
       check(await noSideScroll(page), "no horizontal scroll on a reasoning question");
       await page.screenshot({ path: path.join(OUT, "42b-quiz-reasoning.png") });
@@ -116,7 +117,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
     else if (how === "key-wrong") { pick = wrong; await page.keyboard.press(String(pick + 1)); }
     else if (how === "tap-right") { pick = q.correct; await page.click(`.mcq-opt[data-i="${pick}"]`); }
     else if (how === "tap-wrong") { pick = wrong; await page.click(`.mcq-opt[data-i="${pick}"]`); }
-    else { await page.waitForSelector(".feedback", { timeout: 40000 }); } // time runs out (10 s; 24 s on a reasoning question)
+    else { await page.waitForSelector(".feedback", { timeout: 40000 }); } // time runs out (14 s on a 10 s setting)
     await page.waitForSelector(".feedback");
     const ok = pick === q.correct;
     expectHits.push(ok);
@@ -175,11 +176,12 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.waitForSelector("#begin");
   await page.click("#begin");
   const before = await readQuestion(page);
+  await page.waitForTimeout(2000); // let the clock run (a bank question gets 14 s on the 10 s setting)
   await page.reload();
   await page.waitForSelector("#mcq");
   const t = parseFloat(await page.textContent("#timer-num"));
   const after = await readQuestion(page);
-  check(t < 10 && JSON.stringify(after.opts) === JSON.stringify(before.opts) && JSON.stringify(before.opts) === JSON.stringify(run2[0].options), `a reload keeps the question and its clock (${t}s left)`);
+  check(t < 13 && JSON.stringify(after.opts) === JSON.stringify(before.opts) && JSON.stringify(before.opts) === JSON.stringify(run2[0].options), `a reload keeps the question and its clock (${t}s left)`);
   await page.keyboard.press(String(run2[0].correct + 1));
   await page.waitForSelector(".feedback");
   await page.reload();
@@ -266,9 +268,9 @@ const hexName = (s) => Buffer.from(s).toString("hex");
     // before launch: Daily Quiz #1 every day, dealt from the daily's hand-picked pool
     const pool = new Set(DATA.daily.pool);
     const DAILY = { ...CORE, version: `${CORE.version}:daily`, prompts: CORE.prompts.filter((p) => pool.has(p.id)) };
-    const want = E.dailyQuiz(DAILY, Math.max(1, E.daysBetween("2026-11-05", day) + 1), "dquiz-pre");
-    check(want.length === 7 && want.filter((q) => q.reasoning).length === 2, "the engine deals today's quiz: five prompt questions and two reasoning ones");
-    check(want.every((q) => q.reasoning || pool.has(q.promptId)), "the daily quiz's prompt questions come from the daily pool");
+    const want = E.dailyQuiz(DAILY, Math.max(1, E.daysBetween("2026-11-05", day) + 1), "dquiz-pre2");
+    const bank = new Set(E.quizBank(DATA).map((r) => r.id));
+    check(want.length === 7 && want.every((q) => q.reasoning && bank.has(q.promptId)), "the engine deals today's quiz: seven hand-written bank questions");
     await dq.page.goto(base + "#quiz");
     await dq.page.click('.dq-card a[href="#daily-quiz"]');
     await dq.page.waitForSelector("#begin");

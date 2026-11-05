@@ -15,7 +15,7 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
 
 const measure = (p) => p.evaluate(() => {
   const out = [];
-  for (const q of window.MLION_DATA.reasoning) {
+  for (const q of window.MLION_DATA.reasoning.filter((r) => !r.retired)) {
     document.querySelector(".rq-text").textContent = q.q;
     document.querySelectorAll(".mcq-opt .mcq-t").forEach((el, i) => { el.textContent = q.options[i]; });
     const opts = [...document.querySelectorAll(".mcq-opt")];
@@ -38,7 +38,7 @@ const measure = (p) => p.evaluate(() => {
     await p.click(".mcq-opt"); await p.waitForSelector("#next:not([disabled])", { timeout: 20000 }); await p.click("#next");
   }
   check(!!(await p.$(".rq-text")), "quiz run 1 reaches a reasoning question");
-  const n = await p.evaluate(() => window.MLION_DATA.reasoning.length);
+  const n = await p.evaluate(() => window.MLION_DATA.reasoning.filter((r) => !r.retired).length);
 
   const solo = await measure(p);
   check(solo[0].bottom <= 844, `solo: all ${n} fit (worst ${solo[0].id} ends at ${solo[0].bottom} px)`);
