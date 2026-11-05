@@ -356,7 +356,7 @@ html .answer-input.corrected, html:not(.reduce-motion) .answer-input.corrected.s
 
 /* the intro, before the first prompt */
 .intro-card { display: grid; gap: 28px; justify-items: start; }
-.intro-card h2 { font-size: var(--s4); }
+.intro-card h1, .intro-card h2 { font-size: var(--s4); }
 .intro-card .sub { color: var(--muted); margin-top: 8px; }
 .beats { display: flex; gap: 32px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
 .beats li { display: grid; gap: 2px; }
@@ -993,7 +993,7 @@ body.hero3d .depths-sec .n { font-size: var(--s3); letter-spacing: -0.01em; }
 html.reduce-motion body.hero3d .depths-sec .depths li { transition: none; }
 .home-rest > section h2 { margin-bottom: 20px; }
 /* text scrolling up under the transparent top bar fades out instead of colliding with it */
-body.hero3d .topbar { background: linear-gradient(var(--bg) 52%, rgba(11, 10, 8, 0)); }
+body.hero3d .topbar { background: linear-gradient(var(--bg) 78%, rgba(11, 10, 8, 0)); }
 /* the opaque rest of home runs to the very bottom, over the surface */
 body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom, 0px)); padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 

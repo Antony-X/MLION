@@ -1558,7 +1558,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const modes = [
       ["#unlimited", "Unlimited", "Endless runs"],
       ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Today's quiz and practice runs"],
-      ["#sprint", "Sprint", "One prompt, 60 seconds, every answer you know"],
+      ["#sprint", "Sprint", "One prompt, 60 seconds"],
       ["#board", "Leaderboard", "Today's top scores"],
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
     ].filter(([href]) => BOARD_ON || href !== "#board");
@@ -1756,7 +1756,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       RUN.mode === "quiz" ? `Pick the one that fits. ${E.QUIZ_POINTS} a right answer.` :
       RUN.mode === "dquiz" ? `${prettyDate(RUN.date, { weekday: "long", month: "long", day: "numeric" })} · the same questions for everyone` : "";
     $("#card").innerHTML = `<div class="intro-card">
-      <div><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
+      <div><h1>${esc(title)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ""}</div>
       <ul class="beats">
         <li><b>${n}</b><span>${quiz ? "questions" : n === 1 ? "prompt" : "prompts"}</span></li>
         <li><b>3 s</b><span>to read</span></li>
