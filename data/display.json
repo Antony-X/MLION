@@ -154,6 +154,10 @@
   "ml-language": {
     "extra": true
   },
+  "ml-notation": {
+    "example": "θ",
+    "scope": "Type the name, not the symbol"
+  },
   "ml-paper": {
     "scope": "The title or the common name both count"
   },
