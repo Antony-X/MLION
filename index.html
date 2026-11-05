@@ -5,7 +5,7 @@
   <!-- What the page may load and talk to. tools/build.js writes the sha256 of each inline script into script-src;
        connect-src: the Supabase project, the live-room relay, and the reserved test host the e2e mocks answer.
        GitHub Pages can't send headers, so frame-ancestors (ignored in a meta tag) is done by the script below. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nfnGaNZKFJ22IQbJPPzgKnd4wHe6eqjSIphxlvEOYTo=' 'sha256-Xfukbjw8KGbfR5vtMADfFEujTQ4O8h3PEklQrSL2TOw=' 'sha256-CEJz65qJPwrNJ2P5inAb0obtmise+TLOeIwTM4P3WxA='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ozqnznvxxxnefeetidwq.supabase.co wss://public.cloud.shiftr.io https://mock.supabase.test; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nfnGaNZKFJ22IQbJPPzgKnd4wHe6eqjSIphxlvEOYTo=' 'sha256-Xfukbjw8KGbfR5vtMADfFEujTQ4O8h3PEklQrSL2TOw=' 'sha256-pMkukMvtz+Nn1pIGKr0QrRanc6cqawCYF8kIwXa5wvo='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ozqnznvxxxnefeetidwq.supabase.co wss://public.cloud.shiftr.io https://mock.supabase.test; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
@@ -113,8 +113,8 @@
       document.getElementById("app").innerHTML = '<section class="screen pre-home"><i hidden></i>' +
         '<div class="home-hero' + (calm ? "" : " arrive") + '"><div class="brandmark">' + mark +
         '<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>' +
-        '<p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>' +
-        '<div class="hero-cta"><a class="btn primary big" href="#daily">Start training</a><a class="btn big" href="#live">Play with friends</a></div>' +
+        '<p class="pitch">A daily machine-learning word game. Name the rarest right answer you can.</p>' +
+        '<div class="hero-cta"><a class="btn primary big" href="#daily">Play today\'s daily</a><a class="btn big" href="#live">Play with friends</a></div>' +
         '</div></section>';
     })();
   </script>
