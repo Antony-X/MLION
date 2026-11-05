@@ -103,13 +103,16 @@ safety classifier, and was deliberately not used. All MLion answers were written
   launch day, set `LAUNCH = "YYYY-MM-DD"` (keep the `window.MLION_LAUNCH` test hook): that day
   becomes #1 and the hand-picked launch week starts. The day resets at **local** midnight,
   Wordle-style, not New York time.
-- **The daily's questions** (`dailyIds(date)` in app.js), always core:
-  - before launch: `runFor(PRE, "prelaunch-v1", days since 2026-11-05 + 1)`, where `PRE` is core
-    minus the launch week, so early players never see launch-week prompts;
-  - launch days 1 to 7: `data/launch.json`, hand-picked (bundled as `DATA.launch`; the build
-    checks seven core prompts a day, none twice);
-  - after that: `runFor(asOf(CORE, date), "daily-v4", n - 7, …, LAUNCH_IDS)`, a flat shuffle whose
-    first pass skips the launch week, so week 2 doesn't repeat week 1.
+- **The dailies' questions** come from `data/daily.json` (bundled as `DATA.daily`; the build
+  validates it). `pool`: 65 hand-picked core prompts a typical IOAI contestant can answer at once
+  (the user, 2026-11-05: "like name an optimizer"; RAG, PEFT, quantization formats, special tokens,
+  pandas and sklearn utilities are out). The daily and the Daily Quiz deal only from it (`DAILY`
+  view in app.js); Unlimited, Quiz and live rooms keep the whole core set. A new prompt joins the
+  daily only when added to `pool`. `dailyIds(date)`:
+  - before launch: `runFor(DAILY, "prelaunch-v2", days since 2026-11-05 + 1)`, the whole pool;
+  - launch days 1 to 7: `launch` in daily.json (49 pool prompts, easiest first);
+  - after that: `runFor(asOf(DAILY, date), "daily-v4", n - 7, …, LAUNCH_IDS)`, a flat shuffle whose
+    first pass deals the 16 pool prompts the week didn't use, so week 2 doesn't repeat week 1.
 - **Share text:** `MLion #N 🦁\n<score>/<max> · loss <x.xx>\n\n<grid>`.
 
 ### Prompt display
@@ -449,7 +452,7 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   `asOf` now also filters `reasoning` by an optional `added` date, so adding questions never
   changes a past day.
 - Numbered like the daily (`dquizNumber = dayNo`): #1 until launch. Before launch it deals
-  `E.dailyQuiz(PRE, preDay, "dquiz-pre")`; from launch, `E.dailyQuiz(asOf(CORE, date), n, "dquiz-v2")`.
+  `E.dailyQuiz(DAILY, preDay, "dquiz-pre")`; from launch, `E.dailyQuiz(asOf(DAILY, date), n, "dquiz-v2")`.
   The quiz has no hand-picked week.
 - Leaderboard: table `daily_quiz_scores` (`supabase/daily_quiz.sql`, additive: new table, trigger,
   policies only). The client posts `marks` (7 digits, 1 = right) and `tenths` (total answer time);

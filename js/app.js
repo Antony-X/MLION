@@ -25,22 +25,24 @@
     const upTo = prompts.concat(reasoning).reduce((m, p) => (p.added && p.added > m ? p.added : m), "");
     return { version: `${data.version}:asof${upTo}`, packs: data.packs, prompts, reasoning };
   }
-  // ---- the daily's questions, always from the core set
-  // Launch week: the first seven days after launch are hand-picked (data/launch.json), in order.
-  const LAUNCH_DAYS = (DATA.launch || []).map((ids) => ids.filter((id) => PROMPTS.has(id)));
+  // ---- the shared dailies' questions (data/daily.json)
+  // The daily and the Daily Quiz deal only from a hand-picked pool that a typical IOAI contestant
+  // can answer at once; the rest of the core set stays in Unlimited, Quiz and live rooms.
+  const POOL = new Set(((DATA.daily && DATA.daily.pool) || CORE.prompts.map((p) => p.id)).filter((id) => PROMPTS.has(id)));
+  const DAILY = { version: `${CORE.version}:daily`, packs: CORE.packs, prompts: CORE.prompts.filter((p) => POOL.has(p.id)), reasoning: CORE.reasoning };
+  // Launch week: the first seven days after launch, hand-picked, in order.
+  const LAUNCH_DAYS = ((DATA.daily && DATA.daily.launch) || []).map((ids) => ids.filter((id) => POOL.has(id)));
   const LAUNCH_IDS = new Set(LAUNCH_DAYS.flat());
-  // Before launch: fresh core prompts every day, never the launch week's, so nobody who plays
-  // early has seen what launch players get. The deal counts days from PRE_FROM.
-  const PRE = { version: `${CORE.version}:pre`, packs: CORE.packs, prompts: CORE.prompts.filter((p) => !LAUNCH_IDS.has(p.id)), reasoning: CORE.reasoning };
+  // Before launch: the whole pool, fresh each day (the deal counts days from PRE_FROM).
   const PRE_FROM = "2026-11-05";
   const preLaunch = (date) => !E.LAUNCH || date < E.LAUNCH;
   const preDay = (date) => Math.max(1, E.daysBetween(PRE_FROM, date) + 1);
   function dailyIds(date) {
-    if (preLaunch(date)) return E.runFor(PRE, "prelaunch-v1", preDay(date), null, true);
+    if (preLaunch(date)) return E.runFor(DAILY, "prelaunch-v2", preDay(date), null, true);
     const n = E.dayNumberFor(date);
     if (n <= LAUNCH_DAYS.length) return LAUNCH_DAYS[n - 1];
-    // after the launch week, the usual shuffle; its first pass deals the prompts the week didn't use
-    return E.runFor(asOf(CORE, date), "daily-v4", n - LAUNCH_DAYS.length, null, true, LAUNCH_IDS);
+    // after the launch week, the usual shuffle; its first pass deals the pool prompts the week didn't use
+    return E.runFor(asOf(DAILY, date), "daily-v4", n - LAUNCH_DAYS.length, null, true, LAUNCH_IDS);
   }
   /** MLion #n for a date: #1 every day until launch, then counted from launch day. */
   const dayNo = (date) => Math.max(1, E.dayNumberFor(date));
@@ -283,11 +285,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
   // The daily quiz: everyone's same seven questions, on the fixed 25 s clock so the board compares.
-  // Numbered like the daily (#1 until launch); before launch it deals from the pre-launch set too.
+  // Numbered like the daily (#1 until launch), and dealt from the same hand-picked pool.
   const dquizNumber = dayNo;
   function dquizSpec(date) {
     const num = dquizNumber(date);
-    const quiz = preLaunch(date) ? E.dailyQuiz(PRE, preDay(date), "dquiz-pre") : E.dailyQuiz(asOf(CORE, date), E.dayNumberFor(date), "dquiz-v2");
+    const quiz = preLaunch(date) ? E.dailyQuiz(DAILY, preDay(date), "dquiz-pre") : E.dailyQuiz(asOf(DAILY, date), E.dayNumberFor(date), "dquiz-v2");
     return { key: `dquiz:${date}`, mode: "dquiz", fmt: "quiz", number: num, date, label: `Daily Quiz #${num}`, promptIds: quiz.map((q) => q.promptId), quiz, secs: DEFAULT_SECS };
   }
   function quizSpec(n) {

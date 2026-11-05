@@ -263,12 +263,12 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   {
     const dq = await phone("dq");
     const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    // before launch: Daily Quiz #1 every day, dealt from the core prompts outside the launch week
-    const week = new Set((DATA.launch || []).flat());
-    const PRE = { ...CORE, version: `${CORE.version}:pre`, prompts: CORE.prompts.filter((p) => !week.has(p.id)) };
-    const want = E.dailyQuiz(PRE, Math.max(1, E.daysBetween("2026-11-05", day) + 1), "dquiz-pre");
+    // before launch: Daily Quiz #1 every day, dealt from the daily's hand-picked pool
+    const pool = new Set(DATA.daily.pool);
+    const DAILY = { ...CORE, version: `${CORE.version}:daily`, prompts: CORE.prompts.filter((p) => pool.has(p.id)) };
+    const want = E.dailyQuiz(DAILY, Math.max(1, E.daysBetween("2026-11-05", day) + 1), "dquiz-pre");
     check(want.length === 7 && want.filter((q) => q.reasoning).length === 2, "the engine deals today's quiz: five prompt questions and two reasoning ones");
-    check(want.every((q) => q.reasoning || !week.has(q.promptId)), "before launch the daily quiz keeps off the launch week's prompts");
+    check(want.every((q) => q.reasoning || pool.has(q.promptId)), "the daily quiz's prompt questions come from the daily pool");
     await dq.page.goto(base + "#quiz");
     await dq.page.click('.dq-card a[href="#daily-quiz"]');
     await dq.page.waitForSelector("#begin");

@@ -34,13 +34,15 @@ async function runIds(b, base, hash, { extras, time, launch }) {
   check(!ex(r.ids).length && !r.errs.length, "Quiz deals only core questions by default");
   r = await runIds(b, base, "#quiz-1", { extras: true });
   check(r.ids.length === 7 && ex(r.ids).length > 0, "with the switch on, Quiz mixes extras in");
-  // the daily: core only, always. Before launch every day is #1 and never deals the launch week.
-  const WEEK = D.launch, inWeek = (ids) => ids.filter((i) => WEEK.some((d) => d.includes(i)));
-  check(WEEK.length === 7 && WEEK.every((d) => d.length === 7) && new Set(WEEK.flat()).size === 49 && !ex(WEEK.flat()).length, "the launch week ships: seven days of seven core prompts, none twice");
+  // the daily: only the hand-picked pool, always. Before launch every day is #1.
+  const POOL = new Set(D.daily.pool), WEEK = D.daily.launch, inWeek = (ids) => ids.filter((i) => WEEK.some((d) => d.includes(i)));
+  const offPool = (ids) => ids.filter((i) => !POOL.has(i));
+  check(POOL.size >= 50 && !ex([...POOL]).length && POOL.has("optimizer") && !POOL.has("retrieval") && !POOL.has("peft"), "the daily pool ships: hand-picked core prompts (optimizers in, RAG and PEFT out)");
+  check(WEEK.length === 7 && WEEK.every((d) => d.length === 7) && new Set(WEEK.flat()).size === 49 && !offPool(WEEK.flat()).length, "the launch week ships: seven days of seven pool prompts, none twice");
   const pre1 = await runIds(b, base, "#daily", { extras: true, time: "2026-11-05T12:00:00" });
   const pre2 = await runIds(b, base, "#daily", { extras: true, time: "2026-11-06T12:00:00" });
   for (const [r, d] of [[pre1, "11-05"], [pre2, "11-06"]]) {
-    check(r.ids.length === 7 && !ex(r.ids).length && !inWeek(r.ids).length && !r.errs.length, `before launch (${d}) the daily is core only, even with extras on, and keeps off the launch week`);
+    check(r.ids.length === 7 && !offPool(r.ids).length && !r.errs.length, `before launch (${d}) the daily deals only from the pool, even with extras on`);
     check(r.intro.includes("MLion #1"), `before launch (${d}) the daily is MLion #1`);
   }
   check(pre1.ids.join() !== pre2.ids.join(), "before launch each day still gets fresh questions");
@@ -50,7 +52,7 @@ async function runIds(b, base, hash, { extras, time, launch }) {
   r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-16T12:00:00", launch: "2026-11-10" });
   check(r.ids.join() === WEEK[6].join() && r.intro.includes("MLion #7"), "the seventh day deals launch day 7");
   r = await runIds(b, base, "#daily", { extras: true, time: "2026-11-17T12:00:00", launch: "2026-11-10" });
-  check(r.ids.length === 7 && !ex(r.ids).length && !inWeek(r.ids).length && r.intro.includes("MLion #8"), "day 8 moves on to core prompts the launch week didn't use");
+  check(r.ids.length === 7 && !offPool(r.ids).length && !inWeek(r.ids).length && r.intro.includes("MLion #8"), "day 8 moves on to pool prompts the launch week didn't use");
   console.log("extras e2e passed");
   await b.close(); srv.close();
 })();
