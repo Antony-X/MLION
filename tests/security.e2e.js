@@ -99,13 +99,18 @@ function mockSupabase(route) {
   // ------------------------------------------------------------------ B. vendored libraries
   console.log("B. vendored libraries");
   if (want("B")) {
-    const { ctx, page } = await fresh({}, { board: true });
+    // the board's rows are a plain REST read; the login library loads for someone who has logged in (a stored session)
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const user = { id: "00000000-0000-4000-8000-00000000e55e", aud: "authenticated", role: "authenticated", user_metadata: {}, app_metadata: { provider: "discord" } };
+    const exp = Math.floor(Date.now() / 1000) + 86400;
+    const stored = JSON.stringify({ access_token: `${b64({ alg: "HS256" })}.${b64({ sub: user.id, role: "authenticated", exp })}.sig`, refresh_token: "r", token_type: "bearer", expires_in: 86400, expires_at: exp, user });
+    const { ctx, page } = await fresh({ "mlion:sb": stored }, { board: true });
     sockets.length = 0;
     await page.goto(base + "#board");
     await page.waitForFunction(() => !!(window.supabase && window.supabase.createClient), null, { timeout: 15000 });
     await page.waitForSelector("#board-list li", { timeout: 15000 });
     const sb = await page.evaluate(() => [...document.scripts].map((s) => s.src).filter((s) => /supabase/.test(s)));
-    check(sb.length === 1 && /\/js\/vendor\/supabase-2\.118\.0\.js$/.test(sb[0]), `the leaderboard loads supabase-js from js/vendor (${sb[0] && sb[0].replace(base, "")})`);
+    check(sb.length === 1 && /\/js\/vendor\/supabase-2\.118\.0\.js$/.test(sb[0]), `the login library loads from js/vendor (${sb[0] && sb[0].replace(base, "")})`);
     await page.evaluate(() => new Promise((res, rej) => { const s = document.createElement("script"); s.src = "js/vendor/mqtt-4.3.7.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }));
     await page.evaluate(() => { window.__c = window.mqtt.connect("wss://public.cloud.shiftr.io", { username: "public", password: "public", reconnectPeriod: 0, connectTimeout: 2000 }); });
     await page.waitForTimeout(2000);
