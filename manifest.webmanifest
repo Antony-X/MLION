@@ -1,7 +1,7 @@
 {
   "name": "MLion",
   "short_name": "MLion",
-  "description": "A daily machine-learning word game. Rarer answers roll deeper.",
+  "description": "A daily machine-learning word game. Name the rarest right answer you can.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

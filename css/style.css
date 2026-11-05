@@ -1017,7 +1017,7 @@ body.hero3d #hero3d { display: block; position: fixed; inset: 0; width: 100%; he
 body.hero3d #landscape { opacity: 0; }
 .home .home-hero, .home .depths-sec { position: relative; z-index: 1; }
 .depths-sec h2 { font-size: var(--s4); margin-bottom: 28px; }
-.depths-sec .n small { display: block; color: var(--muted); font-size: var(--s1); letter-spacing: 0; }
+.depths .n small { display: block; color: var(--muted); font-size: var(--s1); letter-spacing: 0; }
 .depths-sec { padding-bottom: 24px; }
 /* with the hero, the list becomes the scroll track: one row per depth, lit as the ball reaches it */
 body.hero3d .depths-sec { padding-top: 12svh; padding-bottom: 60svh; max-width: 620px; }

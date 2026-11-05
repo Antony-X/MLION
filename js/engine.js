@@ -12,27 +12,27 @@
   const TIERS = {
     baseline: {
       id: "baseline", name: "Baseline", score: 10, emoji: "🐑", depth: 0.08,
-      blurb: "The answer everyone blurts out.",
+      blurb: "The answer almost everyone gives.",
     },
     overfit: {
       id: "overfit", name: "Overfit", score: 15, emoji: "🦜", depth: 0.18,
-      blurb: "The famous “obscure” pick. Everyone memorized it.",
+      blurb: "The “obscure” pick that everyone knows.",
     },
     indist: {
       id: "indist", name: "In-Distribution", score: 30, emoji: "📊", depth: 0.36,
-      blurb: "Solid. Right in the fat middle of the bell curve.",
+      blurb: "A solid answer plenty of people know.",
     },
     outlier: {
       id: "outlier", name: "Outlier", score: 60, emoji: "🦄", depth: 0.6,
-      blurb: "Genuinely uncommon. Nice pull.",
+      blurb: "Uncommon. Most people won't think of it.",
     },
     longtail: {
       id: "longtail", name: "Long Tail", score: 85, emoji: "☄️", depth: 0.82,
-      blurb: "True obscurity. Few sample this far out.",
+      blurb: "Rare. Hardly anyone types it.",
     },
     mlion: {
       id: "mlion", name: "One in a MLion", score: 100, emoji: "🦁", depth: 0.97,
-      blurb: "The designated gem. Global minimum.",
+      blurb: "The hidden gem: one per prompt, picked by hand.",
     },
   };
   const TIER_IDS = Object.keys(TIERS);
