@@ -94,7 +94,7 @@
   const quizCompare = (quiz, a, b) => (quizPts(quiz, b.picks) - quizPts(quiz, a.picks)) || (a.tenths - b.tenths);
   const fmtSecs = (tenths) => `${(tenths / 10).toFixed(1)} s`;
   /** What the page backdrop shows: the full surface at home, a horizon elsewhere. */
-  function scene(view, opts) { document.body.dataset.view = view; if (V.scene) V.scene(view, opts); }
+  function scene(view, opts) { document.body.dataset.view = view; if (V.scene) V.scene(view, opts); Music.view(view); }
   /** The six tiers, each set as deep as it scores. */
   const DEPTH_LINES = {
     baseline: "The answer almost everyone gives.",
@@ -146,10 +146,10 @@
     if (resetDue(CFG)) { wipeLocal(); LS.set("since", new Date().toISOString()); }
   } catch { /* storage unavailable */ }
   const sysReduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, haptics: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false, shareMisses: false };
+  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, haptics: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false, shareMisses: false, music: true, musicVol: 0.5 };
   let settings = Object.assign({}, DEFAULTS, LS.get("settings", {}));
   function applySettings() { document.documentElement.classList.toggle("reduce-motion", !!settings.reducedMotion); }
-  function saveSettings() { LS.set("settings", settings); applySettings(); }
+  function saveSettings() { LS.set("settings", settings); applySettings(); Music.sync(); }
   applySettings();
 
   let records = LS.get("records", {}) || {}; // run key -> finished record
@@ -179,7 +179,7 @@
         try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
         const comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
-        const master = ctx.createGain(); master.gain.value = 1.8;
+        const master = ctx.createGain(); master.gain.value = 1.2;
         bus = ctx.createGain(); bus.connect(comp).connect(master).connect(ctx.destination);
         // a small room: a second of decaying stereo noise as the impulse, mixed in quietly
         const len = Math.round(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -261,6 +261,8 @@
     const buzz = (pattern) => { if (settings.haptics && navigator.vibrate) try { navigator.vibrate(pattern); } catch { /* ignore */ } };
     return {
       unlock() { ac(); },
+      /** The context and room, for the music (js/music.js); null until a gesture has made the context. */
+      graph() { return ctx && settings.sound ? { ctx, room } : null; },
       /** the last seconds of the clock: a dry woodblock */
       tick() { noise(0.035, { from: 2600, q: 6, vol: 0.12, wet: 0 }); voice(1760, 0.04, { type: "sine", vol: 0.03, detune: 0, wet: 0 }); },
       reject() { buzz([30, 50, 30]); voice(233, 0.12, { type: "square", vol: 0.03, bright: 900, wet: 0.1 }); voice(196, 0.18, { type: "square", vol: 0.03, bright: 800, wet: 0.1, delay: 0.11 }); },
@@ -325,6 +327,10 @@
     };
   })();
   document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+  // Background music (js/music.js): Sound's context and room, Sound's settings, and it ducks under every effect.
+  const Music = window.MLION_MUSIC ? window.MLION_MUSIC.init({ graph: () => Sound.graph(), unlock: () => Sound.unlock(), settings: () => settings })
+    : { view() {}, depth() {}, resolve() {}, clock() {}, duck() {}, sync() {} };
+  Object.keys(Sound).filter((k) => k !== "unlock" && k !== "graph").forEach((k) => { const f = Sound[k]; Sound[k] = (...a) => { f(...a); Music.duck(k, a[0]); }; });
 
   // ------------------------------------------------- Claude answer check
   // Where the page runs inside a Claude viewer, a miss the local matcher can't
@@ -2398,6 +2404,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         const l = $("#hud-loss"), sc = $("#hud-score");
         if (l) l.textContent = RUN.endless ? RUN.results.length : ((RUN.promptIds.length * 100 - pts) / 100).toFixed(2);
         if (sc) sc.textContent = pts;
+        Music.depth(V.depthAt(x));
       },
       onFlood: (on) => { const st = $("#stage"); if (st) st.classList.toggle("flood", on); },
       avoid: stageBoxes,
@@ -2827,6 +2834,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           $("#timer-label").textContent = "Time left";
         }
         const left = Math.max(0, RUN.answerEndsAt - now);
+        Music.clock(left);
         if (ruled()) $("#timer-label").textContent = timeLeftLabel(left);
         $("#timer-num").textContent = (left / 1000).toFixed(1);
         $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
@@ -2864,6 +2872,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         $("#timer-label").textContent = "Time left";
       }
       const left = Math.max(0, RUN.answerEndsAt - now);
+      Music.clock(left);
       if (ruled()) $("#timer-label").textContent = timeLeftLabel(left);
       $("#timer-num").textContent = (left / 1000).toFixed(1);
       $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
@@ -3725,6 +3734,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const meQ = isQ ? { name: rec.name || "You", picks: rec.picks || [], tenths: rec.tenths || 0, you: true } : null;
     V.setRounds(n); // the results chart uses the same hill as the run
     scene("results");
+    Music.resolve(V.depthAt(rec.score * 10));
     app.innerHTML = `<section class="screen results">
       <div class="side">
         <div class="score-hero">
@@ -4755,7 +4765,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
             ["extraQuestions", "Extra questions", `${EXTRA_COUNT} more outside the IOAI syllabus (tools, datasets, AI in pop culture) in your Unlimited, Quiz and Sprint runs`],
             ["aiCheck", "Ask Claude when nothing matches", "Claude checks if you meant a listed answer. Uses your own Claude usage, and you confirm every match"],
           ].map(row).join("")}`)}
-        ${group("Feel", [["sound", "Sound", ""], ...("vibrate" in navigator && matchMedia("(pointer: coarse)").matches ? [["haptics", "Vibration", "A short buzz with each verdict"]] : []), ["reducedMotion", "Reduce motion", "Turn off the rolling ball and camera moves"]].map(row).join(""))}
+        ${group("Feel", [["sound", "Sound", ""], ["music", "Music", "Faint, and warmer the deeper you go"]].map(row).join("") +
+          `<label class="setting vol-setting"><span class="txt"><span class="t">Music volume</span></span><input type="range" class="range" id="music-vol" min="0" max="100" step="5" value="${Math.round(100 * (Number.isFinite(settings.musicVol) ? settings.musicVol : 0.5))}"></label>` +
+          [...("vibrate" in navigator && matchMedia("(pointer: coarse)").matches ? [["haptics", "Vibration", "A short buzz with each verdict"]] : []), ["reducedMotion", "Reduce motion", "Turn off the rolling ball and camera moves"]].map(row).join(""))}
         ${group("Sharing", `
           <label class="setting name-setting"><span class="txt"><span class="t">Your name</span><span>Shown to others in live rooms and on challenge links</span></span>
             <input class="search" id="set-name" maxlength="16" autocomplete="nickname" placeholder="Not set" value="${esc(myName())}"></label>
@@ -4765,6 +4777,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
     </section>`;
     $$("input[data-k]").forEach((i) => i.addEventListener("change", () => { settings[i.dataset.k] = i.checked; saveSettings(); }));
+    // music: its rows dim while Sound is off (it never plays then); the volume applies as you drag
+    const musicDim = () => { $('input[data-k="music"]').closest(".setting").classList.toggle("dim", !settings.sound); $("#music-vol").closest(".setting").classList.toggle("dim", !settings.sound || !settings.music); };
+    musicDim();
+    $$('input[data-k="sound"], input[data-k="music"]').forEach((i) => i.addEventListener("change", musicDim));
+    $("#music-vol").addEventListener("input", (e) => { settings.musicVol = +e.target.value / 100; Music.sync(); });
+    $("#music-vol").addEventListener("change", saveSettings);
     wireTimePicker((secs) => { settings.answerSecs = secs; saveSettings(); toast(`${secs} s per question`); });
     $("#set-name").addEventListener("change", (e) => {
       const v = e.target.value.trim().slice(0, 16);

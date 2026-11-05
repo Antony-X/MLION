@@ -161,6 +161,7 @@ css/style.css         all styles (taste-skill redesign: dark room, gold accent, 
 js/engine.js          tiers, normalization, matching layers, scheduling, share text (UMD; used by Node tools too)
 js/data.js            GENERATED bundle: window.MLION_DATA = {version, packs, prompts, extras}
 js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas (play stage), streak flame, tier glyphs, lion mark (MARK: Leo's curve + the ball)
+js/music.js           generative background music (Web Audio, no files); app.js drives it through a few hooks (see "Background music" at the end)
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
 js/vendor/            third-party scripts served with the game (supabase-2.118.0.js), so launch doesn't depend on a CDN
 supabase/*.sql        additive SQL the owner runs by hand in the SQL editor (names_v2.sql after names.sql)
@@ -175,6 +176,7 @@ tools/icons.js        render img/ (favicon.svg, app icons, og.png share card) fr
 tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SUGGEST/NONE)
 tools/pull_suggestions.js  pull approved answer suggestions into data/prompts/*.json (secret key at run time; see "Suggest this answer")
 supabase/*.sql        schema, daily_quiz, admin, names, quiz_speed, suggestions, rate_limits (each additive; run in the SQL editor)
+tools/music-render.js render the music (with the real Sound effects) offline to WAVs + loudness/spectrum report; needs Playwright
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
 tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQTT broker
@@ -183,6 +185,7 @@ tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, r
 tests/live.quiz.e2e.js  Playwright: live Quiz match, two browsers over MQTT (hidden picks, reveal, skip, chat, forged answers, time tie-break)
 tests/live.security.e2e.js  Playwright, fake relay (no network): outsider reads/forges/replays, a guest claiming a fake tier, open-room knock and full, room-list XSS, ten players
 tests/live.sprint.e2e.js  Playwright: live Sprint match, two browsers over MQTT (live tallies, clock end, shared answers, a player who leaves, totals); live.rejoin.e2e.js --sprint: a guest comes back mid-sprint
+tests/music.e2e.js    Playwright: the music in the real page (gesture start, depth, clock, gem, Settings rows, Sound off, hidden tab, results cadence); no network
 README.md, package.json, .nojekyll (needed for Pages)
 ```
 
@@ -440,8 +443,8 @@ intro → preview (3 s, input locked) → answering (default 25 s) → feedback 
 - Suggestions show as tappable chips.
 - On timeout the draft is submitted: a confident correction or single strong suggestion is
   accepted, otherwise it's a miss.
-- Settings: preview autocorrect, clear rejected, sound (WebAudio), reduce motion, include share
-  link, Claude answer check.
+- Settings: preview autocorrect, clear rejected, sound (WebAudio), music (on/off + volume, under
+  Sound; dimmed while Sound is off), reduce motion, include share link, Claude answer check.
 
 ### Claude answer check
 
@@ -1329,6 +1332,8 @@ is the lit exhibit.
   the matcher accepts, off-topic excluded, small bundles). `tests/quiz.e2e.js` plays a solo run and a
   `#vq-` challenge. `tests/live.quiz.e2e.js` and `live.rejoin.e2e.js --quiz` play a live Quiz match.
   Not verified on a real phone or on the claude.ai Artifact build (live is disabled there anyway).
+- Music (2026-11-05): `tests/music.e2e.js` (integration in the real page) and `tools/music-render.js`
+  (offline renders and loudness measurements). Never listened to; see "Background music" at the end.
 
 ---
 
@@ -1454,3 +1459,144 @@ in about 30–60 s. Cache-busting means phones load the new code on their next f
   runs; mlion adds a held saw chord and a high sparkle. Same method names as before (tick, reject,
   submit, miss, chat, tier, streak, quick, fizzle), so call sites are unchanged. Not listened to by the
   session that wrote it (headless); tune by ear.
+
+### Background music (`js/music.js`, 2026-11-05)
+A generative ambient score in Web Audio, with no files and no libraries. It gets warmer and fuller as
+the ball goes deeper (as Krillion's does, but nothing is taken from it). It is faint on purpose: at the
+default volume it sits about 15 dB under the answer sounds.
+
+**The brief, from research.**
+- *Vertical layering* keyed to one game parameter, the ball's depth. Layers fade in and out; nothing
+  re-sequences (Wwise/FMOD practice; Mini Metro's generative score).
+- *Generative, not looped.* Markov chords, random-walk arpeggios behind probability gates, and Eno-style
+  loops of incommensurable lengths. It never repeats audibly, which matters in a game played every day.
+- *Duck under every effect.* Words come first, the music is room tone.
+- *A low-time cue by subtraction, not addition.* The music thins, so the clock's ticks stand out. An
+  urgency layer would compete with them.
+- *Avoid the cheap-synth sound.* That sound comes from raw saw or square waves, exact tuning, grid-exact
+  timing, flat velocities, dry output and close-voiced low thirds. So the score uses soft wavetables,
+  two detuned drifting oscillators per pad voice, humanised timing (up to 20 ms late) and velocity,
+  S-curve swells, wide voicings and a long dark hall.
+- *Web Audio hygiene.*
+  - A lookahead scheduler ("A tale of two clocks": a 50 ms timer schedules 0.35 s ahead on the audio clock).
+  - Capped voices, k-rate automation where a-rate is not needed, nothing connected while stopped.
+  - The context is touched only inside a user gesture (autoplay policy; on iOS, resume only in a gesture).
+
+**Harmonic plan.** Only white keys are used (A minor and C major share them), so nothing rubs against the
+effect bells on C, E and G (mlion root 523.25 Hz). A depth of 0 is the misty plateau and 1 is the gold
+basin.
+
+| Depth | Chords | Voicing | Register |
+|---|---|---|---|
+| Plateau (~0) | Am, Em: open fifths and ninths, no thirds | cold | high (pads around E4 and up) |
+| Ravines (~0.3–0.6) | Dm, G, with a bass that prefers to *fall* 1–4 semitones (the descent heard as a bassline) | mid (seventh chords) | lower |
+| Basin (~0.9) | F and C: maj7, then add9; F sometimes maj7#11 (the "glow") | warm (ninth chords) | low and full (pads from B2) |
+
+- Each chord has a `home` depth. `choose()` weights the `NEXT` Markov graph by a gaussian fit to the
+  current depth (σ 0.2) and halves the chord it just came from (no A-B-A rocking).
+- A chord lasts 2–4 bars (4–5 in menus) of 3.75 s (64 bpm in eighths). Pads strum in over 1.6–4.8 s and overlap the
+  next chord, so there is no gap.
+- The results screen plays a cadence: F (or straight on from F or G), then C held for 5 bars. Its warmth
+  follows the run's final depth.
+- A gem (mlion tier) queues C at the next bar line and glows (pads brighter and louder for a few seconds).
+
+**Layers** (weights follow the landscape's own acts: `acts(d)`, breakpoints 0.16–0.40 and 0.62–0.88):
+
+| Layer | What it is | Where |
+|---|---|---|
+| pad | 2 detuned soft-wavetable oscillators per voice, slow LP; brightness rises with depth (4 wavetables) | always (0.85 to 1) |
+| air | looped pink noise through a wandering band-pass: wind | plateau and menus |
+| far | glassy distant notes from three loops of 7.7, 12.3 and 18.1 s (1, 2 or 3-note fragments), mostly hall | everywhere, most on the plateau |
+| bass | the chord root, A1 to G#2, high-passed at 38 Hz | ravines and basin |
+| pulse | soft plucked root/fifth in three bar shapes (3-3-2, quarters, sparse) | ravines only |
+| arp | high glass random walk over chord tones (C5–G6) with a 23 s breath, ping-pong delay | basin; denser with the streak |
+
+All of it runs into a dark 2.6 s hall plus a small send to Sound's room, then a high-pass ("thin"), a
+low-pass ("tone"), the duck gain, the output gain and the gate. Spectral targets were checked on renders:
+- nothing above 5 kHz;
+- 2–5 kHz under 1%;
+- a −3.5 dB dip at 300 Hz on the pads, against mud;
+- spectral centroid of 750 Hz on the plateau, 450 Hz in the ravines and 360 Hz in the basin.
+
+**Reactions.**
+- *Duck.* Every `Sound` method call ducks the music. This is per effect, so Sound's API is unchanged.
+  - The tier duck grows with rarity: baseline −5 dB, mlion −10 dB with a long release.
+  - Streak −6, miss −5, ticks −1.5.
+  - Rare tiers (outlier, longtail, mlion) get an answering distant note on the bell's pitch class about
+    1.7 s later.
+- *Streak.* The output swells +0.2 dB per level (up to 7), the pads get brighter and the arpeggio gets
+  denser. A miss or fizzle resets the streak and darkens the tone toward 1 kHz for a few seconds.
+- *Low time.* From 6 s left to 0.5 s left, tension rises from 0 to 1:
+  - the pulse and arp stop (tension above 0.35) and the far notes stop (above 0.5);
+  - the low-pass closes from 11 kHz to 1.3 kHz and the high-pass rises to 330 Hz;
+  - pads −30%, so the music drops 1–3 dB.
+
+  The ticks (1.7–2.6 kHz clicks) stay clear: in their own band they measure 15–25 dB above the music.
+- *Results.* The cadence to C, 1.5 dB under play level; after 24 s it settles to menu level.
+- *Menus.* A calm variant: plateau harmony at depth 0.06, −3 dB, fewer far notes. It is not silence, so
+  the home screen breathes. Set `SCENE_DB.menu` very low or stop in `view()` to silence menus instead.
+- *Hidden tab, pagehide, Sound off, Music off, volume 0.* A quick fade, then every voice is stopped and
+  the bus is disconnected 1.5 s later (idle cost is about 0). It comes back on visibility or settings.
+
+**Hooks** (all in `js/app.js`, all no-ops if music.js is missing; each call is wrapped so it can never
+throw into the game):
+
+| Hook | Where it is called | What it does |
+|---|---|---|
+| `Music.view(name)` | inside `scene(view)`, so every screen | `"play"`, `"results"`; anything else is a menu |
+| `Music.depth(d)` | in the play shell's `onFrame`: `Music.depth(V.depthAt(x))` | the ball's live depth, 0..1 |
+| `Music.resolve(d)` | `renderResults`: `Music.resolve(V.depthAt(rec.score * 10))` | the cadence's warmth (clamped to 0.3..1) |
+| `Music.clock(ms)` | `tickLoop` and `quizTick`, right after `left` is computed | **the one low-time hook**: ms left on the answer clock, called every frame the clock shows. If it is not called for 0.4 s, the tension releases by itself, so no "clock stopped" call is needed. Other low-time visuals can call it too; it is idempotent. |
+| `Music.duck(kind, arg)` | automatic: app.js wraps every `Sound` method except `unlock` and `graph` | duck, streak, miss and gem handling |
+| `Music.sync()` | `saveSettings()` and the volume slider | start or stop for settings |
+| `Sound.graph()` | new, the only addition to `Sound` | `{ ctx, room }` once Sound has a context, else null. Music never creates the context itself, so nothing plays before a gesture. |
+
+**Settings.**
+- `music` (default true) and `musicVol` (0..1, default 0.5, a 0–100 slider, live while dragging).
+  They sit in the "Feel" group under Sound.
+- The rows dim while Sound is off. The music never plays without Sound.
+- Volume maps to gain as `(v/0.5)^1.2`, so 50 is the calibrated level and 100 is +7 dB.
+
+**Cost.** At most 40 oscillators (pads may use all of them; optional layers stop at 32). Renders peak at
+20–22 oscillators on the plateau and in menus and 32–37 elsewhere. Offline rendering of 60 s takes 1.4 s of CPU in the basin (about 2.3% of one desktop core).
+- A stopped engine costs ~0.
+- Not measured on a phone. If a phone struggles, cut the hall IR length (`hallIR(ctx, 2.6, …)`) or
+  `MAX_OSC` first.
+
+**Verification tools.**
+- `node tools/music-render.js <outdir> [name ...] [--solo]` renders scripted sessions offline.
+  - It runs headless Chromium with an OfflineAudioContext, the real `Sound` extracted from app.js, and a
+    seeded RNG, so stems line up.
+  - Scripts: `fx_reference`, `state_menu|plateau|ravine|basin|basin_streak7|lowtime|results`,
+    `transition_sweep` (0→1 over 76 s) and `demo` (a 90 s descent with answers, a timeout and a gem).
+  - Output: a mix, a music stem and an effects stem per script, plus BS.1770 loudness (integrated,
+    momentary, short-term, true peak), band shares and a per-second trace in `report.json`. It also
+    prints effects-vs-music gaps.
+  - `--solo` renders each layer alone.
+- `node tests/music.e2e.js` checks the integration in a real page.
+
+**Measured (2026-11-05, default volume).**
+- Music integrated loudness:
+
+  | State | LUFS |
+  |---|---|
+  | menu | −46.3 |
+  | plateau | −44.0 |
+  | ravine | −41.2 |
+  | basin | −40.3 |
+  | basin, streak 7 | −39.1 |
+  | low time | −42.1 |
+  | results | −42.1 |
+
+- Answer sounds peak at −29.3 (overfit) to −22 (mlion) LUFS momentary.
+- Tier-to-music gaps are 13.6–21 dB, mostly 15–17. Streak chords sit 9.5–16 dB above.
+- Music alone peaks around −28 dBFS. The 90 s demo mix measures −36.3 LUFS with a −12 dBFS peak and 0
+  clipped samples.
+
+**Unverified.**
+- Never listened to: everything above is measurements of headless renders.
+- Not run on a phone or in iOS Safari. iOS can suspend the context after interruptions; the
+  `statechange` listener and gesture handlers resume it, but untested there.
+- Menus and the home page are silent (owner, 2026-11-05: "before u click stuff audio should be very very quiet... or remove it"): `wanted()` needs a play or results view. MASTER was also halved (about −6 dB) after the first listen. Tune by ear with `LEVEL`, `MASTER`,
+  `SCENE_DB`, `DUCK` and `TIER_DUCK` at the top of music.js. Then re-render and check that the gaps
+  stay 12–18 dB.
