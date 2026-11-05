@@ -580,12 +580,19 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   answers with ×2 (and up) on any answer more than one named, plus standings and a countdown (9 s, plus 0.3 s per answer in
   the longest list, at most 18). The end is the usual podium, with each sprint's answers in the recap and Ready for rematch.
 - Someone who drops out mid-match keeps the points they had sent: a player removed from the room moves to `LIVE.gone` and
-  stays in reveals and on the podium ("left"). A guest who comes back (`resume`) is done with the sprint he was
-  away for and plays the next; late joiners wait for the next match; a new host (`hostSprintTakeover`) carries on from
-  the round its page last saw. There is no skip vote in a sprint, and chat's spoiler hold covers the open prompt.
+  stays in reveals and on the podium ("left"). A guest who comes back (`resume`) is done with the sprint they were
+  away for (their list so far is sent then) and plays the next; late joiners wait for the next match; a new host
+  (`hostSprintTakeover`) carries on from the round its page last saw. In a sprint match `resume` also carries
+  `fmt`, `ids`, `i` and `revealed`, so a page that lost the match rebuilds it (`liveSprintRestore`); a host that was
+  taken over keeps its answers so far in `spCarry`/`LIVE.spRec` across the rejoin. There is no skip vote in a sprint,
+  and chat's spoiler hold covers the open prompt.
+- A seat's grace timer (`hostDrop`) acts only while the page is host and the seat is the same object; `liveReset`
+  clears them. Before this, a stale timer on a taken-over host deleted the new host's seat and broadcast a lobby.
 - Tests: `tests/live.sprint.e2e.js` and `live.rejoin.e2e.js --sprint` shorten the minute through
-  `window.MLION_SPRINT_TEST = {secs, reveal}` (read only when `window.MLION_TEST` is set). A host leaving mid-sprint was
-  only run ad hoc; nothing here has been tried on a real phone.
+  `window.MLION_SPRINT_TEST = {secs, reveal}` (read only when `window.MLION_TEST` is set).
+  `tests/live.takeover.e2e.js` runs two pages on an in-page fake relay (BroadcastChannel, no network): the host goes
+  silent mid-sprint, the guest takes over, the old host rejoins and both podiums must match. Nothing here has been
+  tried on a real phone.
 
 **Rival panel**
 - Before you answer: opponent typing shows as dots, with a count of wrong guesses. A locked
