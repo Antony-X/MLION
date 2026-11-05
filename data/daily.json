@@ -11,7 +11,8 @@
     "calculus-concept", "eponym", "training-trick", "classic-nlp", "ml-competition", "ml-course", "turing-award",
     "classical-optimization", "weight-init", "hyperparam-search", "class-imbalance", "tokenizer", "autoencoder",
     "attention-variant", "kernel-function", "vision-transformer", "convolution-variant", "lr-schedule",
-    "cv-metric", "nlp-metric", "classic-cv", "vision-language-model", "ai-conference"
+    "cv-metric", "nlp-metric", "classic-cv", "vision-language-model", "ai-conference",
+    "overfit-cause", "data-type", "animal-model", "net-name", "tree-hyperparameter", "matrix-property"
   ],
   "launch": [
     ["optimizer", "activation-function", "ml-notation", "classifier", "cnn-architecture", "ai-researcher", "python-lib"],

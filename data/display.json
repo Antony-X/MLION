@@ -25,6 +25,10 @@
   "ai-researcher": {
     "scope": "Surname is enough"
   },
+  "animal-model": {
+    "example": "Llama",
+    "scope": "Mythical creatures count"
+  },
   "audio-feature": {
     "scope": "Hand-crafted descriptors, transforms or learned embeddings of sound"
   },
@@ -67,6 +71,10 @@
   },
   "cv-metric": {
     "scope": "Scores for boxes or masks, including speed and calibration"
+  },
+  "data-type": {
+    "example": "Image",
+    "scope": "Modalities or kinds of variable, not file formats"
   },
   "decision-tree-algo": {
     "example": "CART",
@@ -145,6 +153,10 @@
   "matrix-decomposition": {
     "extra": true
   },
+  "matrix-property": {
+    "example": "Symmetric",
+    "scope": "Named classes count; matrices named for their role don't"
+  },
   "ml-competition": {
     "example": "Netflix Prize"
   },
@@ -177,6 +189,10 @@
     "example": "DARTS",
     "extra": true
   },
+  "net-name": {
+    "example": "ResNet",
+    "scope": "With or without a hyphen; famous datasets count too"
+  },
   "nlp-dataset": {
     "extra": true
   },
@@ -198,6 +214,9 @@
   },
   "optimizer": {
     "example": "SGD"
+  },
+  "overfit-cause": {
+    "example": "Too little data"
   },
   "pandas-method": {
     "example": "read_csv",
@@ -275,6 +294,10 @@
   },
   "transformer-component": {
     "scope": "A part of a transformer layer or the stack around it"
+  },
+  "tree-hyperparameter": {
+    "example": "Max depth",
+    "scope": "Any library's parameter name counts"
   },
   "ts-feature": {
     "example": "Lag features",

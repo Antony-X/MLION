@@ -104,7 +104,7 @@ safety classifier, and was deliberately not used. All MLion answers were written
   becomes #1 and the hand-picked launch week starts. The day resets at **local** midnight,
   Wordle-style, not New York time.
 - **The dailies' questions** come from `data/daily.json` (bundled as `DATA.daily`; the build
-  validates it). `pool`: 65 hand-picked core prompts a typical IOAI contestant can answer at once
+  validates it). `pool`: 71 hand-picked core prompts a typical IOAI contestant can answer at once
   (the user, 2026-11-05: "like name an optimizer"; RAG, PEFT, quantization formats, special tokens,
   pandas and sklearn utilities are out). The daily and the Daily Quiz deal only from it (`DAILY`
   view in app.js); Unlimited, Quiz and live rooms keep the whole core set. A new prompt joins the
@@ -208,25 +208,29 @@ node tools/build-single.js <out.html> --fragment --url=https://claude.ai/artifac
   into `bundle.extras` and are excluded from the daily, Unlimited, packs and challenges. They
   appear in the Library under "Off-topic extras" for practice only.
 
-### Current numbers (measured 2026-11-05, end of the overnight run)
+### Current numbers (measured 2026-11-05, after the six prompts added that evening)
 
-- 153 prompt files: **147 core + 6 off-topic extras**, **24,381 answers** total, plus **80 reasoning
-  MCQs** (`data/reasoning.json`). 45 of the core prompts are flagged `extra` (outside the IOAI
+- 160 prompt files: **154 core + 6 off-topic extras**, **25,349 answers** total, plus **222 live quiz
+  questions** in `data/reasoning.json` (80 more retired). 45 of the core prompts are flagged `extra` (outside the IOAI
   syllabus, off by default).
 - Core prompts by pack:
 
   | pack | prompts |
   |---|---|
-  | blocks | 21 |
-  | zoo | 26 |
-  | classic | 30 |
+  | blocks | 22 |
+  | zoo | 27 |
+  | classic | 32 |
   | llm | 17 |
   | stack | 24 |
-  | theory | 21 |
-  | lore | 8 |
+  | theory | 23 |
+  | lore | 9 |
 
-- The lore pack's core prompts: ai-conference, ai-leader, ai-researcher, ml-competition, ml-course,
-  ml-paper, ml-slang, turing-award.
+- The lore pack's core prompts: ai-conference, ai-leader, ai-researcher, animal-model, ml-competition,
+  ml-course, ml-paper, ml-slang, turing-award.
+- Added 2026-11-05 evening at the user's request (all in the daily pool): overfit-cause, data-type,
+  animal-model, net-name, tree-hyperparameter (parameter names extracted from the installed sklearn,
+  xgboost, lightgbm and catboost; one answer per concept, every library's name as an alias),
+  matrix-property.
 - Prompts added after launch should carry `added` in display.json, so dailies dealt before then
   don't change. The pre-launch dates were cleared on 2026-11-05 (nothing was launched).
 - Autocorrect bench (`node tools/matchbench.js`): typos right 97.9%, wrong 0.1%; other prompts'
