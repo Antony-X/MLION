@@ -292,5 +292,17 @@ ok("score bands");
   ok(`autocorrect: ${right}% of typos right, ${wrong}% wrong, ${falseAcc}% of other prompts' answers accepted`);
 }
 
+{ // live room rules: one pure function, so every page in a room scores an answer the same way
+  const R = (o) => ({ hints: "off", miss: "free", speed: "off", final: false, clash: false, ...o });
+  assert.strictEqual(E.liveScore(R({}), { base: 50, ms: 1000, total: 25000 }), 50, "no rules: the tier's points");
+  assert.deepStrictEqual([0, 12500, 25000].map((ms) => E.speedMult(R({ speed: "2" }), ms, 25000)), [2, 1.5, 1], "speed: ×2 at once, ×1 at the buzzer");
+  assert.strictEqual(E.speedMult(R({ speed: "1.5" }), 2500, 25000), 1.5, "speed steps of 0.1 (1.45 rounds up)");
+  assert.strictEqual(E.liveScore(R({ speed: "1.5", hints: "half", final: true, miss: "5" }), { base: 50, ms: 0, total: 25000, misses: 2, hinted: true, last: true }), 65, "×1.5, half for the hint, ×2 final, -10");
+  assert.strictEqual(E.liveScore(R({ hints: "free" }), { base: 50, hinted: true }), 50, "a free hint costs nothing");
+  assert.strictEqual(E.liveScore(R({ miss: "10" }), { base: 10, misses: 3 }), 0, "penalties never go below zero");
+  assert.strictEqual(E.liveScore(R({ speed: "2", final: true }), { base: 0, last: true }), 0, "a miss stays zero");
+  ok("live room scoring");
+}
+
 const src = fs.readFileSync(path.join(__dirname, "..", "js", "data.js"), "utf8");
 console.log(`engine tests passed (${n} checks · ${DATA.prompts.length} prompts · ${(src.length / 1024).toFixed(0)} KB data)`);

@@ -604,9 +604,33 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - **The match starts when everyone taps Ready**, after a 3-2-1 countdown. Rematch works the
   same way.
 - The host picks 5, 7 or 10 questions, **no-repeat questions** (on by default, tracked in
-  `mlion:liveUsed`), and **autocorrect help: Off / Typos only / Full** (default Typos only).
-  - Typos only rejects suggestion chips and corrections with confidence < 0.88.
+  `mlion:liveUsed`), and **autocorrect help: Off / Typos / Full / Generous** (default Typos).
+  - Typos rejects suggestion chips and corrections with confidence < 0.88.
   - Off accepts only exact answers.
+  - Generous (added 2026-11-05) takes any correction, or the top suggestion with confidence >= 0.6, at once
+    (no "did you mean", no chips); at time-up a suggestion >= 0.5 counts.
+- **More options** (user, 2026-11-05: hints and first letters, wrong-answer penalties, a speed multiplier,
+  more fun options, "but not crowded, like settings"). A closed `<details id="lv-more">` under the time
+  picker, host only, Classic and Quiz rooms (Sprint has none); the summary counts what's on ("3 on"), the open
+  state survives lobby redraws (`LIVE.moreOpen`). Rules live in `LIVE.rules` (lobby, saved as
+  `mlion:liveRules`, sent in `lobby` and `start` as `rules`) and `LIVE.mrules` / `RUN.rules` (the match's).
+  `cleanRules` whitelists every value. Guests see them in the settings note ("Options: …", `activeRules`).
+  - Speed bonus Off / up to ×1.5 / up to ×2: `E.speedMult` = 1 + (top - 1) × share of the clock left, in
+    steps of 0.1; the timer label reads "Time left · ×1.8".
+  - Hints Off / Half points / Free. Classic: a Hint button shows the first letter and letter pattern of one
+    rarer answer (indist, outlier or longtail, seeded by `hint:<seed>:<round>:<prompt>` so everyone gets
+    the same one, preferring answers with an explanation) and its explanation with the name masked as "…".
+    Quiz: 50:50 removes two wrong options (seeded `cut:<seed>:<round>`, class `cut`, disabled, ignored by
+    keys 1-4).
+  - Wrong answers (Classic) Free / -5 / -10 each / One strike (a wrong answer ends your round as a miss).
+  - Final question counts double (a banner on the last question).
+  - Clash (Classic): once a round is revealed, an answer someone else in the match also gave scores half
+    (`clashed`, applied inside `roundPts`, so standings and the podium use it).
+  - Scoring: `E.liveScore(rules, {base, ms, total, misses, hinted, last})` = base × speed, halved for a
+    paid hint, ×2 on the final question, minus penalties, floor 0. The answer message carries `ms`, `miss`
+    and `hint`; the host clamps and relays them (no `ms` means the full clock, so no speed bonus) and every
+    page scores with the same function. Your feedback adds a line ("50 points, ×1.8 for speed, …") and
+    the reveal tags each answer. Test: `tests/live.rules.e2e.js`.
 - Rounds use `{t:"round", i, at: host+1500ms}`. Clients start at `at - offset`, where the
   offset is smoothed from heartbeats.
 - **The next question waits until everyone has answered.** A safety cap of

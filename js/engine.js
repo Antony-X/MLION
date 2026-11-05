@@ -675,6 +675,26 @@
     return quizFor(data, `quiz-v3:${n}`, QUIZ_ROUNDS, { promptIds: [], reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), "bank-v2") });
   }
 
+  // -------------------------------------------------------------- live room rules
+  // The host's "More options" (user, 2026-11-05). Pure, so every page in a room computes the same points
+  // from the same facts: the tier's points, how fast, how many wrong answers first, a hint, the last round.
+  /** The speed multiplier for an answer after `ms` of a `total` clock, in steps of 0.1: up to ×1.5 or ×2. */
+  function speedMult(rules, ms, total) {
+    const top = rules && rules.speed === "2" ? 2 : rules && rules.speed === "1.5" ? 1.5 : 1;
+    const left = Math.max(0, Math.min(1, 1 - (ms || 0) / (total || 1)));
+    return Math.round((1 + (top - 1) * left) * 10) / 10;
+  }
+  /** One live round's points: base × speed, half after a hint (when hints cost), ×2 on the final round, minus wrong answers. */
+  function liveScore(rules, { base, ms = 0, total = 1, misses = 0, hinted = false, last = false } = {}) {
+    if (!base) return 0;
+    const r = rules || {};
+    let s = base * speedMult(r, ms, total);
+    if (hinted && r.hints === "half") s /= 2;
+    if (r.final && last) s *= 2;
+    if (r.miss === "5" || r.miss === "10") s -= Number(r.miss) * misses;
+    return Math.max(0, Math.round(s));
+  }
+
   // -------------------------------------------------------------- share
   function tierEmoji(t) { return t && TIERS[t] ? TIERS[t].emoji : MISS_EMOJI; }
   function shareText({ mode = "daily", number, score, tiers, label, secs }) {
@@ -697,7 +717,7 @@
     mulberry32, hashString, shuffled,
     LAUNCH, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
-    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN,
+    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
   };

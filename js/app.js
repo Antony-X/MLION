@@ -495,9 +495,38 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const REVEAL_MS = 4500;
   const CODE_ABC = "abcdefghjkmnpqrstuvwxyz23456789";
   const liveBlocked = () => !!SHARE_BASE; // only the artifact build sets SHARE_BASE
+  // Room rules: the host's "More options" for Classic and Quiz rooms (user, 2026-11-05: hints and first letters,
+  // wrong-answer penalties, a speed multiplier, more fun options, tucked away so the lobby isn't crowded).
+  // Scoring is E.liveScore; clash is applied at the reveal (it needs everyone's answers).
+  const RULES_DEFAULT = { hints: "off", miss: "free", speed: "off", final: false, clash: false };
+  const RULE_CHOICES = {
+    speed: [["off", "Off"], ["1.5", "Up to ×1.5"], ["2", "Up to ×2"]],
+    hints: [["off", "Off"], ["half", "Half points"], ["free", "Free"]],
+    miss: [["free", "Free"], ["5", "−5"], ["10", "−10"], ["strike", "One strike"]],
+  };
+  const ASSISTS = ["off", "typos", "full", "generous"];
+  function cleanRules(r) {
+    const o = { ...RULES_DEFAULT };
+    if (r && typeof r === "object") {
+      for (const k of Object.keys(RULE_CHOICES)) if (RULE_CHOICES[k].some(([v]) => v === r[k])) o[k] = r[k];
+      o.final = r.final === true; o.clash = r.clash === true;
+    }
+    return o;
+  }
+  /** The rules that are on, in words, for a format (Sprint has its own). */
+  function activeRules(r, fmt) {
+    if (!r || fmt === "sprint") return [];
+    const quiz = fmt === "quiz", out = [];
+    if (r.speed !== "off") out.push(`speed bonus up to ×${r.speed}`);
+    if (r.hints !== "off") out.push(`${quiz ? "50:50" : "hints"}${r.hints === "half" ? " for half points" : ""}`);
+    if (!quiz && r.miss !== "free") out.push(r.miss === "strike" ? "one strike" : `−${r.miss} a wrong answer`);
+    if (r.final) out.push("final question ×2");
+    if (!quiz && r.clash) out.push("clash");
+    return out;
+  }
   const LIVE = { active: false, code: "", isHost: false, client: null, conns: new Map(), myId: "",
     players: new Map(), n: 7, seed: "", phase: "lobby", revealed: -1, timers: [], intervals: [], status: "",
-    fmt: "rarity", mfmt: "rarity", quiz: null, gone: new Map() }; // fmt: the lobby's choice; mfmt and quiz: the running match's format and questions; gone: players who left a sprint match, kept for its standings
+    fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, quiz: null, gone: new Map() }; // rules and mrules: the lobby's and the running match's room rules; fmt: the lobby's choice; mfmt and quiz: the running match's format and questions; gone: players who left a sprint match, kept for its standings
   let mqttLib = null;
   function loadMqtt() {
     if (window.mqtt) return Promise.resolve(window.mqtt);
@@ -525,7 +554,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     const n = LIVE.fmt === "sprint" || LIVE.mfmt === "sprint" ? (validQ(LIVE.nOther) ? LIVE.nOther : 7) : LIVE.n; // a Sprint room's count stays with Sprint
     Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
-      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", quiz: null, gone: new Map(), spRec: null, n });
+      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, moreOpen: false, quiz: null, gone: new Map(), spRec: null, n });
     liveSprintStop();
     chatRate.clear();
     syncChat();
@@ -544,7 +573,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const liveHash = () => `live-${LIVE.code}`;
   const playerList = () => [...LIVE.players.values()];
   const inMatch = () => playerList().filter((p) => !p.late); // late joiners wait for the next match
-  const roundPts = (pl, i) => (pl.ans[i] ? pl.ans[i].score : 0);
+  /** Clash (a room rule): once a Classic round is revealed, an answer someone else in the match also gave scores half. */
+  const clashed = (pl, i) => !!(LIVE.mrules && LIVE.mrules.clash && LIVE.mfmt === "rarity" && i <= LIVE.revealed && pl.ans[i] && pl.ans[i].tier
+    && inMatch().some((o) => o !== pl && o.ans[i] && o.ans[i].tier && o.ans[i].answer === pl.ans[i].answer));
+  const roundPts = (pl, i) => (pl.ans[i] ? (clashed(pl, i) ? Math.round(pl.ans[i].score / 2) : pl.ans[i].score) : 0);
   const liveQuiz = () => LIVE.mfmt === "quiz";
   const liveSprint = () => LIVE.mfmt === "sprint";
   // quiz and sprint matches keep a round's points back until its reveal, so a total counts revealed rounds only
@@ -582,7 +614,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (validQ(+m.n)) LIVE.n = +m.n;
       if (validSecs(+m.secs)) LIVE.secs = +m.secs;
       if (!LIVE.isHost) LIVE.isPublic = !!m.pub;
-      if (["off", "typos", "full"].includes(m.assist)) LIVE.assist = m.assist;
+      if (ASSISTS.includes(m.assist)) LIVE.assist = m.assist;
+      if (m.rules && typeof m.rules === "object") LIVE.rules = cleanRules(m.rules);
       if (["rarity", "quiz", "sprint"].includes(m.fmt) && LIVE.phase !== "playing") LIVE.fmt = m.fmt;
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
@@ -591,13 +624,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       liveSprintStop();
+      LIVE.mrules = cleanRules(m.rules);
       if (m.fmt === "sprint") return liveSprintStart(m);
       // a quiz match: every page builds the same questions from the room's seed and the host's prompt list
       const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [], ...(Array.isArray(m.topics) && m.topics.length ? { reasoningIds: [] } : {}) }) : null; // the host's dealt bank ids, rebuilt exactly
       if (quiz) LIVE.n = quiz.length;
       LIVE.mfmt = quiz ? "quiz" : "rarity"; LIVE.quiz = quiz;
       RUN = { key: `live:${m.seed}`, mode: "live", number: 0, label: "Live match", seed: m.seed, n: LIVE.n,
-        assist: ["off", "typos", "full"].includes(m.assist) ? m.assist : "typos",
+        assist: ASSISTS.includes(m.assist) ? m.assist : "typos", rules: LIVE.mrules,
         answerMs: (validSecs(+m.secs) ? +m.secs : DEFAULT_SECS) * 1000,
         promptIds: quiz ? quiz.map((q) => q.promptId) : Array.isArray(m.ids) && m.ids.length === LIVE.n && m.ids.every((id) => PROMPTS.has(id)) ? m.ids.slice() : challengePromptIds(m.seed, LIVE.n), round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
       if (quiz) { RUN.fmt = "quiz"; RUN.quiz = quiz; } // the same array as LIVE.quiz: a skip replaces a question in both
@@ -614,7 +648,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       RUN.round = m.i;
       const go1 = () => { if (RUN && RUN.mode === "live" && RUN.round === m.i) { startRound(); renderStrip(); } };
       const wait = Number.isFinite(+m.at) ? Math.min(3000, Math.max(0, +m.at - hostNow())) : 0;
-      if ($("#card")) $("#card").innerHTML = `<div class="intro-card"><div><h2>Question ${m.i + 1} of ${RUN.promptIds.length}</h2><p class="sub">Starting together…</p></div></div>`;
+      if ($("#card")) $("#card").innerHTML = `<div class="intro-card"><div><h2>Question ${m.i + 1} of ${RUN.promptIds.length}</h2><p class="sub">${RUN.rules && RUN.rules.final && m.i === RUN.promptIds.length - 1 ? "Final question: double points" : "Starting together…"}</p></div></div>`;
       renderStrip();
       setTimeout(go1, wait);
     } else if (m.t === "spround" || m.t === "spp" || m.t === "spans") {
@@ -627,14 +661,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (!q || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
         const ok = m.pick >= 0 && m.pick === q.correct;
         const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, liveMs(m.i)));
-        pl.ans[m.i] = { pick: m.pick, ok, ms, answer: m.pick >= 0 ? q.options[m.pick] : null, tier: ok ? QUIZ_TIER : null, score: ok ? E.QUIZ_POINTS : 0 };
+        const hint = m.hint === true;
+        pl.ans[m.i] = { pick: m.pick, ok, ms, hint, answer: m.pick >= 0 ? q.options[m.pick] : null, tier: ok ? QUIZ_TIER : null,
+          score: E.liveScore(LIVE.mrules, { base: ok ? E.QUIZ_POINTS : 0, ms, total: liveMs(m.i), hinted: hint, last: m.i === LIVE.n - 1 }) };
         renderStrip();
         renderLiveWait();
         if (LIVE.revealed >= m.i) renderReveal(m.i);
         return;
       }
       const tier = T[m.tier] ? m.tier : null;
-      pl.ans[m.i] = { answer: tier ? String(m.answer || "").slice(0, 80) : null, tier, score: tier ? T[tier].score : 0 };
+      const ms = Number.isFinite(+m.ms) ? Math.max(0, Math.min(Math.round(+m.ms), liveMs(m.i))) : liveMs(m.i); // no time sent: no speed bonus
+      const miss = Math.max(0, Math.min(99, Math.round(+m.miss) || 0)), hint = m.hint === true;
+      pl.ans[m.i] = { answer: tier ? String(m.answer || "").slice(0, 80) : null, tier, ms, miss, hint,
+        score: tier ? E.liveScore(LIVE.mrules, { base: T[tier].score, ms, total: liveMs(m.i), misses: miss, hinted: hint, last: m.i === LIVE.n - 1 }) : 0 };
       renderStrip();
       renderLiveWait();
       if (LIVE.revealed >= m.i) renderReveal(m.i);
@@ -718,7 +757,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return `<div class="vs-field"><span>Topics</span><div class="chips" role="group" aria-label="Topics">${chip("", "All topics", !t.length)}${DATA.packs.map((pk) => chip(pk.id, pk.name, t.includes(pk.id))).join("")}</div></div>`;
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
+    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
@@ -767,8 +806,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (liveQuiz()) { // the host decides what counts: a real option index (or none), a time inside the clock
       if (!LIVE.quiz || !LIVE.quiz[m.i] || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
       const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, liveMs(m.i)));
-      broadcast({ t: "ans", id, i: m.i, pick: m.pick, ms });
-    } else broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier });
+      broadcast({ t: "ans", id, i: m.i, pick: m.pick, ms, hint: m.hint === true });
+    } else {
+      const ms = Number.isFinite(+m.ms) ? Math.max(0, Math.min(Math.round(+m.ms), liveMs(m.i))) : undefined;
+      broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier, ms, miss: Math.max(0, Math.min(99, Math.round(+m.miss) || 0)), hint: m.hint === true });
+    }
     const everyone = inMatch().every((p) => p.ans[m.i]);
     if (everyone) liveLater(() => hostReveal(m.i), 700);
   }
@@ -830,7 +872,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.n = ids.length;
     }
     if (LIVE.noRepeat !== false) LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
-    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", fmt: LIVE.fmt === "quiz" || sprint ? LIVE.fmt : "rarity", topics }); // guests rebuild a quiz knowing whether it was a topic match
+    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt === "quiz" || sprint ? LIVE.fmt : "rarity", topics }); // guests rebuild a quiz knowing whether it was a topic match
     broadcast(lobbyMsg());
     liveLater(() => hostRound(0), 1800);
   }
@@ -880,8 +922,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** Called from renderFeedback when this player's answer for the round is final. */
   function liveLocalAnswer(res) {
-    const m = { t: "ans", i: RUN.round, pid: RUN.promptIds[RUN.round], answer: res.answer, tier: res.tier };
-    if (RUN.fmt === "quiz") Object.assign(m, { pick: res.picked, ms: res.ms });
+    const m = { t: "ans", i: RUN.round, pid: RUN.promptIds[RUN.round], answer: res.answer, tier: res.tier, ms: res.ms, miss: res.misses || 0, hint: !!res.hinted };
+    if (RUN.fmt === "quiz") Object.assign(m, { pick: res.picked });
     if (LIVE.isHost) hostAnswer(LIVE.myId, m);
     else guestSend(m);
   }
@@ -1005,7 +1047,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)) });
+        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)) });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
         if (LIVE.fmt === "sprint") liveSetFmt("sprint", true);
         becomeHost();
@@ -1189,12 +1231,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${LIVE.isHost ? `<div class="vs-form">
         <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"], ["sprint", "Sprint"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
-        ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos only"], ["full", "Full"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
+        ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos"], ["full", "Full"], ["generous", "Generous"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
         ${topicPicker()}
         ${qPicker(LIVE.n, LIVE.fmt === "sprint" ? "sprints" : "questions")}
         ${LIVE.fmt === "sprint" ? "" : timePicker(LIVE.secs || DEFAULT_SECS)}
+        ${LIVE.fmt === "sprint" ? "" : rulesPanel()}
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>Skip questions this room already played</span></label>
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many as you can, rarer scores more and adds time." : LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}</p>`}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many as you can, rarer scores more and adds time." : LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full", generous: "generous" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}${activeRules(LIVE.rules, LIVE.fmt).length ? ` Options: ${esc(activeRules(LIVE.rules, LIVE.fmt).join(", "))}.` : ""}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -1211,10 +1254,34 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       broadcast(lobbyMsg());
     }));
     $$(".lv-fmt").forEach((b) => b.addEventListener("click", () => liveSetFmt(b.dataset.f)));
+    $$(".lv-rule").forEach((b) => b.addEventListener("click", () => setRule(b.dataset.k, b.dataset.v)));
+    $$(".lv-rule-x").forEach((x) => x.addEventListener("change", () => setRule(x.dataset.k, x.checked)));
+    const more = $("#lv-more");
+    if (more) more.addEventListener("toggle", () => { LIVE.moreOpen = more.open; });
     if (typingN !== null && $("#q-custom")) { const box = $("#q-custom"); box.value = typingN; box.focus(); }
     const nr = $("#live-norepeat");
     if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
     wireReady();
+  }
+  /** The host's More options: closed by default, so the lobby stays short; the summary counts what's on. */
+  function rulesPanel() {
+    const r = LIVE.rules || RULES_DEFAULT, quiz = LIVE.fmt === "quiz";
+    const seg = (key, label, choices) => `<div class="vs-field"><span>${label}</span><div class="vs-sizes" role="radiogroup" aria-label="${label}">${choices.map(([k, l]) => `<button type="button" class="vs-size lv-rule${r[key] === k ? " on" : ""}" role="radio" aria-checked="${r[key] === k}" data-k="${key}" data-v="${k}">${l}</button>`).join("")}</div></div>`;
+    const tog = (key, label) => `<label class="lv-check"><input type="checkbox" class="lv-rule-x" data-k="${key}"${r[key] ? " checked" : ""}><span>${label}</span></label>`;
+    const on = activeRules(r, LIVE.fmt).length;
+    return `<details class="lv-more" id="lv-more"${LIVE.moreOpen ? " open" : ""}><summary>More options${on ? `<b>${on} on</b>` : ""}</summary>
+      <div class="lv-more-body">
+        ${seg("speed", "Speed bonus: answer early for more points", RULE_CHOICES.speed)}
+        ${seg("hints", quiz ? "50:50: remove two wrong answers" : "Hints: first letter and a clue", RULE_CHOICES.hints)}
+        ${quiz ? "" : seg("miss", "Wrong answers", RULE_CHOICES.miss)}
+        ${tog("final", "Final question counts double")}
+        ${quiz ? "" : tog("clash", "Clash: an answer someone else also gave scores half")}
+      </div></details>`;
+  }
+  function setRule(k, v) {
+    LIVE.rules = cleanRules({ ...LIVE.rules, [k]: v });
+    LS.set("liveRules", LIVE.rules);
+    broadcast(lobbyMsg());
   }
   /** Everyone else, live: what they're typing, what bounced, what they locked in. */
   function renderRivals() {
@@ -1310,11 +1377,23 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="lv-answers">${ps.map((pl) => {
         const a = pl.ans[i];
         const x = a && explainOf(p.id, a.answer);
-        return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="lx">${esc(x)}</span>` : ""}</span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
+        return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="lx">${esc(x)}</span>` : ""}${liveTags(pl, i)}</span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
       }).join("")}</ul>
       <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <p class="lv-note">${last ? "Final standings coming up…" : `Question ${i + 2} of ${LIVE.n} coming up…`}</p>
     </div>`;
+  }
+  /** Under a player's answer in the reveal: what the room's rules did to it. */
+  function liveTags(pl, i) {
+    const r = LIVE.mrules, a = pl.ans[i];
+    if (!r || !a || !a.tier) return "";
+    const t = [];
+    if (r.speed !== "off") t.push(`×${E.speedMult(r, a.ms, liveMs(i)).toFixed(1)} speed`);
+    if (a.hint) t.push("hint");
+    if ((r.miss === "5" || r.miss === "10") && a.miss) t.push(`−${+r.miss * a.miss}`);
+    if (r.final && i === LIVE.n - 1) t.push("×2 final");
+    if (clashed(pl, i)) t.push("clash: half");
+    return t.length ? `<span class="lv-tags">${t.join(" · ")}</span>` : "";
   }
   /** The reveal of a quiz question: the four options, who picked which, the right one lit, standings underneath. */
   function renderQuizReveal(i) {
@@ -1958,6 +2037,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     RUN.previewEndsAt = now + E.PREVIEW_MS;
     RUN.answerEndsAt = RUN.previewEndsAt + answerMs();
     RUN.tried = [];
+    RUN.misses = 0; RUN.hinted = false; // room rules: wrong answers so far, and whether a hint was used
     persistRun();
     if (window.scrollY) window.scrollTo(0, 0); // Next may have been scrolled up to; the new question starts at the top
     // a new question: fold the chat away so the prompt is in view, unless they're mid-message
@@ -1974,6 +2054,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (descent) descent.calm();
     $("#card").innerHTML = `<div class="round quiz">
       <div class="ask">
+        ${finalBanner()}
         ${p.reasoning ? `<p class="rq-eyebrow">${esc(p.cat)}${p.lvl ? ` · ${esc(p.lvl)}` : ""}</p>` : ""}
         <p class="prompt-text${p.reasoning ? " rq-text" : ""}" id="prompt-text">${esc(p.text)}</p>
         <p class="prompt-note">${p.reasoning ? "Pick the best answer." : `${p.scope ? `${esc(p.scope)}. ` : ""}Which one fits?`}</p>
@@ -1989,15 +2070,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           </div>
           <div class="preview-veil" id="veil"><span>Read the question</span><b id="veil-n">3</b></div>
         </div>
+        ${hintRow(true)}
       </div>
     </div>`;
     $$(".mcq-opt").forEach((b) => b.addEventListener("click", () => pickQuiz(+b.dataset.i)));
+    wireHint(true);
     lastTick = -1;
     tickLoop();
   }
   /** Lock in an option (index 0 to 3) while the clock is running. */
   function pickQuiz(i) {
     if (!RUN || RUN.fmt !== "quiz" || RUN.phase !== "answering" || !(i >= 0 && i < E.QUIZ_OPTIONS)) return;
+    if ($(`.mcq-opt.cut[data-i="${i}"]`)) return; // removed by the 50:50
     finishQuiz(i, {});
   }
 
@@ -2008,6 +2092,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (descent) descent.calm();
     $("#card").innerHTML = `<div class="round">
       <div class="ask">
+        ${finalBanner()}
         <p class="prompt-text" id="prompt-text">${esc(p.text)}${p.example ? ` <span class="eg">(e.g. ${esc(p.example)})</span>` : ""}</p>
         ${p.scope ? `<p class="prompt-note">${esc(p.scope)}</p>` : ""}
       </div>
@@ -2026,6 +2111,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="status" id="status" role="status" aria-live="polite"></div>
         <div class="chips" id="chips"></div>
         <div class="tried" id="tried"></div>
+        ${hintRow(false)}
       </div>
     </div>`;
     const input = $("#answer");
@@ -2043,8 +2129,73 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $("#answer-form").addEventListener("submit", (e) => { e.preventDefault(); submit(false); });
     syncStep();
     renderTried();
+    wireHint(false);
     lastTick = -1;
     tickLoop();
+  }
+  // ---- room rules in a round (live only)
+  const ruled = () => RUN && RUN.mode === "live" && RUN.rules;
+  const finalBanner = () => (ruled() && RUN.rules.final && RUN.round === RUN.promptIds.length - 1 ? `<p class="final-x2">Final question · double points</p>` : "");
+  /** The timer label while answering, with the speed multiplier when that rule is on. */
+  const timeLeftLabel = (left) => (ruled() && RUN.rules.speed !== "off" ? `Time left · ×${E.speedMult(RUN.rules, answerMs() - left, answerMs()).toFixed(1)}` : "Time left");
+  function hintRow(quiz) {
+    if (!ruled() || RUN.rules.hints === "off") return "";
+    return `<div class="hint-row" id="hint-row">${RUN.hinted ? hintShown(quiz) : `<button type="button" class="btn sm hint-btn" id="hint-btn">${quiz ? "50:50" : "Hint"}${RUN.rules.hints === "half" ? " · half points" : ""}</button>`}</div>`;
+  }
+  /** A Classic hint: the first letter and shape of a rarer answer, with its explanation as a clue (its name masked). The same for everyone in the room. */
+  function liveHint(p, seed, i) {
+    const rare = p.answers.filter((a) => a.t === "indist" || a.t === "outlier" || a.t === "longtail");
+    const clued = rare.filter((a) => explainOf(p.id, a.a));
+    const pool = clued.length ? clued : rare.length ? rare : p.answers;
+    const a = pool[Math.floor(E.mulberry32(E.hashString(`hint:${seed}:${i}:${p.id}`))() * pool.length)];
+    const mask = (text, name) => {
+      if (!name || name.length < 2) return text;
+      const low = text.toLowerCase(), n = name.toLowerCase();
+      let out = "", k = 0, j;
+      while ((j = low.indexOf(n, k)) >= 0) { out += text.slice(k, j) + "…"; k = j + n.length; }
+      return out + text.slice(k);
+    };
+    const clue = [a.a].concat(a.aka || []).sort((x, y) => y.length - x.length).reduce(mask, explainOf(p.id, a.a) || "");
+    let seen = false;
+    const shape = [...a.a].map((c) => (/[\p{L}\p{N}]/u.test(c) ? (seen ? "_" : ((seen = true), c.toUpperCase())) : c === " " ? " " : c)).join("");
+    return { shape, len: [...a.a].filter((c) => /[\p{L}\p{N}]/u.test(c)).length, digits: /\p{N}/u.test(a.a), clue };
+  }
+  function hintShown(quiz) {
+    if (quiz) return `<p class="hint">Two wrong answers removed.</p>`;
+    const h = liveHint(currentPrompt(), RUN.seed, RUN.round);
+    return `<p class="hint"><span class="hint-shape">${esc(h.shape)}</span><span class="hint-len">${h.len} ${h.digits ? "characters" : "letters"}</span>${h.clue ? `<span class="hint-clue">${esc(h.clue)}</span>` : ""}</p>`;
+  }
+  /** The 50:50: the same two wrong options go for everyone. */
+  function cutTwo() {
+    const q = RUN.quiz[RUN.round];
+    const wrong = [...Array(E.QUIZ_OPTIONS).keys()].filter((k) => k !== q.correct);
+    for (const k of E.shuffled(wrong, E.mulberry32(E.hashString(`cut:${RUN.seed}:${RUN.round}`))).slice(0, 2)) {
+      const b = $(`.mcq-opt[data-i="${k}"]`);
+      if (b) { b.classList.add("cut"); b.disabled = true; }
+    }
+  }
+  function wireHint(quiz) {
+    if (quiz && ruled() && RUN.hinted) cutTwo();
+    const b = $("#hint-btn");
+    if (!b) return;
+    b.addEventListener("click", () => {
+      if (!ruled() || RUN.hinted || (RUN.phase !== "answering" && RUN.phase !== "preview")) return;
+      RUN.hinted = true;
+      persistRun();
+      $("#hint-row").innerHTML = hintShown(quiz);
+      if (quiz) cutTwo();
+      else if (!chatTyping() && $("#answer") && !$("#answer").disabled) $("#answer").focus({ preventScroll: true });
+    });
+  }
+  /** Under a live answer: how the room's rules turned the tier's points into this round's. */
+  function ruleNote(res) {
+    if (!ruled() || !res.tier) return "";
+    const r = RUN.rules, i = RUN.results.indexOf(res), parts = [];
+    if (r.speed !== "off") parts.push(`×${E.speedMult(r, res.ms, answerMs(i)).toFixed(1)} for speed`);
+    if (res.hinted && r.hints === "half") parts.push("half for the hint");
+    if (r.final && i === RUN.promptIds.length - 1) parts.push("×2 on the final question");
+    if ((r.miss === "5" || r.miss === "10") && res.misses) parts.push(`−${+r.miss * res.misses} for ${res.misses === 1 ? "a wrong answer" : `${res.misses} wrong answers`}`);
+    return parts.length ? `<p class="fb-note rule-note">${RUN.fmt === "quiz" ? E.QUIZ_POINTS : T[res.tier].score} points, ${parts.join(", ")}</p>` : "";
   }
   /** Solo: an empty box offers Skip (a quiet button); typing turns it back into the gold Step. */
   function syncStep() {
@@ -2084,6 +2235,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           $("#timer-label").textContent = "Time left";
         }
         const left = Math.max(0, RUN.answerEndsAt - now);
+        if (ruled()) $("#timer-label").textContent = timeLeftLabel(left);
         $("#timer-num").textContent = (left / 1000).toFixed(1);
         $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
         const low = left <= 5000;
@@ -2114,11 +2266,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (RUN.phase === "preview" || mcq.classList.contains("locked")) {
         RUN.phase = "answering"; persistRun();
         mcq.classList.remove("locked");
-        $$(".mcq-opt", mcq).forEach((b) => { b.disabled = false; });
+        $$(".mcq-opt:not(.cut)", mcq).forEach((b) => { b.disabled = false; });
         veil.classList.add("hidden");
         $("#timer-label").textContent = "Time left";
       }
       const left = Math.max(0, RUN.answerEndsAt - now);
+      if (ruled()) $("#timer-label").textContent = timeLeftLabel(left);
       $("#timer-num").textContent = (left / 1000).toFixed(1);
       $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
       const low = left <= 5000;
@@ -2159,6 +2312,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function reject(raw, input) {
     RUN.tried = (RUN.tried || []).concat(raw);
+    if (RUN.mode === "live") {
+      RUN.misses = (RUN.misses || 0) + 1;
+      if (RUN.rules && RUN.rules.miss === "strike") { liveTyping(); Sound.reject(); return finishRound(null, raw, { struck: true }); }
+    }
     liveTyping();
     Sound.reject();
     const other = otherHome(raw, currentPrompt().id);
@@ -2188,10 +2345,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (assist === "typos" && (m.kind === "suggest" || (m.kind === "correction" && m.confidence !== undefined && m.confidence < 0.88))) m = { kind: "none" };
     showChips([]);
     if (m.kind === "exact") return finishRound(m.answer, raw, {});
+    // Generous (a live room setting): a close guess counts at once, no "did you mean"
+    if (assist === "generous" && (m.kind === "correction" || (m.kind === "suggest" && m.suggestions.length && !(m.confidence < 0.6)))) return finishRound(m.kind === "correction" ? m.answer : m.suggestions[0], raw, { corrected: true });
     if (force) {
       // Time's up: take a confident near miss, otherwise it's a miss.
       if (m.kind === "correction") return finishRound(m.answer, raw, { corrected: true });
       if (m.kind === "suggest" && m.confidence >= 0.75 && m.suggestions.length === 1) return finishRound(m.suggestions[0], raw, { corrected: true });
+      if (assist === "generous" && m.kind === "suggest" && m.suggestions.length && m.confidence >= 0.5) return finishRound(m.suggestions[0], raw, { corrected: true });
       return finishRound(null, raw, { timeout: true });
     }
     if (m.kind === "correction") {
@@ -2247,6 +2407,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       corrected: false, timeout: pick < 0 && !!timeout, skipped: false,
       picked: pick, correct: q.correct, ms: Math.round(ms),
     };
+    if (ruled()) {
+      res.hinted = !!RUN.hinted;
+      res.score = E.liveScore(RUN.rules, { base: res.score, ms: res.ms, total: answerMs(), hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
+    }
     RUN.results.push(res);
     RUN.phase = "feedback";
     markSeen(p.id);
@@ -2255,7 +2419,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     renderFeedback(res, !silent);
   }
 
-  function finishRound(answer, raw, { corrected = false, timeout = false, skipped = false, silent = false } = {}) {
+  function finishRound(answer, raw, { corrected = false, timeout = false, skipped = false, silent = false, struck = false } = {}) {
     if (RUN.fmt === "quiz") return finishQuiz(-1, { timeout: true, silent });
     cancelAnimationFrame(runRaf);
     if (RUN.aiCtl) { RUN.aiCtl.abort(); RUN.aiCtl = null; }
@@ -2266,6 +2430,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       score: answer ? T[answer.t].score : 0, quip: answer && answer.q ? answer.q : null,
       corrected: !!corrected, timeout: !answer && timeout, skipped: !answer && skipped,
     };
+    if (RUN.mode === "live") { // the facts the room scores by (E.liveScore), sent with the answer
+      res.ms = answer ? Math.round(Math.max(0, Math.min(answerMs(), Date.now() - RUN.previewEndsAt))) : answerMs();
+      res.misses = RUN.misses || 0; res.hinted = !!RUN.hinted; res.struck = !!struck;
+      if (answer && RUN.rules) res.score = E.liveScore(RUN.rules, { base: T[answer.t].score, ms: res.ms, total: answerMs(), misses: res.misses, hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
+    }
     RUN.results.push(res);
     RUN.phase = "feedback";
     RUN.draft = ""; RUN.pendingCorrection = null;
@@ -2344,7 +2513,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p class="fb-q">${esc(p.text)}</p>
         <div class="fb-answer">${res.answer ? esc(res.answer) : res.raw ? `“${esc(res.raw)}” <span class="muted">isn't in the key</span>` : `<span class="muted">No answer</span>`}</div>
         <div class="fb-tier">${G(res.tier)}<span class="fb-name">${t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
-        ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.timeout ? "Out of time." : res.skipped ? "Skipped." : "No gradient, no descent."}</p>` : ""}
+        ${ruleNote(res)}
+        ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.struck ? "One strike: a wrong answer ends your round." : res.timeout ? "Out of time." : res.skipped ? "Skipped." : "No gradient, no descent."}</p>` : ""}
         ${res.corrected && res.raw ? `<p class="fb-note">Autocorrected from “${esc(res.raw)}”</p>`
           : res.answer && res.raw && E.fullKey(res.raw) !== E.fullKey(res.answer) ? `<p class="fb-note">“${esc(res.raw)}” counts as ${esc(res.answer)}</p>` : ""}
         ${RUN.mode === "vs" && RUN.opp ? oppLine(RUN.opp, RUN.results.length - 1) : ""}
