@@ -42,8 +42,16 @@
   "boosting": {
     "extra": true
   },
+  "calculus-concept": {
+    "scope": "A calculus or analysis idea, not an optimizer algorithm",
+    "added": "2026-11-08"
+  },
   "causal-inference": {
     "extra": true
+  },
+  "classic-cv": {
+    "scope": "Hand-crafted vision from before deep learning, no CNNs",
+    "added": "2026-11-08"
   },
   "cloud-ml": {
     "extra": true
@@ -152,6 +160,10 @@
   "ml-language": {
     "extra": true
   },
+  "ml-paper": {
+    "scope": "The title or the common name both count",
+    "added": "2026-11-08"
+  },
   "ml-slang": {
     "scope": "Community slang, not standard technical terms"
   },
@@ -250,6 +262,10 @@
   },
   "stat-test": {
     "extra": true
+  },
+  "tabular-dataset": {
+    "scope": "Rows and columns or a synthetic toy set. No image, text or audio data",
+    "added": "2026-11-08"
   },
   "text-augmentation": {
     "scope": "Creates extra or perturbed training text, not images",
