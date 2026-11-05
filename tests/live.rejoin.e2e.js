@@ -2,7 +2,7 @@
 /* Live match: a guest whose phone goes quiet long enough to be marked away, and
  * comes back inside the grace period, keeps their seat in the running match.
  * Regression test for a stale grace timer that freed the seat anyway.
- *   node tests/live.rejoin.e2e.js          (needs unpkg.com and public.cloud.shiftr.io)
+ *   node tests/live.rejoin.e2e.js          (needs public.cloud.shiftr.io)
  *   node tests/live.rejoin.e2e.js --quiz   the same in a Quiz match (real data: a quiz needs distinct prompts)
  *   node tests/live.rejoin.e2e.js --sprint the same in a Sprint match (real data, 12 s sprints): the guest sits out the rest of
  *                                          the sprint he was away for and plays the next one */
@@ -43,13 +43,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const page = await ctx.newPage();
     page.on("pageerror", (e) => console.log("pageerror:", e.message));
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-    await page.addInitScript(([c, sp]) => { window.MLION_TEST = true; if (sp) window.MLION_SPRINT_TEST = { secs: 12, reveal: 3000 }; if (c) window.MLION_LIVE_CODE = c; try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ } }, [init || null, sprint]);
+    await page.addInitScript(([c, sp]) => { window.MLION_TEST = true; if (sp) window.MLION_SPRINT_TEST = { secs: 12, reveal: 3000 }; if (c) { window.MLION_LIVE_CODE = c; window.MLION_LIVE_SECRET = c.padEnd(22, "K"); } try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ } }, [init || null, sprint]);
     return page;
   }
   const ana = await player(code), ben = await player();
   await ana.goto(base + "#live"); await ana.fill("#live-name", "Ana"); await ana.click("#live-go");
   await ana.waitForSelector(".lv-code", { timeout: 30000 });
-  await ben.goto(base + `#live-${code}`); await ben.fill("#live-name", "Ben"); await ben.click("#live-go");
+  await ben.goto(base + `#live-${code}-${code.padEnd(22, "K")}`); await ben.fill("#live-name", "Ben"); await ben.click("#live-go");
   await ana.waitForFunction(() => window.MLION_LIVE_STATE.players.size === 2, null, { timeout: 40000 });
   await ben.waitForSelector("#live-ready:not([disabled])", { timeout: 20000 });
   if (quiz) await ana.click('.lv-fmt[data-f="quiz"]');

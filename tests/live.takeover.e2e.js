@@ -51,8 +51,9 @@ const FAKE_RELAY = () => {
   await ana.goto(base + "#live"); await ana.waitForSelector("#live-name");
   await ana.fill("#live-name", "Ana"); await ana.click("#live-go");
   await ana.waitForFunction(() => window.MLION_LIVE_STATE && window.MLION_LIVE_STATE.active && window.MLION_LIVE_STATE.code, null, { timeout: 15000 });
-  const code = await ana.evaluate(() => window.MLION_LIVE_STATE.code);
-  await ben.goto(base + "#live-" + code); await ben.waitForSelector("#live-name");
+  await ana.waitForFunction(() => /^#live-[a-z0-9]{5}-[A-Za-z0-9_-]{22}$/.test(location.hash), null, { timeout: 15000 });
+  const link = await ana.evaluate(() => location.hash); // the invite link: room code and secret
+  await ben.goto(base + link); await ben.waitForSelector("#live-name");
   await ben.fill("#live-name", "Ben"); await ben.click("#live-go");
   await ana.waitForSelector('.lv-fmt[data-f="sprint"]', { timeout: 15000 });
   await ana.click('.lv-fmt[data-f="sprint"]');

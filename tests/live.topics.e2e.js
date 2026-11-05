@@ -45,7 +45,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await page.addInitScript((code) => {
       window.MLION_TEST = true;
-      if (code) window.MLION_LIVE_CODE = code;
+      if (code) { window.MLION_LIVE_CODE = code; window.MLION_LIVE_SECRET = code.padEnd(22, "K"); } // a fixed link, so a guest can open it before the room exists
       try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ }
     }, init || null);
     return page;
@@ -64,7 +64,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ana.fill("#live-name", "Ana");
   await ana.click("#live-go");
   await ana.waitForSelector(".lv-code", { timeout: 20000 });
-  await ben.goto(base + `#live-${forced}`);
+  await ben.goto(base + `#live-${forced}-${forced.padEnd(22, "K")}`);
   await ben.fill("#live-name", "Ben");
   await ben.click("#live-go");
   await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 40000 });

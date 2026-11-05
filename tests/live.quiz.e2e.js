@@ -4,7 +4,7 @@
  * other player has answered, verdicts wait for the reveal, a skip vote draws a fresh question,
  * chat keeps working (and typing digits there never answers), the host rejects a bad pick and
  * clamps a forged time, and a tie on points goes to the faster total time.
- *   node tests/live.quiz.e2e.js   (needs unpkg.com and public.cloud.shiftr.io) */
+ *   node tests/live.quiz.e2e.js   (needs public.cloud.shiftr.io) */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
@@ -49,7 +49,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await page.addInitScript((code) => {
       window.MLION_TEST = true;
-      if (code) window.MLION_LIVE_CODE = code;
+      if (code) { window.MLION_LIVE_CODE = code; window.MLION_LIVE_SECRET = code.padEnd(22, "K"); } // a fixed link, so a guest can open it before the room exists
       try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ }
     }, init || null);
     return page;
@@ -68,7 +68,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ana.fill("#live-name", "Ana");
   await ana.click("#live-go");
   await ana.waitForSelector(".lv-code", { timeout: 20000 });
-  await ben.goto(base + `#live-${forced}`);
+  await ben.goto(base + `#live-${forced}-${forced.padEnd(22, "K")}`);
   await ben.fill("#live-name", "Ben");
   await ben.click("#live-go");
   await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 40000 });
@@ -161,10 +161,10 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(!!(await ben.$(".mcq:not(.locked)")) && !(await ben.$(".feedback")), "digits typed into the chat never answer the question");
   await ben.keyboard.press("Escape");
   const benId = (await state(ben)).myId;
-  const forge = (pick, ms) => ben.evaluate(({ code, pick, ms }) => {
+  const forge = (pick, ms) => ben.evaluate(({ pick, ms }) => {
     const L = window.MLION_LIVE_STATE;
-    L.client.publish(`mlion/v2/r/${code}/up`, JSON.stringify({ from: L.myId, t: "ans", i: 3, pid: L.ids[3], pick, ms }));
-  }, { code: forced, pick, ms });
+    window.MLION_LIVE_SEND({ t: "ans", i: 3, pid: L.ids[3], pick, ms }); // sealed like any message from Ben: a dishonest guest, not an outsider
+  }, { pick, ms });
   await forge(7, 5); // not one of the four options
   await ana.waitForTimeout(1500);
   check(await ana.evaluate((id) => !window.MLION_LIVE_STATE.players.get(id).ans[3], benId), "the host ignores a pick that isn't one of the four options");

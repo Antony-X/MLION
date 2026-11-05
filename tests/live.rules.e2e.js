@@ -43,7 +43,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await page.addInitScript((c) => {
       window.MLION_TEST = true;
-      if (c) window.MLION_LIVE_CODE = c;
+      if (c) { window.MLION_LIVE_CODE = c; window.MLION_LIVE_SECRET = c.padEnd(22, "K"); }
       try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ }
     }, init || null);
     return page;
@@ -53,7 +53,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     await host.fill("#live-name", "Ana");
     await host.click("#live-go");
     await host.waitForSelector(".lv-code", { timeout: 20000 });
-    await guest.goto(base + `#live-${forced}`);
+    await guest.goto(base + `#live-${forced}-${forced.padEnd(22, "K")}`);
     await guest.fill("#live-name", "Ben");
     await guest.click("#live-go");
     await host.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 40000 });
