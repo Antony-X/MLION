@@ -52,14 +52,18 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
 
   if (!process.argv.includes("--fonts")) await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.goto(base);
-  await page.waitForSelector(".modal");
-  await page.screenshot({ path: path.join(OUT, "01-howto.png") });
-  await page.click("#how-go");
+  await page.waitForSelector(".wordmark"); await page.waitForTimeout(700);
+  check(!(await page.$(".modal")), "a first visit lands on home, no dialog in the way");
   await page.screenshot({ path: path.join(OUT, "02-home.png"), fullPage: true });
   check(await page.isVisible(".wordmark"), "home renders");
 
   await page.click("text=Start training");
   await page.waitForSelector("#begin");
+  await page.click("#how-open"); await page.waitForSelector(".modal");
+  await page.screenshot({ path: path.join(OUT, "01-howto.png") });
+  check((await page.textContent(".modal")).includes("One in a MLion"), "a first-timer can open how scoring works from the intro");
+  await page.click("#how-go");
+  check(!(await page.$(".modal .how")), "Got it closes it");
   await page.click("#begin");
   await page.waitForSelector("#veil:not(.hidden)");
   await page.screenshot({ path: path.join(OUT, "03-preview.png") });

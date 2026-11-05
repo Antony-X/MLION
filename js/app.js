@@ -1583,7 +1583,6 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (mountHomeHero()) document.body.dataset.view = "home"; // the 3D descent replaces the flat backdrop
     else scene("home", { progress, animate: true });
     if (rec) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); if (today() !== date) route(); });
-    if (!LS.get("seenHow")) { LS.set("seenHow", true); setTimeout(() => showHowModal(), 400); }
   }
 
   // The 3D descent behind home. Scroll drives the ball piecewise, so each depth row reaches the
@@ -1762,7 +1761,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <li><b>3 s</b><span>to read</span></li>
         <li><b>${baseMs() / 1000} s</b><span>to answer</span></li>
       </ul>
-      <p class="rule">${quiz ? "Four answers, one fits. Tap one before the clock runs out. A wrong answer or no answer scores nothing." : "Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more."}</p>
+      <p class="rule">${quiz ? "Four answers, one fits. Tap one before the clock runs out. A wrong answer or no answer scores nothing." : "Any valid answer counts. Wrong ones bounce, so keep trying. Rarer answers score more."}${!quiz && !Object.keys(records).length ? ` <button class="linkish" id="how-open" type="button">How scoring works</button>` : ""}</p>
       ${vsLike ? `<label class="vs-field"><span>Your name</span><input class="search" id="vs-name" maxlength="16" autocomplete="nickname" placeholder="So ${RUN.opp ? esc(RUN.opp.name) : "your friend"} knows who played" value="${esc(myName())}"></label>` : ""}
       <div class="btn-row">
         <button class="btn primary big" id="begin">Begin</button>
@@ -1770,6 +1769,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
       <p class="hint">${quiz ? `<kbd>1</kbd> to <kbd>4</kbd> pick an answer` : `<kbd>Enter</kbd> submits and continues`}</p>
     </div>`;
+    const howOpen = $("#how-open"); // first run only: the tiers, in context, instead of a dialog on arrival
+    if (howOpen) howOpen.addEventListener("click", showHowModal);
     const sendNow = $("#vs-send-now");
     if (sendNow) sendNow.addEventListener("click", () => {
       const nm = $("#vs-name");

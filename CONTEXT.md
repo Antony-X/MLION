@@ -442,6 +442,12 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - Tests: the daily-quiz block in `tests/quiz.e2e.js`; the quiz-board block in `tests/board.e2e.js`
   (mock table off, then on; tie-break by time).
 
+### First visit (changed overnight 2026-11-05)
+
+- No dialog on arrival: the home hero and its "Six depths" rows explain the game. Until a player
+  finishes a first run, the round intro carries a "How scoring works" link that opens the old
+  How to play dialog (`showHowModal`). `mlion:seenHow` is no longer read (tests still set it).
+
 ### Sprint (added overnight 2026-11-05)
 
 - One prompt, 60 seconds, as many answers as you can; each scores its tier's points. Answers count
