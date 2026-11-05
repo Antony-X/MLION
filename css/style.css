@@ -1052,7 +1052,7 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 @media (hover: none) and (pointer: coarse) { .hint:has(kbd) { display: none; } }
 
 /* Sprint: one prompt, sixty seconds */
-.sp-card { display: grid; gap: 16px; padding: 20px; border-radius: var(--soft); background: var(--surface); max-width: 620px; }
+.sp-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px; border-radius: var(--soft); background: var(--surface); max-width: 620px; }
 .sp-card .prompt-text { font-size: var(--s3); line-height: 1.25; }
 .sp-card .prompt-note, .sp-meta { color: var(--muted); font-size: var(--s1); margin: 0; }
 .sp-card .btn-row { margin-top: 4px; }
