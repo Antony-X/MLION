@@ -133,6 +133,7 @@ tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQ
 tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat (--quiz: in a Quiz match, real data)
 tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, resume, results, stats) + #vq- challenge between two browsers
 tests/live.quiz.e2e.js  Playwright: live Quiz match, two browsers over MQTT (hidden picks, reveal, skip, chat, forged answers, time tie-break)
+tests/live.sprint.e2e.js  Playwright: live Sprint match, two browsers over MQTT (live tallies, clock end, shared answers, a player who leaves, totals); live.rejoin.e2e.js --sprint: a guest comes back mid-sprint
 README.md, package.json, .nojekyll (needed for Pages)
 ```
 
@@ -143,7 +144,7 @@ npm run build      # node tools/build.js
 npm run stats      # node tools/build.js --stats
 npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
-npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz (needs network: unpkg.com + public.cloud.shiftr.io)
+npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint (needs network: unpkg.com + public.cloud.shiftr.io)
 npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
 ```
 
@@ -547,6 +548,28 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   answer of the open prompt (broader than needed for a quiz, but safe).
 - A rematch uses the lobby's last format; the host can't change format or count from the podium (the same
   limit the typed format has).
+
+**Sprint format (live)**
+- The host picks **Sprint** in the lobby (`fmt: "sprint"`, saved as `liveFmt`). Its count picker reads Sprints (default 3,
+  kept as `liveSprintN`; the other formats get their old count back), and the time and autocorrect pickers are gone:
+  every sprint is 60 s with the solo rules (`sprintJudge`/`sprintSubmit`). Topics and no-repeat work as in Classic, over
+  prompts with at least 40 answers (`sprintOk`, the solo bar). Guests read "3 sprints of 60 s · Sprint format…".
+- It runs beside the shared RUN engine (`LIVE.mfmt === "sprint"`, state in `SPR`; code under `// live sprint`). The host
+  sends `spround {i, at}` (Classic's 1.5 s lead and 3 s read, so clocks start together). Every accepted answer sends
+  `spp {i, n, pts}`; the host checks it (`n` up to 200, `pts` up to 100 n) and passes it on, so the strip above the prompt
+  shows everyone's count and points ticking up while their answers stay hidden. When a player's clock ends they send
+  `spans {i, list}` (answer indexes into the prompt); the host keeps the first valid list, every page recomputes points
+  from the tiers. The host reveals when every list is in, or 6 s after the clocks end for a straggler
+  (`reveal {i, part, nextAt}`; `part` holds the last progress of players who sent no list). The reveal lists each player's
+  answers with ×2 (and up) on any answer more than one named, plus standings and a countdown (9 s, plus 0.3 s per answer in
+  the longest list, at most 18). The end is the usual podium, with each sprint's answers in the recap and Ready for rematch.
+- Someone who drops out mid-match keeps the points they had sent: a player removed from the room moves to `LIVE.gone` and
+  stays in reveals and on the podium ("left"). A guest who comes back (`resume`) is done with the sprint he was
+  away for and plays the next; late joiners wait for the next match; a new host (`hostSprintTakeover`) carries on from
+  the round its page last saw. There is no skip vote in a sprint, and chat's spoiler hold covers the open prompt.
+- Tests: `tests/live.sprint.e2e.js` and `live.rejoin.e2e.js --sprint` shorten the minute through
+  `window.MLION_SPRINT_TEST = {secs, reveal}` (read only when `window.MLION_TEST` is set). A host leaving mid-sprint was
+  only run ad hoc; nothing here has been tried on a real phone.
 
 **Rival panel**
 - Before you answer: opponent typing shows as dots, with a count of wrong guesses. A locked

@@ -3,7 +3,9 @@
  * comes back inside the grace period, keeps their seat in the running match.
  * Regression test for a stale grace timer that freed the seat anyway.
  *   node tests/live.rejoin.e2e.js          (needs unpkg.com and public.cloud.shiftr.io)
- *   node tests/live.rejoin.e2e.js --quiz   the same in a Quiz match (real data: a quiz needs distinct prompts) */
+ *   node tests/live.rejoin.e2e.js --quiz   the same in a Quiz match (real data: a quiz needs distinct prompts)
+ *   node tests/live.rejoin.e2e.js --sprint the same in a Sprint match (real data, 12 s sprints): the guest sits out the rest of
+ *                                          the sprint he was away for and plays the next one */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
@@ -12,6 +14,7 @@ const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
 const quiz = process.argv.includes("--quiz");
+const sprint = process.argv.includes("--sprint");
 const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log("  ✓ " + msg); };
 function fixtureBundle() {
   const packs = JSON.parse(fs.readFileSync(path.join(ROOT, "data/packs.json"), "utf8"));
@@ -22,7 +25,7 @@ function fixtureBundle() {
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
-  if (url === "/js/data.js" && !quiz) { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(fixtureBundle()); }
+  if (url === "/js/data.js" && !quiz && !sprint) { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(fixtureBundle()); }
   const file = path.join(ROOT, url === "/" ? "index.html" : url);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end(); }
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
@@ -40,7 +43,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const page = await ctx.newPage();
     page.on("pageerror", (e) => console.log("pageerror:", e.message));
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-    await page.addInitScript((c) => { window.MLION_TEST = true; if (c) window.MLION_LIVE_CODE = c; try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ } }, init || null);
+    await page.addInitScript(([c, sp]) => { window.MLION_TEST = true; if (sp) window.MLION_SPRINT_TEST = { secs: 12, reveal: 3000 }; if (c) window.MLION_LIVE_CODE = c; try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ } }, [init || null, sprint]);
     return page;
   }
   const ana = await player(code), ben = await player();
@@ -50,8 +53,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await ana.waitForFunction(() => window.MLION_LIVE_STATE.players.size === 2, null, { timeout: 40000 });
   await ben.waitForSelector("#live-ready:not([disabled])", { timeout: 20000 });
   if (quiz) await ana.click('.lv-fmt[data-f="quiz"]');
+  if (sprint) { await ana.click('.lv-fmt[data-f="sprint"]'); await ana.fill("#q-custom", "2"); await ana.press("#q-custom", "Enter"); }
   for (const pg of [ana, ben]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
-  const inputSel = quiz ? ".mcq:not(.locked)" : "#answer";
+  const inputSel = quiz ? ".mcq:not(.locked)" : sprint ? "#sp-answer:not([disabled])" : "#answer";
   await Promise.all([ana.waitForSelector(inputSel, { timeout: 30000 }), ben.waitForSelector(inputSel, { timeout: 30000 })]);
   const benId = await ben.evaluate(() => window.MLION_LIVE_STATE.myId);
   console.log(`room ${code}, match running, Ben = ${benId}`);
@@ -90,6 +94,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ben.click(".mcq-opt");
     await ana.waitForFunction(([id, k]) => { const p = window.MLION_LIVE_STATE.players.get(id); return p && p.ans[k]; }, [benId, i], { timeout: 30000 });
     check(true, "after coming back, the guest answers a quiz question and the host records it");
+  }
+  if (sprint) { // the sprint he was away for ends without him (the host counts what he had sent); he plays the next one
+    check(await ben.evaluate(() => window.MLION_LIVE_STATE.mfmt === "sprint"), "it was a sprint match");
+    await ben.waitForFunction(() => window.MLION_LIVE_STATE.revealed >= 0, null, { timeout: 60000 });
+    await ben.waitForSelector("#sp-answer:not([disabled])", { timeout: 60000 });
+    check(await ben.evaluate(() => window.MLION_LIVE_STATE.revealed === 0), "the next sprint opens for him after the one he was away for was revealed");
+    const answer = await ben.evaluate(() => document.querySelector(".prompt-text .eg") ? document.querySelector(".prompt-text .eg").textContent.replace(/^\s*\(e\.g\.\s*|\)\s*$/g, "") : "");
+    check(!!answer, `the prompt shows an example to type (${answer})`);
+    await ben.fill("#sp-answer", answer); await ben.press("#sp-answer", "Enter");
+    await ana.waitForFunction((id) => { const p = window.MLION_LIVE_STATE.players.get(id); return p && p.sp && p.sp[1] && p.sp[1].n === 1; }, benId, { timeout: 30000 });
+    check(true, "after coming back, the guest names an answer in the next sprint and the host records it");
   }
   console.log("live rejoin e2e passed");
   await browser.close(); server.close();

@@ -1065,3 +1065,38 @@ html:not(.reduce-motion) .sp-found li.pop { animation: sp-pop 420ms var(--ease-o
 .sp-target { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sp-verdict { margin: 0; font-size: var(--s3); }
 .sp-verdict.win { color: var(--gold); }
+
+/* Live sprint: the solo Sprint screen with every player's tally in a strip above it */
+.screen.live-sp > * + * { margin-top: 20px; }
+.live-sp .sp-card { padding: 0; background: none; max-width: none; }
+.live-sp .sp-card .input-zone { margin-top: 0; }
+.live-strip.sp-strip { flex-wrap: wrap; overflow: visible; padding: 0; margin: 0; }
+.sp-round { margin: 0; color: var(--muted); font-size: var(--s1); }
+.sp-lp .sp-ct { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sp-lp .sp-ct::after { content: "·"; margin-left: 8px; color: var(--faint); }
+.sp-lp.off { opacity: 0.55; }
+html:not(.reduce-motion) .sp-lp.bump em, html:not(.reduce-motion) .sp-lp.bump .sp-ct { animation: sp-bump 420ms var(--ease-out); }
+@keyframes sp-bump { from { transform: translateY(-4px); color: var(--ink); } }
+.sp-reveal { gap: 20px; }
+.sp-players { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sp-players > li { display: grid; gap: 12px; padding: 14px 16px; border-radius: var(--soft); background: var(--surface); }
+.rc .sp-players > li { background: var(--raised); }
+.sp-players > li.gone { opacity: 0.7; }
+.sp-ph { display: flex; align-items: center; gap: 12px; }
+.sp-ph > span { display: grid; min-width: 0; }
+.sp-ph b { font-weight: 400; overflow-wrap: anywhere; }
+.sp-ph em { margin-left: auto; font-style: normal; font-variant-numeric: tabular-nums; color: var(--gold); font-size: var(--s3); }
+.sp-players li.me .lv-av { background: var(--gold); color: var(--gold-ink); }
+.sp-sub { margin: 0; color: var(--muted); font-size: var(--s1); }
+.sp-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; border-radius: var(--round); background: var(--raised); font-size: var(--s1); }
+.rc .sp-chips li { background: var(--raised-2); }
+.sp-chips .glyph { font-size: 15px; }
+.sp-chips li.shared { background: var(--raised-2); }
+.rc .sp-chips li.shared { background: var(--bg); }
+.sp-chips i { font-style: normal; color: var(--gold); font-variant-numeric: tabular-nums; }
+.sp-strip.many { gap: 6px; }
+.sp-strip.many .lp { padding: 6px 12px; }
+.sp-strip.many .lv-av { display: none; }
+.sp-strip.many .lp.me b { color: var(--gold); }
+html.kb .live-sp .sp-round { display: none; }
