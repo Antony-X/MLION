@@ -1608,7 +1608,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ["#board", "Leaderboard", "Today's top scores"],
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
     ].filter(([href]) => BOARD_ON || href !== "#board");
-    app.innerHTML = `<section class="screen home">
+    const html = `<section class="screen home">
       <canvas id="hero3d" aria-hidden="true"></canvas>
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
@@ -1626,6 +1626,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <p class="home-close"><span>One in a MLion</span></p>
       </div>
     </section>`;
+    // On a first visit index.html already drew this hero while the questions downloaded. Build the home
+    // around that node rather than replacing it, so its entrance carries on instead of restarting.
+    const tpl = document.createElement("template"); tpl.innerHTML = html;
+    const pre = $(".pre-home .home-hero"), hero = tpl.content.querySelector(".home-hero");
+    if (pre && pre.textContent.replace(/\s+/g, "") === hero.textContent.replace(/\s+/g, "")) {
+      const sec = pre.parentNode;
+      sec.className = "screen home";
+      sec.querySelectorAll(":scope > :not(.home-hero)").forEach((el) => el.remove());
+      pre.before(tpl.content.querySelector("#hero3d"));
+      pre.after(...tpl.content.querySelectorAll(".home > :not(canvas):not(.home-hero)"));
+    } else app.replaceChildren(tpl.content);
     if (mountHomeHero()) document.body.dataset.view = "home"; // the 3D descent replaces the flat backdrop
     else scene("home", { progress, animate: true });
     if (rec) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); if (today() !== date) route(); });

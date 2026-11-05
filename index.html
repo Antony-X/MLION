@@ -41,6 +41,28 @@
   </header>
 
   <main id="app" aria-live="off"><p class="boot" aria-hidden="true"><span></span></p></main>
+  <script>
+    /* A first visit draws the home hero at once instead of a spinner while the questions download.
+       app.js then swaps in the full home without replaying the entrance, so keep this markup in step
+       with renderHome() in js/app.js (tests/preboot.e2e.js compares the two). */
+    (function () {
+      var calm = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+      try {
+        if (!/^#?\/?(home)?$/.test(location.hash)) return;
+        for (var i = 0; i < localStorage.length; i++) if (/^mlion:(records|run:)/.test(localStorage.key(i))) return;
+        var st = JSON.parse(localStorage.getItem("mlion:settings") || "{}");
+        if (typeof st.reducedMotion === "boolean") calm = st.reducedMotion;
+      } catch (e) { return; }
+      var mark = document.querySelector("#brand svg").outerHTML.replace('class="mark"', 'class="mark hero-mark"');
+      document.body.dataset.view = "home";
+      document.getElementById("app").innerHTML = '<section class="screen pre-home"><i hidden></i>' +
+        '<div class="home-hero' + (calm ? "" : " arrive") + '"><div class="brandmark">' + mark +
+        '<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>' +
+        '<p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>' +
+        '<div class="hero-cta"><a class="btn primary big" href="#daily">Start training</a><a class="btn big" href="#live">Play with friends</a></div>' +
+        '</div></section>';
+    })();
+  </script>
 
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
   <nav class="drawer" id="drawer" aria-hidden="true" aria-label="Menu">
@@ -81,6 +103,6 @@
   <script src="js/data.js?v=n3v2hk"></script>
   <script src="js/landscape.js?v=1wh6xx"></script>
   <script src="js/hero3d.js?v=1qqfzi9"></script>
-  <script src="js/app.js?v=h130v5"></script>
+  <script src="js/app.js?v=16m9vt8"></script>
 </body>
 </html>

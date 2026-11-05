@@ -786,7 +786,8 @@ rounded.
   start on the production Pages site.
 - **Not tested in a browser:** the autocorrect-help setting in live matches (the last commit).
   Only syntax, the build and engine tests ran.
-- Overnight 2026-11-05 additions: `tests/pwa.e2e.js` (manifest, precache list, offline daily), the
+- Overnight 2026-11-05 additions: `tests/pwa.e2e.js` (manifest, precache list, offline daily),
+  `tests/preboot.e2e.js` (first-visit hero before the data arrives; runs in `npm run e2e:pwa`), the
   daily-quiz and quiz-board blocks above, `tests/live.topics.e2e.js` (live topic filter), and
   `tools/matchbench.js` (autocorrect benchmark, pinned in the engine test: right >= 97%, wrong
   <= 1%, false accept <= 1%).
@@ -863,9 +864,13 @@ rounded.
 11. Quiz follow-ups: a wrong option can be a real member of the category the answer list lacks (lists are
     incomplete); the host can't switch format from the podium; live quiz answer times are self-reported
     (clamped by the host). The Daily Quiz board needs `supabase/daily_quiz.sql` applied.
-12. First load: `js/data.js` is 2.4 MB (about 730 KB gzipped) and blocks the first render behind the
-    boot spinner. Splitting it (home and the daily first, the rest later) would speed up a first
-    visit on slow phones.
+12. First load: `js/data.js` is 2.4 MB (about 730 KB gzipped). A first visit to home no longer waits
+    for it: an inline script in `index.html` draws the home hero at once, and `renderHome()` builds the
+    full home around that same node (measured, slow 4G with a 4x slower CPU: hero at 1.1 s instead of
+    5.3 s; the full home still arrives at 5.3 s). Returning players and deep links keep the spinner,
+    but the service worker serves them from cache. Keep the two hero markups in step;
+    `tests/preboot.e2e.js` fails if their words or positions differ. Splitting data.js itself (the
+    daily first, the rest later) is still open, for deep links on slow phones.
 
 ---
 
