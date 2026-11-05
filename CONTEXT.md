@@ -151,6 +151,8 @@ tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must kee
 tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, resume, results, stats) + #vq- challenge between two browsers
 tests/live.quiz.e2e.js  Playwright: live Quiz match, two browsers over MQTT (hidden picks, reveal, skip, chat, forged answers, time tie-break)
 tests/live.security.e2e.js  Playwright, fake relay (no network): outsider reads/forges/replays, a guest claiming a fake tier, open-room knock and full, room-list XSS, ten players
+tests/security.e2e.js  Playwright, no network: the CSP (no violations, injected handlers blocked), vendored libraries, framing, damaged saved data, hostile #links, Import, the boot watchdog, the login-error toast
+tests/security.sql.test.js  PGlite (npm i --no-save @electric-sql/pglite): each database attack works on the production SQL and fails with supabase/security_v1.sql
 tests/live.sprint.e2e.js  Playwright: live Sprint match, two browsers over MQTT (live tallies, clock end, shared answers, a player who leaves, totals); live.rejoin.e2e.js --sprint: a guest comes back mid-sprint
 README.md, package.json, .nojekyll (needed for Pages)
 ```
@@ -1319,6 +1321,12 @@ is the lit exhibit.
     keeps the same hash (#admin → Limits shows the source); pull approved suggestions with
     `tools/pull_suggestions.js`. Open: suggest-only players get a "Player" profile (see "Suggest this answer");
     refusals aren't logged; nothing tried on a real phone.
+14. **Security audit (2026-11-05):** `supabase/security_v1.sql` (additive, run LAST, safe twice; NOT applied yet)
+    tightens grants, the day window, the quiz tie-break, IPv6 limits and the admin's account names. index.html now
+    has a Content-Security-Policy: tools/build.js stamps the inline scripts' hashes, so run the build after editing
+    them, and add any new outside host (script, socket, API) to the policy or it will be blocked. New tables need
+    their own GRANT lines once security_v1.sql has run. Kill switch for a bad service worker: replace sw.js with one
+    that unregisters itself.
 12. First load: `js/data.js` is 2.4 MB (about 730 KB gzipped). A first visit to home no longer waits
     for it: an inline script in `index.html` draws the home hero at once, and `renderHome()` builds the
     full home around that same node (measured, slow 4G with a 4x slower CPU: hero at 1.1 s instead of
