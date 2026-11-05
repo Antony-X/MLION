@@ -2874,6 +2874,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
     $("#sp-go").addEventListener("click", () => startSprint(p, vs));
     $("#sp-other").addEventListener("click", () => { const q = sprintPick(p.id); if (q) location.replace("#sprint-" + q.id); });
+    $("#sp-go").focus({ preventScroll: true }); // like Begin on the daily: Enter starts
   }
 
   function startSprint(p, vs) {
