@@ -219,8 +219,10 @@
   }
   function sizeBackdrop() {
     const c = BD.canvas;
-    BD.dpr = Math.min(2, window.devicePixelRatio || 1);
-    BD.w = window.innerWidth; BD.h = window.innerHeight;
+    const r = c.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.round(r.width) || window.innerWidth, h = Math.round(r.height) || window.innerHeight;
+    if (w === BD.w && h === BD.h && dpr === BD.dpr) return; // resizing a canvas clears it: only when it really changed
+    BD.dpr = dpr; BD.w = w; BD.h = h;
     c.width = Math.floor(BD.w * BD.dpr); c.height = Math.floor(BD.h * BD.dpr);
     drawBackdrop();
   }
@@ -757,6 +759,31 @@
       }
     }
 
+    /** Three answers in a row and the ball catches fire. The fire is wider than the ball and wraps
+     * round it (drawn behind), and a fainter layer licks up over its crown (drawn in front), so the
+     * ball sits inside the flames instead of a flame standing behind it. */
+    function fire(c, cx, cy, lv, calm, front) {
+      const R = st.R, [o, m, w] = FLAME[lv].map(rgb);
+      const lean = calm ? 0 : -clamp(st.vel * 1400, -R * 1.2, R * 2.6); // the flames stream back as it rolls
+      // as tall as the streak, but never up into the numbers over the stage (the phone keyboard strip is short)
+      const over = st.rects.filter((r) => r.y + r.h / 2 < st.h / 2 && r.x < cx + R * 2 && r.x + r.w > cx - R * 2);
+      const ceil = over.length ? Math.max(...over.map((r) => r.y + r.h)) : -Infinity;
+      const tall = Math.min(R * (2.2 + 0.4 * (lv - 3)), Math.max(R * 1.2, cy - R * 0.5 - ceil - 4));
+      // [offset across, height, colour, width, opacity]
+      const tongues = front
+        ? [[-0.35, 0.55, o, 0.42, 0.2], [0.3, 0.6, o, 0.42, 0.2], [0.05, 0.85, m, 0.34, 0.18]]
+        : [[-0.8, 0.6, o, 0.62, 0.5], [0.75, 0.64, o, 0.62, 0.5], [0, 1, o, 0.95, 0.5], [0.12, 0.74, m, 0.7, 0.55], [0.05, 0.45, w, 0.5, 0.55]];
+      const root = front ? cy - R * 0.45 : cy + R * 0.15;
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      tongues.forEach(([dx, hk, col, wk, a], k) => {
+        const ph = calm ? k : st.t * (0.007 + 0.0012 * lv) + k * 1.9 + (front ? 0.8 : 0);
+        const ht = tall * hk * (0.82 + 0.18 * Math.sin(ph));
+        const ox = dx * R + (calm ? 0 : Math.sin(ph * 1.3) * R * 0.1);
+        flameShape(c, cx + ox, root, R * wk, ht + (cy - root) + R * 0.5, lean * hk, col, a);
+      });
+      c.restore();
+    }
     function flameShape(c, x, y, wd, ht, lean, col, a) {
       c.fillStyle = css(col, a);
       c.beginPath();
@@ -793,21 +820,7 @@
       g = c.createRadialGradient(cx, cy, R * 0.7, cx, cy, ar);
       g.addColorStop(0, css(tint, 0.2 + 0.26 * d + 0.03 * lv)); g.addColorStop(1, css(tint, 0));
       c.fillStyle = g; c.fillRect(cx - ar, cy - ar, ar * 2, ar * 2);
-      if (lv >= 3) { // three answers in a row and the ball catches fire; the flames stream back as it rolls
-        const [o, m, w] = FLAME[lv].map(rgb);
-        const lean = calm ? 0 : -clamp(st.vel * 1400, -R * 1.2, R * 2.6);
-        // as tall as the streak, but never up into the numbers over the stage (the phone keyboard strip is short)
-        const over = st.rects.filter((r) => r.y + r.h / 2 < st.h / 2 && r.x < cx + R * 2 && r.x + r.w > cx - R * 2);
-        const ceil = over.length ? Math.max(...over.map((r) => r.y + r.h)) : -Infinity;
-        const tall = Math.min(R * (2.2 + 0.4 * (lv - 3)), Math.max(R * 1.2, cy - R * 0.5 - ceil - 4));
-        const tongues = [[-0.55, 0.62, o], [0.5, 0.66, o], [0, 1, o], [0.12, 0.72, m], [0.05, 0.42, w]];
-        tongues.forEach(([dx, hk, col], k) => {
-          const ph = calm ? k : st.t * (0.007 + 0.0012 * lv) + k * 1.9;
-          const ht = tall * hk * (0.82 + 0.18 * Math.sin(ph));
-          const ox = dx * R * 0.8 + (calm ? 0 : Math.sin(ph * 1.3) * R * 0.1);
-          flameShape(c, cx + ox, cy, R * (k < 3 ? 0.62 : 0.5) * (0.8 + 0.2 * hk), ht + R * 0.5, lean * hk, col, k < 3 ? 0.5 : 0.62);
-        });
-      }
+      if (lv >= 3) fire(c, cx, cy, lv, calm, false);
       c.restore();
       // a soft contact shadow where it sits in the groove, drawn under the ball, so it looks seated, not pasted on
       c.save();
@@ -831,6 +844,7 @@
       c.fillStyle = "rgba(255,255,255,0.85)";
       c.beginPath(); c.ellipse(-R * 0.36, -R * 0.42, R * 0.26, R * 0.17, -0.6, 0, Math.PI * 2); c.fill();
       c.restore();
+      if (lv >= 3) fire(c, cx, cy, lv, calm, true); // and its front: the ball sits inside the fire
       return [cx, cy];
     }
 

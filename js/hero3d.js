@@ -129,7 +129,8 @@ gl_FragColor=vec4(C.rgb*sh,C.a*a);}`;
     const mq = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)");
     const reduced = () => !!(mq && mq.matches) || document.documentElement.classList.contains("reduce-motion");
     const source = typeof opts.progress === "function" ? opts.progress : () => {
-      const max = (document.scrollingElement || document.documentElement).scrollHeight - innerHeight;
+      const el = document.scrollingElement || document.documentElement;
+      const max = el.scrollHeight - el.clientHeight; // clientHeight, not innerHeight: the iOS address bar changes innerHeight mid-scroll
       return max > 0 ? scrollY / max : 0;
     };
     const st = { target: 0, shown: -1, w: 0, h: 0, dpr: 1, raf: 0, last: 0, manual: false, onScreen: true, stage: -1, dead: false };

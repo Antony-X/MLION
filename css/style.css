@@ -78,8 +78,14 @@ h1, h2, h3 { margin: 0; font-weight: 400; line-height: 1.1; letter-spacing: -0.0
 .small { font-size: var(--s1); }
 code { font-size: 0.92em; color: var(--muted); }
 
+/* The page backdrops. Each is its own compositing layer (iOS Safari otherwise shows stale or blank
+   tiles of a fixed canvas that is redrawn during a scroll) and is as tall as the screen with the
+   address bar hidden (100lvh), so the bar sliding in and out never resizes or clears it. */
+#landscape, body.hero3d #hero3d {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%; height: 100lvh;
+  transform: translateZ(0); will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
 #landscape {
-  position: fixed; inset: 0; width: 100%; height: 100%;
   pointer-events: none; z-index: 0;
   transition: opacity 400ms ease;
 }
@@ -1089,7 +1095,7 @@ details.key.inline .body { padding: 8px 0 4px; }
 
 /* ---------------------------------------------------------- the 3D descent (home) */
 #hero3d { display: none; }
-body.hero3d #hero3d { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+body.hero3d #hero3d { display: block; z-index: 0; pointer-events: none; }
 body.hero3d #landscape { opacity: 0; }
 .home .home-hero, .home .depths-sec { position: relative; z-index: 1; }
 .depths-sec h2 { font-size: var(--s4); margin-bottom: 28px; }
@@ -1322,12 +1328,3 @@ html.kb .live-sp .sp-round { display: none; }
 .lim-form label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--s1); }
 .adm-bar .search.lim-n { flex: 0 0 110px; width: 110px; min-width: 0; }
 .lim-top .who b { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-/* settings: the music volume slider, and rows that can't act while Sound is off */
-.vol-setting { cursor: default; }
-.range { -webkit-appearance: none; appearance: none; flex: none; width: min(200px, 46%); height: 32px; margin: 0; background: transparent; cursor: pointer; }
-.range::-webkit-slider-runnable-track { height: 6px; border-radius: var(--round); background: var(--raised-2); }
-.range::-moz-range-track { height: 6px; border-radius: var(--round); background: var(--raised-2); }
-.range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -8px; border: 0; border-radius: 50%; background: var(--ink); }
-.range::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--ink); }
-.range:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.setting.dim { opacity: 0.45; }
