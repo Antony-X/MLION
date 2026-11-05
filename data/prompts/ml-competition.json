@@ -859,6 +859,7 @@
     {
       "a": "Digit Recognizer",
       "t": "indist",
+      "q": "Kaggle's getting-started competition on MNIST.",
       "aka": [
         "Kaggle MNIST",
         "MNIST competition"
@@ -867,6 +868,7 @@
     {
       "a": "House Prices",
       "t": "indist",
+      "q": "Kaggle's getting-started regression on homes in Ames, Iowa, scored by RMSE on log prices.",
       "aka": [
         "House Prices: Advanced Regression Techniques",
         "Ames housing"
@@ -885,6 +887,7 @@
     {
       "a": "PASCAL VOC Challenge",
       "t": "indist",
+      "q": "2005 to 2012, 20 object classes. Mean AP at IoU 0.5 comes from here.",
       "aka": [
         "PASCAL VOC",
         "VOC",
@@ -894,6 +897,7 @@
     {
       "a": "COCO Challenge",
       "t": "indist",
+      "q": "Detection, segmentation and captioning on Microsoft's COCO dataset, with its 80 object categories.",
       "aka": [
         "COCO",
         "MS COCO"
@@ -915,6 +919,7 @@
     {
       "a": "DARPA Urban Challenge",
       "t": "indist",
+      "q": "2007: self-driving cars in a mock town with traffic. CMU's Boss won; Stanford's Junior came second.",
       "aka": [
         "Urban Challenge"
       ]
@@ -960,6 +965,7 @@
     {
       "a": "Makridakis Competitions",
       "t": "indist",
+      "q": "Forecasting contests since 1982. In M4 (2018) pure ML methods did poorly; in M5 (2020) LightGBM won.",
       "aka": [
         "M-competitions",
         "M4",
@@ -982,7 +988,8 @@
     },
     {
       "a": "SemEval",
-      "t": "indist"
+      "t": "indist",
+      "q": "A yearly series of shared tasks in semantic evaluation, which began as Senseval in 1998."
     },
     {
       "a": "CASP",

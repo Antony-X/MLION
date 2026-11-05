@@ -67,13 +67,13 @@
     { "a": "Thin plate spline", "t": "outlier", "aka": ["TPS", "thin-plate", "polyharmonic spline kernel", "polyharmonic"], "q": "r² log r: the bending energy of a thin metal plate." },
 
     { "a": "Sigmoid", "t": "indist", "aka": ["tanh", "hyperbolic tangent", "MLP kernel"], "q": "tanh(α⟨x,y⟩ + c). An SVM-tutorial staple, despite not being positive definite." },
-    { "a": "Laplacian", "t": "indist", "aka": ["laplace", "laplacian rbf"] },
+    { "a": "Laplacian", "t": "indist", "aka": ["laplace", "laplacian rbf"], "q": "exp(−γ‖x − y‖₁): the L1 cousin of the RBF kernel." },
     { "a": "Matérn", "t": "indist", "aka": ["Matérn 3/2", "Matérn 5/2", "matérn class", "MaternKernel"], "q": "ν = 1/2 is exponential, ν → ∞ is the RBF. 3/2 and 5/2 are the GP sweet spots." },
     { "a": "Rational quadratic", "t": "indist", "aka": ["RQ", "RationalQuadratic", "RQKernel"], "q": "A scale mixture of RBFs: every lengthscale at once." },
     { "a": "Periodic", "t": "indist", "aka": ["exp-sine-squared", "ExpSineSquared", "mackay periodic", "PeriodicKernel"], "q": "MacKay's exp-sine-squared, for data that keeps repeating itself." },
-    { "a": "Exponential", "t": "indist", "aka": ["ornstein–uhlenbeck", "OU", "Matérn 1/2", "absolute exponential"] },
-    { "a": "Uniform", "t": "indist", "aka": ["rectangular", "boxcar", "tophat", "box"] },
-    { "a": "Triangular", "t": "indist", "aka": ["triangle", "tent", "Bartlett kernel", "Bartlett window"] },
+    { "a": "Exponential", "t": "indist", "aka": ["ornstein–uhlenbeck", "OU", "Matérn 1/2", "absolute exponential"], "q": "exp(−‖x − y‖/σ): like the RBF kernel without the square, giving rougher functions." },
+    { "a": "Uniform", "t": "indist", "aka": ["rectangular", "boxcar", "tophat", "box"], "q": "A flat box over |u| ≤ 1: the plainest kernel in density estimation." },
+    { "a": "Triangular", "t": "indist", "aka": ["triangle", "tent", "Bartlett kernel", "Bartlett window"], "q": "max(0, 1 − |u|): a tent-shaped kernel for density estimation." },
     { "a": "Cosine", "t": "indist", "aka": ["cosine similarity kernel", "CosineKernel"], "q": "Two kernels share the name: a normalized dot product for SVMs, and a cos(πu/2) bump for KDE." },
     { "a": "White noise", "t": "indist", "aka": ["WhiteKernel", "white", "noise", "kronecker delta", "delta", "nugget"], "q": "The diagonal term that admits your observations are noisy." },
 

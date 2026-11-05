@@ -278,7 +278,7 @@
     { "a": "RTX 4090", "t": "indist", "aka": ["4090", "ada lovelace", "rtx 4090d", "ad102", "rtx 4090 laptop"], "q": "24 GB on a desk: the poor man's H100, export-banned to China all the same." },
     { "a": "TPU v4", "t": "indist", "aka": ["tpuv4"], "q": "4,096 chips per pod, wired together with optical circuit switches." },
     { "a": "Trainium", "t": "indist", "aka": ["trn1"], "q": "AWS's in-house training chip, from its Annapurna Labs team." },
-    { "a": "Inferentia", "t": "indist", "aka": ["inf1"] },
+    { "a": "Inferentia", "t": "indist", "aka": ["inf1"], "q": "AWS's own inference chip, first offered in 2019 on EC2 Inf1 instances." },
     { "a": "MI300X", "t": "indist", "aka": ["instinct mi300x", "mi300", "instinct", "mi308x", "cdna 3", "instinct mi300"], "q": "192 GB of HBM3: AMD's answer to the H100 memory squeeze." },
     { "a": "Gaudi", "t": "indist", "aka": ["habana gaudi", "gaudi 1"], "q": "Habana Labs' training chip with Ethernet built in. Intel bought Habana in 2019." },
     { "a": "Apple Neural Engine", "t": "indist", "aka": ["ANE", "neural engine"], "q": "Apple's NPU, on every iPhone chip since the A11." },
