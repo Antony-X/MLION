@@ -660,6 +660,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const c = LIVE.client;
     if (c) {
       try { if (LIVE.isHost && !LIVE.quietLeave) sendSealed(c, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/down`, { t: "closed", ep: LIVE.ep || 0, hid: LIVE.myId, now: Date.now() }); } catch { /* ignore */ }
+      try { if (!LIVE.isHost && !LIVE.quietLeave) sendSealed(c, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/up`, { t: "leave" }); } catch { /* ignore */ } // a guest who taps Leave frees the seat at once
       try { if (LIVE.isHost && LIVE.isPublic) c.publish(infoTopic(LIVE.code), "", { retain: true, qos: 1 }); } catch { /* ignore */ }
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
@@ -903,6 +904,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.knock = null; // an open room's seat is taken: the next knock hears "full"
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
+    } else if (m.t === "leave" && LIVE.players.has(conn.peer)) { // tapped Leave: the seat goes now, not after the grace period
+      hostRemove(conn.peer);
     } else if (m.t === "ready" && LIVE.players.has(conn.peer)) {
       hostReady(conn.peer, !!m.v);
     } else if (m.t === "typing" && LIVE.players.has(conn.peer)) {
@@ -967,14 +970,24 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.conns.delete(id);
     pl.away = true; // keep their seat for a while: phones pause pages when you switch apps
     broadcast(lobbyMsg());
+    hostReadyCheck(); // everyone still here may already be ready
     pl.awayTimer = setTimeout(() => {
       if (!pl.away || !LIVE.isHost || LIVE.players.get(id) !== pl) return; // this page may have been taken over since
-      liveSprintKeep([id], new Map()); // before the seat goes, so a sprint match keeps their score
-      LIVE.players.delete(id);
-      if (LIVE.isPublic && LIVE.players.size < PUB_MAX) rotateSecret(); // the stranger who left keeps no key to this room
-      broadcast(lobbyMsg());
-      hostCheckRound();
+      hostRemove(id);
     }, AWAY_GRACE_MS);
+  }
+  /** Free a seat for good (its grace ran out, or the player tapped Leave), then re-check what was waiting on them. */
+  function hostRemove(id) {
+    const pl = LIVE.players.get(id);
+    if (!pl || pl.host) return;
+    clearTimeout(pl.awayTimer);
+    LIVE.conns.delete(id);
+    liveSprintKeep([id], new Map()); // before the seat goes, so a sprint match keeps their score
+    LIVE.players.delete(id);
+    if (LIVE.isPublic && LIVE.players.size < PUB_MAX) rotateSecret(); // the stranger who left keeps no key to this room
+    broadcast(lobbyMsg());
+    hostCheckRound();
+    hostReadyCheck();
   }
   function hostCheckRound() {
     if (LIVE.phase === "playing" && liveSprint()) return SPR && hostSprintCheck(SPR.i);
@@ -988,11 +1001,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!pl || LIVE.phase === "playing") return;
     pl.ready = v;
     broadcast(lobbyMsg());
+    hostReadyCheck();
+  }
+  /** Start the countdown when two or more players are present and all of them are ready. Runs on every Ready tap and
+   *  every roster change (a seat marked away, freed, or left), so a player who walks off can't hold the room in the lobby. */
+  function hostReadyCheck() {
+    if (!LIVE.isHost || !LIVE.active || LIVE.phase === "playing") return;
     const ps = playerList().filter((p) => !p.away);
-    if (ps.length >= 2 && ps.every((p) => p.ready)) {
-      broadcast({ t: "countdown", at: Date.now() + 3000 });
-      liveLater(() => { const all = playerList().filter((p) => !p.away); if (all.length >= 2 && all.every((p) => p.ready)) hostStart(); }, 3000);
-    }
+    if (ps.length < 2 || !ps.every((p) => p.ready)) return;
+    if (LIVE.countdownAt > Date.now()) return; // already counting down: its own check at the end still applies
+    broadcast({ t: "countdown", at: Date.now() + 3000 });
+    liveLater(() => { const all = playerList().filter((p) => !p.away); if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready)) hostStart(); }, 3000);
   }
   function hostStart() {
     if (!LIVE.isHost || LIVE.players.size < 2) return;

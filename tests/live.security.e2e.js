@@ -9,6 +9,7 @@
  *   C. a guest who claims a tier the host didn't judge gets the host's recomputed score
  *   D. an open room: listed with code, name and count only; a stranger gets the key by knocking; a third gets
  *      "full"; a forged listing can't inject markup; the key changes once the stranger's seat is freed
+ *   F. two of three are ready and the third leaves (Leave, or just closes the page): the match starts
  *   E. ten players fit in one room, and the match starts on all ten pages */
 "use strict";
 const { chromium } = require("playwright");
@@ -202,6 +203,23 @@ const FAKE_RELAY = () => {
   check(await L(host, (s) => location.hash.endsWith(s), (await live(host)).secret), "once the stranger's seat is freed the host draws a new key (and its address bar follows)");
   check(hostLink !== (await L(host, () => location.hash)), "the room link changes with the key");
   await host.click("#live-leave-lobby"); await host.close(); await third.close(); await viewer.close();
+
+  // ---------------------------------------------------------------- F. a player walks off while the rest are ready
+  console.log("F. the last player who isn't ready leaves");
+  for (const how of ["taps Leave", "closes the page"]) {
+    const p1 = await open("f1"), p2 = await open("f2"), p3 = await open("f3");
+    const fLink = await create(p1, "Fay");
+    await join(p2, "Gil", fLink); await join(p3, "Hal", fLink);
+    await p1.waitForFunction(() => window.MLION_LIVE_STATE.players.size === 3, null, { timeout: 15000 });
+    for (const p of [p1, p2]) { await p.waitForSelector("#live-ready:not([disabled])"); await p.click("#live-ready"); }
+    await p1.waitForTimeout(3500);
+    check((await live(p1)).phase === "lobby", `two of three ready: the room waits for the third (${how} next)`);
+    const t0 = Date.now();
+    if (how === "taps Leave") await p3.click("#live-leave-lobby"); else await p3.close();
+    await Promise.all([p1, p2].map((p) => p.waitForFunction(() => window.MLION_LIVE_STATE.phase === "playing", null, { timeout: 30000 })));
+    check(true, `the third ${how}: the match starts for the two who were ready (${((Date.now() - t0) / 1000).toFixed(1)} s later)`);
+    for (const p of [p1, p2, p3]) if (!p.isClosed()) await p.close();
+  }
 
   // ---------------------------------------------------------------- E. ten players
   console.log("E. ten players in one room");

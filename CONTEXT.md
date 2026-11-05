@@ -817,6 +817,11 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - A rejoining player gets a `resume` message and re-enters the match.
 - Only an explicit **Leave** sends `{t:"closed"}`. Navigation doesn't. Guests act on it only from their
   current host.
+- A guest's explicit **Leave** sends `{t:"leave"}`, and the host frees the seat at once (`hostRemove`, the same
+  path as a seat whose grace ran out). The ready check (`hostReadyCheck`) runs on every Ready tap and every
+  roster change: a seat marked away, freed or left. Before 2026-11-05 it ran only on a Ready tap, so if the
+  last player who wasn't ready walked off, the others sat in the lobby until someone tapped Ready again
+  (`tests/live.security.e2e.js` section F: Leave starts the match about 3 s later, closing the page about 13 s later).
 - The join screen shows every step and retry, with 2 minutes of patience.
 
 **What the hardening blocks, and what it doesn't** (tests: `tests/live.security.e2e.js`, no network)
