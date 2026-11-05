@@ -34,7 +34,8 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
 
 // ---- the fake project: tiny in-memory tables that follow the real rules in supabase/schema.sql
 const db = { profiles: new Map(), scores: [], quiz: [], quizTable: false }; // the quiz table arrives with supabase/daily_quiz.sql
-const sugg = { table: true, rows: [], reviews: new Map(), counts: [], offline: false }; // supabase/suggestions.sql
+const sugg = { table: true, rows: [], reviews: new Map(), counts: [], offline: false, limited: false }; // supabase/suggestions.sql; limited: rate_limits.sql refuses writes
+const LIMITED = { code: "PT429", message: "Too many tries from this network. Try again later.", details: "suggestion", hint: "rate limit" };
 const calls = [];
 const providers = { google: false, discord: true }; // what the dashboard has switched on
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -117,6 +118,7 @@ async function mockRoute(route) {
   }
   if (u.pathname === "/rest/v1/daily_scores") {
     const f = filters(u);
+    if (method === "POST" && sugg.limited) return json(429, LIMITED);
     if (method === "POST") {
       const r = JSON.parse(req.postData());
       const row = Array.isArray(r) ? r[0] : r;
@@ -146,6 +148,7 @@ async function mockRoute(route) {
     return json(200, n >= 4 ? n : 0);
   }
   if (u.pathname === "/rest/v1/answer_suggestions" && method === "POST") {
+    if (sugg.limited) return json(429, LIMITED); // supabase/rate_limits.sql: this network is past its limit
     if (!sugg.table) return json(404, { code: "PGRST205", message: "Could not find the table 'public.answer_suggestions' in the schema cache" });
     const r = JSON.parse(req.postData());
     const row = Array.isArray(r) ? r[0] : r;
@@ -522,6 +525,37 @@ async function mockRoute(route) {
   await miss("#answer", "kkzq auto miss");
   await p3.waitForFunction(() => /Sent for review/.test(document.querySelector("#status .sg")?.textContent || ""), null, { timeout: 10000 });
   check(sugg.rows.some((r) => r.user_id === ANON2 && r.raw === "kkzq auto miss" && r.source === "auto") && !(await p3.$("#status .sg-btn")), "switched on, a rejected answer is sent by itself (source auto)");
+
+  // per-network limits (supabase/rate_limits.sql): past one the database answers 429 PT429 and the game says so plainly
+  await p3.evaluate(() => { const s = JSON.parse(localStorage.getItem("mlion:settings")); s.shareMisses = false; localStorage.setItem("mlion:settings", JSON.stringify(s)); });
+  await p3.goto("about:blank");
+  await p3.goto(base + "#unlimited-play");
+  await openPid("unlimited:");
+  sugg.limited = true;
+  await miss("#answer", "llqz limited");
+  await shown();
+  await p3.click("#status .sg-btn");
+  await p3.waitForFunction(() => /Too many tries from this network\. Try again later\./.test(document.querySelector("#status .sg")?.textContent || ""), null, { timeout: 10000 });
+  check(!sugg.rows.some((r) => r.raw === "llqz limited") && !(await p3.isDisabled("#answer")), "a suggestion past the network's limit says \"Too many tries from this network. Try again later.\"; play goes on");
+  await p3.evaluate(({ today }) => {
+    const pts = { mlion: 100, outlier: 60, baseline: 10 };
+    const tiers = ["mlion", "outlier", "baseline", "baseline", "baseline", "baseline", "baseline"];
+    const results = tiers.map((t, i) => ({ promptId: "nope-" + i, promptText: "Q" + i, answer: "A" + i, raw: "", tier: t, score: pts[t] }));
+    const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: results.map((r) => r.promptId), results, score: 210, tiers, completedAt: Date.now(), secs: 25 };
+    localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
+  }, { today });
+  await p3.goto("about:blank");
+  await p3.goto(base + `#results-daily-${today}`);
+  await p3.waitForSelector("#board-box #pub-btn", { timeout: 15000 });
+  await p3.click("#pub-btn");
+  await p3.fill("#pub-name", "Hopper");
+  await p3.click("#pub-go");
+  await p3.waitForFunction(() => /Too many tries from this network/.test(document.querySelector("#pub-err")?.textContent || ""), null, { timeout: 15000 });
+  check(!db.scores.some((r) => r.user_id === ANON2), "publishing past the limit says the same in the dialog, and nothing is posted");
+  sugg.limited = false;
+  await p3.click("#pub-go");
+  await p3.waitForFunction(() => !document.querySelector("#pub-form"), null, { timeout: 15000 });
+  check(db.scores.some((r) => r.user_id === ANON2 && r.score === 210), "once the network is under its limit again, Publish works");
 
   // the database without suggestions.sql: nothing shows, nothing is sent
   sugg.table = false;

@@ -57,6 +57,9 @@ const db = {
     { user_id: "u6", prompt_id: "loss-function", answer_key: "lossyloss", raw: "lossy loss", source: "tap", created_at: ts(0) },
   ],
   reviews: new Map(),
+  // supabase/rate_limits.sql
+  limits: [["daily_score", 200, 1000], ["profile", 60, 300], ["quiz_score", 200, 1000], ["rename", 60, 300], ["suggestion", 400, 3000]]
+    .map(([action, per_hour, per_day]) => ({ action, per_hour, per_day, note: null, updated_at: ts(1) })),
 };
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (sub) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`;
@@ -168,6 +171,21 @@ function mockFor(who, whoName) {
         const spelled = a.p_answer || (db.sugg.find((r) => `${r.prompt_id}|${r.answer_key}` === k) || {}).raw;
         db.reviews.set(k, { status: a.p_status, answer: spelled, reviewed_at: new Date().toISOString() });
         return json(200, { prompt_id: a.p_prompt, answer_key: a.p_key, status: a.p_status, answer: spelled });
+      }
+      if (fn === "admin_rate_limits") {
+        return json(200, {
+          limits: db.limits.map((l) => ({ ...l, hour: l.action === "suggestion" ? 12 : 1, day: l.action === "suggestion" ? 40 : 3 })),
+          top: [{ ip_hash: "3f9a0c1b2d4e5f6a7b8c9d0e", action: "suggestion", day: 31, hour: 9, last_at: ts(0), at_limit: false },
+            { ip_hash: "aa11bb22cc33dd44ee55ff66", action: "daily_score", day: 3, hour: 1, last_at: ts(0), at_limit: false }],
+          unknown: 2, me: { source: "cf-connecting-ip", ip_hash: "0123456789abcdef01234567" },
+        });
+      }
+      if (fn === "admin_set_rate_limit") {
+        const l = db.limits.find((x) => x.action === a.p_action);
+        if (!l) return json(400, { code: "P0001", message: `no such action: ${a.p_action}` });
+        if (a.p_per_hour < 0 || a.p_per_day < 0) return json(400, { code: "P0001", message: "limits are 0 or more" });
+        Object.assign(l, { per_hour: a.p_per_hour, per_day: a.p_per_day, updated_at: new Date().toISOString() });
+        return json(200, l);
       }
       if (fn === "admin_set_launch") { db.config.launch = a.p_launch || null; return json(200, { ...db.config }); }
       if (fn === "admin_set_banner") { db.config.banner = String(a.p_text || "").trim().slice(0, 200) || null; return json(200, { ...db.config }); }
@@ -298,6 +316,21 @@ function mockFor(who, whoName) {
   await ada.click('.adm-sgk[data-s="open"]');
   await ada.waitForFunction(() => document.querySelectorAll(".adm-rows.sugg li").length === 2);
 
+  // limits: each action's per-hour and per-day limit, editable; the busiest networks
+  await tab(ada, "limits");
+  await ada.waitForSelector(".adm-rows.lim li");
+  check((await ada.$$eval(".adm-rows.lim li", (els) => els.map((e) => e.dataset.a))).join() === "daily_score,profile,quiz_score,rename,suggestion", "Limits lists every write action");
+  const srow = '.adm-rows.lim li[data-a="suggestion"]';
+  check(await ada.$eval(`${srow} input[name=h]`, (i) => i.value) === "400" && /12 in the last hour · 40 in the last 24 h/.test(await ada.textContent(srow)), "with its limits and its writes in the last hour and day");
+  check(/3f9a0c1b2d/.test(await ada.textContent(".lim-top")) && /2 writes with no network/.test(await ada.textContent("#adm-body")) && /read from cf-connecting-ip/.test(await ada.textContent("#adm-body")), "the busiest networks by hash, unknown writes, and which header the database reads");
+  await ada.screenshot({ path: path.join(OUT, "76-admin-limits.png"), fullPage: true });
+  await ada.fill(`${srow} input[name=h]`, "25");
+  await ada.fill(`${srow} input[name=d]`, "");
+  await ada.click(`${srow} button[type=submit]`);
+  await ada.waitForFunction(() => document.querySelector('.adm-rows.lim li[data-a="suggestion"] input[name=h]')?.value === "25" && /Limit saved/.test(document.body.textContent));
+  const sl = db.limits.find((l) => l.action === "suggestion");
+  check(sl.per_hour === 25 && sl.per_day === null, "an admin changes a limit (25 an hour, no daily cap) and it's saved");
+
   // game: launch day and banner
   await tab(ada, "game");
   await ada.waitForSelector("#adm-launch-save");
@@ -336,6 +369,12 @@ function mockFor(who, whoName) {
   await pat.waitForFunction(() => /for MLion's admins/.test(document.querySelector("#app").textContent), null, { timeout: 20000 });
   check(!(await pat.$(".adm-tabs")) && !(await pat.$("#drawer-acct .acct-admin")), "a player who isn't an admin gets no panel and no link");
   check(!db.calls.some((c) => c.me === PAT && c.fn !== "is_admin"), "and the page never calls an admin function for them");
+  const patTry = await pat.evaluate(async (mock) => {
+    const tok = JSON.parse(localStorage.getItem("mlion:sb")).access_token;
+    const r = await fetch(`${mock}/rest/v1/rpc/admin_set_rate_limit`, { method: "POST", headers: { apikey: "k", authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ p_action: "suggestion", p_per_hour: 100000, p_per_day: null }) });
+    return r.status;
+  }, MOCK);
+  check(patTry === 403 && db.limits.find((l) => l.action === "suggestion").per_hour === 25, "a player who calls admin_set_rate_limit directly is refused (42501) and the limit stays");
 
   // ================= reset everyone
   await ada.evaluate(() => localStorage.setItem("mlion:seen", JSON.stringify(["activation-function"])));

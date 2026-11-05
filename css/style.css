@@ -1287,3 +1287,8 @@ html.kb .live-sp .sp-round { display: none; }
 .adm-rows.sugg .sg-spell .chip { min-height: 32px; }
 .adm-rows.sugg .acts { grid-column: 1 / -1; grid-row: auto; }
 .adm-rows.sugg .sg-n { color: var(--gold); font-weight: 500; }
+/* #admin → Limits */
+.adm-rows.lim .lim-form { grid-column: 1 / -1; }
+.lim-form label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--s1); }
+.adm-bar .search.lim-n { flex: 0 0 110px; width: 110px; min-width: 0; }
+.lim-top .who b { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }

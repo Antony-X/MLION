@@ -2912,6 +2912,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const got = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle();
     if (got.data) return got.data;
     const ins = await sbClient.from("profiles").insert({ id: user.id, name: defaultBoardName(user) }).select("id,name").maybeSingle();
+    limitedErr(ins.error);
     if (ins.data) return ins.data;
     const again = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle(); // another tab won the race
     return again.data || null;
@@ -2936,7 +2937,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const { times, ...plain } = quizRow; // eslint-disable-line no-unused-vars
       ({ error } = await sbClient.from("daily_quiz_scores").insert(plain));
     }
-    if (error && error.code !== "23505") return false;
+    if (error && error.code !== "23505") { limitedErr(error); return false; }
     boardPosted[mark] = AUTH.user.id;
     LS.set("boardPosted", boardPosted);
     return true;
@@ -2978,10 +2979,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!E.nameOk(name)) return NAME_BAD;
     if (AUTH.profile && AUTH.profile.name === name) return "";
     const { data, error } = await sbClient.from("profiles").update({ name }).eq("id", AUTH.user.id).select("id,name").maybeSingle();
+    if (limitedErr(error)) return TOO_MANY; // supabase/rate_limits.sql
     if (error && error.code === "23514") return NAME_BAD; // the database's own check (supabase/names.sql)
     if (!error && !data) { // no profile row to rename: the account was deleted, or only its profile was
       if (await accountGone()) return GONE;
       const ins = await sbClient.from("profiles").insert({ id: AUTH.user.id, name }).select("id,name").maybeSingle();
+      if (limitedErr(ins.error)) return TOO_MANY;
       if (ins.error && ins.error.code === "23514") return NAME_BAD;
       if (!ins.data) return "Couldn't save the name. Try again.";
       AUTH.profile = ins.data;
@@ -3003,14 +3006,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (!AUTH.user) {
         LS.set("name", name); // the new account's profile takes this name
         const { data, error } = await sb.auth.signInAnonymously();
-        if (error) return /anonymous/i.test(`${error.code || ""} ${error.message || ""}`) ? "Publishing without a login isn't switched on yet. Log in instead." : "Couldn't publish. Try again.";
+        if (error) return limitedErr(error) ? TOO_MANY : /anonymous/i.test(`${error.code || ""} ${error.message || ""}`) ? "Publishing without a login isn't switched on yet. Log in instead." : "Couldn't publish. Try again.";
         await onSession(data && data.session);
       } else await (AUTH.loading || Promise.resolve());
-      if (!AUTH.profile) return "Couldn't publish. Try again.";
+      if (!AUTH.profile) return justLimited() ? TOO_MANY : "Couldn't publish. Try again.";
       const bad = await saveBoardName(name);
       if (bad) return bad;
       if (!myName() || AUTH.anon) LS.set("name", name);
-      return (await postDaily(rec)) ? "" : "Couldn't publish. Try again.";
+      return (await postDaily(rec)) ? "" : justLimited() ? TOO_MANY : "Couldn't publish. Try again.";
     } catch { return "Couldn't reach the leaderboard. Try again later."; }
   }
   function publishModal(rec) {
@@ -3159,6 +3162,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const r = ok ? await rankFor(rec.date, AUTH.user.id, kind).catch(() => null) : null;
     if (!box.isConnected) return;
     box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
+      : justLimited() ? `<p class="muted small">${TOO_MANY} <a href="${href}">Leaderboard</a></p>`
       : kind === "quiz" ? "" // the quiz board isn't open on this server yet
       : `<p class="muted small">Couldn't post your score. <a href="${href}">Leaderboard</a></p>`) + mini;
     drawMini();
@@ -4288,7 +4292,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <dt>Is anything tracked?</dt>
         <dd>No analytics. Runs, streaks and settings stay in this browser. Log in with Discord and only your daily score and the name you pick go to the leaderboard.</dd>
         <dt>What happens to answers the game rejects?</dt>
-        <dd>Nothing, unless you send them. Suggest it sends that one answer, the prompt and what you typed, under an anonymous account, to a queue only the game's admins read. Settings has a switch that sends every rejected answer the same way; it's off unless you turn it on. Other players only ever see a count, once more than 3 people sent the same answer.</dd>
+        <dd>Nothing, unless you send them. Suggest it sends that one answer, the prompt and what you typed, under an anonymous account, to a queue only the game's admins read. Settings has a switch that sends every rejected answer the same way; it's off unless you turn it on. Other players only ever see a count, once more than 3 people sent the same answer. Anything sent to the server (scores, names, suggestions) also keeps a salted hash of your network address for two days, only to stop floods.</dd>
       </dl></section>`;
   }
 
@@ -4438,12 +4442,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!AUTH.ready) return page(head("Checking your login…"));
     if (!AUTH.user) { page(head("Log in with the Discord account that runs MLion.") + loginButtons()); wireLogin(app); return; }
     if (!AUTH.admin) return page(head(`This page is for MLion's admins. You're logged in as ${esc((AUTH.profile && AUTH.profile.name) || "a player")}.`));
-    const tabs = [["overview", "Overview"], ["players", "Players"], ["scores", "Scores"], ["suggest", "Suggestions"], ["game", "Game"]];
+    const tabs = [["overview", "Overview"], ["players", "Players"], ["scores", "Scores"], ["suggest", "Suggestions"], ["limits", "Limits"], ["game", "Game"]];
     page(`${head("Who plays, the leaderboards, the launch day and the home banner.")}
       <div class="adm-tabs" role="tablist" aria-label="Admin">${tabs.map(([k, l]) => `<button type="button" role="tab" class="adm-tab${ADMIN.tab === k ? " on" : ""}" aria-selected="${ADMIN.tab === k}" data-t="${k}">${l}</button>`).join("")}</div>
       <div id="adm-body" class="adm-body" role="tabpanel"><p class="muted">Loading…</p></div>`);
     $$(".adm-tab").forEach((b) => b.addEventListener("click", () => { ADMIN.tab = b.dataset.t; renderAdmin(); }));
-    ({ overview: adminOverview, players: adminPlayers, scores: adminScores, suggest: adminSuggestions, game: adminGame })[ADMIN.tab]();
+    ({ overview: adminOverview, players: adminPlayers, scores: adminScores, suggest: adminSuggestions, limits: adminLimits, game: adminGame })[ADMIN.tab]();
   }
   /** Run a loader into #adm-body; drop the result if the page moved on meanwhile. */
   async function adminLoad(fn, args, draw) {
@@ -4597,6 +4601,50 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     });
   }
 
+  // ================================================== per-network limits
+  // supabase/rate_limits.sql refuses a write past its network's limit with PT429 (HTTP 429); Supabase Auth's own
+  // limit on anonymous sign-ins answers 429 too. Every write path says the same friendly thing for both.
+  const TOO_MANY = "Too many tries from this network. Try again later.";
+  let limitedAt = 0;
+  /** True when `error` is a rate limit; remembered for a few seconds so callers that only get false can say why. */
+  function limitedErr(error) {
+    if (!error) return false;
+    const hit = error.code === "PT429" || error.status === 429 || error.code === "over_request_rate_limit";
+    if (hit) limitedAt = Date.now();
+    return hit;
+  }
+  function justLimited() { return Date.now() - limitedAt < 10000; }
+
+  // #admin → Limits: each action's limits (editable), its writes in the last hour and day, the busiest networks.
+  function adminLimits() {
+    adminLoad("admin_rate_limits", {}, (body, o) => {
+      const num = (v) => (v == null ? "" : v);
+      const names = { profile: "New profiles", rename: "Renames", daily_score: "Daily scores", quiz_score: "Daily quiz scores", suggestion: "Suggestions" };
+      body.innerHTML = `
+        <p class="muted small">Writes from one network (one IP address, stored only as a salted hash). Past a limit the game says "${esc(TOO_MANY)}" Empty means no limit, 0 allows none. Schools and venues put many players behind one address, so keep these generous.</p>
+        <ul class="adm-rows lim">${(o.limits || []).map((l) => `<li data-a="${esc(l.action)}">
+          <div class="who"><b>${esc(names[l.action] || l.action)}</b><span class="muted">${esc(l.note || "")}</span></div>
+          <p class="meta">${fmt(l.hour)} in the last hour · ${fmt(l.day)} in the last 24 h</p>
+          <form class="adm-bar lim-form"><label>Per hour <input class="search lim-n" name="h" type="number" min="0" inputmode="numeric" value="${num(l.per_hour)}"></label>
+            <label>Per day <input class="search lim-n" name="d" type="number" min="0" inputmode="numeric" value="${num(l.per_day)}"></label>
+            <button class="btn sm primary" type="submit">Save</button></form>
+        </li>`).join("")}</ul>
+        <section><h2 class="block-title">Busiest networks, last 24 h</h2>
+          ${(o.top || []).length ? `<ol class="adm-rows scores lim-top">${o.top.map((t, i) => `<li><span class="rank">${i + 1}</span><div class="who"><b>${esc(t.ip_hash.slice(0, 10))}</b><span class="muted">${esc(names[t.action] || t.action)} · ${fmt(t.hour)} in the last hour · last ${agoTs(t.last_at)}</span>${t.at_limit ? `<span class="adm-tag">At the limit</span>` : ""}</div><b class="pts">${fmt(t.day)}</b></li>`).join("")}</ol>`
+            : `<p class="muted">No writes in the last day.</p>`}
+          <p class="muted small">${fmt(o.unknown || 0)} write${o.unknown === 1 ? "" : "s"} with no network (the SQL editor, scripts) in the last 24 h: logged, never limited. Your own requests are read from ${esc((o.me && o.me.source) || "nothing")}${o.me && o.me.ip_hash ? ` (hash ${esc(String(o.me.ip_hash).slice(0, 10))})` : ""}.</p></section>`;
+      $$(".lim-form", body).forEach((f) => f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const li = f.closest("li"), val = (n) => (f.elements[n].value.trim() === "" ? null : Math.max(0, Math.floor(+f.elements[n].value)));
+        try {
+          await adminCall("admin_set_rate_limit", { p_action: li.dataset.a, p_per_hour: val("h"), p_per_day: val("d") });
+          toast("Limit saved");
+          adminLimits();
+        } catch (err) { adminFail(err); }
+      }));
+    });
+  }
+
   // ================================================== suggest an answer
   // "Suggest it" beside a rejected answer (daily, Unlimited, Sprint, live rooms: reject() and sprintSubmit()).
   // One tap sends {prompt, key, typed text} for review under the player's account, made by Supabase anonymous
@@ -4635,12 +4683,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       watchAuth(sb);
       if (!AUTH.user) {
         const { data, error } = await sb.auth.signInAnonymously();
-        if (error) return false;
+        if (error) { limitedErr(error); return false; }
         await onSession(data && data.session);
       } else await (AUTH.loading || Promise.resolve());
       if (!AUTH.user) return false;
       const { error } = await sb.from("answer_suggestions").insert({ user_id: AUTH.user.id, prompt_id: pid, answer_key: key, raw, source });
-      if (error && error.code !== "23505") { if (missingTable(error)) suggestBroken = true; return false; } // 23505: already sent from this account
+      if (error && error.code !== "23505") { if (missingTable(error)) suggestBroken = true; limitedErr(error); return false; } // 23505: already sent from this account
       suggested[id] = today();
       const ids = Object.keys(suggested);
       if (ids.length > 400) ids.slice(0, ids.length - 400).forEach((k) => delete suggested[k]);
@@ -4668,7 +4716,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const send = async (source, label) => {
       label.textContent = "Sending…";
       const ok = await suggestSend(pid, key, text, source);
-      if (label.isConnected) label.textContent = ok ? "Sent for review. Thanks." : "Couldn't send it right now.";
+      if (label.isConnected) label.textContent = ok ? "Sent for review. Thanks." : justLimited() ? TOO_MANY : "Couldn't send it right now.";
     };
     suggestCount(pid, key).then((n) => {
       if (!box.isConnected) return; // the player moved on
