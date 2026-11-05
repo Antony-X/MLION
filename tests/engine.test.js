@@ -198,7 +198,7 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
       const again = E.quizFor(DATA, `mix-${s}`, 7, { promptIds: qs.map((q) => q.promptId) });
       assert.deepStrictEqual(again, qs, "a live guest rebuilds the host's questions exactly");
     }
-    // every run goes easy, easy, medium, hard, medium, hard, hard; no question comes back before its level is used up
+    // every run goes easy, easy, medium, medium, hard, hard, hard; no question comes back before its level is used up
     const lvlOf = new Map(BANK.map((r) => [r.id, r.lvl])), per = {};
     for (const l of E.QUIZ_PATTERN) per[l] = (per[l] || 0) + 1;
     const seen = new Set();
@@ -221,6 +221,21 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
     const days = (DATA.daily && DATA.daily.quiz) || [];
     assert.ok(days.length >= 21 && days.every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(E.QUIZ_PATTERN)), "every hand-picked Daily Quiz day follows the pattern");
     ok(`quiz bank (${BANK.length}, ${R.length - BANK.length} retired): seven a run, rebuilt exactly, solo runs use the bank before repeating`);
+  }
+
+  // Daily Quiz speed points: 100 within 3 s, a straight line to 50 at the 35 s buzzer, the same as supabase/quiz_speed.sql
+  {
+    assert.strictEqual(E.quizPoints(0), 100); assert.strictEqual(E.quizPoints(30), 100); assert.strictEqual(E.quizPoints(190), 75);
+    assert.strictEqual(E.quizPoints(350), 50); assert.ok(E.quizPoints(250) > 50, "25 s is not yet the buzzer"); assert.strictEqual(E.quizPoints(9999), 50); assert.strictEqual(E.quizPoints(-5), 100);
+    const sql = (t) => { t = Math.min(350, Math.max(0, t)); const a = Math.max(0, 100 * t - 3000); return Math.max(50, 100 - Math.trunc((100 * a + 32000) / 64000)); };
+    for (let t = 0, prev = 101; t <= 360; t++) {
+      assert.strictEqual(E.quizPoints(t), sql(t), `quizPoints(${t}) matches the SQL`);
+      assert.ok(E.quizPoints(t) <= prev, "never more points for a slower answer"); prev = E.quizPoints(t);
+    }
+    const src = require("fs").readFileSync(require("path").join(__dirname, "..", "supabase", "quiz_speed.sql"), "utf8");
+    assert.ok(src.includes("greatest(50, 100 - (100 * a + 32000) / 64000)") && src.includes("least(350,") && src.includes("greatest(0, 100 * t - 3000)"), "quiz_speed.sql uses the same formula");
+    assert.strictEqual(Math.round(25 * E.REASONING_CLOCK), 35, "the scale ends at the Daily Quiz clock");
+    ok("daily quiz speed points: 100 within 3 s, 50 at the 35 s buzzer, the same as the database");
   }
 
   // off-topic prompts never appear: not as the question, not as a source

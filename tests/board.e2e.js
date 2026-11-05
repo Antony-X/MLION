@@ -140,7 +140,11 @@ async function mockRoute(route) {
       const row = Array.isArray(r) ? r[0] : r;
       if (row.user_id !== me || "score" in row || !/^[01]{7}$/.test(row.marks)) return json(403, { code: "42501", message: "rls" });
       if (db.quiz.some((s) => s.user_id === row.user_id && s.day === row.day)) return json(409, { code: "23505", message: "duplicate key" });
-      db.quiz.push({ user_id: row.user_id, day: row.day, marks: row.marks, tenths: row.tenths, score: 100 * [...row.marks].filter((c) => c === "1").length, created_at: new Date().toISOString() });
+      if ("times" in row && !db.quizTimes) return json(400, { code: "PGRST204", message: "Could not find the 'times' column of 'daily_quiz_scores' in the schema cache" });
+      if ("times" in row && !/^[0-9]{1,3}(,[0-9]{1,3}){6}$/.test(row.times)) return json(400, { code: "23514", message: "check" });
+      const times = row.times ? row.times.split(",").map(Number) : null; // scored like the trigger in supabase/quiz_speed.sql
+      const score = [...row.marks].reduce((s, c, i) => s + (c === "1" ? (times ? E.quizPoints(times[i]) : 100) : 0), 0);
+      db.quiz.push({ user_id: row.user_id, day: row.day, marks: row.marks, tenths: row.tenths, times: row.times || null, score, created_at: new Date().toISOString() });
       return json(201);
     }
     const rows = db.quiz.filter((s) => pass(s, f));
@@ -260,6 +264,7 @@ async function mockRoute(route) {
   check(true, "before the quiz table exists, the Quiz tab says it opens soon (no error)");
   check((await page.textContent("#app .side")).includes("Play today's quiz"), "the Quiz tab points at today's quiz");
   db.quizTable = true;
+  db.quizTimes = true; // supabase/quiz_speed.sql has been run
   await page.goto(base + "#quiz");
   await page.click('.dq-card a[href="#daily-quiz"]');
   for (let i = 0; i < 7; i++) {
@@ -270,7 +275,20 @@ async function mockRoute(route) {
   }
   await page.waitForFunction(() => /#1<\/b> of 1 today as Countess b/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
   const mineQ = db.quiz.find((s) => s.user_id === UID);
-  check(!!mineQ && /^[01]{7}$/.test(mineQ.marks) && mineQ.tenths > 0 && mineQ.tenths < 7 * 250, `the daily quiz posts its marks and total time (${mineQ && mineQ.marks}, ${mineQ && mineQ.tenths / 10} s)`);
+  check(!!mineQ && /^[01]{7}$/.test(mineQ.marks) && mineQ.tenths > 0 && mineQ.tenths < 7 * 350, `the daily quiz posts its marks and total time (${mineQ && mineQ.marks}, ${mineQ && mineQ.tenths / 10} s)`);
+  check(!!mineQ && /^\d+(,\d+){6}$/.test(mineQ.times || "") && mineQ.score === [...mineQ.marks].reduce((s, c, i) => s + (c === "1" ? E.quizPoints(+mineQ.times.split(",")[i]) : 0), 0), `and each answer's time, scored for speed (${mineQ && mineQ.times} -> ${mineQ && mineQ.score})`);
+  { // before quiz_speed.sql is run there is no times column: the post retries without it and still lands
+    const kept = db.quiz.splice(db.quiz.indexOf(mineQ), 1)[0];
+    db.quizTimes = false;
+    await page.evaluate((m) => { const b = JSON.parse(localStorage.getItem("mlion:boardPosted") || "{}"); delete b[m]; localStorage.setItem("mlion:boardPosted", JSON.stringify(b)); }, `q:${today}`);
+    await page.reload();
+    await page.waitForFunction(() => document.readyState === "complete");
+    for (let i = 0; i < 50 && !db.quiz.some((s) => s.user_id === UID); i++) await page.waitForTimeout(200);
+    const plain = db.quiz.find((s) => s.user_id === UID);
+    check(!!plain && plain.times === null && plain.marks === kept.marks && plain.score === 100 * [...kept.marks].filter((c) => c === "1").length, "without the times column the quiz still posts, 100 a right answer");
+    db.quiz.splice(db.quiz.indexOf(plain), 1, kept);
+    db.quizTimes = true;
+  }
   db.quiz.push({ user_id: RIVAL, day: today, marks: mineQ.marks, tenths: Math.max(0, mineQ.tenths - 5), score: mineQ.score, created_at: new Date(Date.now() + 1000).toISOString() });
   await page.goto(base + "#board-quiz");
   await page.waitForSelector(".board-list .list-item.me");

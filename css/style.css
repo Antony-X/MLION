@@ -1229,7 +1229,3 @@ html:not(.reduce-motion) .sp-lp.bump em, html:not(.reduce-motion) .sp-lp.bump .s
 .sp-strip.many .lv-av { display: none; }
 .sp-strip.many .lp.me b { color: var(--gold); }
 html.kb .live-sp .sp-round { display: none; }
-/* quiz level in the run counter: "3 of 7 · Hard" */
-.lvl-tag { margin-left: 8px; padding: 2px 8px; border-radius: var(--round); font-size: 0.85em; color: var(--muted); background: var(--raised); }
-.lvl-tag.lvl-medium { color: var(--t-outlier); }
-.lvl-tag.lvl-hard { color: var(--gold); }

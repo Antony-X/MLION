@@ -441,7 +441,7 @@ match asks for more than its 4 questions).
 **Hard questions and the level mix (user, 2026-11-05: "too simple, it has to be challenging, a mix, some
 hard some easy").** rq-248..rq-322 are 75 `lvl: "hard"` questions (bank now 71 easy, 76 medium, 75 hard;
 right option longest in 23% of them, answer slots balanced). Every deal of seven
-follows `E.QUIZ_PATTERN` = easy, easy, medium, hard, medium, hard, hard (longer deals repeat it):
+follows `E.QUIZ_PATTERN` = easy, easy, medium, medium, hard, hard, hard (longer deals repeat it):
 - Solo runs: `reasoningRun` keeps one seeded stream per level (`levelStreams`, `takeMixed`), label
   `"bank-v2"`; a question comes back only after its level is used up (hard lasts 25 runs).
 - vq challenges: links made since then have 10-character seeds and deal `E.mixedDeal(CORE, "vq-<seed>", n)`;
@@ -450,6 +450,23 @@ follows `E.QUIZ_PATTERN` = easy, easy, medium, hard, medium, hard, hard (longer 
 - Daily Quiz days in data/daily.json `quiz`: each day kept its first 2 easy and 2 medium and got 3 hard,
   in pattern order (engine test checks every day).
 - build.js accepts `lvl` easy, medium or hard; the eyebrow above a question shows the level.
+
+**Really hard questions, a climbing pattern, speed points (user, 2026-11-05 evening: "questions in quiz
+rn very very easy"; "faster u answer, more points").**
+- rq-323..rq-402: 80 new `hard` questions (mechanism-level: posterior collapse, μP, attention sinks,
+  QK-norm, grokking, induction heads, FixRes, ...), each checked by hand. The old rq-248..322 "hard"
+  ones were really medium and are relabelled `medium`. Bank: 71 easy, 151 medium, 80 hard.
+- `E.QUIZ_PATTERN` is now easy, easy, medium, medium, hard, hard, hard (was a zig-zag), so the card's
+  "They start easy and get harder as you go" is true. Solo runs last 26 before hard repeats.
+- Daily Quiz days: each kept its 2 easy, its first medium and its old slot-4 question (now a harder
+  medium), and got 3 new hard ones with categories not already in the day (seed 20261105; 17 new hard
+  are left for solo runs only). Script: scratchpad hard_merge.py (not in the repo).
+- Daily Quiz speed: a right answer is worth `E.quizPoints(tenths)` = 100 within 3 s, then a straight line
+  to 50 at the 35 s buzzer (the Daily Quiz clock: 25 s x REASONING_CLOCK; a fixed scale, never the
+  player's clock). The page posts `times` (per-answer tenths, 0..350, comma-separated); the database trigger
+  in `supabase/quiz_speed.sql` scores them with the same integer maths (engine test pins it). Until
+  that file is run, the insert hits PGRST204 and retries without `times`, scoring 100 a right answer.
+  Solo Quiz, challenges and live rooms keep 100 a right answer (live rooms have their own speed rules).
 
 Four options, one fits. Everything is generated from the existing prompt data; no written
 content and no LLM. Same shape in solo, async challenges and live rooms.

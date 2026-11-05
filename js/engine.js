@@ -552,8 +552,8 @@
     return makeStream({ packs: [{ id: "rq" }], prompts: quizBank(data).map((r) => ({ id: r.id, pack: "rq" })) }, label, null, true);
   }
   // A run mixes levels (the user, 2026-11-05: "too simple, it has to be challenging, a mix, some hard some
-  // easy"): seven questions go easy, easy, medium, hard, medium, hard, hard. Longer runs repeat the pattern.
-  const QUIZ_PATTERN = ["easy", "easy", "medium", "hard", "medium", "hard", "hard"];
+  // easy"): seven questions go easy, easy, medium, medium, hard, hard, hard. Longer runs repeat the pattern.
+  const QUIZ_PATTERN = ["easy", "easy", "medium", "medium", "hard", "hard", "hard"];
   const QUIZ_LEVELS = ["easy", "medium", "hard"];
   /** One seeded stream per level over the bank. */
   function levelStreams(data, label) {
@@ -710,6 +710,14 @@
   // -------------------------------------------------------------- live room rules
   // The host's "More options" (user, 2026-11-05). Pure, so every page in a room computes the same points
   // from the same facts: the tier's points, how fast, how many wrong answers first, a hint, the last round.
+  /** Daily Quiz points for a right answer after `tenths` tenths of a second: 100 within 3 s, then a straight
+   *  line down to 50 at the 35 s buzzer (a bank question's clock). Integer maths, the same as
+   *  supabase/quiz_speed.sql, so the board agrees; the scale is fixed, never the player's clock. */
+  function quizPoints(tenths, clockSecs = 35) {
+    const t = Math.max(0, Math.min(clockSecs * 10, Math.round(tenths) || 0));
+    const a = Math.max(0, 100 * t - 3000), span = clockSecs * 1000 - 3000;
+    return Math.max(50, 100 - Math.floor((100 * a + span) / (2 * span)));
+  }
   /** The speed multiplier for an answer after `ms` of a `total` clock, in steps of 0.1: up to ×1.5 or ×2. */
   function speedMult(rules, ms, total) {
     const top = rules && rules.speed === "2" ? 2 : rules && rules.speed === "1.5" ? 1.5 : 1;
@@ -795,7 +803,7 @@
     mulberry32, hashString, shuffled,
     setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
-    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, speedMult, liveScore,
+    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, quizPoints, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
     nameOk, nameNorm, NAME_PARTS_SRC, NAME_WORDS_SRC,

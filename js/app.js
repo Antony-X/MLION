@@ -754,7 +754,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** The packs a room plays (empty: every topic), and the prompt ids they hold. */
   const liveTopics = () => (Array.isArray(LIVE.topics) ? LIVE.topics.filter((id) => PACKS.has(id)) : []);
-  /** A live quiz's questions laid out like a solo run (E.QUIZ_PATTERN: easy, easy, medium, hard, medium, hard, hard),
+  /** A live quiz's questions laid out like a solo run (E.QUIZ_PATTERN: easy, easy, medium, medium, hard, hard, hard),
    *  taken from the host's candidates in order; when a level runs out, the next candidate fills the slot. */
   function mixByLevel(cand, n) {
     const lvl = new Map(QUIZ_BANK.map((r) => [r.id, r.lvl || "medium"]));
@@ -2004,8 +2004,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (r) return r.tier ? `<i class="done t-${r.tier}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="Miss"></i>`;
       return `<i class="${i === RUN.round && RUN.phase !== "intro" ? "cur" : ""}"></i>`;
     }).join("");
-    const lvl = RUN.fmt === "quiz" && (PROMPTS.get(RUN.promptIds[RUN.round]) || {}).lvl;
-    $("#play-meta").innerHTML = `<b>${Math.min(RUN.round + 1, n)}</b> of ${n}${lvl ? ` <span class="lvl-tag lvl-${esc(lvl)}">${esc(lvl[0].toUpperCase() + lvl.slice(1))}</span>` : ""}`;
+    $("#play-meta").innerHTML = `<b>${Math.min(RUN.round + 1, n)}</b> of ${n}`;
   }
   function setHud(score) {
     hudRange = [score, score];
@@ -2438,6 +2437,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       corrected: false, timeout: pick < 0 && !!timeout, skipped: false,
       picked: pick, correct: q.correct, ms: Math.round(ms),
     };
+    if (RUN.mode === "dquiz" && ok) res.score = E.quizPoints(Math.round(ms / 100)); // faster, more: 100 within 3 s, 50 at the 35 s buzzer
     if (ruled()) {
       res.hinted = !!RUN.hinted;
       res.score = E.liveScore(RUN.rules, { base: res.score, ms: res.ms, total: answerMs(), hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
@@ -2756,9 +2756,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (rec.mode !== "daily" && rec.mode !== "dquiz") return false;
     const quiz = rec.mode === "dquiz", mark = postMark(rec);
     if (boardPosted[mark] === AUTH.user.id) return true;
-    const { error } = quiz
-      ? await sbClient.from("daily_quiz_scores").insert({ user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)) })
+    const quizRow = quiz && { user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)),
+      times: rec.results.map((r) => Math.max(0, Math.min(350, Math.round((r.ms || 0) / 100)))).join(",") };
+    let { error } = quiz
+      ? await sbClient.from("daily_quiz_scores").insert(quizRow)
       : await sbClient.from("daily_scores").insert({ user_id: AUTH.user.id, day: rec.date, tiers: encTiers(rec.tiers) });
+    if (quiz && error && (error.code === "PGRST204" || /times/.test(error.message || ""))) { // the speed column isn't there yet
+      const { times, ...plain } = quizRow; // eslint-disable-line no-unused-vars
+      ({ error } = await sbClient.from("daily_quiz_scores").insert(plain));
+    }
     if (error && error.code !== "23505") return false;
     boardPosted[mark] = AUTH.user.id;
     LS.set("boardPosted", boardPosted);
@@ -3913,7 +3919,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
         <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run, from easy to hard, four answers each, and a short explanation after every one. ${E.QUIZ_POINTS} a right answer.</p></div>
-        ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}. They start easy and get harder as you go.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
+        ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}. They start easy and get harder as you go. Answer fast: a right answer is worth 100 within 3 s, down to 50 at the buzzer.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
         <h2 class="block-title dq-practice">Practice runs</h2>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
         <div class="btn-row"><a class="btn big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
