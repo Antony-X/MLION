@@ -24,7 +24,7 @@ const localDay = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)
 const TODAY = localDay();
 
 // A stand-in project that only knows app_config (the launch day): it answers after `cfg.delay` ms.
-const CFG_URL = "https://cfg.supabase.test";
+const CFG_URL = "https://mock.supabase.test";
 const cfg = { launch: null, delay: 0, reads: 0 };
 async function cfgRoute(route) {
   const u = new URL(route.request().url());
@@ -153,7 +153,7 @@ async function cfgRoute(route) {
 
   // ---- Supabase down or paused (every call answers 404 "not found"; app_config never answers at all)
   {
-    const DOWN = "https://down.supabase.test";
+    const DOWN = "https://mock.supabase.test";
     const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const user = { id: "00000000-0000-4000-8000-00000000d44d", aud: "authenticated", role: "authenticated", user_metadata: { full_name: "Ada" }, app_metadata: { provider: "discord" } };
     const sess = JSON.stringify({ access_token: `${b64({ alg: "HS256" })}.${b64({ sub: user.id, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`, refresh_token: "r", token_type: "bearer", expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user });

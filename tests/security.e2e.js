@@ -105,7 +105,7 @@ function mockSupabase(route) {
     await page.waitForFunction(() => !!(window.supabase && window.supabase.createClient), null, { timeout: 15000 });
     await page.waitForSelector("#board-list li", { timeout: 15000 });
     const sb = await page.evaluate(() => [...document.scripts].map((s) => s.src).filter((s) => /supabase/.test(s)));
-    check(sb.length === 1 && /\/js\/vendor\/supabase-js-2\.118\.0\.js$/.test(sb[0]), `the leaderboard loads supabase-js from js/vendor (${sb[0] && sb[0].replace(base, "")})`);
+    check(sb.length === 1 && /\/js\/vendor\/supabase-2\.118\.0\.js$/.test(sb[0]), `the leaderboard loads supabase-js from js/vendor (${sb[0] && sb[0].replace(base, "")})`);
     await page.evaluate(() => new Promise((res, rej) => { const s = document.createElement("script"); s.src = "js/vendor/mqtt-4.3.7.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }));
     await page.evaluate(() => { window.__c = window.mqtt.connect("wss://public.cloud.shiftr.io", { username: "public", password: "public", reconnectPeriod: 0, connectTimeout: 2000 }); });
     await page.waitForTimeout(2000);
