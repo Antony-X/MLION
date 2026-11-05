@@ -448,6 +448,16 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   finishes a first run, the round intro carries a "How scoring works" link that opens the old
   How to play dialog (`showHowModal`). `mlion:seenHow` is no longer read (tests still set it).
 
+### Smaller overnight changes (2026-11-05)
+
+- Autocorrect: a word-order layer (`bag` in `buildIndex`: "Knuth Donald", "Hastings Metropolis" are
+  corrections, 2 to 4 words, only when unambiguous). `E.whereElse(raw, promptId)` names the prompts a
+  miss does answer; the reject and Sprint miss messages use it ("ReLU answers Name an activation
+  function, not this one").
+- Vibration (`settings.haptics`, inside `Sound`): shown under Feel only on touch screens with
+  `navigator.vibrate`.
+- How to play lists the other ways to play; Stats has Daily quiz and Sprint blocks.
+
 ### Sprint (added overnight 2026-11-05)
 
 - One prompt, 60 seconds, as many answers as you can; each scores its tier's points. Answers count
