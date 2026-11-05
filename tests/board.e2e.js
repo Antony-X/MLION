@@ -267,7 +267,15 @@ async function mockRoute(route) {
   await page.click('.tabs a[href="#board"]');
   await page.waitForSelector(".board-list .list-item.me");
 
-  // previous day, then log out
+  // before launch every day is #1, so there is no earlier board to page back to
+  check(!(await page.$('.board-days a[href^="#board-"]')), "before launch the board has no past days");
+  // after launch: the previous day, then log out
+  const ago = new Date(Date.now() - 3 * 864e5);
+  const launchDay = `${ago.getFullYear()}-${String(ago.getMonth() + 1).padStart(2, "0")}-${String(ago.getDate()).padStart(2, "0")}`;
+  await page.addInitScript((d) => { window.MLION_LAUNCH = d; }, launchDay);
+  await page.reload();
+  await page.waitForSelector(".board-list .list-item.me");
+  check((await page.textContent(".board-days")).includes("MLion #4"), "after launch the board counts days from launch day");
   await page.click('.board-days a[href^="#board-"]');
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 8000 });
   check(/^#board-\d{4}-\d{2}-\d{2}$/.test(await page.evaluate(() => location.hash)), "past days have their own board");
