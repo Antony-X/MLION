@@ -57,9 +57,9 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.screenshot({ path: path.join(OUT, "02-home.png"), fullPage: true });
   check(await page.isVisible(".wordmark"), "home renders");
 
-  await page.click("text=Start training");
+  await page.click("text=Play today's daily");
   await page.waitForSelector("#veil:not(.hidden)");
-  check(!(await page.$("#begin")), "Start training goes straight into the first prompt, no intro page");
+  check(!(await page.$("#begin")), "Play today's daily goes straight into the first prompt, no intro page");
   await page.screenshot({ path: path.join(OUT, "03-preview.png") });
   check(await page.isDisabled("#answer"), "input locked during preview");
   await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 6000 });
@@ -68,7 +68,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.fill("#answer", "definitely not an activation");
   await page.press("#answer", "Enter");
   await page.waitForSelector("#status.bad");
-  check((await page.textContent("#status")).includes("no gradient"), "wrong answer rejected");
+  check((await page.textContent("#status")).includes("isn't an accepted answer"), "wrong answer rejected");
   // Autocorrect preview, then confirm.
   await page.fill("#answer", "swishh");
   await page.press("#answer", "Enter");
@@ -270,7 +270,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   check(parseFloat(await page.textContent("#timer-num")) > 30, "the clock counts down from 40");
   check((await page.textContent("#step")).trim() === "Skip" && !(await page.$("#step.primary")), "an empty box offers Skip");
   await page.fill("#answer", "re");
-  check((await page.textContent("#step")).trim() === "Step" && !!(await page.$("#step.primary")), "typing turns it back into Step");
+  check((await page.textContent("#step")).trim() === "Submit" && !!(await page.$("#step.primary")), "typing turns it back into Submit");
   await page.fill("#answer", "");
   await page.click("#step");
   await page.waitForSelector(".feedback", { timeout: 5000 });

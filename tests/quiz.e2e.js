@@ -281,7 +281,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
       await dq.page.click("#next");
     }
     await dq.page.waitForSelector(".grid-tiers");
-    check(dq.page.url().endsWith(`#results-dquiz-${day}`) && (await dq.page.textContent("#app")).includes("Next quiz in"), "the results count down to the next daily quiz");
+    check(dq.page.url().endsWith(`#results-dquiz-${day}`) && (await dq.page.textContent("#app")).includes("Next daily quiz in"), "the results count down to the next daily quiz");
     check((await dq.page.textContent(".loss-line")).includes("4 of 7 right"), "four of seven right");
     await dq.page.goto(base + "#daily-quiz");
     await dq.page.waitForFunction((t) => location.hash === `#results-dquiz-${t}`, day, { timeout: 5000 });

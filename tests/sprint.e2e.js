@@ -60,7 +60,7 @@ const elsewhere = ["ReLU", "Adam", "GELU", "XGBoost", "K-means"].find((s) => E.m
   await send(alias);
   check((await p.textContent("#sp-n")) === "1" && /Already counted/.test(await p.textContent("#status")), `its alias "${alias}" is not counted twice`);
   await send("banana bread");
-  check((await p.textContent("#sp-n")) === "1" && /isn't in the key/.test(await p.textContent("#status")), "a miss bounces");
+  check((await p.textContent("#sp-n")) === "1" && /isn't an accepted answer/.test(await p.textContent("#status")), "a miss bounces");
   await send(elsewhere);
   check((await p.textContent("#sp-n")) === "1" && /answers “Name an? /.test(await p.textContent("#status")), `"${elsewhere}" is turned down with the prompt it does answer`);
   await send(typo);
