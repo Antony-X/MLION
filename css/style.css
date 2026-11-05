@@ -1065,3 +1065,6 @@ html:not(.reduce-motion) .sp-found li.pop { animation: sp-pop 420ms var(--ease-o
 .sp-target { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sp-verdict { margin: 0; font-size: var(--s3); }
 .sp-verdict.win { color: var(--gold); }
+/* stats: a band's range always sits under its name; headings get air above their bars */
+.bar-row .lab > .muted { flex-basis: 100%; }
+.block-title + .bars { margin-top: 16px; }
