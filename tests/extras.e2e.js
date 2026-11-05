@@ -5,7 +5,7 @@ const { chromium } = require("playwright");
 const http = require("http"), fs = require("fs"), path = require("path");
 const ROOT = path.join(__dirname, "..");
 function check(c, m) { if (!c) throw new Error("FAIL: " + m); console.log("  ✓ " + m); }
-global.window = {}; require(path.join(ROOT, "js/data.js"));
+global.window = {}; require(path.join(ROOT, "js/data.js")); require(path.join(ROOT, "js/explain.js"));
 const D = window.MLION_DATA; const EXTRA = new Set(D.prompts.filter((p) => p.extra).map((p) => p.id).concat(D.extras.map((p) => p.id)));
 const T = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split("?")[0]); const f = path.join(ROOT, u === "/" ? "index.html" : u); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { "Content-Type": T[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(r); });

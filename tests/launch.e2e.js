@@ -12,7 +12,7 @@ const http = require("http"), fs = require("fs"), path = require("path");
 const ROOT = path.join(__dirname, "..");
 function check(c, m) { if (!c) throw new Error("FAIL: " + m); console.log("  ✓ " + m); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-global.window = {}; require(path.join(ROOT, "js/data.js"));
+global.window = {}; require(path.join(ROOT, "js/data.js")); require(path.join(ROOT, "js/explain.js"));
 const D = window.MLION_DATA;
 const POOL = new Set(D.daily.pool);
 const LAUNCH_DAY1 = D.daily.launch[0].filter((id) => POOL.has(id)); // what launch day 1 deals (app.js LAUNCH_DAYS)

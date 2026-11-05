@@ -23,7 +23,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..600&display=swap" rel="stylesheet">
 <style>body{margin:0;background:#222;font-family:Archivo}</style></head><body>
-<script src="js/engine.js"></script><script src="js/data.js"></script><script src="js/landscape.js"></script><script src="js/sharecard.js"></script>
+<script src="js/engine.js"></script><script src="js/data.js"></script><script src="js/explain.js"></script><script src="js/landscape.js"></script><script src="js/sharecard.js"></script>
 </body></html>`;
 
 const server = http.createServer((req, res) => {

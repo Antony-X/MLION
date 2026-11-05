@@ -17,7 +17,7 @@ const OUT = path.join(__dirname, "out");
 fs.mkdirSync(OUT, { recursive: true });
 const E = require("../js/engine.js");
 global.window = {};
-require(path.join(ROOT, "js", "data.js"));
+require(path.join(ROOT, "js", "data.js")); require(path.join(ROOT, "js", "explain.js"));
 const DATA = global.window.MLION_DATA;
 // reasoning questions are looked up like prompts: the stem is the text, the right option carries the why
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]).concat((DATA.reasoning || []).map((r) => [r.id, { id: r.id, text: r.q, reasoning: true, answers: [{ a: r.options[r.answer], q: r.why }] }])));

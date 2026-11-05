@@ -23,7 +23,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const withFonts = process.argv.includes("--fonts");
 const E = require("../js/engine.js");
 global.window = {};
-require(path.join(ROOT, "js", "data.js"));
+require(path.join(ROOT, "js", "data.js")); require(path.join(ROOT, "js", "explain.js"));
 const DATA = global.window.MLION_DATA;
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png" };

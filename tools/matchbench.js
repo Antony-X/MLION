@@ -15,7 +15,7 @@
 const path = require("path");
 const E = require(path.join(__dirname, "..", "js", "engine.js"));
 global.window = {};
-require(path.join(__dirname, "..", "js", "data.js"));
+require(path.join(__dirname, "..", "js", "data.js")); require(path.join(__dirname, "..", "js", "explain.js"));
 const DATA = global.window.MLION_DATA;
 if (!args0().includes("--no-lexicon")) E.setLexicon(DATA.prompts.concat(DATA.extras || []));
 function args0() { return process.argv.slice(2); }

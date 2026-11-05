@@ -8,7 +8,7 @@ const http = require("http"), fs = require("fs"), path = require("path");
 const ROOT = path.join(__dirname, "..");
 function check(c, m) { if (!c) throw new Error("FAIL: " + m); console.log("  ✓ " + m); }
 const E = require(path.join(ROOT, "js/engine.js"));
-global.window = {}; require(path.join(ROOT, "js/data.js"));
+global.window = {}; require(path.join(ROOT, "js/data.js")); require(path.join(ROOT, "js/explain.js"));
 const D = window.MLION_DATA;
 E.setLexicon(D.prompts.concat(D.extras || []));
 const T = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };

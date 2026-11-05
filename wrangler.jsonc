@@ -1,5 +1,6 @@
-// Cloudflare hosting: a static-assets Worker (what Cloudflare Pages is now part of). No server code runs:
-// every request is a file from dist/, which tools/deploy.sh fills with only the files the site serves.
+// Cloudflare hosting: a static-assets Worker (what Cloudflare Pages is now part of). Every request is a file from
+// dist/, which tools/deploy.sh fills with only the files the site serves. The one script, worker/index.js, runs
+// only for the two big data files, to send their pre-compressed brotli copies.
 // Deploy with `bash tools/deploy.sh` (needs a one-time `npx wrangler login`).
 {
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
@@ -7,8 +8,11 @@
   "compatibility_date": "2026-11-04",
   "workers_dev": false,
   "preview_urls": false,
+  "main": "worker/index.js",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/js/data.js", "/js/explain.js"],
     "not_found_handling": "none",
     "html_handling": "auto-trailing-slash"
   },

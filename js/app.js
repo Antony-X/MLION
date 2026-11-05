@@ -5538,5 +5538,16 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   cfgFetch();
   shelveStale(); // a daily finished today from a set the launch day has since replaced
   route();
+  // The answers' explanations are a third of the data and nothing shows them before a player has answered, so
+  // they come in their own file (tools/build.js), fetched once the game is up; data.js merges them in when they land.
+  // index.html names the file with its version stamp (a meta tag, so nothing fetches it early). A screen that shows
+  // them is drawn again.
+  window.addEventListener("mlion:explain", () => { if (/^#\/?(results-|answers-)/.test(location.hash)) route(); });
+  if (DATA.stamp && !DATA.explained) {
+    const hint = document.querySelector('meta[name="mlion:explain"]');
+    const s = document.createElement("script");
+    s.src = (hint && hint.content) || "js/explain.js";
+    document.head.appendChild(s);
+  }
   window.MLION_BOOTED = true; // index.html's boot watchdog stands down
 })();

@@ -25,6 +25,9 @@ points ÷ 100.
   **Deploy = commit, push to `claude/mlion-game`, then `bash tools/deploy.sh`** (builds, refuses uncommitted
   served files, copies only index.html, sw.js, manifest, _headers, css/, js/, img/ into dist/, runs
   `wrangler deploy`). Wrangler is logged in on this machine (`npx wrangler login` if it ever expires).
+  The only server code is `worker/index.js`, which runs for `/js/data.js` and `/js/explain.js` only
+  (`run_worker_first`) and sends the `.br` copies deploy.sh writes (brotli quality 11; Cloudflare's own
+  compression of the same files is about a quarter bigger). Other files never touch it.
   - Public room list: https://mlion.lol/#rooms · Live match: https://mlion.lol/#live
   - Domain: mlion.lol at Porkbun (account "testcow"; registered 2026-11-05, expires 2027-11-05,
     **auto-renew OFF** on purpose, WHOIS privacy ON). Nameservers point to Cloudflare
@@ -169,7 +172,9 @@ a future `LAUNCH_DATE` changes nothing until D (days before it are still pre-lau
 index.html            app shell; drawer nav; Google Fonts (Archivo); scripts with ?v=<hash> cache-bust
 css/style.css         all styles (taste-skill redesign: dark room, gold accent, Archivo only)
 js/engine.js          tiers, normalization, matching layers, scheduling, share text (UMD; used by Node tools too)
-js/data.js            GENERATED bundle: window.MLION_DATA = {version, packs, prompts, extras}
+js/data.js            GENERATED bundle: window.MLION_DATA = {version, stamp, packs, prompts, extras, reasoning, daily}, answers WITHOUT explanations
+js/explain.js         GENERATED: the answers' explanations (`q`), loaded by app.js after boot and merged in by data.js's MLION_MERGE_EXPLAIN (same `stamp` only)
+worker/index.js       Cloudflare script: pre-compressed brotli for the two data files (see "Live site")
 js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas (play stage), streak flame, tier glyphs, lion mark (MARK: Leo's curve + the ball)
 js/sharecard.js       the share card: draws a finished run as a PNG (1200x630 wide, 1080x1920 story) and runs the share sheet (window.MLION_CARD)
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
@@ -1549,8 +1554,12 @@ is the lit exhibit.
     full home around that same node (measured, slow 4G with a 4x slower CPU: hero at 1.1 s instead of
     5.3 s; the full home still arrives at 5.3 s). Returning players and deep links keep the spinner,
     but the service worker serves them from cache. Keep the two hero markups in step;
-    `tests/preboot.e2e.js` fails if their words or positions differ. Splitting data.js itself (the
-    daily first, the rest later) is still open, for deep links on slow phones.
+    `tests/preboot.e2e.js` fails if their words or positions differ.
+    2026-11-06: the explanations moved to `js/explain.js`, fetched after boot (nothing shows them before a
+    player has answered; results and answer-key pages redraw when they land), and both files are served
+    as brotli-11. What the page waits for went from 875 KB on the wire to about 450 KB. Node scripts
+    that need explanations require explain.js after data.js; fixture data.js stand-ins carry no `stamp`,
+    so the real explanations are never merged into them.
 
 ---
 

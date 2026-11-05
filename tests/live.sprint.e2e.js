@@ -17,7 +17,7 @@ const OUT = path.join(__dirname, "out");
 fs.mkdirSync(OUT, { recursive: true });
 const E = require("../js/engine.js");
 global.window = {};
-require(path.join(ROOT, "js", "data.js"));
+require(path.join(ROOT, "js", "data.js")); require(path.join(ROOT, "js", "explain.js"));
 const DATA = global.window.MLION_DATA;
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
 const T = E.TIERS;

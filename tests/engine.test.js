@@ -7,7 +7,7 @@ const fs = require("fs");
 const E = require("../js/engine.js");
 
 global.window = {};
-require(path.join(__dirname, "..", "js", "data.js"));
+require(path.join(__dirname, "..", "js", "data.js")); require(path.join(__dirname, "..", "js", "explain.js"));
 const DATA = global.window.MLION_DATA;
 let n = 0;
 const ok = (msg) => { n++; if (process.env.VERBOSE) console.log("  ✓ " + msg); };
