@@ -22,7 +22,7 @@
     { "a": "Activation function", "t": "indist", "aka": ["activation", "nonlinearity", "activation choice"] },
     { "a": "Optimizer", "t": "indist", "aka": ["optimizer choice", "choice of optimizer", "optimiser"] },
     { "a": "Learning rate schedule", "t": "indist", "aka": ["lr schedule", "scheduler", "learning rate decay", "lr decay", "decay schedule", "lr scheduler", "lr milestones", "milestones"] },
-    { "a": "Warmup steps", "t": "indist", "aka": ["warmup", "warmup ratio", "warmup epochs", "warmup length", "warmup iterations"] },
+    { "a": "Warmup steps", "t": "indist", "aka": ["warmup", "warmup ratio", "warmup epochs", "warmup length", "warmup iterations"], "q": "How many steps the learning rate ramps up from near zero, while Adam's early statistics are still noisy." },
     { "a": "Kernel size", "t": "indist", "aka": ["filter size", "kernel_size", "convolution kernel size"], "q": "VGG showed stacked 3x3s beat one big kernel. RepLKNet went to 31x31 anyway." },
     { "a": "Number of filters", "t": "indist", "aka": ["filters", "channels", "number of channels", "out_channels", "feature maps", "number of feature maps"] },
     { "a": "Stride", "t": "indist", "aka": ["strides", "convolution stride"] },

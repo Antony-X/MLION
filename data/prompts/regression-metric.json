@@ -60,13 +60,13 @@
 
     { "a": "MAPE", "t": "indist", "aka": ["mean absolute percentage error", "MAPD", "mean absolute percentage deviation"], "q": "Divides by the actual value, so a single zero ruins everything." },
     { "a": "sMAPE", "t": "indist", "aka": ["symmetric MAPE", "symmetric mean absolute percentage error"], "q": "MAPE made 'symmetric', which it isn't quite. The M3 and M4 competitions used it anyway." },
-    { "a": "MSLE", "t": "indist", "aka": ["mean squared log error", "mean squared logarithmic error"] },
+    { "a": "MSLE", "t": "indist", "aka": ["mean squared log error", "mean squared logarithmic error"], "q": "MSE on log(1 + y): scores relative error, and punishes under-prediction more than over-prediction." },
     { "a": "RMSLE", "t": "indist", "aka": ["root mean squared log error", "root mean squared logarithmic error"], "q": "Error on log(1 + y): cares about ratios, not dollars. A Kaggle house-price staple." },
-    { "a": "Median absolute error", "t": "indist", "aka": ["MedAE", "MdAE"] },
-    { "a": "Max error", "t": "indist", "aka": ["maximum error", "maximum absolute error", "max absolute error", "L-infinity error", "Chebyshev error", "L∞ error", "worst-case error"] },
-    { "a": "Explained variance", "t": "indist", "aka": ["explained variance score", "EVS"] },
+    { "a": "Median absolute error", "t": "indist", "aka": ["MedAE", "MdAE"], "q": "The median of |y − ŷ|: barely moved by outliers." },
+    { "a": "Max error", "t": "indist", "aka": ["maximum error", "maximum absolute error", "max absolute error", "L-infinity error", "Chebyshev error", "L∞ error", "worst-case error"], "q": "The single worst miss, for when one big error is what matters." },
+    { "a": "Explained variance", "t": "indist", "aka": ["explained variance score", "EVS"], "q": "1 − Var(y − ŷ)/Var(y). Unlike R², it ignores a constant bias in the predictions." },
     { "a": "Quantile loss", "t": "indist", "aka": ["pinball loss", "check loss", "mean pinball loss", "quantile regression loss", "tilted loss", "weighted quantile loss", "wQL", "mean weighted quantile loss", "quantile score"], "q": "Asymmetric absolute error. Minimize it and you get a quantile instead of a mean." },
-    { "a": "RSS", "t": "indist", "aka": ["residual sum of squares", "SSE", "sum of squared errors", "sum of squared residuals"] },
+    { "a": "RSS", "t": "indist", "aka": ["residual sum of squares", "SSE", "sum of squared errors", "sum of squared residuals"], "q": "Residual sum of squares, Σ(y − ŷ)². Ordinary least squares minimizes exactly this." },
     { "a": "AIC", "t": "indist", "aka": ["akaike information criterion"], "q": "Akaike, 1973: log-likelihood minus a parameter penalty. Lower is better." },
     { "a": "BIC", "t": "indist", "aka": ["bayesian information criterion", "schwarz criterion", "schwarz information criterion", "SBC"], "q": "Schwarz, 1978: AIC with a log(n) penalty that loves small models." },
 

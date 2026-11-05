@@ -151,13 +151,13 @@
     { "a": "Gumbel-softmax", "t": "outlier", "aka": ["gumbel softmax", "concrete distribution"] },
     { "a": "Squash", "t": "outlier", "aka": ["squash function", "squashing", "capsule squash"], "q": "Capsule nets' squash: short vectors shrink toward 0, long ones to just under length 1." },
 
-    { "a": "Leaky ReLU", "t": "indist", "aka": ["lrelu", "leakyrelu", "leaky rectified linear unit"] },
+    { "a": "Leaky ReLU", "t": "indist", "aka": ["lrelu", "leakyrelu", "leaky rectified linear unit"], "q": "A small slope (often 0.01) below zero, so no unit goes fully dead. Maas, Hannun & Ng, 2013." },
     { "a": "GELU", "t": "indist", "aka": ["gaussian error linear unit", "gelu tanh", "tanh gelu", "gelu new", "new gelu", "gelu fast", "fast gelu", "approximate gelu", "gelu approximate", "gelu pytorch tanh", "accurate gelu", "gelu accurate", "clipped gelu"], "q": "The transformer default. BERT, GPT, ViT all swore by it." },
-    { "a": "ELU", "t": "indist", "aka": ["exponential linear unit"] },
+    { "a": "ELU", "t": "indist", "aka": ["exponential linear unit"], "q": "x above zero, α(eˣ − 1) below: negative outputs pull mean activations toward zero. Clevert et al., 2015." },
     { "a": "SELU", "t": "indist", "aka": ["scaled exponential linear unit", "scaled elu"], "q": "Self-normalizing networks: the activation with a 90-page appendix." },
-    { "a": "PReLU", "t": "indist", "aka": ["parametric relu", "parametric rectified linear unit", "parameterized relu", "parametric leaky relu"] },
-    { "a": "Softplus", "t": "indist", "aka": ["soft plus", "smooth relu", "soft relu"] },
-    { "a": "Linear", "t": "indist", "aka": ["identity", "identity function", "purelin"] },
+    { "a": "PReLU", "t": "indist", "aka": ["parametric relu", "parametric rectified linear unit", "parameterized relu", "parametric leaky relu"], "q": "Leaky ReLU with the negative slope learned. He et al., 2015, the same paper that introduced He initialization." },
+    { "a": "Softplus", "t": "indist", "aka": ["soft plus", "smooth relu", "soft relu"], "q": "log(1 + eˣ), a smooth ReLU. Its derivative is the sigmoid; handy wherever an output must stay positive." },
+    { "a": "Linear", "t": "indist", "aka": ["identity", "identity function", "purelin"], "q": "f(x) = x, no nonlinearity. Right for a regression output; stack only these and the whole net is one linear map." },
     { "a": "Binary step", "t": "indist", "aka": ["step", "step function", "heaviside", "heaviside step", "unit step", "hardlim", "hard limit", "hard limiter", "threshold logic unit"], "q": "The original perceptron move. Rosenblatt approves." },
     { "a": "SwiGLU", "t": "indist", "aka": ["swish glu", "swish gated linear unit", "silu glu", "gated silu"], "q": "\"We offer no explanation… we attribute their success to divine benevolence.\"" },
 
