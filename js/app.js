@@ -3175,8 +3175,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function renderHow() {
     setMid("How to play");
+    const ways = [
+      ["#unlimited", "Unlimited", "More runs of seven, any time"],
+      ["#quiz", "Quiz", "Four answers, one fits. A daily one too"],
+      ["#sprint", "Sprint", "One prompt, 60 seconds, as many as you can"],
+      ["#live", "Play with friends", "A live room, or a challenge link"],
+    ];
     app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>How to play</h1></div>${howHtml()}
-      <div class="btn-row"><a class="btn primary big" href="#daily">Play today</a><a class="btn big" href="#faq">FAQ</a></div></section>`;
+      <div class="btn-row"><a class="btn primary big" href="#daily">Play today</a><a class="btn big" href="#faq">FAQ</a></div>
+      <section><h2 class="block-title">Other ways to play</h2><ul class="modes how-modes">${ways.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section></section>`;
   }
   function renderFaq() {
     setMid("FAQ");
