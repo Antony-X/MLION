@@ -6,7 +6,10 @@
  *    travels 7,000 units and lands in the global minimum. The world changes on
  *    the way down: a cold, misty plateau, terraced ravines, then a basin lit
  *    gold from below; ridges behind the path move in parallax, and the camera
- *    keeps the path clear of the numbers drawn over the stage.
+ *    keeps the path clear of the numbers drawn over the stage. The ball rolls
+ *    in a groove (sunk a few px into the path). In the last seconds of a clock
+ *    the world drains of colour and beats red (tension/beat/release); a rare
+ *    landing flashes the stage in its tier colour and spills coins.
  *  - flame: the streak mark (answers in a row), which climbs through the
  *    colours of fire and ends in the lion's gold.
  *  - glyph: the tier marks. Five are tiny charts of what the tier means, a
@@ -369,6 +372,15 @@
   const POWER = { baseline: 0.35, overfit: 0.5, indist: 0.6, outlier: 0.8, longtail: 1, mlion: 1 };
   const SPARKS = { baseline: 0, overfit: 2, indist: 5, outlier: 12, longtail: 24, mlion: 30 };
   const KICK = { outlier: 0.025, longtail: 0.055, mlion: 0.045 };
+  // the jackpots, for the rare tiers only (the common ones stay modest): how strongly the stage
+  // flashes in the tier's colour and for how long (ms), and how many coins spill out of the ball
+  const JACKPOT = {
+    outlier: { wash: [0.22, 450], coins: 14, cols: ["#dfbf7e", "#f2b53c"] },
+    longtail: { wash: [0.32, 520], coins: 24, cols: ["#f5d999", "#f2b53c", "#fff1cf"] },
+    mlion: { wash: [0.38, 560], coins: 36, cols: ["#f2b53c", "#fff1cf", "#f5d999"] },
+  };
+  const COIN_G = 0.0019; // px per ms², the coins' gravity
+  const TENSE_RED = rgb("#e8412f"); // a deeper cousin of the house's negative red
 
   function Descent(canvas, opts = {}) {
     const ctx = canvas.getContext("2d");
@@ -381,7 +393,8 @@
       topY: 0, T: null, framed: false, rects: [], sig: "", t: 0,
       tier: null, streak: 0,
       marks: [], segs: [], ripples: [], texts: [], sparks: [], trail: [], motes: [],
-      flood: null, land: null, flash: null, dim: null, shiver: 0,
+      flood: null, land: null, flash: null, dim: null, shiver: 0, coins: [], wash: null,
+      tense: 0, tenseTo: 0, beat: 0, exhale: null, // the last seconds of the clock
       anim: null, raf: 0, onScreen: true, reported: NaN,
       onFrame: opts.onFrame || null, onFlood: opts.onFlood || null,
     };
@@ -498,6 +511,16 @@
       st.texts = st.texts.filter((t) => t.life > 0);
       for (const p of st.sparks) { p.life += dt; p.vy += 0.0011 * dt; p.vx *= Math.exp(-dt / 900); p.ox += p.vx * dt; p.oy += p.vy * dt; }
       st.sparks = st.sparks.filter((p) => p.life < p.max);
+      for (const p of st.coins) { p.life += dt; p.vy += COIN_G * dt; p.ox += p.vx * dt; p.oy += p.vy * dt; p.spin += p.vs * dt; }
+      st.coins = st.coins.filter((p) => p.life < p.max);
+      if (st.wash && (st.wash.t += dt) > st.wash.max) st.wash = null;
+      // low time: the tension eases in, and lets go at once when the answer is in
+      if (st.tense !== st.tenseTo) {
+        st.tense += (st.tenseTo - st.tense) * (1 - Math.exp(-dt / (st.tenseTo > st.tense ? 450 : 110)));
+        if (Math.abs(st.tense - st.tenseTo) < 0.003) st.tense = st.tenseTo;
+      }
+      st.beat = st.beat > 0.01 ? st.beat * Math.exp(-dt / 230) : 0;
+      if (st.exhale && (st.exhale.t += dt) > st.exhale.max) st.exhale = null;
       if (st.land && (st.land.t += dt) > 700) st.land = null;
       if (st.flash && (st.flash.t += dt) > st.flash.max) st.flash = null;
       if (st.dim && (st.dim.t += dt) > st.dim.max) st.dim = null;
@@ -551,6 +574,28 @@
       st.kick = Math.max(KICK[tier] || 0, lv >= 4 ? 0.012 + 0.004 * lv : 0);
       if (tier === "longtail") st.shake = 4;
       if (tier === "mlion") st.flood = { t: 0, grow: 600, hold: 900, shrink: 500, inkOn: false };
+      // the jackpot: the rare ones wash the whole stage in their colour and spill coins
+      const jp = JACKPOT[tier];
+      if (jp) {
+        st.wash = { t: 0, max: jp.wash[1], a: jp.wash[0], col: rgb(TIER_COLORS[tier]) };
+        coins(jp.coins, jp.cols);
+      }
+    }
+    /** Coins thrown up out of the ball: they spin (a squashing ellipse), fall and fade. */
+    function coins(n, cols) {
+      // a fountain that stays under the numbers: each coin rises a third to nine tenths of the way up to them
+      const T = st.T || targets(), room = Math.max(40, T.by - st.R * 2 - T.topY - 6);
+      const side = clamp(st.w / 900, 0.5, 1.2);
+      for (let i = 0; i < n; i++) {
+        const col = rgb(cols[i % cols.length]);
+        st.coins.push({
+          wx: st.x, wy: terrain(st.x), ox: (Math.random() - 0.5) * st.R, oy: -st.R,
+          vx: (Math.random() - 0.5) * 0.4 * side, vy: -Math.sqrt(2 * COIN_G * room * (0.35 + 0.55 * Math.random())),
+          spin: Math.random() * 6, vs: 0.012 + 0.014 * Math.random(), tilt: (Math.random() - 0.5) * 0.5,
+          r: st.R * (0.4 + 0.24 * Math.random()), col, dark: col.map((v) => v * 0.55),
+          life: 0, max: 950 + 450 * Math.random(),
+        });
+      }
     }
     function burst(n, cols, power) {
       for (let i = 0; i < n; i++) {
@@ -729,7 +774,8 @@
       let ax = 1, ay = 1;
       if (st.land) { const t = st.land.t, e = Math.exp(-t / 130) * Math.cos(t / 42); ax = 1 + 0.28 * st.land.k * e; ay = 1 - 0.3 * st.land.k * e; }
       else if (st.anim) { const v = clamp(Math.abs(st.vel) * 0.45, 0, 1); ax = 1 + 0.14 * v; ay = 1 - 0.1 * v; }
-      const jx = st.shiver > 0 ? Math.sin(st.shiver * 0.11) * 3 * (st.shiver / 360) : 0;
+      let jx = st.shiver > 0 ? Math.sin(st.shiver * 0.11) * 3 * (st.shiver / 360) : 0;
+      if (st.tense && !calm) jx += st.tense * (1.1 * Math.sin(st.t * 0.083) + 0.6 * Math.sin(st.t * 0.217)) * (0.5 + 0.5 * st.beat + 0.5 * st.tense); // it trembles as time runs out
       // it touches the path where it stands: the centre sits along the slope's normal, not straight up
       // (straight up leaves it floating beside its contact point on a slope)
       const e = st.view / 400, [lx, ly] = onPath(st.x - e), [rx, ry] = onPath(st.x + e);
@@ -888,6 +934,13 @@
         c.fillStyle = css(L.skyTop, 0.38 * (1 - st.dim.t / st.dim.max));
         c.fillRect(0, 0, w, h);
       }
+      if (st.wash) { // a jackpot: the whole stage flashes in the tier's colour
+        const k = st.wash.t / st.wash.max;
+        c.save(); c.globalCompositeOperation = "lighter";
+        c.fillStyle = css(st.wash.col, st.wash.a * (k < 0.08 ? k / 0.08 : Math.pow(1 - (k - 0.08) / 0.92, 2)));
+        c.fillRect(0, 0, w, h);
+        c.restore();
+      }
       if (st.flash) { // a rare landing lights the stage from the ball
         const k = st.flash.t / st.flash.max;
         const rr = R * (2.5 + 7 * ease.out(k));
@@ -897,6 +950,8 @@
         c.fillStyle = g; c.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
         c.restore();
       }
+
+      drawTension(c, L); // low time, under the edge fades so it melts into the page like the rest
 
       // the stage's edges dissolve into the page
       const bg = rgb(COL.bg);
@@ -951,6 +1006,56 @@
         c.restore();
         c.restore();
       }
+
+      // the coins, over everything (the gem's gold too): a dark rim keeps them readable on gold
+      if (st.coins.length) {
+        c.save(); c.lineWidth = 1; c.strokeStyle = "rgba(26,19,6,0.7)";
+        for (const p of st.coins) {
+          const [sx, sy] = toScreen(p.wx, p.wy);
+          const x = sx + p.ox, y = sy + p.oy, k = p.life / p.max;
+          const face = Math.cos(p.spin), rx = Math.max(0.9, Math.abs(face) * p.r);
+          c.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+          c.fillStyle = css(face >= 0 ? p.col : p.dark);
+          c.beginPath(); c.ellipse(x, y, rx, p.r, p.tilt, 0, Math.PI * 2); c.fill(); c.stroke();
+          if (face > 0.4) { // the glint on the face
+            c.fillStyle = "rgba(255,255,255,0.75)";
+            c.beginPath(); c.ellipse(x - rx * 0.32, y - p.r * 0.34, rx * 0.3, p.r * 0.2, p.tilt, 0, Math.PI * 2); c.fill();
+          }
+        }
+        c.restore();
+      }
+    }
+
+    /** Low time: the colour drains out of the world, fog closes in on the ball from the edges, and
+     * the edges beat red with the heart. When the answer is in, a breath of warm light at the ball. */
+    function drawTension(c, L) {
+      const k = st.tense, ex = st.exhale;
+      if (k < 0.003 && !ex) return;
+      const { w, h, R } = st;
+      const [bx, by] = ballAt(st.x, R - sink());
+      if (k >= 0.003) {
+        c.save();
+        c.globalCompositeOperation = "saturation"; c.globalAlpha = Math.min(1, 0.85 * k);
+        c.fillStyle = "#808080"; c.fillRect(0, 0, w, h);
+        c.globalCompositeOperation = "source-over"; c.globalAlpha = 1;
+        const diag = Math.hypot(w, h), fog = mixC(L.skyTop, [0, 0, 0], 0.4);
+        let g = c.createRadialGradient(bx, by, diag * lerp(0.3, 0.05, k), bx, by, diag * lerp(0.8, 0.42, k));
+        g.addColorStop(0, css(fog, 0)); g.addColorStop(0.55, css(fog, 0.55 * k)); g.addColorStop(1, css(fog, 0.94 * k));
+        c.fillStyle = g; c.fillRect(0, 0, w, h);
+        c.translate(w / 2, h / 2); c.scale(w / 2, h / 2); // an ellipse fitted to the stage
+        g = c.createRadialGradient(0, 0, 0.55, 0, 0, 1.45);
+        g.addColorStop(0, css(TENSE_RED, 0)); g.addColorStop(1, css(TENSE_RED, k * (0.2 + 0.45 * st.beat)));
+        c.fillStyle = g; c.fillRect(-1, -1, 2, 2);
+        c.restore();
+      }
+      if (ex) {
+        const t = ex.t / ex.max, r = R * (3 + 16 * ease.out(t));
+        c.save(); c.globalCompositeOperation = "lighter";
+        const g = c.createRadialGradient(bx, by, 0, bx, by, r);
+        g.addColorStop(0, css(GOLD, 0.26 * (1 - t))); g.addColorStop(1, css(GOLD, 0));
+        c.fillStyle = g; c.fillRect(bx - r, by - r, 2 * r, 2 * r);
+        c.restore();
+      }
     }
 
     function paint() {
@@ -967,6 +1072,7 @@
       drawLive(ctx, L);
     }
     const busy = () => !!(st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
+      st.coins.length || st.wash || st.exhale || st.beat || (!still() && (st.tense || st.tenseTo)) ||
       (st.T && (Math.abs(st.camX - st.x - st.lead) > 0.3 || Math.abs(st.by - st.T.by) > 0.3 || Math.abs(st.sy - st.T.sy) > 0.002 || Math.abs(st.zoom - 1) > 0.0008)));
 
     let last = 0, lastPaint = 0;
@@ -998,6 +1104,7 @@
     function calm() {
       if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
       st.ripples = []; st.texts = []; st.sparks = []; st.trail = []; st.flash = null; st.dim = null; st.land = null; st.shiver = 0;
+      st.coins = []; st.wash = null; st.tense = st.tenseTo = st.beat = 0; st.exhale = null;
       if (st.w) paint();
     }
 
@@ -1017,7 +1124,7 @@
         st.streak = streak; st.tier = tier;
         st.x = x; st.anim = null;
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
-        st.trail = []; st.sparks = []; st.land = null;
+        st.trail = []; st.sparks = []; st.land = null; st.coins = []; st.wash = null;
         measure();
         snap();
       },
@@ -1032,6 +1139,27 @@
       calm,
       /** The boxes over the stage moved or changed size (the streak lit or went out). */
       layout() { measure(); kick(); },
+      /** The last seconds of the clock: k from 0 (calm) to 1 (out of time). Under Reduce motion, one still tint. */
+      tension(k) {
+        const to = clamp(+k || 0, 0, 1);
+        if (still()) { const v = to > 0 ? 0.5 : 0; if (v !== st.tense || v !== st.tenseTo) { st.tense = st.tenseTo = v; st.beat = 0; if (st.w) paint(); } return; }
+        st.tenseTo = to; kick();
+      },
+      /** Where the ball comes to rest on the stage (css px), its radius, and the bottom of the numbers over the stage. */
+      spot() {
+        const T = st.T || targets();
+        return { x: st.w * AX, y: T.by - (st.R - sink()), r: st.R, top: T.topY, w: st.w, h: st.h };
+      },
+      /** A heartbeat: the red at the edges swells, then fades. */
+      beat() { if (!still() && st.tenseTo) { st.beat = 1; kick(); } },
+      /** The answer is in (or the round is over): everything lets go at once; exhale adds a breath of warm light. */
+      release(exhale) {
+        if (!st.tense && !st.tenseTo) return;
+        st.tenseTo = 0; st.beat = 0;
+        if (still()) { st.tense = 0; if (st.w) paint(); return; }
+        if (exhale && st.tense > 0.05) st.exhale = { t: 0, max: 560 };
+        kick();
+      },
       get x() { return st.x; },
       get streak() { return st.streak; },
       destroy() {
