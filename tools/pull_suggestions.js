@@ -148,8 +148,10 @@ function plan(prompt, item) {
   const apply = flag("apply"), done = [];
   const texts = new Map(); // file -> edited text, written once at the end
   for (const it of items) {
-    const file = path.join(DATA, `${it.prompt_id}.json`);
     const head = `${it.prompt_id} · "${it.answer || (it.spellings || [])[0]}" · ${it.players || "?"} player${it.players === 1 ? "" : "s"}`;
+    // a prompt id from the database names a file: only the game's own id shape, never a path ("../../x")
+    if (typeof it.prompt_id !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(it.prompt_id)) { console.log(`?  ${head}\n     not a prompt id; skipped`); continue; }
+    const file = path.join(DATA, `${it.prompt_id}.json`);
     if (!fs.existsSync(file)) { console.log(`?  ${head}\n     no such prompt file`); continue; }
     const text = texts.get(file) || fs.readFileSync(file, "utf8");
     const prompt = JSON.parse(text);

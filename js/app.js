@@ -152,9 +152,22 @@
   function saveSettings() { LS.set("settings", settings); applySettings(); }
   applySettings();
 
-  let records = LS.get("records", {}); // run key -> finished record
-  let seen = new Set(LS.get("seen", [])); // prompt ids the player has answered
-  let practiceBest = LS.get("practice", {}); // prompt id -> best tier
+  // Saved values are only trusted for their type: a damaged or hand-edited key must not stop the game from starting.
+  const lsObj = (k) => { const v = LS.get(k, null); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; };
+  const lsArr = (k) => { const v = LS.get(k, null); return Array.isArray(v) ? v : []; };
+  let records = lsObj("records"); // run key -> finished record
+  for (const k of Object.keys(records)) if (!records[k] || typeof records[k] !== "object" || !Array.isArray(records[k].results)) delete records[k];
+  /** A finished record as finalize() writes it; Import takes nothing else (pasted text can't plant a record that breaks the game). */
+  const RECORD_KEY = /^(?:(?:daily|archive|dquiz):\d{4}-\d{2}-\d{2}|(?:unlimited|quiz):\d{1,9}|pack:[a-z]+:\d{1,9}|(?:vs|vq|live):[a-z0-9]{1,16})$/;
+  function recordOk(k, r) {
+    return RECORD_KEY.test(k) && !!r && typeof r === "object" && r.key === k && typeof r.mode === "string" && Number.isFinite(r.score)
+      && Array.isArray(r.results) && r.results.length <= 400 && r.results.every((x) => x && typeof x === "object" && !Array.isArray(x))
+      && Array.isArray(r.tiers) && r.tiers.length === r.results.length && r.tiers.every((t) => typeof t === "string")
+      && Array.isArray(r.promptIds) && r.promptIds.every((id) => typeof id === "string")
+      && (!isQuizMode(r.mode) || (Array.isArray(r.quiz) && Array.isArray(r.picks)));
+  }
+  let seen = new Set(lsArr("seen")); // prompt ids the player has answered
+  let practiceBest = lsObj("practice"); // prompt id -> best tier
   function saveRecord(rec) { records[rec.key] = rec; LS.set("records", records); }
   function markSeen(id) { if (!seen.has(id)) { seen.add(id); LS.set("seen", [...seen]); } }
 
@@ -945,7 +958,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const pl = LIVE.players.get(conn.peer), now = Date.now();
       if (now - (pl.typedAt || 0) < TYPING_EVERY_MS / 2) return; // honest pages send one every 2 s at most; this leaves room for network jitter
       pl.typedAt = now;
-      broadcast({ t: "typing", id: conn.peer, i: m.i, draft: m.draft, tried: m.tried });
+      if (!Number.isInteger(m.i)) return;
+      // relay only what guests show (a draft of 60, the last 6 tries of 40), never whatever size a member sent
+      broadcast({ t: "typing", id: conn.peer, i: m.i, draft: String(m.draft || "").slice(0, 60), tried: Array.isArray(m.tried) ? m.tried.slice(-6).map((x) => String(x).slice(0, 40)) : [] });
     } else if (m.t === "ans" && LIVE.players.has(conn.peer)) {
       hostAnswer(conn.peer, m);
     } else if (m.t === "chat" && LIVE.players.has(conn.peer)) {
@@ -2065,7 +2080,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     clearScreenTimers();
     unmountHomeHero();
     window.scrollTo(0, 0);
-    const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
+    let h = location.hash.replace(/^#\/?/, "");
+    try { h = decodeURIComponent(h); } catch { h = ""; } // a broken %-escape in a shared link opens home, not a blank page
+    h = h.replace(/\//g, "-");
     const lr = liveRoute(h); // a room's own link, with or without its secret, keeps you in the room
     if ((LIVE.active && !(lr && lr.code === LIVE.code)) || (joinState && !(lr && lr.code === joinState.code))) leaveLive();
     syncChat();
@@ -3150,7 +3167,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const PROVIDERS = [["google", "Google"], ["discord", "Discord"]];
   // anon: a publish-only account made by "Publish my score" (Supabase anonymous sign-in), no login
   const AUTH = { uid: null, user: null, profile: null, admin: false, anon: false, loading: null, ready: !BOARD_ON };
-  const boardPosted = LS.get("boardPosted", {}) || {};
+  const boardPosted = lsObj("boardPosted");
   let sbClient = null, sbLoading = null;
 
   function loadSupabase() {
@@ -3187,7 +3204,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       watchAuth(sb);
       const { data } = await sb.auth.getSession(); // also swaps ?code= for a session
       if (returning) {
-        if (q.has("error")) toast(`Login didn't work: ${q.get("error_description") || q.get("error")}`);
+        if (q.has("error")) toast("Login didn't work. Try again."); // never echo the URL's text: anyone can write a link with ?error_description=
         let back = "";
         try { back = sessionStorage.getItem("mlion:back") || ""; sessionStorage.removeItem("mlion:back"); } catch { /* ignore */ }
         history.replaceState(null, "", location.pathname + (back || location.hash || "#board"));
@@ -3603,8 +3620,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   function renderResults(key, recOverride) {
-    const rec = recOverride || records[key];
-    if (!rec) return go("home");
+    const rec = recOverride || (Object.prototype.hasOwnProperty.call(records, key) ? records[key] : null); // #results-__proto__ is not a run
+    if (!rec || !Array.isArray(rec.results)) return go("home");
     const n = rec.results.length;
     const max = n * 100;
     const isQ = isQuizMode(rec.mode); // quiz runs: 100 a hit, no rarity bands
@@ -3872,7 +3889,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return add;
   }
   const sprintTimer = (secs, label, ended) => `<div class="timer sp-timer${ended ? " low" : ""}" id="sp-timer"><div class="timer-row"><span id="sp-label">${label}</span><b id="sp-secs">${secs.toFixed(1)}</b></div><em class="sp-plus" id="sp-plus" aria-hidden="true"></em><div class="timer-track"><div class="timer-fill" id="sp-fill"${ended ? ' style="transform:scaleX(0)"' : ""}></div></div></div>`;
-  let sprints = LS.get("sprints", {}); // prompt id -> { best (points), n (answers then), plays, at }
+  let sprints = lsObj("sprints"); // prompt id -> { best (points), n (answers then), plays, at }
   let SPRINT = null; // the sprint on screen
   const SPRINT_MIN = 40; // answers a prompt needs for a whole minute to be worth playing
   const sprintOk = (p) => !!p && !p.reasoning && p.answers.length >= SPRINT_MIN;
@@ -4684,13 +4701,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           const d = JSON.parse($("#imp-t").value);
           let n = 0;
           for (const [k, r] of Object.entries(d.records || {})) {
-            if (!r || !Array.isArray(r.results)) continue;
-            if (!records[k] || records[k].score < r.score) { records[k] = r; n++; }
+            if (!recordOk(k, r)) continue;
+            if (!Object.prototype.hasOwnProperty.call(records, k) || records[k].score < r.score) { records[k] = r; n++; }
           }
           LS.set("records", records);
-          (d.seen || []).forEach((id) => seen.add(id)); LS.set("seen", [...seen]);
+          (Array.isArray(d.seen) ? d.seen : []).forEach((id) => { if (PROMPTS.has(id)) seen.add(id); }); LS.set("seen", [...seen]);
           for (const [pid, r] of Object.entries(d.sprints || {})) {
-            if (r && typeof r.best === "number" && (!sprints[pid] || sprints[pid].best < r.best)) sprints[pid] = r;
+            if (PROMPTS.has(pid) && r && typeof r === "object" && Number.isFinite(r.best) && (!sprints[pid] || sprints[pid].best < r.best)) sprints[pid] = r;
           }
           LS.set("sprints", sprints);
           closeModal(); toast(`Imported ${n} run${n === 1 ? "" : "s"}`);
@@ -4992,7 +5009,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // focus, never waits on the clock, and shows nothing when the database can't be reached.
   const SUGGEST_MAX = 50; // a day; the database's trigger refuses more
   const SUGGEST_SHOW = 3; // the count shows when more than this many other players sent it
-  const suggested = LS.get("suggested", {}) || {}; // "<prompt>|<key>" -> the day this browser sent it
+  const suggested = lsObj("suggested"); // "<prompt>|<key>" -> the day this browser sent it
   let suggestBroken = false; // the database has no suggestions yet (supabase/suggestions.sql not run): stop asking
   function suggestOn() { return BOARD_ON && !suggestBroken && !(navigator.webdriver && !window.MLION_BOARD); } // tests never touch the live project
   function suggestCountToday() { const d = LS.get("suggestDay", null); return d && d.day === today() ? d.n : 0; }
@@ -5192,4 +5209,5 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   boardBoot();
   cfgFetch();
   route();
+  window.MLION_BOOTED = true; // index.html's boot watchdog stands down
 })();

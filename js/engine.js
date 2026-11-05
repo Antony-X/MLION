@@ -776,6 +776,7 @@
   }
   /** False for a name that has a swear word or slur in it. */
   function nameOk(name) {
+    if (String(name == null ? "" : name).length > 64) return false; // names are 16 at most; the patterns backtrack on long runs
     const s = nameNorm(name);
     const joined = s.replace(NAME_OTHER, "");
     if (NAME_PARTS_RE.test(joined)) return false;

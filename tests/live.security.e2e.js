@@ -143,7 +143,12 @@ const FAKE_RELAY = () => {
   await ana.click("#chat-close");
 
   // ---------------------------------------------------------------- C. a dishonest guest
-  console.log("C. a guest who claims a tier");
+  console.log("C. a guest who floods typing, and one who claims a tier");
+  const before = (await heard(`${R}/down`)).length;
+  await L(ben, () => window.MLION_LIVE_SEND({ t: "typing", i: 0, draft: "x".repeat(60000), tried: Array.from({ length: 300 }, () => "y".repeat(100)) }));
+  await ana.waitForTimeout(1500);
+  const relayed = (await heard(`${R}/down`)).slice(before).map((x) => x.payload.length);
+  check(relayed.length && Math.max(...relayed) < 4000, `the host relays a member's typing at the size guests show, not the 90 KB sent (largest relayed message ${Math.max(...relayed)} characters)`);
   await ana.fill("#q-custom", "2"); await ana.press("#q-custom", "Enter");
   await ana.click('.t-size[data-s="15"]');
   await ben.waitForFunction(() => /2 questions · 15 s each/.test(document.body.textContent), null, { timeout: 8000 });

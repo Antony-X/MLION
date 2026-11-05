@@ -230,6 +230,14 @@ for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js
   html = html.replace(new RegExp(`(["'])${esc}(\\?v=[a-z0-9]+)?\\1`), `$1${f}?v=${h}$1`);
   stamped.push(`${f}?v=${h}`);
 }
+// The Content-Security-Policy allows inline scripts only by hash: one sha256 per inline <script> in index.html,
+// over its text as the browser sees it (HTML parsing turns CRLF into LF). Comments are skipped first, so the word
+// "<script>" in a comment can't start a match that swallows the policy itself (a hash that changes every build).
+const inlineHashes = [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script>([\s\S]*?)<\/script>/g)]
+  .map((m) => `'sha256-${require("crypto").createHash("sha256").update(m[1].replace(/\r\n?/g, "\n"), "utf8").digest("base64")}'`);
+const cspRe = /(script-src 'self')((?: 'sha256-[A-Za-z0-9+/=]+')*)/;
+if (!cspRe.test(html)) { console.error("index.html: no Content-Security-Policy script-src to stamp"); process.exit(1); }
+html = html.replace(cspRe, `$1 ${inlineHashes.join(" ")}`);
 fs.writeFileSync(INDEX, html);
 
 // The service worker precaches exactly these, so the game opens offline after one visit.
