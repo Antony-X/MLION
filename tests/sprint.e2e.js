@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Sprint mode with the real data: node tests/sprint.e2e.js
- * One prompt, sixty seconds (a fake clock), answers counted once each, misses bounce, the end screen
- * and the saved best. */
+ * One prompt, sixty seconds (a fake clock) plus the time each answer adds, answers counted once each,
+ * misses bounce, the end screen and the saved best. */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http"), fs = require("fs"), path = require("path");
@@ -16,6 +16,7 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
 
 // The prompt and the answers to type, worked out here with the same matcher the page uses.
 const P = D.prompts.find((p) => p.id === "loss-function");
+const BONUS = { baseline: 1, overfit: 2, indist: 3, outlier: 4, longtail: 5, mlion: 8 }; // seconds an answer adds to the clock
 const first = P.answers.find((a) => a.t === "baseline" && a.aka && a.aka.length);
 const alias = first.aka[0];
 let typo = null, typoOf = null;
@@ -66,15 +67,21 @@ const elsewhere = ["ReLU", "Adam", "GELU", "XGBoost", "K-means"].find((s) => E.m
   check((await p.textContent("#sp-n")) === "2" && (await p.textContent("#status")).includes(`Counted as ${typoOf.a}`), `a typo "${typo}" counts as ${typoOf.a} and says so`);
   const pts = E.TIERS[first.t].score + E.TIERS[typoOf.t].score;
   check((await p.$$("#sp-found li")).length === 2, "both answers are listed");
+  // every accepted answer adds time, more for a rarer tier
+  const bonus = BONUS[first.t] + BONUS[typoOf.t];
+  check((await p.textContent("#sp-plus")).trim() === `+${BONUS[typoOf.t]} s`, `the clock flashes the time the last answer added (+${BONUS[typoOf.t]} s for ${typoOf.t})`);
 
   await p.clock.runFor(30000);
   const mid = +(await p.textContent("#sp-secs"));
-  check(mid > 29 && mid < 30.5, `the clock counts down (${mid} s left after 30 s)`);
-  await p.clock.runFor(31000);
+  check(mid > 29 + bonus && mid < 30.5 + bonus, `the clock counts down from 60 s plus the ${bonus} s the two answers added (${mid} s left after 30 s)`);
+  await p.clock.runFor(30500);
+  check(!(await p.$("#sp-done")) && +(await p.textContent("#sp-secs")) > bonus - 1, "the added time keeps the sprint going past the minute");
+  await p.clock.runFor(bonus * 1000 + 1000);
   await p.waitForSelector("#sp-done");
   const done = await p.textContent("#sp-done");
   check(done.includes("2") && done.includes(String(pts)) && /Answers/.test(done) && /Points/.test(done), `time's up: 2 answers, ${pts} points`);
   check(/Common ones you missed/.test(done), "the end lists common answers you missed");
+  check((await p.$$eval("#sp-done .figure", (els) => els.map((e) => e.textContent))).includes(`${60 + bonus}Seconds`), `the end says how long the sprint ran (${60 + bonus} s)`);
   check(await p.$("#sp-share") !== null && await p.$("details.key") !== null, "Share and the full answer key are there");
   const saved = await p.evaluate(() => JSON.parse(localStorage.getItem("mlion:sprints")));
   check(saved["loss-function"] && saved["loss-function"].best === pts && saved["loss-function"].plays === 1, "the best is saved");
@@ -101,11 +108,12 @@ const elsewhere = ["ReLU", "Adam", "GELU", "XGBoost", "K-means"].find((s) => E.m
   await q.click("#sp-go");
   check((await q.textContent(".sp-tally")).includes("Ana: 50"), "the target stays in view while playing");
   for (const s of [first.a, typo]) { await q.fill("#sp-answer", s); await q.press("#sp-answer", "Enter"); await q.waitForTimeout(50); }
-  await q.clock.runFor(61000); await q.waitForSelector("#sp-done");
+  await q.clock.runFor(61000 + bonus * 1000); await q.waitForSelector("#sp-done");
   check((await q.textContent(".sp-verdict")).includes(`You beat Ana by ${pts - 50} points`), "the end says who won and by how much");
   await q.click("#sp-share"); await q.waitForTimeout(300);
   const shared = await q.evaluate(() => navigator.clipboard.readText());
   check(shared.includes(P.text) && shared.includes(`#sprint-loss-function~${pts}~2~426f`), "Share carries my result as the next challenge");
+  check(shared.includes(`2 answers · ${pts} points in ${60 + bonus} s`), "the share text gives the time the sprint really ran");
   await ctx2.close();
 
   check(!errs.length, "no page errors" + (errs.length ? ": " + errs.join("; ") : ""));

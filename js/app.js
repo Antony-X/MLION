@@ -73,6 +73,7 @@
   const tiersRow = (tiers, cls = "") =>`<span class="tiers ${cls}" role="img" aria-label="${esc(tiers.map((t) => (T[t] ? T[t].name : "Miss")).join(", "))}">${tiers.map((t) => G(t)).join("")}</span>`;
   const CHEV = `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
   const LOCK = `<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
+  const DUO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.2 19.5c0-3.3 2.6-5.6 5.8-5.6s5.8 2.3 5.8 5.6"/><circle cx="16.8" cy="8.6" r="2.6"/><path d="M16.9 13.9c2.3.3 3.9 2.3 3.9 5.1"/></svg>`;
   const XICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
   // ---- quiz marks: a right answer in a quiz run carries one neutral tier, only to colour the
   // descent; it says nothing about rarity (every right answer scores the same 100).
@@ -107,6 +108,17 @@
     set(k, v) { try { localStorage.setItem("mlion:" + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
     del(k) { try { localStorage.removeItem("mlion:" + k); } catch { /* ignore */ } },
   };
+  // Launch reset (the user, 2026-11-05: "we need to clear beta players"). The first visit after this ships drops
+  // everything the beta saved in this browser, once: runs, records, streaks, sprint bests, name and sign-in.
+  // Settings stay. Browsers driven by tests (navigator.webdriver) are skipped unless MLION_RESET_TEST is set:
+  // the data a test stores before loading the page is the point of that test.
+  const RESET_ID = "launch-2026-11";
+  try {
+    if (localStorage.getItem("mlion:reset") !== RESET_ID && !(navigator.webdriver && !window.MLION_RESET_TEST)) {
+      Object.keys(localStorage).filter((k) => k.startsWith("mlion:") && k !== "mlion:settings").forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem("mlion:reset", RESET_ID);
+    }
+  } catch { /* storage unavailable */ }
   const sysReduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, haptics: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false };
   let settings = Object.assign({}, DEFAULTS, LS.get("settings", {}));
@@ -1095,7 +1107,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     setMid(joining ? "Live" : "Play with friends");
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>${joining ? "Join live match" : "Play with friends"}</h1>
-        <p>${joining ? `Room ${esc(code)}. Same questions, same clock, scores live.` : "Make a room and send the link, or join an open room below. Same questions, same clock."}</p></div>
+        <p>${joining ? `Room ${esc(code)}. Same questions, same clock, scores live.` : "Make a room and send the link, or join an open room below. Same questions, same clock."}</p>
+        ${joining ? "" : `<p class="lv-note" id="live-fmt-line">Your room opens as <b>${({ rarity: "Classic", quiz: "Quiz", sprint: "Sprint" })[["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity"]}</b>. You can change it in the room.</p>`}</div>
       <div class="vs-form">
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
         ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms, so one stranger can join you</span></label>`}
@@ -1164,7 +1177,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${qPicker(LIVE.n, LIVE.fmt === "sprint" ? "sprints" : "questions")}
         ${LIVE.fmt === "sprint" ? "" : timePicker(LIVE.secs || DEFAULT_SECS)}
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>Skip questions this room already played</span></label>
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many as you can, rarer scores more." : LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}</p>`}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many as you can, rarer scores more and adds time." : LIVE.fmt === "quiz" ? "Quiz format, pick one of four." : `autocorrect ${({ off: "off", typos: "typos only", full: "full" })[LIVE.assist || "typos"]}. Classic format: type answers, rarer scores more.`}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -1640,10 +1653,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const unl = LS.get(`run:unlimited:${nextUnlimited()}`);
     const modes = [
-      ["#daily", "Daily", rec ? `Today's run · ${rec.score}` : inProg ? `Resume · ${Math.min(inProg.results.length + 1, 7)} of 7` : `MLion #${n} · seven prompts`, "hl"],
+      // [href, title, line, class, live format for the "With a friend" button beside it]
+      ["#daily", "Daily", rec ? `Today's run · ${rec.score}` : inProg ? `Resume · ${Math.min(inProg.results.length + 1, 7)} of 7` : `MLion #${n} · seven prompts`, "hl", "rarity"],
       ["#unlimited-play", "Unlimited", unl && unl.results && unl.results.length ? `Resume · ${unl.results.length} answered` : "Endless prompts, no repeats"],
-      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Multiple choice, a daily one too"],
-      ["#sprint", "Sprint", "One prompt, 60 seconds"],
+      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Multiple choice, a daily one too", "", "quiz"],
+      ["#sprint", "Sprint", "60 s, rare answers add time", "", "sprint"],
       ["#board", "Leaderboard", "Today's top scores"],
       ["#prefs", "Settings", "Clock, sound, extra questions"],
     ].filter(([href]) => BOARD_ON || href !== "#board");
@@ -1656,7 +1670,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
       <section class="depths-sec"><h2>Six depths</h2>${depthList(true)}</section>
       <div class="home-rest">
-        <section><h2>More</h2><ul class="modes">${modes.map(([href, t, d, c]) => `<li><a href="${href}"${c ? ` class="${c}"` : ""}>${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        <section><h2>More</h2><ul class="modes">${modes.map(([href, t, d, c, f]) => `<li${f ? ` class="duo"` : ""}><a href="${href}"${c ? ` class="${c}"` : ""}>${t}<span>${esc(d)}</span></a>${f ? `<a class="friend" href="#live" data-fmt="${f}" aria-label="Play ${t === "Daily" ? "Classic" : t} with a friend">${DUO}<span>With a friend</span></a>` : ""}</li>`).join("")}</ul></section>
         ${s.played ? `<section><h2>Your descent</h2><div class="figures">
           <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
           <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
@@ -1676,6 +1690,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       pre.before(tpl.content.querySelector("#hero3d"));
       pre.after(...tpl.content.querySelectorAll(".home > :not(canvas):not(.home-hero)"));
     } else app.replaceChildren(tpl.content);
+    $$(".modes a.friend").forEach((a) => a.addEventListener("click", () => LS.set("liveFmt", a.dataset.fmt))); // the room opens in that format
     if (mountHomeHero()) document.body.dataset.view = "home"; // the 3D descent replaces the flat backdrop
     else scene("home", { progress, animate: true });
     if (rec) every(1000, () => { const el = $("#cd"); if (el) el.textContent = hhmmss(E.msUntilLocalMidnight()); if (today() !== date) route(); });
@@ -2980,6 +2995,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // One prompt, sixty seconds, every answer you can name. Each answer scores its tier's points, so
   // rare ones still count for more. Unranked: bests stay in this browser (mlion:sprints).
   const SPRINT_SECS = 60;
+  // Every accepted answer adds time to the clock, more for a rarer one, up to a minute in all (user request).
+  const SPRINT_BONUS = { baseline: 1, overfit: 2, indist: 3, outlier: 4, longtail: 5, mlion: 8 };
+  const SPRINT_BONUS_CAP = 60000;
+  const SPRINT_BONUS_MAX = 8000; // the most one answer adds: a tally claiming more than this per answer is forged
+  /** Adds the seconds an answer of tier t earns to sprint S (solo or live) and flashes "+N s" by the clock. */
+  function sprintAddTime(S, t) {
+    const add = Math.min((SPRINT_BONUS[t] || 0) * 1000, SPRINT_BONUS_CAP - S.bonus);
+    if (add <= 0) return 0;
+    S.bonus += add;
+    if (S.endsAt) S.endsAt += add; // a live round runs on its own end time
+    const plus = $("#sp-plus");
+    if (plus) { plus.textContent = `+${add / 1000} s`; plus.classList.remove("on"); void plus.offsetWidth; plus.classList.add("on"); }
+    return add;
+  }
+  const sprintTimer = (secs, label, ended) => `<div class="timer sp-timer${ended ? " low" : ""}" id="sp-timer"><div class="timer-row"><span id="sp-label">${label}</span><b id="sp-secs">${secs.toFixed(1)}</b></div><em class="sp-plus" id="sp-plus" aria-hidden="true"></em><div class="timer-track"><div class="timer-fill" id="sp-fill"${ended ? ' style="transform:scaleX(0)"' : ""}></div></div></div>`;
   let sprints = LS.get("sprints", {}); // prompt id -> { best (points), n (answers then), plays, at }
   let SPRINT = null; // the sprint on screen
   const SPRINT_MIN = 40; // answers a prompt needs for a whole minute to be worth playing
@@ -3012,7 +3042,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (vs && mine && mine.best === vs.pts && myName() && vs.name === myName()) vs = null; // my own link (a nameless one stays a duel)
     const recent = Object.entries(sprints).filter(([pid]) => PROMPTS.has(pid)).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 8);
     app.innerHTML = `<section class="screen narrow sprint" id="sprint">
-      <div class="page-head"><h1>Sprint</h1><p>One prompt, ${SPRINT_SECS} seconds. Name every answer you can. Rarer ones score more.</p></div>
+      <div class="page-head"><h1>Sprint</h1><p>One prompt, ${SPRINT_SECS} seconds. Name every answer you can. Rarer ones score more and add more time.</p></div>
       <div class="sp-card" id="sp-card">
         ${sprintAsk(p)}
         ${vs ? `<p class="sp-vs">${esc(vs.name)} named ${vs.n} for ${vs.pts} points. Beat that.</p>` : ""}
@@ -3032,7 +3062,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     window.scrollTo(0, 0);
     $("#sprint").classList.add("playing");
     $("#sp-card").innerHTML = `${sprintAsk(p)}
-      <div class="timer" id="sp-timer"><div class="timer-row"><span>Time left</span><b id="sp-secs">${SPRINT_SECS.toFixed(1)}</b></div><div class="timer-track"><div class="timer-fill" id="sp-fill"></div></div></div>
+      ${sprintTimer(SPRINT_SECS, "Time left")}
       <form class="answer-form" id="sp-form" autocomplete="off">
         <input class="answer-input" id="sp-answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Your answer" placeholder="Type an answer">
         <button class="btn primary step-btn" type="submit">Step</button>
@@ -3041,18 +3071,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <p class="sp-tally"><b id="sp-n">0</b> answers <b id="sp-pts">0</b> points${vs ? `<span class="sp-target">${esc(vs.name)}: ${vs.pts}</span>` : ""}</p>
       <ol class="sp-found" id="sp-found"></ol>`;
     const input = $("#sp-answer"), total = SPRINT_SECS * 1000;
-    const S = SPRINT = { p, vs, t0: performance.now(), found: [], got: new Set(), pts: 0, done: false, lastTick: SPRINT_SECS };
+    const S = SPRINT = { p, vs, t0: performance.now(), found: [], got: new Set(), pts: 0, bonus: 0, done: false, lastTick: SPRINT_SECS };
     input.focus();
     every(100, () => {
       if (S !== SPRINT || S.done) return;
-      const left = Math.max(0, total - (performance.now() - S.t0));
+      const left = Math.max(0, total + S.bonus - (performance.now() - S.t0));
       const secs = $("#sp-secs"), fill = $("#sp-fill"), timer = $("#sp-timer");
       if (!secs) return;
       secs.textContent = (left / 1000).toFixed(1);
-      fill.style.transform = `scaleX(${(left / total).toFixed(4)})`;
+      fill.style.transform = `scaleX(${Math.min(1, left / total).toFixed(4)})`;
       timer.classList.toggle("low", left < 10000);
       const whole = Math.ceil(left / 1000);
-      if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
+      if (whole > S.lastTick) S.lastTick = whole; // time was just added
+      else if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
       if (left <= 0) finishSprint();
     });
     $("#sp-form").addEventListener("submit", (e) => {
@@ -3078,6 +3109,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       input.value = "";
       if (S.got.has(r.idx)) { setStatus(`Already counted: ${r.a.a}`, "info"); return false; }
       S.got.add(r.idx); S.found.push(r.a); S.pts += T[r.a.t].score;
+      sprintAddTime(S, r.a.t);
       Sound.tier(r.a.t);
       setStatus(r.corrected ? `Counted as ${r.a.a}` : "");
       $("#sp-n").textContent = S.found.length; $("#sp-pts").textContent = S.pts;
@@ -3129,7 +3161,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $("#sp-card").outerHTML = `<div class="sp-done" id="sp-done">
       <p class="sp-of">${esc(p.text)}</p>
       ${vs ? `<p class="sp-verdict${d > 0 ? " win" : ""}">${verdict}</p>` : ""}
-      <div class="figures"><div class="figure"><b>${n}</b><span>${n === 1 ? "Answer" : "Answers"}</span></div><div class="figure"><b>${S.pts}</b><span>Points</span></div></div>
+      <div class="figures"><div class="figure"><b>${n}</b><span>${n === 1 ? "Answer" : "Answers"}</span></div><div class="figure"><b>${S.pts}</b><span>Points</span></div><div class="figure"><b>${SPRINT_SECS + S.bonus / 1000}</b><span>Seconds</span></div></div>
       <p class="sp-meta">${prev ? (best ? `New best on this prompt (was ${prev.best})` : `Your best here: ${prev.best} points`) : `${fmt(p.answers.length)} answers in the key`}</p>
       ${n ? `<div class="tier-counts">${E.TIERS_BY_SCORE.filter((t) => counts[t.id]).map((t) => `<span class="t-${t.id}" title="${esc(t.name)}">${G(t.id)}${counts[t.id]}</span>`).join("")}</div>` : ""}
       <div class="btn-row"><button class="btn primary big" id="sp-again" type="button">Again</button><button class="btn big" id="sp-next" type="button">Another prompt</button>${n ? `<button class="btn big" id="sp-share" type="button">Share</button>` : ""}</div>
@@ -3157,7 +3189,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function sprintShare(S) {
     const grid = S.found.slice(0, 40).map((a) => E.tierEmoji(a.t)).join("") + (S.found.length > 40 ? "…" : "");
     const url = settings.shareLink && (SHARE_BASE || siteUrl()) ? `\n\nBeat me: ${sprintLink(S.p.id, S.pts, S.found.length)}` : "";
-    return `MLion Sprint 🦁\n${S.p.text}\n${S.found.length} answers · ${S.pts} points in ${SPRINT_SECS} s${grid ? `\n\n${grid}` : ""}${url}`;
+    return `MLion Sprint 🦁\n${S.p.text}\n${S.found.length} answers · ${S.pts} points in ${SPRINT_SECS + S.bonus / 1000} s${grid ? `\n\n${grid}` : ""}${url}`;
   }
 
   // ======================================================== live sprint
@@ -3176,7 +3208,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const spTest = () => (window.MLION_TEST && window.MLION_SPRINT_TEST) || {};
   const spMs = () => (+spTest().secs > 0 ? +spTest().secs : SPRINT_SECS) * 1000;
   const spRevealMs = (most) => (+spTest().reveal > 0 ? +spTest().reveal : Math.min(18000, SP_REVEAL_MS + 300 * most));
-  const spRound = (i) => ({ i, p: PROMPTS.get(LIVE.ids[i]), phase: "intro", found: [], got: new Set(), pts: 0, lastTick: Infinity, shown: {} });
+  const spRound = (i) => ({ i, p: PROMPTS.get(LIVE.ids[i]), phase: "intro", found: [], got: new Set(), pts: 0, bonus: 0, lastTick: Infinity, shown: {} });
+  /** A progress tally that could be real: answers, their points, and the time they added (ms). */
+  const spTallyOk = (n, pts, b) => n >= 0 && n <= SP_CAP && pts >= 0 && pts <= 100 * n && b >= 0 && b <= Math.min(SPRINT_BONUS_CAP, SPRINT_BONUS_MAX * n);
 
   /** Everyone who played this match: those still here, then those who left after it began. */
   function spPlayers() {
@@ -3236,11 +3270,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     } else if (m.t === "spp") {
       const pl = LIVE.players.get(m.id) || LIVE.gone.get(m.id);
       if (!pl || pl.ans[m.i]) return;
-      const n = Math.round(+m.n), pts = Math.round(+m.pts);
-      if (!(n >= 0 && n <= SP_CAP && pts >= 0 && pts <= 100 * n)) return;
+      const n = Math.round(+m.n), pts = Math.round(+m.pts), b = Math.round(+m.b || 0);
+      if (!spTallyOk(n, pts, b)) return;
       if (!pl.sp) pl.sp = {};
       if (pl.sp[m.i] && n < pl.sp[m.i].n) return; // an older message arriving late
-      pl.sp[m.i] = { n, pts };
+      pl.sp[m.i] = { n, pts, b };
       if (SPR && SPR.i === m.i && pl.id !== LIVE.myId) liveSprintBoard();
     } else if (m.t === "spans") {
       const pl = LIVE.players.get(m.id), p = PROMPTS.get(LIVE.ids[m.i]);
@@ -3330,10 +3364,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     const left = Math.max(0, S.endsAt - now), total = spMs();
     $("#sp-secs").textContent = (left / 1000).toFixed(1);
-    $("#sp-fill").style.transform = `scaleX(${(left / total).toFixed(4)})`;
+    $("#sp-fill").style.transform = `scaleX(${Math.min(1, left / total).toFixed(4)})`;
     $("#sp-timer").classList.toggle("low", left < Math.min(10000, total / 3));
     const whole = Math.ceil(left / 1000);
-    if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
+    if (whole > S.lastTick && S.lastTick !== Infinity) S.lastTick = whole; // time was just added
+    else if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
     if (left <= 0) liveSprintEnd();
   }
   function spSendFinal(S) {
@@ -3351,7 +3386,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function liveSprintProgress() {
     const S = SPR;
     if (!S) return;
-    const m = { t: "spp", i: S.i, n: S.found.length, pts: S.pts };
+    const m = { t: "spp", i: S.i, n: S.found.length, pts: S.pts, b: S.bonus };
     if (LIVE.isHost) hostSprintProgress(LIVE.myId, m); else guestSend(m);
     liveSprintBoard();
   }
@@ -3373,7 +3408,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!S) return;
     if (!card) return renderSprintShell();
     window.scrollTo(0, 0);
-    if (S.phase === "intro") card.innerHTML = `<div class="intro-card"><div><h2>Get ready</h2><p class="sub">${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${spMs() / 1000} s. Everyone gets the same prompt on the same clock. Each sprint is revealed when it ends.</p></div></div>`;
+    if (S.phase === "intro") card.innerHTML = `<div class="intro-card"><div><h2>Get ready</h2><p class="sub">${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${spMs() / 1000} s. Everyone gets the same prompt at the same moment. Each answer adds time to your clock, rarer ones more. Each sprint is revealed when every clock has run out.</p></div></div>`;
     else if (S.phase === "wait") card.innerHTML = `<div class="intro-card"><div><h2>Sprint ${S.i + 1} of ${LIVE.n}</h2><p class="sub">Starting together…</p></div></div>`;
     else if (S.phase === "away") card.innerHTML = `<div class="intro-card"><div><h2>You're back</h2><p class="sub">The next sprint starts in a moment.</p></div></div>`;
     else if (S.phase === "reveal") card.innerHTML = spRevealHtml(S.i);
@@ -3381,7 +3416,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const playing = S.phase === "play", ended = S.phase === "ended";
       card.innerHTML = `<p class="sp-round">Sprint ${S.i + 1} of ${LIVE.n}</p>
         ${sprintAsk(S.p)}
-        <div class="timer${ended ? " low" : ""}" id="sp-timer"><div class="timer-row"><span id="sp-label">${S.phase === "preview" ? "Starts in" : ended ? "Time" : "Time left"}</span><b id="sp-secs">${(ended ? 0 : spMs() / 1000).toFixed(1)}</b></div><div class="timer-track"><div class="timer-fill" id="sp-fill" style="transform:scaleX(${ended ? 0 : 1})"></div></div></div>
+        ${sprintTimer(ended ? 0 : spMs() / 1000, S.phase === "preview" ? "Starts in" : ended ? "Time" : "Time left", ended)}
         <div class="input-zone">
           <form class="answer-form" id="sp-form" autocomplete="off">
             <input class="answer-input" id="sp-answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Your answer" placeholder="Type an answer"${playing ? "" : " disabled"}>
@@ -3455,17 +3490,27 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // ---- the host
   function hostSprintRound(i) {
-    broadcast({ t: "spround", i, at: Date.now() + 1500 });
-    // the clock ends every list; this cap only covers a player who vanished
-    liveLater(() => hostReveal(i), 1500 + E.PREVIEW_MS + spMs() + SP_GRACE_MS);
+    const at = Date.now() + 1500;
+    broadcast({ t: "spround", i, at });
+    LIVE.spEnd = { i, at: at + E.PREVIEW_MS + spMs() }; // when a clock with no added time runs out
+    liveLater(() => hostSprintCap(i), LIVE.spEnd.at + SP_GRACE_MS - Date.now());
+  }
+  /** Each clock ends its own list; this cap only covers a player who vanished. Answers add time, so the cap
+   *  moves out to the longest clock a player still owing a list has reported. */
+  function hostSprintCap(i) {
+    if (LIVE.revealed >= i || !LIVE.spEnd || LIVE.spEnd.i !== i) return;
+    const extra = Math.max(0, ...inMatch().filter((pl) => !pl.ans[i]).map((pl) => (pl.sp && pl.sp[i] && pl.sp[i].b) || 0));
+    const due = LIVE.spEnd.at + extra + SP_GRACE_MS - Date.now();
+    if (due > 50) liveLater(() => hostSprintCap(i), due);
+    else hostReveal(i);
   }
   /** Progress from a player: checked, then passed on so every screen can show it. */
   function hostSprintProgress(id, m) {
     const pl = LIVE.players.get(id);
     if (LIVE.phase !== "playing" || !liveSprint() || !SPR || !pl || pl.late || m.i !== SPR.i || m.i <= LIVE.revealed) return;
-    const n = Math.round(+m.n), pts = Math.round(+m.pts);
-    if (!(n >= 0 && n <= SP_CAP && pts >= 0 && pts <= 100 * n)) return;
-    broadcast({ t: "spp", id, i: m.i, n, pts });
+    const n = Math.round(+m.n), pts = Math.round(+m.pts), b = Math.round(+m.b || 0);
+    if (!spTallyOk(n, pts, b)) return;
+    broadcast({ t: "spp", id, i: m.i, n, pts, b });
   }
   /** A player's finished list: only the first one for the round counts, and every index must be a real answer. */
   function hostSprintFinal(id, m) {
@@ -3500,8 +3545,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (LIVE.revealed >= i) return void liveLater(() => liveSprintNext(i), 1500);
     if (S.phase === "intro") return void liveLater(() => hostSprintRound(i), 1500); // the round was never announced
     hostSprintCheck(i);
-    const left = S.endsAt ? S.endsAt - Date.now() : E.PREVIEW_MS + spMs();
-    liveLater(() => hostReveal(i), Math.max(0, left) + SP_GRACE_MS);
+    LIVE.spEnd = { i, at: S.endsAt ? S.endsAt - S.bonus : Date.now() + E.PREVIEW_MS + spMs() };
+    hostSprintCap(i);
   }
 
   // ================================================================= quiz
@@ -3781,7 +3826,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="btn-row"><button class="btn" id="rs-no">Keep it</button><button class="btn danger" id="rs-yes">Delete everything</button></div>`);
       $("#rs-no").addEventListener("click", closeModal);
       $("#rs-yes").addEventListener("click", () => {
-        const keep = new Set(["mlion:settings", "mlion:name"]);
+        const keep = new Set(["mlion:settings", "mlion:name", "mlion:reset"]);
         try { Object.keys(localStorage).filter((k) => k.startsWith("mlion:") && !keep.has(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
         records = {}; seen = new Set(); practiceBest = {}; sprints = {};
         closeModal(); toast("All progress reset"); go("home");

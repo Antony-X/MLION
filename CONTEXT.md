@@ -352,6 +352,16 @@ intro → preview (3 s, input locked) → answering (default 25 s) → feedback 
 
 - Order (user's request): **Daily** (class `hl`, gold), Unlimited, Quiz, Sprint, Leaderboard (when the
   board is configured), **Settings** (`#prefs`, replaced Stats on home; `#stats` still exists in the menu).
+- **With a friend** (user: playing with friends is the most important mode and people didn't know it was
+  there): Daily, Quiz and Sprint rows carry a gold `a.friend` button to `#live`; its click saves `liveFmt`
+  (`rarity`, `quiz`, `sprint`), so the room opens in that format, and the create-room page says which
+  (`#live-fmt-line`). Rows are title over line at every width, so rows with and without the button align.
+- **Launch reset** (user, 2026-11-05: "clear beta players", everything including logins): app.js, right
+  after `LS`, removes every `mlion:*` key except `mlion:settings` once per browser and writes
+  `mlion:reset = RESET_ID` ("launch-2026-11"). Browsers driven by tests (`navigator.webdriver`) are skipped
+  unless `window.MLION_RESET_TEST` is set (tests/flow.e2e.js does). Settings → reset local data keeps
+  `mlion:reset`, so it doesn't rerun. The Supabase side (scores, profiles, auth users) is wiped by hand in
+  the SQL editor; nothing in the repo deletes server data. To reset again, change `RESET_ID`.
 - Unlimited is one endless session (`RUN.endless`, key `unlimited:N`, N = next unplayed). Each Next deals
   one more prompt from one long shuffled deck per question set: `E.streamIds(CORE|WIDE,
   "unlimited-v3:core|wide", k)`, position in LS `unlPos:<pool>`, so nothing repeats until the whole deck
@@ -517,7 +527,12 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 
 ### Sprint (added overnight 2026-11-05)
 
-- One prompt, 60 seconds, as many answers as you can; each scores its tier's points. Answers count
+- One prompt, 60 seconds, as many answers as you can; each scores its tier's points. **Every accepted
+  answer adds time** (user request, 2026-11-05): `SPRINT_BONUS` = Baseline 1 s, Overfit 2, In-Distribution
+  3, Outlier 4, Long Tail 5, MLion 8, at most 60 s in all (`SPRINT_BONUS_CAP`), added by `sprintAddTime`
+  (solo: `S.bonus` stretches the clock; live: `S.endsAt` moves). "+N s" flashes above the clock
+  (`#sp-plus`); the bar never overfills. The end screen shows Seconds and the share text says the real
+  length ("in 66 s"). Duel links are unchanged (points and answers). Answers count
   once (aliases included); a confident typo counts and says "Counted as X"; a near miss says
   "Close to X" and keeps the text; a miss clears. Everything is in app.js under `// sprint`.
 - Pool: `soloPool()` prompts with at least 40 answers (so extras follow the setting). Unranked:
@@ -622,10 +637,13 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   prompts with at least 40 answers (`sprintOk`, the solo bar). Guests read "3 sprints of 60 s · Sprint format…".
 - It runs beside the shared RUN engine (`LIVE.mfmt === "sprint"`, state in `SPR`; code under `// live sprint`). The host
   sends `spround {i, at}` (Classic's 1.5 s lead and 3 s read, so clocks start together). Every accepted answer sends
-  `spp {i, n, pts}`; the host checks it (`n` up to 200, `pts` up to 100 n) and passes it on, so the strip above the prompt
+  `spp {i, n, pts, b}` (`b`: ms of time the answers added); the host checks it (`spTallyOk`: `n` up to 200, `pts` up to
+  100 n, `b` up to min(60 s, 8 s × n)) and passes it on, so the strip above the prompt
   shows everyone's count and points ticking up while their answers stay hidden. When a player's clock ends they send
   `spans {i, list}` (answer indexes into the prompt); the host keeps the first valid list, every page recomputes points
-  from the tiers. The host reveals when every list is in, or 6 s after the clocks end for a straggler
+  from the tiers. Each player's clock is 60 s plus their own added time, so lists arrive at different moments. The host
+  reveals when every list is in, or 6 s after the longest reported clock ends for a straggler (`hostSprintCap` re-arms
+  itself from `LIVE.spEnd` plus the largest `b` among players still owing a list)
   (`reveal {i, part, nextAt}`; `part` holds the last progress of players who sent no list). The reveal lists each player's
   answers with ×2 (and up) on any answer more than one named, plus standings and a countdown (9 s, plus 0.3 s per answer in
   the longest list, at most 18). The end is the usual podium, with each sprint's answers in the recap and Ready for rematch.

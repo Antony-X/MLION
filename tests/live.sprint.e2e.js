@@ -22,6 +22,8 @@ const DATA = global.window.MLION_DATA;
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
 const T = E.TIERS;
 const CLOCK = 8, REVEAL_MS = 4000;
+const BONUS = { baseline: 1, overfit: 2, indist: 3, outlier: 4, longtail: 5, mlion: 8 }; // seconds an answer adds to its player's clock
+const added = (list) => list.reduce((s, a) => s + BONUS[a.t], 0);
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 const server = http.createServer((req, res) => {
@@ -162,12 +164,14 @@ function plan(P) {
   await rivalIs(ana, 3, A0.benPts);
   await rivalIs(ben, 3, A0.anaPts);
   check(true, `both finish typing: the strips read 3 answers, Ana ${A0.anaPts} points and Ben ${A0.benPts}`);
+  const extra0 = Math.max(added(A0.ana), added(A0.ben));
+  check(await ana.evaluate(() => { const L = window.MLION_LIVE_STATE; const p = [...L.players.values()].find((x) => x.id !== L.myId); return p.sp[0].b; }) === added(A0.ben) * 1000, `the host knows how much time Ben's answers added (${added(A0.ben)} s)`);
   await ana.screenshot({ path: path.join(OUT, "62-live-sprint-rival.png") });
 
   // ---- the clock ends the round; nobody presses anything
   await Promise.all([ana.waitForSelector(".sp-reveal", { timeout: 40000 }), ben.waitForSelector(".sp-reveal", { timeout: 40000 })]);
   const took = (Date.now() - t0) / 1000;
-  check(took >= CLOCK - 1 && took < CLOCK + 7, `the round ended on the clock: the reveal came ${took.toFixed(1)} s after the box opened (clock ${CLOCK} s)`);
+  check(took >= CLOCK + extra0 - 1 && took < CLOCK + extra0 + 7, `the round ended when the longest clock ran out: the reveal came ${took.toFixed(1)} s after the box opened (clock ${CLOCK} s, plus up to ${extra0} s the answers added)`);
   check(await ana.evaluate(() => document.querySelector("#sp-answer") === null), "the answer box is gone at the reveal");
   const names = (list) => list.map((a) => a.a).sort();
   check(JSON.stringify((await chipNames(ben, "Ana")).sort()) === JSON.stringify(names(A0.ana)) && JSON.stringify((await chipNames(ana, "Ben")).sort()) === JSON.stringify(names(A0.ben)), "the reveal lists each player's answers on both pages");
@@ -194,7 +198,7 @@ function plan(P) {
   check(true, "Ben sent 2 answers, then left the room");
   for (const a of A1.ana) await type(ana, a.a);
   const anaR2 = A1.anaPts;
-  await ana.waitForFunction(() => /Waiting for Ben/.test((document.querySelector("#sp-wait") || {}).textContent || ""), null, { timeout: CLOCK * 1000 + 8000 });
+  await ana.waitForFunction(() => /Waiting for Ben/.test((document.querySelector("#sp-wait") || {}).textContent || ""), null, { timeout: (CLOCK + added(A1.ana)) * 1000 + 8000 });
   check(true, "when Ana's clock ends she is told it is waiting for Ben");
   await ana.waitForSelector(".sp-reveal", { timeout: 30000 });
   check(true, "the round doesn't hang on a player who vanished: the host revealed on its own");

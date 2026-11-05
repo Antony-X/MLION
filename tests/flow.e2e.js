@@ -26,13 +26,23 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
   // ---- home: Daily first and gold, then Unlimited, Quiz, Sprint, Leaderboard, Settings
   await p.goto(base);
   await p.waitForSelector(".modes a");
-  const modes = await p.$$eval(".modes a", (els) => els.map((a) => ({ href: a.getAttribute("href"), t: a.firstChild.textContent.trim(), color: getComputedStyle(a).color, hl: a.classList.contains("hl") })));
+  const modes = await p.$$eval(".modes li > a:first-child", (els) => els.map((a) => ({ href: a.getAttribute("href"), t: a.firstChild.textContent.trim(), color: getComputedStyle(a).color, hl: a.classList.contains("hl") })));
   const order = modes.map((m) => m.t).filter((t) => t !== "Leaderboard"); // the board shows only where it's configured
   check(JSON.stringify(order) === JSON.stringify(["Daily", "Unlimited", "Quiz", "Sprint", "Settings"]), `home list order: ${modes.map((m) => m.t).join(", ")}`);
   check(modes[0].hl && modes[0].color !== modes[1].color, `Daily stands out in its own colour (${modes[0].color})`);
   check(modes.find((m) => m.t === "Settings").href === "#prefs" && !modes.some((m) => m.t === "Stats"), "Settings replaces Stats");
+  // "With a friend" beside Daily, Quiz and Sprint opens a live room in that format
+  const duo = await p.$$eval(".modes li.duo", (els) => els.map((li) => [li.querySelector("a").getAttribute("href"), li.querySelector("a.friend").getAttribute("href"), li.querySelector("a.friend").dataset.fmt, li.querySelector("a.friend").textContent.trim()].join(" ")));
+  check(JSON.stringify(duo) === JSON.stringify(["#daily #live rarity With a friend", "#quiz #live quiz With a friend", "#sprint #live sprint With a friend"]), `With a friend sits beside Daily, Quiz and Sprint (${duo.join(" | ")})`);
+  const box = async (sel) => p.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
+  const [rowA, chip] = [await box('.modes a[href="#daily"]'), await box('.modes li.duo a.friend[data-fmt="rarity"]')];
+  check(chip.l >= rowA.r - 1 && chip.t < rowA.b && chip.b > rowA.t && chip.r <= 390, "the button sits on Daily's row, to its right, inside a phone screen");
   await p.$eval(".modes", (el) => el.scrollIntoView());
   await p.screenshot({ path: path.join(OUT, "70-home-modes.png") });
+  await p.click('.modes a.friend[data-fmt="quiz"]');
+  await p.waitForSelector("#live-fmt-line");
+  check((await p.textContent("#live-fmt-line")).includes("Quiz") && (await p.evaluate(() => JSON.parse(localStorage.getItem("mlion:liveFmt")))) === "quiz", "the Quiz one opens the room page set to Quiz");
+  await p.goto(base + "#home"); await p.waitForSelector(".modes a");
 
   // ---- Daily starts at once: no Begin page, straight into the first prompt's read time
   await p.click('.modes a[href="#daily"]');
@@ -102,6 +112,29 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
   await p.waitForSelector(".list-item");
   check((await p.$$eval(".list-item .title", (els) => els.map((e) => e.textContent))).join("|") === "Session 2 · 3 prompts|Session 1 · 9 prompts", "the Unlimited page lists sessions with their length");
   await p.screenshot({ path: path.join(OUT, "73-unlimited-page.png"), fullPage: true });
+  // ---- launch reset: what the beta saved goes once, settings stay, and later saves are left alone
+  const rc = await b.newContext({ viewport: { width: 390, height: 844 } });
+  await rc.route(/fonts\./, (r) => r.abort());
+  await rc.addInitScript(() => {
+    window.MLION_RESET_TEST = true; // the reset skips test browsers otherwise
+    if (sessionStorage.getItem("seeded")) return;
+    sessionStorage.setItem("seeded", "1");
+    localStorage.setItem("mlion:records", JSON.stringify({ "unlimited:1": { key: "unlimited:1", mode: "unlimited", score: 300 } }));
+    localStorage.setItem("mlion:name", JSON.stringify("Beta"));
+    localStorage.setItem("mlion:sprints", JSON.stringify({ "loss-function": { best: 90, n: 3, plays: 1, at: 1 } }));
+    localStorage.setItem("mlion:sb", "{}");
+    localStorage.setItem("mlion:settings", JSON.stringify({ sound: false, answerSecs: 40 }));
+  });
+  const rp = await rc.newPage(); rp.on("pageerror", (e) => errs.push(e.message));
+  await rp.goto(base); await rp.waitForSelector(".modes a");
+  const kept = await rp.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("mlion:")).sort());
+  check(!kept.some((k) => /records|name|sprints|sb$/.test(k)) && kept.includes("mlion:reset"), `beta records, name, sprint bests and sign-in are cleared (left: ${kept.join(", ")})`);
+  check((await rp.evaluate(() => JSON.parse(localStorage.getItem("mlion:settings")).answerSecs)) === 40, "settings stay");
+  await rp.evaluate(() => localStorage.setItem("mlion:name", JSON.stringify("Launch")));
+  await rp.reload(); await rp.waitForSelector(".modes a");
+  check((await rp.evaluate(() => JSON.parse(localStorage.getItem("mlion:name")))) === "Launch", "the reset happens once: a name saved after it survives the next visit");
+  await rc.close();
+
   check(!errs.length, "no page errors" + (errs.length ? ": " + errs.join(" | ") : ""));
   console.log("flow e2e passed");
   await b.close(); srv.close();
