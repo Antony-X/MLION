@@ -437,7 +437,7 @@
       if (minAt(1) > maxBy) for (const [need, rise] of cons) if (rise > 0) sy = Math.min(sy, (maxBy - need) / (rise * s));
       sy = clamp(sy, 0.1, 1);
       const ideal = topY + (maxBy - topY) * 0.68;
-      return { by: clamp(ideal, Math.min(minAt(sy), maxBy), maxBy), sy, topY };
+      return { by: clamp(ideal, Math.min(minAt(sy), maxBy), maxBy), sy, topY, need: (s2) => Math.min(minAt(s2), maxBy) };
     }
 
     function step(now, dt) {
@@ -478,6 +478,8 @@
         st.sy += (T.sy - st.sy) * kv;
         st.zoom += (1 + st.kick - st.zoom) * kz;
       }
+      // the easing may lag, but the path never crosses the numbers: hold the hard limit every frame
+      if (!calm) st.by = Math.max(st.by, targets().need(st.sy));
       st.camY = terrain(st.camX);
       st.shake = st.shake > 0.2 && !calm ? st.shake * Math.exp(-dt / 120) : 0;
 
