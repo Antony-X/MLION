@@ -55,7 +55,7 @@ const probe = (page) => page.evaluate(() => {
   await sleep(500);
   check((await probe(page)) === null, "no music engine (and no audio context from it) before a gesture");
 
-  await page.click("text=Start training");
+  await page.click("text=Play today's daily");
   await sleep(1500);
   let p = await probe(page);
   check(p && p.on && p.ctx === "running", `the first tap starts it (context ${p && p.ctx})`);
@@ -159,7 +159,7 @@ const probe = (page) => page.evaluate(() => {
   await page2.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page2.goto(base);
   await page2.waitForSelector(".wordmark");
-  await page2.click("text=Start training");
+  await page2.click("text=Play today's daily");
   await sleep(1200);
   check((await probe(page2)) === null, "with Sound off there is no music at all");
 

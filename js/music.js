@@ -480,7 +480,7 @@
     const vol = () => { const v = (settings() || {}).musicVol; return Number.isFinite(v) ? clamp(v, 0, 1) : 0.5; };
     const hidden = () => !manual && typeof document !== "undefined" && document.visibilityState === "hidden";
     // only during a run and on its results: menus and the home page stay silent (owner's call)
-    const wanted = () => { const s = settings() || {}; return memo.view !== "menu" && !!s.sound && s.music !== false && vol() > 0 && !hidden(); };
+    const wanted = () => { const s = settings() || {}; return (memo.view === "play" || memo.view === "results") && !!s.sound && s.music !== false && vol() > 0 && !hidden(); };
     function engine() {
       if (eng) return eng;
       const g = graph();
