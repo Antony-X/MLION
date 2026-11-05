@@ -172,7 +172,7 @@ const reasoning = fs.existsSync(REASONING_FILE) ? JSON.parse(fs.readFileSync(REA
     seen.add(at);
     for (const k of ["cat", "q", "why"]) if (typeof r[k] !== "string" || !r[k].trim()) errs.push(`${at}: missing ${k}`);
     if (!r.retired && !packs.some((pk) => pk.id === r.pack)) errs.push(`${at}: pack must be a pack id`);
-    if (!r.retired && !["easy", "medium"].includes(r.lvl)) errs.push(`${at}: lvl must be easy or medium`);
+    if (!r.retired && !["easy", "medium", "hard"].includes(r.lvl)) errs.push(`${at}: lvl must be easy, medium or hard`);
     if (!Array.isArray(r.options) || r.options.length !== E.QUIZ_OPTIONS || r.options.some((o) => typeof o !== "string" || !o.trim())) errs.push(`${at}: needs ${E.QUIZ_OPTIONS} options`);
     else if (new Set(r.options.map((o) => o.trim().toLowerCase())).size !== r.options.length) errs.push(`${at}: two options are the same`);
     if (!Number.isInteger(r.answer) || r.answer < 0 || r.answer >= E.QUIZ_OPTIONS) errs.push(`${at}: answer must be an option index`);

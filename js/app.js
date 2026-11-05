@@ -429,7 +429,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ---- quiz challenges: #vq-<seed>-<n>[tNN][-<picks>-<tenths>-<nameHex>]x2. Picks are one digit per
   // question (0 none, 1 to 4 the option chosen), so the score is recomputed from the seed; tenths is
   // the total answer time in tenths of a second, which breaks a tie on points.
-  const quizChallengeQuiz = (seed, n) => E.quizFor(CORE, `vq-${seed}`, n);
+  // Links made since the hard questions arrived (2026-11-05) have 10-character seeds and deal the level mix;
+  // older links (6-7 characters) rebuild from the bank as it was then, so the picks they carry still line up.
+  const CORE_BANK1 = { ...CORE, reasoning: CORE.reasoning.filter((r) => r.retired || +r.id.slice(3) <= 247) };
+  const quizChallengeQuiz = (seed, n) => (seed.length >= 10
+    ? E.quizFor(CORE, `vq-${seed}`, n, { promptIds: [], reasoningIds: E.mixedDeal(CORE, `vq-${seed}`, n) })
+    : E.quizFor(CORE_BANK1, `vq-${seed}`, n));
   function vqLink(seed, n, players, secs) {
     const tail = players.map((pl) => `-${pl.picks.join("")}-${Math.min(99999, pl.tenths)}-${encName(pl.name)}`).join("");
     const t = validSecs(secs) && secs !== DEFAULT_SECS ? `t${secs}` : "";
@@ -691,6 +696,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** The packs a room plays (empty: every topic), and the prompt ids they hold. */
   const liveTopics = () => (Array.isArray(LIVE.topics) ? LIVE.topics.filter((id) => PACKS.has(id)) : []);
+  /** A live quiz's questions laid out like a solo run (E.QUIZ_PATTERN: easy, easy, medium, hard, medium, hard, hard),
+   *  taken from the host's candidates in order; when a level runs out, the next candidate fills the slot. */
+  function mixByLevel(cand, n) {
+    const lvl = new Map(QUIZ_BANK.map((r) => [r.id, r.lvl || "medium"]));
+    const left = cand.slice(), out = [];
+    for (let k = 0; k < n && left.length; k++) {
+      const j = left.findIndex((id) => lvl.get(id) === E.QUIZ_PATTERN[k % E.QUIZ_PATTERN.length]);
+      out.push(left.splice(Math.max(0, j), 1)[0]);
+    }
+    return out;
+  }
   function livePool(sprint, quiz) { // a sprint needs prompts with enough answers to fill its minute
     const t = liveTopics();
     if (quiz) return QUIZ_BANK.filter((r) => !t.length || t.includes(r.pack)).map((r) => r.id); // a quiz deals bank questions, by topic
@@ -807,7 +823,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (LIVE.fmt === "quiz") { // the host fixes which prompts get a question, so every page builds the same ones
       // the dealt ids are all bank questions (of the match's topics, if any), so every page builds exactly them
-      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: fresh.length >= LIVE.n ? fresh : topics.length ? E.shuffled(pool, E.mulberry32(E.hashString(seed))) : ids, ...(topics.length ? { reasoningIds: [] } : {}) });
+      const cand = fresh.length >= LIVE.n ? fresh : E.shuffled(pool, E.mulberry32(E.hashString(seed)));
+      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: mixByLevel(cand, LIVE.n), ...(topics.length ? { reasoningIds: [] } : {}) });
       if (!quiz.length) { LIVE.phase = "lobby"; toast("This question set can't make a quiz"); return; }
       ids = quiz.map((q) => q.promptId);
       LIVE.n = ids.length;
@@ -2964,7 +2981,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LS.set("name", $("#vs-name").value.trim().slice(0, 16));
       LS.set("vsSize", size);
       LS.set("vsSecs", secs);
-      const seed = Math.random().toString(36).slice(2, 9).padEnd(6, "0");
+      const seed = fmt === "quiz" ? Math.random().toString(36).slice(2, 12).padEnd(10, "0") : Math.random().toString(36).slice(2, 9).padEnd(6, "0");
       LS.set("vsFormat", fmt);
       go(`${fmt === "quiz" ? "vq" : "vs"}-${seed}-${size}${secs !== DEFAULT_SECS ? `t${secs}` : ""}`);
     });
@@ -3559,7 +3576,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
-        <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run, four answers each, and a short explanation after every one. ${E.QUIZ_POINTS} a right answer.</p></div>
+        <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run, from easy to hard, four answers each, and a short explanation after every one. ${E.QUIZ_POINTS} a right answer.</p></div>
         ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
         <h2 class="block-title dq-practice">Practice runs</h2>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}

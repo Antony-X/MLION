@@ -429,6 +429,19 @@ and live rooms (all topics or chosen topics) deal from the bank too, and guests 
 exactly. The generator below is now only a fallback when the bank runs short (e.g. a stack-only topic
 match asks for more than its 4 questions).
 
+**Hard questions and the level mix (user, 2026-11-05: "too simple, it has to be challenging, a mix, some
+hard some easy").** rq-248..rq-322 are 75 `lvl: "hard"` questions (bank now 71 easy, 76 medium, 75 hard;
+right option longest in 23% of them, answer slots balanced). Every deal of seven
+follows `E.QUIZ_PATTERN` = easy, easy, medium, hard, medium, hard, hard (longer deals repeat it):
+- Solo runs: `reasoningRun` keeps one seeded stream per level (`levelStreams`, `takeMixed`), label
+  `"bank-v2"`; a question comes back only after its level is used up (hard lasts 25 runs).
+- vq challenges: links made since then have 10-character seeds and deal `E.mixedDeal(CORE, "vq-<seed>", n)`;
+  older 6-7 character seeds rebuild from `CORE_BANK1` (the bank up to rq-247), so their picks still line up.
+- Live quiz rooms: the host lays its candidates (fresh ids, or the shuffled pool) out with `mixByLevel`.
+- Daily Quiz days in data/daily.json `quiz`: each day kept its first 2 easy and 2 medium and got 3 hard,
+  in pattern order (engine test checks every day).
+- build.js accepts `lvl` easy, medium or hard; the eyebrow above a question shows the level.
+
 Four options, one fits. Everything is generated from the existing prompt data; no written
 content and no LLM. Same shape in solo, async challenges and live rooms.
 
@@ -478,7 +491,8 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 
 **Async challenge (`#vq-<seed>-<n>[tNN][-<picks>-<tenths>-<nameHex>]x2`)**
 - Same count presets (3/5/7/10, custom up to 25) and time pickers as `#vs-…`; `#challenge` has a
-  Format row (Rarity / Quiz) that decides which link is made. Questions: `quizFor(DATA, "vq-<seed>", n)`.
+  Format row (Rarity / Quiz) that decides which link is made. Questions: `quizChallengeQuiz(seed, n)`
+  (10-character seeds deal the level mix; see "Hard questions and the level mix").
 - `picks` is one digit per question (0 none, 1 to 4), so each side's score is recomputed from the seed;
   `tenths` is the total answer time in tenths of a second. Winner: more points, else the lower `tenths`;
   equal on both is a draw. Same send-back flow (`#send-vs`), head-to-head board (`quizDuelBoard`), and the

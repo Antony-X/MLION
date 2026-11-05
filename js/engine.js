@@ -519,15 +519,39 @@
   function reasoningStream(data, label) {
     return makeStream({ packs: [{ id: "rq" }], prompts: quizBank(data).map((r) => ({ id: r.id, pack: "rq" })) }, label, null, true);
   }
+  // A run mixes levels (the user, 2026-11-05: "too simple, it has to be challenging, a mix, some hard some
+  // easy"): seven questions go easy, easy, medium, hard, medium, hard, hard. Longer runs repeat the pattern.
+  const QUIZ_PATTERN = ["easy", "easy", "medium", "hard", "medium", "hard", "hard"];
+  const QUIZ_LEVELS = ["easy", "medium", "hard"];
+  /** One seeded stream per level over the bank. */
+  function levelStreams(data, label) {
+    const bank = quizBank(data), out = {};
+    for (const lvl of QUIZ_LEVELS) {
+      const ids = bank.filter((r) => (r.lvl || "medium") === lvl).map((r) => ({ id: r.id, pack: "rq" }));
+      if (ids.length) out[lvl] = makeStream({ packs: [{ id: "rq" }], prompts: ids }, `${label}:${lvl}`, null, true);
+    }
+    return out;
+  }
+  /** The next `per` ids from level streams, laid out in the pattern; a level the bank lacks borrows from medium, then any. */
+  function takeMixed(streams, per) {
+    const have = Object.keys(streams);
+    if (!have.length) return [];
+    const lv = Array.from({ length: per }, (_, k) => QUIZ_PATTERN[k % QUIZ_PATTERN.length]).map((l) => (streams[l] ? l : streams.medium ? "medium" : have[0]));
+    const got = {};
+    for (const l of new Set(lv)) got[l] = streams[l].take(lv.filter((x) => x === l).length);
+    return lv.map((l) => got[l].shift()).filter(Boolean);
+  }
   const _reasonRuns = new Map();
-  /** The reasoning ids for solo quiz run `n`: dealt in order from one stream, so runs don't repeat until the bank is used up. */
+  /** The bank ids for quiz run `n`: each level dealt in order from its own stream, so runs don't repeat a question until that level is used up. */
   function reasoningRun(data, n, per, label = "reason-v1") {
     const key = `${label}|${quizBank(data).map((r) => r.id).join()}|${per}`;
     let c = _reasonRuns.get(key);
-    if (!c) { c = { stream: reasoningStream(data, label), runs: [] }; _reasonRuns.set(key, c); }
-    while (c.runs.length < n) c.runs.push(c.stream.take(per));
+    if (!c) { c = { streams: levelStreams(data, label), runs: [] }; _reasonRuns.set(key, c); }
+    while (c.runs.length < n) c.runs.push(takeMixed(c.streams, per));
     return c.runs[n - 1];
   }
+  /** A one-off mixed deal for a seed label (quiz challenge links). */
+  const mixedDeal = (data, label, per) => takeMixed(levelStreams(data, label), per);
   const _quizCtx = new WeakMap();
   /** On-topic prompts of a data bundle (never an `offtopic` one), indexed once. */
   function quizContext(data) {
@@ -648,7 +672,7 @@
   }
   /** Solo quiz run `n` (1-based): seven bank questions, dealt from one stream so runs don't repeat until the bank is used up. */
   function quizRun(data, n) {
-    return quizFor(data, `quiz-v3:${n}`, QUIZ_ROUNDS, { promptIds: [], reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), "bank-v1") });
+    return quizFor(data, `quiz-v3:${n}`, QUIZ_ROUNDS, { promptIds: [], reasoningIds: reasoningRun(data, n, reasoningCount(data, QUIZ_ROUNDS), "bank-v2") });
   }
 
   // -------------------------------------------------------------- share
@@ -673,7 +697,7 @@
     mulberry32, hashString, shuffled,
     LAUNCH, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
-    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank,
+    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
   };

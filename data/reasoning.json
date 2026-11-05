@@ -1,5 +1,5 @@
 {
- "_comment": "The Quiz bank: short hand-written questions an IOAI contestant can answer from ML knowledge, no arithmetic. Four options, one right (answer = its index), a one-line why shown after. pack = the topic a live topic match deals it under; lvl = easy or medium. data/daily.json `quiz` lists the Daily Quiz's hand-picked days. rq-01..rq-80 are the first bank, retired (never dealt, kept so old results still open). Ids are stable: never renumber.",
+ "_comment": "The Quiz bank: short hand-written questions an IOAI contestant can answer from ML knowledge, no arithmetic. Four options, one right (answer = its index), a one-line why shown after. pack = the topic a live topic match deals it under; lvl = easy, medium or hard; a run deals them easy, easy, medium, hard, medium, hard, hard. data/daily.json `quiz` lists the Daily Quiz's hand-picked days. rq-01..rq-80 are the first bank, retired (never dealt, kept so old results still open). Ids are stable: never renumber.",
  "questions": [
   {
    "id": "rq-101",
@@ -2205,6 +2205,1131 @@
    ],
    "answer": 0,
    "why": "The linear score is a log-odds, and the sigmoid turns it into a probability between 0 and 1."
+  },
+  {
+   "id": "rq-248",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why does AdamW apply weight decay separately instead of adding an L2 term to the loss?",
+   "options": [
+    "Decoupling lets the learning-rate warmup end much sooner",
+    "Adam's scaling weakens L2 on weights with big gradients",
+    "An L2 term makes Adam's second-moment estimate explode",
+    "Adam silently drops any penalty term added to the loss"
+   ],
+   "answer": 1,
+   "why": "Through Adam's adaptive scaling, weights with large past gradients barely feel an L2 penalty. AdamW shrinks every weight by the same factor instead."
+  },
+  {
+   "id": "rq-249",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What does Adam's bias correction fix?",
+   "options": [
+    "Later layers receive larger gradients than the early ones",
+    "Batch statistics differ between training and evaluation",
+    "Weight decay slowly pulls weights toward a nonzero value",
+    "Moment estimates start at zero and run too small early"
+   ],
+   "answer": 3,
+   "why": "The running averages m and v start at zero and lean toward it for the first steps. Dividing by 1 − βᵗ removes that lean."
+  },
+  {
+   "id": "rq-250",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why do transformers trained with Adam usually start with a learning-rate warmup?",
+   "options": [
+    "Early updates rest on noisy statistics and can blow up",
+    "Attention weights must start at exactly zero",
+    "Warmup saves memory during the first epoch",
+    "The tokenizer is still building its vocabulary"
+   ],
+   "answer": 0,
+   "why": "Adam's second-moment estimate is based on very few steps at first, and big early steps can push the model somewhere it never recovers from."
+  },
+  {
+   "id": "rq-251",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "You raise the batch size from 256 to 4096. What is the usual starting point for the learning rate?",
+   "options": [
+    "Divide it by the same factor of 16",
+    "Scale it up roughly in proportion, with a warmup",
+    "Keep it fixed: batch size doesn't affect it",
+    "Switch from Adam to plain SGD"
+   ],
+   "answer": 1,
+   "why": "Bigger batches give less noisy gradients, so larger steps are safe. The linear scaling rule with warmup works well up to a point."
+  },
+  {
+   "id": "rq-252",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What does clipping gradients by their global norm do?",
+   "options": [
+    "Caps each component separately at the threshold value",
+    "Rescales the whole vector, keeping its direction",
+    "Adds noise so the gradient's norm stays constant",
+    "Drops the examples whose gradients are the largest"
+   ],
+   "answer": 1,
+   "why": "Clipping by norm only rescales the length. Clipping by value caps each component on its own, which can change the direction."
+  },
+  {
+   "id": "rq-253",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why does momentum help SGD in a long, narrow valley of the loss?",
+   "options": [
+    "It raises the learning rate whenever the loss rises",
+    "The zig-zag across cancels out while speed builds along it",
+    "It resets the weights when progress stalls",
+    "It scales every gradient to unit length"
+   ],
+   "answer": 1,
+   "why": "Gradients across the valley flip sign and average away. Those along the valley agree, so momentum accumulates them."
+  },
+  {
+   "id": "rq-254",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "In mixed-precision training, why keep a 32-bit copy of the weights?",
+   "options": [
+    "16-bit formats cannot store any negative numbers",
+    "The loss itself has to be computed in 64 bits",
+    "Tiny updates would be rounded away in 16 bits",
+    "GPUs are unable to keep 16-bit weights in memory"
+   ],
+   "answer": 2,
+   "why": "Computing in 16 bits is fast, but adding a very small update to a 16-bit weight often changes nothing. The fp32 master copy keeps those updates."
+  },
+  {
+   "id": "rq-255",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why does fp16 training use loss scaling while bf16 rarely needs it?",
+   "options": [
+    "bf16 uses fewer exponent bits, so it overflows less",
+    "bf16 hardware quietly computes every gradient in fp32",
+    "fp16 can't store the number 1.0 exactly, unlike bf16",
+    "fp16's narrow range turns small gradients into zero"
+   ],
+   "answer": 3,
+   "why": "fp16 has 5 exponent bits, bf16 has fp32's 8. Multiplying the loss lifts fp16 gradients into a range it can hold."
+  },
+  {
+   "id": "rq-256",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What is sharpness-aware minimisation (SAM) looking for?",
+   "options": [
+    "Minima with the sharpest possible curvature",
+    "Weights whose whole neighbourhood has low loss",
+    "The smallest learning rate that still converges",
+    "The steepest descent direction at each step"
+   ],
+   "answer": 1,
+   "why": "SAM minimises the worst loss in a small ball around the weights, steering toward flat minima, which tend to generalise better."
+  },
+  {
+   "id": "rq-257",
+   "cat": "Training",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What does gradient accumulation let you do?",
+   "options": [
+    "Train with a larger batch than fits in memory",
+    "Skip the backward pass on easy examples",
+    "Run several optimisers at once",
+    "Get a smaller learning rate for free"
+   ],
+   "answer": 0,
+   "why": "You add up gradients from several small batches and step once, which behaves like one big batch."
+  },
+  {
+   "id": "rq-258",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why does attention divide its scores by √d_k before the softmax?",
+   "options": [
+    "It removes the need for any positional encodings",
+    "Big dot products saturate softmax, killing gradients",
+    "It makes each row of attention weights sum to one",
+    "It keeps the queries and keys orthogonal to each other"
+   ],
+   "answer": 1,
+   "why": "Dot products of random d-dimensional vectors grow with d. Without scaling, softmax becomes nearly one-hot and learns slowly."
+  },
+  {
+   "id": "rq-259",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "At test time, what does a BatchNorm layer normalise with?",
+   "options": [
+    "The mean and variance of whichever test batch it gets",
+    "A fixed mean of 0 and variance of 1 for every channel",
+    "The statistics of the very first training batch",
+    "Running averages of mean and variance from training"
+   ],
+   "answer": 3,
+   "why": "Using the test batch would make a prediction depend on its neighbours. Forgetting model.eval() is the classic bug here."
+  },
+  {
+   "id": "rq-260",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "A network trained with inverted dropout (p = 0.5) is run for inference. What does dropout do?",
+   "options": [
+    "Nothing; outputs were scaled up during training",
+    "It still drops half of the neurons, chosen at random",
+    "It doubles the weights once before the first run",
+    "It multiplies every activation by 0.5 to compensate"
+   ],
+   "answer": 0,
+   "why": "Inverted dropout divides the kept activations by 1 − p during training, so at inference the layer is simply switched off."
+  },
+  {
+   "id": "rq-261",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why do transformers use LayerNorm rather than BatchNorm?",
+   "options": [
+    "It lets the model drop its residual connections",
+    "It has no learnable parameters, so it trains faster",
+    "It is the only normalisation that works with ReLU",
+    "It normalises each token alone, whatever the batch"
+   ],
+   "answer": 3,
+   "why": "BatchNorm's statistics get noisy with small batches and varying lengths, and differ between training and generation."
+  },
+  {
+   "id": "rq-262",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Some ReLU units output zero for every input and never recover. What is a common fix?",
+   "options": [
+    "Starting every bias at a large negative value",
+    "A sigmoid on the last layer",
+    "Leaky ReLU, which keeps a small slope below zero",
+    "Removing all the bias terms"
+   ],
+   "answer": 2,
+   "why": "A unit stuck below zero gets no gradient. A small negative slope (or a lower learning rate) lets it come back."
+  },
+  {
+   "id": "rq-263",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why does He initialisation use twice the variance of Xavier initialisation?",
+   "options": [
+    "He initialisation was designed for sigmoid networks",
+    "ReLU zeroes half the signal, so variance doubles",
+    "ReLU networks need larger weights to break symmetry",
+    "It makes the starting loss exactly zero on any data"
+   ],
+   "answer": 1,
+   "why": "Keeping the signal's variance steady through layers needs a factor of 2 when ReLU discards the negative half."
+  },
+  {
+   "id": "rq-264",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "In a residual block y = x + F(x), how does the block act as the identity if that's best?",
+   "options": [
+    "F simply learns to output zero",
+    "The skip connection is removed in training",
+    "F must learn to copy x on its own",
+    "The block's input is set to zero"
+   ],
+   "answer": 0,
+   "why": "Pushing F toward zero is much easier than learning an exact identity map through several non-linear layers."
+  },
+  {
+   "id": "rq-265",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What does a 1×1 convolution do?",
+   "options": [
+    "Halves the spatial resolution of the feature map",
+    "Blurs the image with a kernel just one pixel wide",
+    "Nothing at all: it always acts as the identity",
+    "Mixes channels at each pixel (e.g. to cut them)"
+   ],
+   "answer": 3,
+   "why": "It is a small fully connected layer applied at every position. Inception and ResNet bottlenecks use it to shrink channels cheaply."
+  },
+  {
+   "id": "rq-266",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What problem of plain RNNs did the LSTM's gated cell state address?",
+   "options": [
+    "Inputs having to be a fixed length",
+    "Words missing from the vocabulary",
+    "Training being impossible on GPUs",
+    "Gradients vanishing over long sequences"
+   ],
+   "answer": 3,
+   "why": "The cell state is updated additively through gates, so gradients can flow across many time steps."
+  },
+  {
+   "id": "rq-267",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "A transformer encoder with no positional information sees its input as what?",
+   "options": [
+    "A strict left-to-right sequence, like an RNN",
+    "A new random ordering at every single step",
+    "One token: the average of all the input tokens",
+    "A set: shuffling tokens just shuffles outputs"
+   ],
+   "answer": 3,
+   "why": "Self-attention treats every pair of tokens the same way regardless of where they sit. Order only enters through positional information."
+  },
+  {
+   "id": "rq-268",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What do rotary position embeddings (RoPE) do?",
+   "options": [
+    "Add one learned vector to every token's embedding",
+    "Mask out all tokens beyond a fixed-size local window",
+    "Sort the tokens by their position before attention",
+    "Rotate queries and keys so scores reflect distance"
+   ],
+   "answer": 3,
+   "why": "Rotating by an angle proportional to position makes the query-key dot product depend only on the distance between tokens."
+  },
+  {
+   "id": "rq-269",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "Why use several attention heads instead of one big one?",
+   "options": [
+    "Heads can focus on different relations at once",
+    "Each head handles a different layer of the model",
+    "It is the only way to process tokens in parallel",
+    "It removes attention's quadratic cost in length"
+   ],
+   "answer": 0,
+   "why": "One softmax averages everything into one pattern. Separate heads can track, say, syntax in one and nearby words in another."
+  },
+  {
+   "id": "rq-270",
+   "cat": "Deep learning",
+   "pack": "blocks",
+   "lvl": "hard",
+   "q": "What is shared when a language model 'ties' its weights?",
+   "options": [
+    "The query and key projections",
+    "The input embedding and the output projection",
+    "The weights of every attention head",
+    "The encoder's and decoder's layer norms"
+   ],
+   "answer": 1,
+   "why": "The same matrix maps tokens to vectors and vectors back to token scores, which saves parameters and often helps."
+  },
+  {
+   "id": "rq-271",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "What does a KV cache speed up?",
+   "options": [
+    "Loading the model's weights from disk at start-up",
+    "Tokenising very long documents ahead of time",
+    "Generation: past keys and values aren't recomputed",
+    "Training: the gradients of repeated tokens are reused"
+   ],
+   "answer": 2,
+   "why": "Each new token needs the keys and values of all earlier ones. Caching them avoids redoing that work at every step."
+  },
+  {
+   "id": "rq-272",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "A model trained on 2k-token contexts falls apart on 8k-token inputs. Why, most likely?",
+   "options": [
+    "It never saw positions that far during training",
+    "The tokenizer drops everything after 2k tokens",
+    "Attention cannot run on more than 2k tokens at once",
+    "Its vocabulary is too small for texts that long"
+   ],
+   "answer": 0,
+   "why": "Position handling learned on short inputs doesn't extend by itself. Context extension methods adjust it and fine-tune on longer texts."
+  },
+  {
+   "id": "rq-273",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "How does LoRA fine-tune a big model cheaply?",
+   "options": [
+    "Rounds all of the weights to 4 bits, then retrains",
+    "Retrains only the biases of the model's last layer",
+    "Prunes away half of the attention heads first",
+    "Trains small low-rank updates to frozen weights"
+   ],
+   "answer": 3,
+   "why": "The update to a weight matrix is written as a product of two thin matrices, so only a tiny fraction of parameters is trained."
+  },
+  {
+   "id": "rq-274",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "In RLHF, why is the policy penalised for drifting from the original model (a KL term)?",
+   "options": [
+    "So the tokenizer's vocabulary stays unchanged",
+    "So the sampling temperature stays high enough",
+    "So it can't game the reward model with odd text",
+    "So that training runs faster on the same hardware"
+   ],
+   "answer": 2,
+   "why": "The reward model is only reliable near the text it was trained on. Without the anchor, the policy finds outputs it overrates."
+  },
+  {
+   "id": "rq-275",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "How does byte-pair encoding build its vocabulary?",
+   "options": [
+    "It clusters word embeddings with k-means",
+    "It splits words at every vowel",
+    "It keeps merging the most frequent adjacent pair",
+    "It gives each dictionary word one token"
+   ],
+   "answer": 2,
+   "why": "Starting from bytes or characters, each merge adds one new symbol, until the vocabulary reaches its target size."
+  },
+  {
+   "id": "rq-276",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "Why do LLMs often miscount the letters in a word?",
+   "options": [
+    "Their vocabulary contains no single letters",
+    "Sampling temperature makes them skip letters",
+    "Counting needs a longer context window",
+    "They see subword tokens, not individual letters"
+   ],
+   "answer": 3,
+   "why": "A word like 'strawberry' may be two or three tokens, so its letters are never directly in view."
+  },
+  {
+   "id": "rq-277",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "What is teacher forcing in training a sequence model?",
+   "options": [
+    "Forcing each output to match the target's length",
+    "Freezing the encoder while the decoder is trained",
+    "A larger model labelling training data for a smaller one",
+    "Feeding the true previous token, not its own guess"
+   ],
+   "answer": 3,
+   "why": "It makes training fast and parallel, but at generation time the model must live with its own mistakes (exposure bias)."
+  },
+  {
+   "id": "rq-278",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "In knowledge distillation, what does the small model learn from?",
+   "options": [
+    "Only the examples the big model gets wrong",
+    "The big model's weights, copied layer by layer",
+    "Data that the big model has never seen",
+    "The big model's soft probabilities"
+   ],
+   "answer": 3,
+   "why": "Soft targets carry 'dark knowledge': which wrong classes are close, which a one-hot label hides."
+  },
+  {
+   "id": "rq-279",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "Why does chain-of-thought prompting help on multi-step problems?",
+   "options": [
+    "Its answers get shorter, leaving less room for error",
+    "It updates the model's weights during inference",
+    "It spends tokens on intermediate steps",
+    "It quietly lowers the sampling temperature"
+   ],
+   "answer": 2,
+   "why": "Each generated token is more computation. Writing out steps lets the model condition later steps on earlier results."
+  },
+  {
+   "id": "rq-280",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "Why can't you compare perplexity across models with different tokenizers?",
+   "options": [
+    "It's per token, and their tokens differ in size",
+    "A bigger vocabulary always drives it to zero",
+    "Perplexity also depends on the learning rate used",
+    "It is only defined for character-level models"
+   ],
+   "answer": 0,
+   "why": "Coarser tokens mean fewer, harder predictions. Compare bits per byte or per character instead."
+  },
+  {
+   "id": "rq-281",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "Top-p (nucleus) sampling draws the next token from which set?",
+   "options": [
+    "The p most likely tokens, whatever their mass",
+    "The whole vocabulary, each with equal chance",
+    "The smallest set whose probabilities reach p",
+    "Every token whose probability is above p"
+   ],
+   "answer": 2,
+   "why": "The set grows when the model is unsure and shrinks when it is confident. Top-k always keeps exactly k."
+  },
+  {
+   "id": "rq-282",
+   "cat": "Language models",
+   "pack": "llm",
+   "lvl": "hard",
+   "q": "How did word2vec learn its word vectors?",
+   "options": [
+    "Factorising a large document-by-term count matrix",
+    "Predicting a word's neighbours, or the reverse",
+    "Clustering words by how similarly they are spelled",
+    "Training a full transformer language model first"
+   ],
+   "answer": 1,
+   "why": "Skip-gram predicts the context from the word, CBOW the word from its context. Similar contexts give similar vectors."
+  },
+  {
+   "id": "rq-283",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "Why does U-Net pass features from the encoder straight to the decoder?",
+   "options": [
+    "To output a single class label for each image",
+    "To let the decoder skip its own training",
+    "To bring back fine detail lost by downsampling",
+    "To halve the number of parameters in the decoder"
+   ],
+   "answer": 2,
+   "why": "The decoder knows what is there from deep features and where exactly from the skipped high-resolution ones."
+  },
+  {
+   "id": "rq-284",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "For which task are random horizontal flips a bad augmentation?",
+   "options": [
+    "Detecting cars and people in street photos",
+    "Classifying bird species from field photos",
+    "Reading handwritten letters and digits",
+    "Telling photos of cats from photos of dogs"
+   ],
+   "answer": 2,
+   "why": "A flipped 'b' looks like a 'd'. An augmentation must not change what the right label is."
+  },
+  {
+   "id": "rq-285",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "Trained from scratch on a small dataset, why does a ViT usually lose to a CNN?",
+   "options": [
+    "Its attention can't see the whole image at once",
+    "It lacks the locality built into convolutions",
+    "It can only process square images of a fixed size",
+    "It always has far fewer parameters than a CNN does"
+   ],
+   "answer": 1,
+   "why": "Convolutions assume locality and translation equivariance. A ViT has to learn those from data, which takes a lot of it."
+  },
+  {
+   "id": "rq-286",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "In object detection, what does non-maximum suppression do?",
+   "options": [
+    "Drops overlapping boxes, keeping the most confident",
+    "Drops the classes that appear only rarely in training",
+    "Shrinks each predicted box to fit its object tightly",
+    "Rejects images that contain too many objects"
+   ],
+   "answer": 0,
+   "why": "A detector fires several boxes per object. NMS keeps the best and drops others that overlap it heavily."
+  },
+  {
+   "id": "rq-287",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "What is a transposed convolution mostly used for?",
+   "options": [
+    "Rotating images by 90 degrees for augmentation",
+    "Upsampling feature maps in decoders and generators",
+    "Exactly undoing an earlier convolution layer's effect",
+    "Computing the gradients of max-pooling layers"
+   ],
+   "answer": 1,
+   "why": "It maps a small feature map to a larger one with learned weights. Despite the name, it is not an inverse."
+  },
+  {
+   "id": "rq-288",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "Why are dilated convolutions popular in segmentation?",
+   "options": [
+    "Wider context without lowering resolution",
+    "Far fewer channels needed in every layer",
+    "Exact invariance to rotations of the input",
+    "No padding needed at the image borders"
+   ],
+   "answer": 0,
+   "why": "Spacing out the kernel's taps sees more context for the same cost, while keeping the dense output segmentation needs."
+  },
+  {
+   "id": "rq-289",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "How does contrastive learning like SimCLR learn without labels?",
+   "options": [
+    "It clusters the pixels of each image by colour",
+    "Pulls two views of one image together, others apart",
+    "It predicts each image's label from the caption with it",
+    "It rebuilds each image from a blurred, noisy copy"
+   ],
+   "answer": 1,
+   "why": "Two crops of the same photo should map to nearby embeddings; crops of other photos in the batch act as negatives."
+  },
+  {
+   "id": "rq-290",
+   "cat": "Vision",
+   "pack": "zoo",
+   "lvl": "hard",
+   "q": "A GAN's generator produces only a handful of different images. What is this called?",
+   "options": [
+    "Posterior collapse",
+    "Vanishing gradients",
+    "Overfitting the discriminator",
+    "Mode collapse"
+   ],
+   "answer": 3,
+   "why": "The generator finds a few outputs that fool the discriminator and stops covering the rest of the data."
+  },
+  {
+   "id": "rq-291",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "On a heavily imbalanced task, why is the PR curve often more telling than the ROC curve?",
+   "options": [
+    "PR-AUC is always the higher of the two numbers",
+    "ROC's FPR stays tiny even with many false alarms",
+    "The PR curve leaves out the positive class entirely",
+    "The ROC curve only works at one fixed threshold"
+   ],
+   "answer": 1,
+   "why": "1,000 false alarms among a million negatives is a tiny FPR, but it can wreck precision. The PR curve shows that."
+  },
+  {
+   "id": "rq-292",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Your model's 90% predictions are right only 60% of the time. What does that say?",
+   "options": [
+    "It is perfectly calibrated, as it should be",
+    "It is underfitting its training set badly",
+    "It is overconfident: poorly calibrated",
+    "It is underconfident: too unsure of itself"
+   ],
+   "answer": 2,
+   "why": "Calibrated means a 90% prediction is right about 90% of the time. Temperature scaling is a common fix."
+  },
+  {
+   "id": "rq-293",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "You picked hyperparameters by checking the test score many times. What about the final test score?",
+   "options": [
+    "It only changes how long training takes",
+    "It's optimistic: you tuned to the test set",
+    "It's too pessimistic: the test set got harder",
+    "It's fine, since you never trained on it"
+   ],
+   "answer": 1,
+   "why": "Every choice made by looking at the test set fits it a little. Tune on validation and look at test once."
+  },
+  {
+   "id": "rq-294",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Why is shuffled k-fold cross-validation wrong for forecasting a time series?",
+   "options": [
+    "It trains on the future to predict the past",
+    "Each fold would end up far too small to use",
+    "It changes the units of the series being forecast",
+    "A time series can't be split into folds at all"
+   ],
+   "answer": 0,
+   "why": "Use forward-chaining splits: always train on the past and test on what comes after."
+  },
+  {
+   "id": "rq-295",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "With imbalanced classes, how does macro-F1 differ from micro-F1?",
+   "options": [
+    "Macro always equals the accuracy",
+    "Macro ignores the rarest classes completely",
+    "Macro weighs every class equally",
+    "Macro weighs each class by its size"
+   ],
+   "answer": 2,
+   "why": "Macro averages per-class F1. Micro pools all decisions, and for single-label tasks it equals accuracy."
+  },
+  {
+   "id": "rq-296",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Which metric depends only on how a model ranks examples, not on its score values?",
+   "options": [
+    "Brier score",
+    "Log loss",
+    "Mean squared error",
+    "ROC-AUC"
+   ],
+   "answer": 3,
+   "why": "AUC is the chance a random positive outranks a random negative. Any order-preserving change to the scores leaves it unchanged."
+  },
+  {
+   "id": "rq-297",
+   "cat": "Evaluation",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Why use stratified k-fold cross-validation for classification?",
+   "options": [
+    "It avoids having to train the model more than once",
+    "Every fold gets exactly the same number of features",
+    "The folds are sorted from easiest to hardest",
+    "Each fold keeps the full data's class proportions"
+   ],
+   "answer": 3,
+   "why": "With a rare class, a plain random fold might hold almost none of it, which makes that fold's score unreliable."
+  },
+  {
+   "id": "rq-298",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Besides bootstrapping the rows, what does a random forest randomise to make its trees differ?",
+   "options": [
+    "The labels of some of the training rows",
+    "The features considered at each split",
+    "The maximum depth that each tree may grow to",
+    "The loss function that each tree minimises"
+   ],
+   "answer": 1,
+   "why": "Without it, every tree would split on the same strong features first and their errors would stay correlated."
+  },
+  {
+   "id": "rq-299",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "In gradient boosting, what does each new tree fit?",
+   "options": [
+    "Only the examples that the last tree got right",
+    "Random noise added to the labels, as regularisation",
+    "The negative gradient of the loss, e.g. residuals",
+    "A fresh bootstrap sample of the training rows"
+   ],
+   "answer": 2,
+   "why": "Each tree takes a small step that reduces the current ensemble's loss. With squared error that means fitting the residuals."
+  },
+  {
+   "id": "rq-300",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "How does the kernel trick let an SVM work in a huge feature space?",
+   "options": [
+    "It only needs inner products, which kernels give",
+    "It first drops the features with the lowest variance",
+    "It trains on a random subset of the features each time",
+    "It projects the data down to two dimensions"
+   ],
+   "answer": 0,
+   "why": "The kernel computes the inner product in the big space without ever building the feature vectors."
+  },
+  {
+   "id": "rq-301",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Which training points decide where an SVM's boundary goes?",
+   "options": [
+    "The support vectors, on or inside the margin",
+    "The points farthest from the boundary",
+    "The centre of each class",
+    "All training points, equally"
+   ],
+   "answer": 0,
+   "why": "Move any other point a little and the boundary doesn't change."
+  },
+  {
+   "id": "rq-302",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "What does naive Bayes assume about the features?",
+   "options": [
+    "The boundary is linear in the raw features",
+    "They are all on the same scale",
+    "They are independent of each other given the class",
+    "Each class is equally likely"
+   ],
+   "answer": 2,
+   "why": "The assumption is rarely true, yet the classifier often works well, for example on word counts for spam."
+  },
+  {
+   "id": "rq-303",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "The first principal component of a dataset is the direction that…",
+   "options": [
+    "Points from the origin to the mean",
+    "Has the fewest outliers along it",
+    "Has the largest variance of the data",
+    "Best separates the labelled classes"
+   ],
+   "answer": 2,
+   "why": "PCA ignores labels. Separating classes is what LDA aims for."
+  },
+  {
+   "id": "rq-304",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Why does k-means struggle with two interleaved crescent-shaped clusters?",
+   "options": [
+    "It assumes round clusters around centres",
+    "It needs some labelled points to separate them",
+    "It can't use Euclidean distance on curved data",
+    "It only works on data with a single dimension"
+   ],
+   "answer": 0,
+   "why": "Each point goes to its nearest centre, so boundaries are straight. Density-based methods like DBSCAN handle such shapes."
+  },
+  {
+   "id": "rq-305",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Bagging mainly reduces which part of a model's error?",
+   "options": [
+    "Label noise",
+    "Irreducible noise",
+    "Bias",
+    "Variance"
+   ],
+   "answer": 3,
+   "why": "Averaging many models trained on resampled data smooths out their individual quirks. Boosting mainly attacks bias."
+  },
+  {
+   "id": "rq-306",
+   "cat": "Classical ML",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "A very flexible model fits each training set closely but changes a lot between them. It has…",
+   "options": [
+    "High bias, high variance",
+    "High bias, low variance",
+    "Low bias, high variance",
+    "Low bias, low variance"
+   ],
+   "answer": 2,
+   "why": "Flexibility lowers bias but makes the fit depend on the particular sample. Regularisation trades some back."
+  },
+  {
+   "id": "rq-307",
+   "cat": "Data",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "You standardise features with the mean and spread of the whole dataset, then split it. What's wrong?",
+   "options": [
+    "Test-set statistics leak into training",
+    "Standardising must happen after training",
+    "It changes the class labels",
+    "The spread is undefined on small datasets"
+   ],
+   "answer": 0,
+   "why": "Fit the scaler on the training split only, then apply it to validation and test."
+  },
+  {
+   "id": "rq-308",
+   "cat": "Data",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Why is target encoding a category with many levels risky?",
+   "options": [
+    "It only works for regression, not classification",
+    "It creates far too many new columns to handle",
+    "Each row's own label leaks into its feature",
+    "It ignores the rare categories entirely"
+   ],
+   "answer": 2,
+   "why": "Rare levels end up encoding their own labels, and the model memorises them. Compute the encoding on other folds."
+  },
+  {
+   "id": "rq-309",
+   "cat": "Data",
+   "pack": "classic",
+   "lvl": "hard",
+   "q": "Why is it wrong to oversample the minority class before splitting into train and test?",
+   "options": [
+    "Some labels flip at random",
+    "The test set becomes too small",
+    "Copies of the same rows land in both sets",
+    "Training gets too few minority rows"
+   ],
+   "answer": 2,
+   "why": "The model is then tested on rows it has already seen. Split first, then resample only the training data."
+  },
+  {
+   "id": "rq-310",
+   "cat": "Math",
+   "pack": "theory",
+   "lvl": "hard",
+   "q": "Minimising cross-entropy between labels and predicted probabilities is the same as…",
+   "options": [
+    "Maximising the likelihood of the labels",
+    "Maximising the entropy of the predictions",
+    "Minimising the number of parameters",
+    "Minimising the squared error"
+   ],
+   "answer": 0,
+   "why": "Cross-entropy with one-hot labels is the negative log-likelihood of the correct class."
+  },
+  {
+   "id": "rq-311",
+   "cat": "Math",
+   "pack": "theory",
+   "lvl": "hard",
+   "q": "Which statement about the KL divergence KL(P‖Q) is true?",
+   "options": [
+    "It satisfies the triangle inequality",
+    "It can be negative",
+    "It is not symmetric in P and Q",
+    "It is zero when P and Q share a mean"
+   ],
+   "answer": 2,
+   "why": "KL is zero only when P = Q and is never negative, but swapping P and Q usually changes it, so it is not a distance."
+  },
+  {
+   "id": "rq-312",
+   "cat": "Math",
+   "pack": "theory",
+   "lvl": "hard",
+   "q": "L2 regularisation matches which prior on the weights?",
+   "options": [
+    "A prior that favours large weights",
+    "A Gaussian centred at zero",
+    "A uniform prior over all values",
+    "A Laplace centred at zero"
+   ],
+   "answer": 1,
+   "why": "The log of a Gaussian prior is a squared penalty. A Laplace prior gives L1 instead."
+  },
+  {
+   "id": "rq-313",
+   "cat": "Math",
+   "pack": "theory",
+   "lvl": "hard",
+   "q": "Why does softmax code subtract the largest logit first?",
+   "options": [
+    "To make the outputs add up to exactly one",
+    "To avoid overflow; the result is unchanged",
+    "To make sure the largest logit always wins out",
+    "To remove the bias term from the final layer"
+   ],
+   "answer": 1,
+   "why": "exp of a large number overflows. Subtracting a constant from all logits cancels out in the ratio."
+  },
+  {
+   "id": "rq-314",
+   "cat": "Math",
+   "pack": "theory",
+   "lvl": "hard",
+   "q": "At a point where the gradient is zero, the Hessian has positive and negative eigenvalues. What is it?",
+   "options": [
+    "A flat plateau",
+    "A local maximum",
+    "A global minimum",
+    "A saddle point"
+   ],
+   "answer": 3,
+   "why": "The loss curves up along some directions and down along others. In high dimensions most critical points are like this."
+  },
+  {
+   "id": "rq-315",
+   "cat": "History",
+   "pack": "lore",
+   "lvl": "hard",
+   "q": "Who published the 1986 Nature paper that popularised backpropagation?",
+   "options": [
+    "Rumelhart, Hinton and Williams",
+    "Minsky and Papert",
+    "LeCun, Bengio and Hinton",
+    "Hochreiter and Schmidhuber"
+   ],
+   "answer": 0,
+   "why": "'Learning representations by back-propagating errors' showed hidden layers learning useful features."
+  },
+  {
+   "id": "rq-316",
+   "cat": "History",
+   "pack": "lore",
+   "lvl": "hard",
+   "q": "Minsky and Papert's 1969 book showed that a single-layer perceptron cannot learn which function?",
+   "options": [
+    "XOR",
+    "NOT",
+    "OR",
+    "AND"
+   ],
+   "answer": 0,
+   "why": "XOR is not linearly separable. The book is often blamed for a long dip in neural network research."
+  },
+  {
+   "id": "rq-317",
+   "cat": "History",
+   "pack": "lore",
+   "lvl": "hard",
+   "q": "AlphaGo combined deep neural networks with which search method?",
+   "options": [
+    "Breadth-first search",
+    "Simulated annealing",
+    "A* search",
+    "Monte Carlo tree search"
+   ],
+   "answer": 3,
+   "why": "Policy and value networks guided the tree search toward promising moves and judged positions."
+  },
+  {
+   "id": "rq-318",
+   "cat": "History",
+   "pack": "lore",
+   "lvl": "hard",
+   "q": "What was LeNet-5 famously used to read?",
+   "options": [
+    "Licence plates on cars at toll gates",
+    "Faces in photographs for tagging",
+    "Handwritten digits on bank cheques",
+    "Road signs for self-driving cars"
+   ],
+   "answer": 2,
+   "why": "Yann LeCun's convolutional network read a large share of US cheques in the late 1990s."
+  },
+  {
+   "id": "rq-319",
+   "cat": "Tools",
+   "pack": "stack",
+   "lvl": "hard",
+   "q": "Why call optimizer.zero_grad() in a PyTorch training loop?",
+   "options": [
+    "It stops the learning rate from decaying",
+    "Otherwise gradients add up across steps",
+    "Otherwise the weights would never get updated",
+    "It switches the model to evaluation mode"
+   ],
+   "answer": 1,
+   "why": "backward() adds into .grad. Accumulating on purpose is a feature; forgetting to clear is a bug."
+  },
+  {
+   "id": "rq-320",
+   "cat": "Tools",
+   "pack": "stack",
+   "lvl": "hard",
+   "q": "What does torch.no_grad() do?",
+   "options": [
+    "Stops recording operations for backprop",
+    "Sets all of the stored gradients back to zero",
+    "Turns off the dropout layers in the model",
+    "Freezes BatchNorm's running statistics"
+   ],
+   "answer": 0,
+   "why": "It is for inference and evaluation. Dropout and BatchNorm behaviour is a separate switch: model.eval()."
+  },
+  {
+   "id": "rq-321",
+   "cat": "Tools",
+   "pack": "stack",
+   "lvl": "hard",
+   "q": "What does model.eval() change in PyTorch?",
+   "options": [
+    "The weights become read-only until train()",
+    "Dropout and BatchNorm switch to inference mode",
+    "The model is moved from the GPU to the CPU",
+    "Gradients stop being computed for all its layers"
+   ],
+   "answer": 1,
+   "why": "It only flips layers' training flag. Use torch.no_grad() as well to skip building the graph."
+  },
+  {
+   "id": "rq-322",
+   "cat": "Tools",
+   "pack": "stack",
+   "lvl": "hard",
+   "q": "Why can NumPy add an array of shape (3, 1) to one of shape (1, 4)?",
+   "options": [
+    "Broadcasting stretches both to shape (3, 4)",
+    "It flattens both arrays first",
+    "NumPy pads the smaller array with zeros",
+    "It fails unless the shapes match"
+   ],
+   "answer": 0,
+   "why": "Dimensions of size 1 are repeated to match the other array, without copying the data."
   },
   {
    "id": "rq-01",

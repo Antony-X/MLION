@@ -198,15 +198,28 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
       const again = E.quizFor(DATA, `mix-${s}`, 7, { promptIds: qs.map((q) => q.promptId) });
       assert.deepStrictEqual(again, qs, "a live guest rebuilds the host's questions exactly");
     }
+    // every run goes easy, easy, medium, hard, medium, hard, hard; no question comes back before its level is used up
+    const lvlOf = new Map(BANK.map((r) => [r.id, r.lvl])), per = {};
+    for (const l of E.QUIZ_PATTERN) per[l] = (per[l] || 0) + 1;
     const seen = new Set();
-    const runs = Math.floor(BANK.length / 7);
-    for (let n = 1; n <= runs; n++) for (const q of E.quizRun(DATA, n)) {
-      assert.ok(q.reasoning && live.has(q.promptId), `solo run ${n} deals a live bank question`);
-      assert.ok(!seen.has(q.promptId), `solo run ${n} repeats a question before the bank is used up`);
-      seen.add(q.promptId);
+    const runs = Math.min(...Object.keys(per).map((l) => Math.floor(BANK.filter((r) => r.lvl === l).length / per[l])));
+    assert.ok(runs >= 20, `the bank holds at least 20 runs before a level repeats (${runs})`);
+    for (let n = 1; n <= runs; n++) {
+      const run = E.quizRun(DATA, n);
+      assert.deepStrictEqual(run.map((q) => lvlOf.get(q.promptId)), E.QUIZ_PATTERN, `solo run ${n} follows the level pattern`);
+      for (const q of run) {
+        assert.ok(q.reasoning && live.has(q.promptId), `solo run ${n} deals a live bank question`);
+        assert.ok(!seen.has(q.promptId), `solo run ${n} repeats a question before its level is used up`);
+        seen.add(q.promptId);
+      }
     }
     assert.strictEqual(seen.size, runs * 7);
+    const vq = E.mixedDeal(DATA, "vq-abcdefghij", 7);
+    assert.deepStrictEqual(vq.map((id) => lvlOf.get(id)), E.QUIZ_PATTERN, "a challenge link's deal follows the pattern too");
     assert.ok(E.dailyQuiz(DATA, 3, "dquiz-x").every((q) => q.reasoning && live.has(q.promptId)), "the daily quiz deals the bank");
+    assert.deepStrictEqual(E.dailyQuiz(DATA, 3, "dquiz-x").map((q) => lvlOf.get(q.promptId)), E.QUIZ_PATTERN, "and mixes its levels the same way");
+    const days = (DATA.daily && DATA.daily.quiz) || [];
+    assert.ok(days.length >= 21 && days.every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(E.QUIZ_PATTERN)), "every hand-picked Daily Quiz day follows the pattern");
     ok(`quiz bank (${BANK.length}, ${R.length - BANK.length} retired): seven a run, rebuilt exactly, solo runs use the bank before repeating`);
   }
 
