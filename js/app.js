@@ -191,6 +191,16 @@
         (SEQ[t] || SEQ.baseline).forEach((f, i) => tone(f, 0.24, { type: t === "mlion" ? "triangle" : "sine", vol: 0.06, delay: i * 0.085 }));
         if (t === "mlion") tone(2093, 0.7, { vol: 0.025, delay: 0.46 });
       },
+      /** n in a row: a major chord that climbs one step per answer, a buzz per step, a sparkle at seven. */
+      streak(n) {
+        const lv = Math.min(7, n);
+        buzz(lv >= 7 ? [16, 40, 16, 40, 16, 40, 70] : Array.from({ length: Math.min(lv, 5) * 2 - 1 }, (_, i) => (i % 2 ? 40 : 14)));
+        const root = 523.25 * Math.pow(2, [0, 0, 0, 2, 4, 7, 9, 12][lv] / 12);
+        [0, 4, 7].concat(lv >= 5 ? [12] : []).forEach((s, i) => tone(root * Math.pow(2, s / 12), 0.2 + 0.04 * lv, { type: lv >= 6 ? "triangle" : "sine", vol: 0.04, delay: 0.04 + i * 0.055 }));
+        if (lv >= 7) tone(root * 4, 0.6, { vol: 0.018, delay: 0.3 });
+      },
+      quick() { tone(1175, 0.11, { type: "triangle", vol: 0.026, slide: 1.8, delay: 0.02 }); },
+      fizzle() { buzz(28); tone(300, 0.4, { type: "sawtooth", vol: 0.02, slide: 0.4 }); },
     };
   })();
   document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
@@ -725,6 +735,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.skip = null;
       if (descent) descent.set(RUN.results);
       setHud(totalScore(RUN.results));
+      showStreak(streakOf(RUN.results), "set");
       updateHead();
       if ($("#card")) $("#card").innerHTML = `<div class="intro-card"><div><h2>Skipped</h2><p class="sub">A new question is on its way…</p></div></div>`;
       renderStrip();
@@ -1449,9 +1460,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       descent.set(RUN.results.slice(0, i));
       hudRange = [total - res.score, total];
       if (res.tier) Sound.tier(res.tier); else Sound.miss();
-      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } });
+      const upTo = RUN.results.slice(0, i + 1);
+      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } celebrate(upTo, res.ms); });
       setTimeout(() => { if (RUN && RUN.fmt === "quiz") setHud(totalScore(RUN.results.slice(0, Math.max(i, LIVE.revealed) + 1))); }, 1500);
-    } else setHud(total);
+    } else { setHud(total); showStreak(streakOf(RUN.results.slice(0, i + 1)), "set"); }
   }
   function renderPodium() {
     stopRun();
@@ -1963,6 +1975,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <canvas id="descent" aria-hidden="true"></canvas>
         <div class="hud"><span>${RUN.endless ? "Answered" : "Loss"}</span><b id="hud-loss">${RUN.endless ? RUN.results.length : "7.00"}</b></div>
         <div class="hud hud-r"><span>Score</span><b id="hud-score">0</b></div>
+        <div class="streak-wrap" aria-live="polite"><div class="streak" id="streak" hidden></div><span class="sk-quick" id="sk-quick" hidden>Quick</span></div>
         <div class="play-head">
           <div class="dots" id="dots" aria-label="progress"></div>
           <div class="play-meta" id="play-meta"></div>
@@ -1982,10 +1995,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (sc) sc.textContent = pts;
       },
       onFlood: (on) => { const st = $("#stage"); if (st) st.classList.toggle("flood", on); },
+      avoid: stageBoxes,
     });
     descent.set(RUN.results);
     updateHead();
     setHud(totalScore(RUN.results));
+    showStreak(streakOf(RUN.results), "set");
     if (RUN.mode === "live") { $("#card").insertAdjacentHTML("beforebegin", `<div class="live-strip" id="live-strip" aria-live="polite"></div><div class="live-rivals" id="live-rivals"></div><div class="live-skip" id="live-skip"></div>`); renderStrip(); }
   }
   function updateHead() {
@@ -2011,6 +2026,82 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const n = RUN.promptIds.length;
     $("#hud-score").textContent = score;
     $("#hud-loss").textContent = RUN.endless ? RUN.results.length : ((n * 100 - score) / 100).toFixed(2);
+  }
+  /** The boxes drawn over the stage, in canvas coordinates: the camera keeps the path out of them. */
+  function stageBoxes() {
+    const c = $("#descent");
+    if (!c) return [];
+    const cr = c.getBoundingClientRect();
+    return $$("#stage .hud, #stage .dots, #stage .play-meta, #stage .streak:not([hidden])").map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height };
+    });
+  }
+
+  // ---- streaks: answers in a row (accepted in Classic, right in a quiz). The flame over the stage
+  // climbs through the colours of fire; a miss puts it out.
+  const QUICK_MS = 5000; // an answer inside this gets the Quick flourish
+  function streakOf(results) { let n = 0; for (let i = results.length - 1; i >= 0 && results[i].tier; i--) n++; return n; }
+  /** mode: "set" (no fuss: resume, a new screen), "up" (one more in a row), "out" (a miss put it out). */
+  function showStreak(n, mode) {
+    const el = $("#streak");
+    if (!el) return;
+    const still = !!settings.reducedMotion;
+    clearTimeout(el._out);
+    el.classList.remove("out");
+    if (mode === "out" && !el.hidden && !still) {
+      el.classList.remove("pop");
+      void el.offsetWidth;
+      el.classList.add("out");
+      el.insertAdjacentHTML("beforeend", `<i class="sk-smoke"></i><i class="sk-smoke"></i><i class="sk-smoke"></i>`);
+      el._out = setTimeout(() => { el.hidden = true; el.classList.remove("out"); el.innerHTML = ""; if (descent) descent.layout(); }, 760);
+      return;
+    }
+    if (n < 2) {
+      if (!el.hidden) { el.hidden = true; el.innerHTML = ""; if (descent) descent.layout(); }
+      return;
+    }
+    const lv = V.flameLevel(n);
+    el.hidden = false;
+    el.className = `streak sk-${lv}`;
+    el.setAttribute("aria-label", `${n} in a row`);
+    el.innerHTML = `${V.flame(n)}<b>${n}</b>${lv >= 7 ? `<span class="sk-name">MLion</span>` : ""}`;
+    if (mode === "up" && !still) {
+      void el.offsetWidth;
+      el.classList.add("pop");
+      const cols = V.FLAME[lv];
+      const k = Math.min(18, 4 + 2 * lv);
+      let sparks = "";
+      for (let i = 0; i < k; i++) {
+        const a = (-Math.PI / 2) + (i / k - 0.5) * Math.PI * 1.5, d = 26 + 6 * lv + (i % 3) * 8;
+        sparks += `<i class="sk-spark" style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d).toFixed(1)}px;--c:${cols[i % 3]};--d:${(i % 4) * 30}ms"></i>`;
+      }
+      el.insertAdjacentHTML("beforeend", sparks);
+    }
+    if (descent) descent.layout();
+  }
+  function flashQuick() {
+    const q = $("#sk-quick");
+    if (!q) return;
+    clearTimeout(q._t);
+    q.hidden = false;
+    q.classList.remove("on"); void q.offsetWidth; q.classList.add("on");
+    q._t = setTimeout(() => { q.hidden = true; q.classList.remove("on"); }, settings.reducedMotion ? 1200 : 1500);
+  }
+  /** The ball has landed: the streak grows (with its chord and buzz) or goes out, and a fast answer gets its flourish. */
+  function celebrate(results, ms) {
+    if (!RUN) return;
+    const res = results[results.length - 1];
+    if (!res) return;
+    const n = streakOf(results), before = streakOf(results.slice(0, -1));
+    if (res.tier) {
+      showStreak(n, "up");
+      if (n >= 2) Sound.streak(n);
+      if (Number.isFinite(ms) && ms < QUICK_MS) { flashQuick(); Sound.quick(); }
+    } else if (before >= 2) {
+      showStreak(0, "out");
+      Sound.fizzle();
+    }
   }
 
   function renderIntro() {
@@ -2519,9 +2610,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (animate && descent) {
       hudRange = [total - res.score, total];
       if (res.tier) Sound.tier(res.tier); else Sound.miss();
-      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } done(); });
+      const upTo = RUN.results.slice();
+      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } celebrate(upTo, res.ms); done(); });
       setTimeout(done, 1500); // never hold the player behind the animation
-    } else { setHud(total); done(); }
+    } else { setHud(total); showStreak(streakOf(RUN.results), "set"); done(); }
   }
   /** vq: what the challenger picked on this question, and who leads. */
   function quizOppLine(opp, i) {
@@ -2567,10 +2659,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (animate && descent) {
       hudRange = [total - res.score, total];
       if (res.tier) Sound.tier(res.tier); else Sound.miss();
-      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } done(); });
+      const upTo = RUN.results.slice(), ms = Number.isFinite(res.ms) ? res.ms : Date.now() - RUN.previewEndsAt;
+      descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } celebrate(upTo, ms); done(); });
       // never hold the player behind the animation
       setTimeout(done, 1500);
-    } else { setHud(total); done(); }
+    } else { setHud(total); showStreak(streakOf(RUN.results), "set"); done(); }
   }
 
   /** Once the ball has landed, bring Next up if the feedback pushed it below the fold (short laptops, long explanations). */
