@@ -194,27 +194,29 @@ node tools/build-single.js <out.html> --fragment --url=https://claude.ai/artifac
   into `bundle.extras` and are excluded from the daily, Unlimited, packs and challenges. They
   appear in the Library under "Off-topic extras" for practice only.
 
-### Current numbers (measured at handoff)
+### Current numbers (measured 2026-11-05, end of the overnight run)
 
-- 134 prompt files: **128 core + 6 extras**, **17,708 answers** total.
+- 153 prompt files: **147 core + 6 off-topic extras**, **24,381 answers** total, plus **80 reasoning
+  MCQs** (`data/reasoning.json`). 45 of the core prompts are flagged `extra` (outside the IOAI
+  syllabus, off by default).
 - Core prompts by pack:
 
   | pack | prompts |
   |---|---|
-  | blocks | 19 |
-  | zoo | 25 |
-  | classic | 23 |
-  | llm | 16 |
-  | stack | 20 |
-  | theory | 20 |
-  | lore | 5 |
+  | blocks | 21 |
+  | zoo | 26 |
+  | classic | 30 |
+  | llm | 17 |
+  | stack | 24 |
+  | theory | 21 |
+  | lore | 8 |
 
-- The lore pack's core prompts: ai-conference, ai-researcher, ml-competition, ml-course,
-  ml-slang.
-- The three newest zoo prompts (google-model, meta-model, openai-model) came from the
-  stopped "new prompts" workflow. Its other 46 planned prompts were never written (see §9).
-- The last change added the answer `AICC` (aka "AI Community Contest") to `ml-competition` as
-  longtail. Before that, "AICC" autocorrected to "AIxCC".
+- The lore pack's core prompts: ai-conference, ai-leader, ai-researcher, ml-competition, ml-course,
+  ml-paper, ml-slang, turing-award.
+- Prompts added after launch carry `added` in display.json (2026-11-06, -07, -08), so dailies
+  dealt before those days don't change.
+- Autocorrect bench (`node tools/matchbench.js`): typos right 97.9%, wrong 0.1%; other prompts'
+  answers falsely accepted 0.4%.
 
 ### Tier calibration rule (AUTHORING.md)
 
@@ -458,6 +460,10 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - Vibration (`settings.haptics`, inside `Sound`): shown under Feel only on touch screens with
   `navigator.vibrate`.
 - How to play lists the other ways to play; Stats has Daily quiz and Sprint blocks.
+- Desktop fit: the stage is `100vh - 400px` (a quiz `100vh - 560px`), so Next stays on a 768 px
+  laptop; a quiz answer keeps its question's two columns; if Next is still below the fold the page
+  scrolls to it once the ball lands (`revealNext`), and each new round starts at the top.
+- Settings: "Your name" (the `mlion:name` rooms and challenges use). Reset all keeps settings and name.
 
 ### Sprint (added overnight 2026-11-05)
 
@@ -813,7 +819,8 @@ rounded.
 0. **Overnight 2026-11-05 (branch `overnight`, not pushed):** paste `supabase/daily_quiz.sql` into the
    Supabase SQL editor to open the quiz leaderboard; test locally; then merge `overnight` into
    `claude/mlion-game` and push. The new mark (Leo's curve and the ball) replaced the lion badge
-   everywhere: favicon, icons, og.png.
+   everywhere: favicon, icons, og.png. Worth a real-phone check: Sprint (solo and live), the 3D
+   home, vibration, install.
 
 1. **Verify on real phones:** the live autocorrect-help setting, masked typing, no-repeat
    questions, the kick-out fix, and chat with the phone keyboard open (the panel follows
@@ -822,8 +829,10 @@ rounded.
 2. **Public broker risk:** shiftr.io's public instance is shared and unauthenticated, so anyone
    can publish to `mlion/v2/*`. Messages are validated (types, lengths, tiers, and scores
    recomputed from the tier), but a self-hosted or authenticated broker would be more robust.
-3. The 46 never-written new prompts from the stopped workflow, listed with notes in this
-   session's workflow args: microsoft-model, nvidia-model, chinese-lab-model,
+3. The never-written new prompts from the stopped workflow (special-token, numpy-function,
+   turing-award, ai-leader, calculus-concept, and classic-cv / tabular-dataset in place of
+   classic-cv-algo / classic-dataset were written overnight 2026-11-05). The original list of 46:
+   microsoft-model, nvidia-model, chinese-lab-model,
    efficient-transformer, normalizing-flow, nerf-3d, depth-model, pose-model, ocr-model,
    tracking-algo, super-resolution, translation-model, kg-embedding, robot-learning-model,
    world-model, diffusion-addon, reasoning-model, image-descriptor, classic-cv-algo,
@@ -846,7 +855,10 @@ rounded.
 10. `.taste-skill/` was meant to be gitignored, but that edit never ran.
 11. Quiz follow-ups: a wrong option can be a real member of the category the answer list lacks (lists are
     incomplete); the host can't switch format from the podium; live quiz answer times are self-reported
-    (clamped by the host); no quiz leaderboard or per-mode stats (quiz records are kept out of Stats).
+    (clamped by the host). The Daily Quiz board needs `supabase/daily_quiz.sql` applied.
+12. First load: `js/data.js` is 2.4 MB (about 730 KB gzipped) and blocks the first render behind the
+    boot spinner. Splitting it (home and the daily first, the rest later) would speed up a first
+    visit on slow phones.
 
 ---
 
