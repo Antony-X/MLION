@@ -3145,7 +3145,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const BOARD_CONFIG = { url: "https://ozqnznvxxxnefeetidwq.supabase.co", key: "sb_publishable_xztj1Nx4sRbgltpd0u3XWg_2cASIAG5" };
   const BOARD_CFG = window.MLION_BOARD || BOARD_CONFIG; // tests inject a fake project
   const BOARD_ON = !!(BOARD_CFG.url && BOARD_CFG.key) && /^https?:$/.test(location.protocol) && window.top === window;
-  const SB_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js";
+  const SB_SRC = "js/vendor/supabase-js-2.118.0.js"; // vendored (MIT), checked against the npm tarball: no CDN can swap it
   const SB_STORE = "mlion:sb";
   const PROVIDERS = [["google", "Google"], ["discord", "Discord"]];
   // anon: a publish-only account made by "Publish my score" (Supabase anonymous sign-in), no login
