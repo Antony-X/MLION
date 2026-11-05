@@ -11,7 +11,7 @@
     "serve": "python3 -m http.server 8000",
     "e2e:quiz": "node tests/quiz.e2e.js && node tests/fit.e2e.js",
     "e2e:board": "node tests/board.e2e.js",
-    "e2e:live": "node tests/live.e2e.js && node tests/live.rejoin.e2e.js && node tests/live.quiz.e2e.js && node tests/live.rejoin.e2e.js --quiz && node tests/live.topics.e2e.js",
+    "e2e:live": "node tests/live.e2e.js && node tests/live.rejoin.e2e.js && node tests/live.quiz.e2e.js && node tests/live.rejoin.e2e.js --quiz && node tests/live.topics.e2e.js && node tests/live.sprint.e2e.js && node tests/live.rejoin.e2e.js --sprint",
     "e2e:extras": "node tests/extras.e2e.js",
     "e2e:pwa": "node tests/pwa.e2e.js",
     "e2e:sprint": "node tests/sprint.e2e.js"

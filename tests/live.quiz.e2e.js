@@ -72,7 +72,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await ben.fill("#live-name", "Ben");
   await ben.click("#live-go");
   await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 40000 });
-  check((await ana.$$eval(".lv-fmt", (els) => els.map((e) => e.textContent.trim()).join(","))) === "Classic,Quiz", "the host's lobby offers Classic and Quiz");
+  check((await ana.$$eval(".lv-fmt", (els) => els.map((e) => e.textContent.trim()).join(","))) === "Classic,Quiz,Sprint", "the host's lobby offers Classic, Quiz and Sprint");
   check(!!(await ana.$(".lv-assist")), "Classic keeps its autocorrect setting");
   await ben.waitForFunction(() => /Classic format/.test(document.body.textContent), null, { timeout: 8000 });
   check(true, "a guest's settings note names the format (Classic by default)");
