@@ -89,7 +89,7 @@
     del(k) { try { localStorage.removeItem("mlion:" + k); } catch { /* ignore */ } },
   };
   const sysReduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false };
+  const DEFAULTS = { previewCorrections: true, clearRejected: false, sound: true, haptics: true, reducedMotion: sysReduced, shareLink: true, aiCheck: true, answerSecs: 25, extraQuestions: false };
   let settings = Object.assign({}, DEFAULTS, LS.get("settings", {}));
   function applySettings() { document.documentElement.classList.toggle("reduce-motion", !!settings.reducedMotion); }
   function saveSettings() { LS.set("settings", settings); applySettings(); }
@@ -127,14 +127,17 @@
       baseline: [392], overfit: [415, 392, 415], indist: [440, 554],
       outlier: [440, 554, 659], longtail: [440, 554, 659, 880], mlion: [523, 659, 784, 1047, 1319],
     };
+    // A short buzz with each verdict, where the browser can (Android; iOS Safari can't).
+    const buzz = (pattern) => { if (settings.haptics && navigator.vibrate) try { navigator.vibrate(pattern); } catch { /* ignore */ } };
     return {
       unlock() { ac(); },
       tick() { tone(1250, 0.045, { type: "square", vol: 0.02 }); },
-      reject() { tone(180, 0.2, { type: "sawtooth", vol: 0.04, slide: 0.7 }); },
+      reject() { buzz([30, 50, 30]); tone(180, 0.2, { type: "sawtooth", vol: 0.04, slide: 0.7 }); },
       submit() { tone(520, 0.09, { type: "triangle", vol: 0.04, slide: 1.6 }); },
-      miss() { tone(320, 0.55, { type: "triangle", vol: 0.06, slide: 0.35 }); },
+      miss() { buzz(60); tone(320, 0.55, { type: "triangle", vol: 0.06, slide: 0.35 }); },
       chat() { tone(988, 0.07, { vol: 0.03 }); tone(1319, 0.1, { vol: 0.03, delay: 0.07 }); },
       tier(t) {
+        buzz(t === "mlion" ? [20, 60, 20, 60, 90] : 18);
         (SEQ[t] || SEQ.baseline).forEach((f, i) => tone(f, 0.24, { type: t === "mlion" ? "triangle" : "sine", vol: 0.06, delay: i * 0.085 }));
         if (t === "mlion") tone(2093, 0.7, { vol: 0.025, delay: 0.46 });
       },
@@ -3225,7 +3228,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
             ["extraQuestions", "Extra questions", `${EXTRA_COUNT} more outside the IOAI syllabus (tools, datasets, AI in pop culture) in your Unlimited and Quiz runs`],
             ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
           ].map(row).join("")}`)}
-        ${group("Feel", [["sound", "Sound", ""], ["reducedMotion", "Reduce motion", "No rolling ball or camera moves"]].map(row).join(""))}
+        ${group("Feel", [["sound", "Sound", ""], ...("vibrate" in navigator && matchMedia("(pointer: coarse)").matches ? [["haptics", "Vibration", "A short buzz with each verdict"]] : []), ["reducedMotion", "Reduce motion", "No rolling ball or camera moves"]].map(row).join(""))}
         ${group("Sharing", row(["shareLink", "Add a link when sharing", "Results text ends with the site address"]))}
         <section class="set-group"><h2>Your data</h2><p class="muted">Runs, streaks and stats live in this browser. Export copies them so you can import them elsewhere.</p>
           <div class="btn-row"><button class="btn" id="exp">Export</button><button class="btn" id="imp">Import</button><button class="btn danger" id="reset">Reset all</button></div></section>
