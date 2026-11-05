@@ -19,7 +19,7 @@ const OUT = path.join(ROOT, "js", "data.js");
 // The site's public address, written down only here. The build puts it into index.html's link-preview
 // tags (og:url, og:image, twitter:image); the app reads og:url back (js/app.js WEB_URL, the address on
 // share cards). Moving to a custom domain: change this, run the build, see CONTEXT.md "Link preview".
-const SITE_URL = "https://antony-x.github.io/MLION/";
+const SITE_URL = "https://mlion.lol/";
 if (!/^https:\/\/[^/\s]+\/([^\s?#]*\/)?$/.test(SITE_URL)) throw new Error(`SITE_URL must be an https URL ending in "/": ${SITE_URL}`);
 
 const args = process.argv.slice(2);
@@ -243,6 +243,14 @@ for (const [key, value] of [["og:url", SITE_URL], ["og:image", `${SITE_URL}img/o
   if (!re.test(html)) throw new Error(`index.html has no ${key} meta tag`);
   html = html.replace(re, `$1${value}$2`);
 }
+// The Content-Security-Policy allows inline scripts only by hash: one sha256 per inline <script> in index.html,
+// over its text as the browser sees it (HTML parsing turns CRLF into LF). Comments are skipped first, so the word
+// "<script>" in a comment can't start a match that swallows the policy itself (a hash that changes every build).
+const inlineHashes = [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script>([\s\S]*?)<\/script>/g)]
+  .map((m) => `'sha256-${require("crypto").createHash("sha256").update(m[1].replace(/\r\n?/g, "\n"), "utf8").digest("base64")}'`);
+const cspRe = /(script-src 'self')((?: 'sha256-[A-Za-z0-9+/=]+')*)/;
+if (!cspRe.test(html)) { console.error("index.html: no Content-Security-Policy script-src to stamp"); process.exit(1); }
+html = html.replace(cspRe, `$1 ${inlineHashes.join(" ")}`);
 fs.writeFileSync(INDEX, html);
 
 // The service worker precaches exactly these, so the game opens offline after one visit.

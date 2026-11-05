@@ -812,6 +812,7 @@
   const NAME_BAD_CHARS_RE = new RegExp(NAME_BAD_CHARS_SRC, "u");
   /** False for a name with a swear word, slur or staff-like name in it, or with characters that garble a row. */
   function nameOk(name) {
+    if (String(name == null ? "" : name).length > 64) return false; // names are 16 at most; the patterns backtrack on long runs
     const raw = String(name || "");
     if (NAME_BAD_CHARS_RE.test(raw)) return false;
     const base = nameNorm(raw);
