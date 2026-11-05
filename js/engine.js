@@ -699,6 +699,54 @@
   }
 
   // -------------------------------------------------------------- share
+  // ------------------------------------------------------------------ public names
+  // Names on the leaderboard can't be swear words or slurs (English, Spanish/French, Russian in both
+  // scripts, Georgian in both scripts). The same patterns run in the database (supabase/names.sql,
+  // written by tools/names-sql.js), so a name typed past the page is refused there too.
+  // A name is lowercased, accents dropped (Latin only), digits read as letters (0→o, 1→i, 3→e, 4→a,
+  // 5→s, 7→t, 8→b), "ph" read as "f", and every repeated letter may repeat more ("fuuuck").
+  // NAME_PARTS match anywhere in the name with spaces and dots removed; NAME_WORDS only as a whole word
+  // or the whole name (so "Hancock", "Dickens", "class" and "therapist" stay fine).
+  const NAME_PARTS = [
+    "fuck", "shit", "cunt", "nigger", "nigga", "faggot", "bitch", "whore", "slut", "twat", "pussy", "porn",
+    "dildo", "retard", "motherf", "asshole", "arsehole", "jizz", "penis", "vagina", "boob", "bastard",
+    "bollock", "bellend", "wanker", "wanking", "pedophil", "paedophil", "molest", "incest", "hitler", "kkk",
+    "piss", "blowjob", "handjob", "orgasm", "douchebag", "hentai", "cumshot",
+    "blyat", "blyad", "pizd", "ebat", "eblan", "mudak", "pidor", "pidar", "gandon", "zalup", "huesos", "nahui", "nahuy",
+    "бля", "пизд", "хуй", "хуе", "хуя", "ебат", "ебан", "еблан", "ебло", "пидор", "пидар", "педик", "мудак", "гандон", "залуп", "шлюх",
+    "mutel", "chatlakh", "chatlax", "dedamot",
+    "მუტელ", "ჩათლახ", "ტრაკ", "დედამოტყ", "პიდარას",
+  ];
+  const NAME_WORDS = [
+    "ass", "arse", "dick", "cock", "rape", "rapist", "cum", "sex", "tit", "tits", "fag", "fags", "crap", "anal", "anus",
+    "nazi", "pedo", "paedo", "prick", "knob", "tosser", "wank", "fuk", "fck", "fu", "stfu", "wtf", "milf", "nude", "nudes",
+    "horny", "semen", "sperm", "dyke", "tranny", "homo", "spic", "chink", "gook", "kike", "coon", "negro", "wetback", "jap",
+    "slag", "skank", "hoe", "hoes", "thot", "douche", "boner", "puta", "puto", "putain", "merde", "mierda", "cabron", "pendejo",
+    "suka", "hui", "huy", "xui", "xuy", "blya", "сука", "ебу", "traki", "yle", "qle", "bozi", "ყლე", "ბოზი", "ბოზო",
+  ];
+  /** "fuck" → "f+u+c+k+", "nigger" → "n+i+g{2,}e+r+": each run of a letter may be longer. */
+  const runPattern = (w) => w.replace(/(.)\1*/gu, (run, c) => (run.length > 1 ? `${c}{${run.length},}` : `${c}+`));
+  const NAME_PARTS_SRC = NAME_PARTS.map(runPattern).join("|");
+  const NAME_WORDS_SRC = NAME_WORDS.map(runPattern).join("|");
+  const NAME_PARTS_RE = new RegExp(NAME_PARTS_SRC, "u");
+  const NAME_WORDS_RE = new RegExp(`^(?:${NAME_WORDS_SRC})$`, "u");
+  const NAME_LEET = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t", 8: "b" };
+  const NAME_OTHER = /[^a-z0-9ა-ჿа-я]+/gu; // anything but Latin, Georgian and Cyrillic letters and digits
+  function nameNorm(s) {
+    return String(s || "").toLowerCase()
+      .replace(/[À-ɏ]/g, (c) => c.normalize("NFKD")[0]) // é → e (Cyrillic й stays й)
+      .replace(/ё/g, "е")
+      .replace(/[0134578]/g, (d) => NAME_LEET[d])
+      .replace(/ph/g, "f");
+  }
+  /** False for a name that has a swear word or slur in it. */
+  function nameOk(name) {
+    const s = nameNorm(name);
+    const joined = s.replace(NAME_OTHER, "");
+    if (NAME_PARTS_RE.test(joined)) return false;
+    return !s.split(NAME_OTHER).concat(joined).some((t) => t && NAME_WORDS_RE.test(t));
+  }
+
   function tierEmoji(t) { return t && TIERS[t] ? TIERS[t].emoji : MISS_EMOJI; }
   function shareText({ mode = "daily", number, score, tiers, label, secs }) {
     const quiz = mode === "quiz" || mode === "vq" || mode === "dquiz";
@@ -723,6 +771,7 @@
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
+    nameOk, nameNorm, NAME_PARTS_SRC, NAME_WORDS_SRC,
   };
   Object.defineProperty(api, "LAUNCH", { get: () => LAUNCH, enumerable: true }); // live: the admin panel can set it after load
   return api;

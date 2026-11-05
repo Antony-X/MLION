@@ -854,6 +854,18 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .board-pitch a, .board-box a { color: var(--gold); }
 .board-side > * + * { margin-top: 12px; }
 .board-days { margin-top: 16px; }
+.board-box > * + * { margin-top: 10px; }
+/* today's top five under a finished daily */
+.mini-board { margin-top: 18px; max-width: 420px; text-align: left; }
+.mini-board:empty { display: none; }
+.mb-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--muted); font-size: var(--s1); margin-bottom: 8px; }
+.mb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mb-list li { display: grid; grid-template-columns: 1.8em 1fr auto; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--surface); font-variant-numeric: tabular-nums; }
+.mb-list .rank { color: var(--muted); font-weight: 700; }
+.mb-list .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mb-list li.me { box-shadow: inset 3px 0 0 var(--gold); }
+.mb-list li.me .nm { color: var(--gold); }
+.pub-err { min-height: 1.3em; margin: 8px 0 0; color: var(--negative); font-size: var(--s1); }
 /* ----------------------------------------------------------------- quiz */
 /* four answers to tap: big, one per row, comfortable at phone width */
 .mcq-zone { position: relative; margin-top: 16px; }

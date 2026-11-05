@@ -304,5 +304,18 @@ ok("score bands");
   ok("live room scoring");
 }
 
+// --- leaderboard names: no swear words or slurs, without catching ordinary names
+{
+  const bad = ["fuck", "FuuuCK", "f u c k", "Fck", "sh1t", "a55", "Ass", "Big Dick", "n1gga", "phuck", "Bitch99", "blyat", "Сука", "хуй", "ყლე", "Chatlaxi", "ტრაკი", "puta"];
+  const good = ["antoni", "Hancock", "Dickens", "class", "Assassin", "therapist", "Niger", "Scott", "Ада", "ნინო", "Fukuda", "Huynh", "Cocktail", "Analysis", "Peacock", "Sussex", "Putin", "Titan", "Player"];
+  for (const name of bad) assert.ok(!E.nameOk(name), `"${name}" should be refused`);
+  for (const name of good) assert.ok(E.nameOk(name), `"${name}" should be allowed`);
+  ok("leaderboard name filter");
+  const sql = fs.readFileSync(path.join(__dirname, "..", "supabase", "names.sql"), "utf8");
+  assert.ok(sql.includes(E.NAME_PARTS_SRC.replace(/'/g, "''")) && sql.includes(E.NAME_WORDS_SRC.replace(/'/g, "''")),
+    "supabase/names.sql is out of date: run node tools/names-sql.js");
+  ok("the database name check matches the page's");
+}
+
 const src = fs.readFileSync(path.join(__dirname, "..", "js", "data.js"), "utf8");
 console.log(`engine tests passed (${n} checks · ${DATA.prompts.length} prompts · ${(src.length / 1024).toFixed(0)} KB data)`);

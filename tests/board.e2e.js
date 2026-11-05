@@ -15,6 +15,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const MOCK = "https://mock.supabase.test";
 const UID = "00000000-0000-4000-8000-00000000a11a";
 const RIVAL = "00000000-0000-4000-8000-00000000b22b";
+const ANON = "00000000-0000-4000-8000-00000000c33c"; // a publish-only account (anonymous sign-in)
+const E = require("../js/engine.js");
 const PTS = [0, 10, 15, 30, 60, 85, 100];
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
@@ -35,13 +37,13 @@ const calls = [];
 const providers = { google: false, discord: true }; // what the dashboard has switched on
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (sub) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`;
-function session() {
-  return {
-    access_token: jwt(UID), refresh_token: "r1", token_type: "bearer", expires_in: 86400,
-    expires_at: Math.floor(Date.now() / 1000) + 86400,
-    user: { id: UID, aud: "authenticated", role: "authenticated", email: "ada@example.invalid", user_metadata: { full_name: "Ada Lovelace" }, app_metadata: { provider: "google" } },
-  };
+function session(anon = false) {
+  const user = anon
+    ? { id: ANON, aud: "authenticated", role: "authenticated", is_anonymous: true, user_metadata: {}, app_metadata: { provider: "anonymous" } }
+    : { id: UID, aud: "authenticated", role: "authenticated", email: "ada@example.invalid", user_metadata: { full_name: "Ada Lovelace" }, app_metadata: { provider: "google" } };
+  return { access_token: jwt(user.id), refresh_token: anon ? "r2" : "r1", token_type: "bearer", expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user };
 }
+let anonOn = true; // "Allow anonymous sign-ins" in the dashboard
 function filters(u) {
   const f = {};
   for (const [k, v] of u.searchParams) { const m = v.match(/^(eq|gt|lt)\.(.*)$/); if (m) f[k] = [m[1], m[2]]; }
@@ -69,7 +71,11 @@ async function mockRoute(route) {
     if (body.auth_code !== "test-code" || !body.code_verifier) return json(400, { error: "bad pkce" });
     return json(200, session());
   }
-  if (u.pathname === "/auth/v1/user") return json(200, session().user);
+  if (u.pathname === "/auth/v1/signup" && method === "POST") { // supabase.auth.signInAnonymously()
+    if (!anonOn) return json(422, { code: "anonymous_provider_disabled", msg: "Anonymous sign-ins are disabled" });
+    return json(200, session(true));
+  }
+  if (u.pathname === "/auth/v1/user") return json(200, /c33c/.test(hdr.authorization || "") ? session(true).user : session().user);
   if (u.pathname === "/auth/v1/logout") return json(204);
 
   // rest
@@ -88,11 +94,13 @@ async function mockRoute(route) {
       const r = Array.isArray(row) ? row[0] : row;
       if (r.id !== me) return json(403, { code: "42501", message: "rls" });
       if (db.profiles.has(r.id)) return json(409, { code: "23505", message: "dup" });
+      if (!E.nameOk(r.name)) return json(400, { code: "23514", message: "that name isn't allowed" }); // supabase/names.sql
       db.profiles.set(r.id, { id: r.id, name: r.name });
       return reply([db.profiles.get(r.id)], 201);
     }
     if (method === "PATCH") {
       const patch = JSON.parse(req.postData());
+      if (!E.nameOk(patch.name)) return json(400, { code: "23514", message: "that name isn't allowed" });
       const rows = [...db.profiles.values()].filter((r) => pass(r, f) && r.id === me);
       rows.forEach((r) => Object.assign(r, { name: patch.name }));
       return reply(rows);
@@ -193,7 +201,9 @@ async function mockRoute(route) {
   await page.goto("about:blank"); // a fresh load, so the app reads the record we just stored
   await page.goto(base + `#results-daily-${today}`);
   await page.waitForSelector("#board-box [data-login]", { timeout: 10000 }).catch(async (e) => { console.log(await page.evaluate(() => location.href + " :: " + (document.querySelector("#board-box") || {}).outerHTML + " :: " + JSON.stringify(Object.keys(localStorage)))); throw e; });
-  check(true, "today's results invite you to post the score");
+  check(!!(await page.$("#board-box #pub-btn")), "today's results offer Publish my score, and login");
+  await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#mini-board")?.textContent || ""), null, { timeout: 10000 });
+  check(true, "under the results, today's leaderboard shows (empty so far)");
 
   // ---- log in with Google: PKCE round trip through the fake project
   const exchanged = page.waitForRequest((r) => r.url().startsWith(`${MOCK}/auth/v1/token`), { timeout: 20000 });
@@ -286,6 +296,66 @@ async function mockRoute(route) {
   await page.goto(base + "#board-2000-01-01");
   await page.waitForFunction(() => location.hash === "#board", null, { timeout: 5000 });
   check(true, "a board before day 1 redirects to today's");
+
+  // ---- publish without logging in: a fresh browser, a name, the swear filter
+  const ctx2 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  await ctx2.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx2.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx2.route(`${MOCK}/**`, mockRoute);
+  const p2 = await ctx2.newPage();
+  p2.on("pageerror", (e) => { errors.push(e.message); console.log("  page error: " + e.message); });
+  await p2.goto(base);
+  await p2.waitForSelector(".home");
+  const tiers2 = ["mlion", "longtail", "longtail", "outlier", "outlier", "indist", "overfit"]; // 100+85+85+60+60+30+15 = 435
+  await p2.evaluate(({ today, tiers }) => {
+    const pts = { mlion: 100, longtail: 85, outlier: 60, indist: 30, overfit: 15, baseline: 10, miss: 0 };
+    const results = tiers.map((t, i) => ({ promptId: "nope-" + i, promptText: "Q" + i, answer: "A" + i, raw: "", tier: t, score: pts[t] }));
+    const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: results.map((r) => r.promptId), results, score: 435, tiers, completedAt: Date.now(), secs: 25 };
+    localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
+  }, { today, tiers: tiers2 });
+  await p2.goto("about:blank");
+  await p2.goto(base + `#results-daily-${today}`);
+  await p2.waitForSelector("#mini-board .mb-list li");
+  const mini = await p2.$$eval("#mini-board .mb-list li", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+  check(mini.length === 2 && /^1\s*Grace\s*685$/.test(mini[0]) && /^2\s*Countess b\s*300$/.test(mini[1]), `without logging in, the results show today's top scores (${mini.join(" / ")})`);
+  check(!(await p2.$('script[src*="supabase"]')), "reading the top scores needs no login library");
+  anonOn = false;
+  await p2.click("#pub-btn");
+  await p2.fill("#pub-name", "Turing");
+  await p2.click("#pub-go");
+  await p2.waitForFunction(() => /isn't switched on/.test(document.querySelector("#pub-err")?.textContent || ""), null, { timeout: 15000 });
+  check(true, "if anonymous sign-ins are off in Supabase, the dialog says so");
+  anonOn = true;
+  await p2.fill("#pub-name", "Fuuu ck");
+  await p2.click("#pub-go");
+  await p2.waitForFunction(() => /isn't allowed/.test(document.querySelector("#pub-err")?.textContent || ""), null, { timeout: 5000 });
+  check(!db.profiles.has(ANON), "a swear name is refused before anything is sent");
+  await p2.fill("#pub-name", "Turing");
+  await p2.click("#pub-go");
+  await p2.waitForFunction(() => /#2<\/b> of 3 today as Turing/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
+  check(db.profiles.get(ANON).name === "Turing" && db.scores.some((r) => r.user_id === ANON && r.score === 435), "Publish makes a no-login account named Turing and posts 435");
+  await p2.waitForSelector("#mini-board li.me");
+  check((await p2.textContent("#mini-board li.me")).includes("Turing"), "your row is marked in today's top five");
+  check(calls.some((c) => c.startsWith("POST /auth/v1/signup")), "it used Supabase anonymous sign-in");
+  await p2.screenshot({ path: path.join(OUT, "board-04-published.png"), fullPage: true });
+  // the database refuses a bad name even when the page is skipped
+  const raw = await p2.evaluate(async (mock) => {
+    const tok = JSON.parse(localStorage.getItem("mlion:sb")).access_token;
+    const r = await fetch(`${mock}/rest/v1/profiles?id=eq.00000000-0000-4000-8000-00000000c33c`, { method: "PATCH", headers: { apikey: "k", authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ name: "sh1t" }) });
+    return r.status;
+  }, MOCK);
+  check(raw === 400 && db.profiles.get(ANON).name === "Turing", "a bad name sent straight to the API is refused (the database check)");
+  // a publish-only account doesn't post by itself on later visits
+  db.scores = db.scores.filter((r) => r.user_id !== ANON);
+  await p2.evaluate(() => localStorage.removeItem("mlion:boardPosted"));
+  await p2.goto("about:blank");
+  await p2.goto(base + `#results-daily-${today}`);
+  await p2.waitForSelector("#board-box #pub-btn");
+  await sleep(800);
+  check(!db.scores.some((r) => r.user_id === ANON), "a publish-only account waits for the button; it never posts by itself");
+  await p2.click("#menu-btn");
+  check((await p2.textContent("#drawer-acct")).includes("On the leaderboard as Turing") && !(await p2.$("#acct-out")), "the menu shows the publish name, with login to keep it everywhere");
+  await ctx2.close();
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();

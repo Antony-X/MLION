@@ -2648,7 +2648,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const SB_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js";
   const SB_STORE = "mlion:sb";
   const PROVIDERS = [["google", "Google"], ["discord", "Discord"]];
-  const AUTH = { uid: null, user: null, profile: null, admin: false, ready: !BOARD_ON };
+  // anon: a publish-only account made by "Publish my score" (Supabase anonymous sign-in), no login
+  const AUTH = { uid: null, user: null, profile: null, admin: false, anon: false, loading: null, ready: !BOARD_ON };
   const boardPosted = LS.get("boardPosted", {}) || {};
   let sbClient = null, sbLoading = null;
 
@@ -2683,7 +2684,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!returning && !stored) { AUTH.ready = true; drawAccount(); return; }
     try {
       const sb = await loadSupabase();
-      sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => onSession(session), 0); }); // no awaits inside the callback
+      watchAuth(sb);
       const { data } = await sb.auth.getSession(); // also swaps ?code= for a session
       if (returning) {
         if (q.has("error")) toast(`Login didn't work: ${q.get("error_description") || q.get("error")}`);
@@ -2698,30 +2699,41 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     boardRedraw();
   }
 
-  async function onSession(session) {
+  let authWatched = false;
+  function watchAuth(sb) {
+    if (authWatched) return;
+    authWatched = true;
+    sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => onSession(session), 0); }); // no awaits inside the callback
+  }
+  /** A new session (or none): load its profile once; a second call for the same account waits for the first. */
+  function onSession(session) {
     const user = (session && session.user) || null;
     const uid = user ? user.id : null;
-    if (uid === AUTH.uid) return;
-    AUTH.uid = uid; AUTH.user = user; AUTH.profile = null; AUTH.admin = false;
-    if (user) {
-      try {
-        AUTH.profile = await loadProfile(user);
-        if (AUTH.uid !== uid) return;
-        AUTH.admin = await checkAdmin();
-        if (AUTH.uid !== uid) return;
-        if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
-        await postDaily(records[`daily:${today()}`]);
-      } catch { /* offline: the board page retries */ }
-    }
-    boardRedraw();
+    if (uid === AUTH.uid) return AUTH.loading || Promise.resolve();
+    AUTH.uid = uid; AUTH.user = user; AUTH.profile = null; AUTH.admin = false; AUTH.anon = !!(user && user.is_anonymous);
+    AUTH.loading = (async () => {
+      if (user) {
+        try {
+          AUTH.profile = await loadProfile(user);
+          if (AUTH.uid !== uid) return;
+          AUTH.admin = AUTH.anon ? false : await checkAdmin();
+          if (AUTH.uid !== uid) return;
+          if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
+          if (!AUTH.anon) await postDaily(records[`daily:${today()}`]); // a login posts by itself; a publish-only account waits for the button
+        } catch { /* offline: the board page retries */ }
+      }
+      boardRedraw();
+    })();
+    return AUTH.loading;
   }
 
   function defaultBoardName(user) {
     const own = cleanName(myName());
-    if (own) return own;
+    if (own && E.nameOk(own)) return own;
     const m = (user && user.user_metadata) || {};
     const raw = (m.custom_claims && m.custom_claims.global_name) || m.full_name || m.name || m.user_name || "";
-    return cleanName(String(raw).split(/\s+/)[0]) || "Player"; // first name only: the board is public
+    const first = cleanName(String(raw).split(/\s+/)[0]); // first name only: the board is public
+    return first && E.nameOk(first) ? first : "Player";
   }
   async function loadProfile(user) {
     const got = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle();
@@ -2735,10 +2747,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // Post today's daily once per account. 23505 means it's already there (the first post counts).
   const BOARDS = { daily: { table: "daily_scores", mode: "daily" }, quiz: { table: "daily_quiz_scores", mode: "dquiz" } };
   const missingTable = (error) => !!error && (error.code === "PGRST205" || error.code === "42P01" || /schema cache|does not exist/i.test(error.message || ""));
+  const postMark = (rec) => (rec.mode === "dquiz" ? `q:${rec.date}` : rec.date);
+  const isPosted = (rec) => !!(rec && AUTH.user && boardPosted[postMark(rec)] === AUTH.user.id);
   async function postDaily(rec) {
     if (!sbClient || !AUTH.user || !AUTH.profile || !rec || rec.date !== today() || rec.tiers.length !== E.ROUNDS) return false;
     if (rec.mode !== "daily" && rec.mode !== "dquiz") return false;
-    const quiz = rec.mode === "dquiz", mark = quiz ? `q:${rec.date}` : rec.date;
+    const quiz = rec.mode === "dquiz", mark = postMark(rec);
     if (boardPosted[mark] === AUTH.user.id) return true;
     const { error } = quiz
       ? await sbClient.from("daily_quiz_scores").insert({ user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)) })
@@ -2759,8 +2773,64 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   async function boardLogout() {
     try { if (sbClient) await sbClient.auth.signOut(); } catch { /* ignore */ }
-    AUTH.uid = null; AUTH.user = null; AUTH.profile = null; AUTH.admin = false;
+    AUTH.uid = null; AUTH.user = null; AUTH.profile = null; AUTH.admin = false; AUTH.anon = false; AUTH.loading = null;
     boardRedraw();
+  }
+  const NAME_BAD = "That name isn't allowed. Pick another.";
+  /** Save a new public name; returns an error to show, or "". */
+  async function saveBoardName(name) {
+    if (!name) return "Pick a name with letters or digits.";
+    if (!E.nameOk(name)) return NAME_BAD;
+    if (AUTH.profile && AUTH.profile.name === name) return "";
+    const { data, error } = await sbClient.from("profiles").update({ name }).eq("id", AUTH.user.id).select("id,name").maybeSingle();
+    if (error && error.code === "23514") return NAME_BAD; // the database's own check (supabase/names.sql)
+    if (error || !data) return "Couldn't save the name. Try again.";
+    AUTH.profile = data;
+    return "";
+  }
+
+  // "Publish my score": no login needed. The first publish makes a publish-only account (Supabase
+  // anonymous sign-in) under the name you type; later days ask again with that name filled in.
+  async function publishScore(rec, name) {
+    if (!name) return "Pick a name with letters or digits.";
+    if (!E.nameOk(name)) return NAME_BAD;
+    try {
+      const sb = await loadSupabase();
+      watchAuth(sb);
+      if (!AUTH.user) {
+        LS.set("name", name); // the new account's profile takes this name
+        const { data, error } = await sb.auth.signInAnonymously();
+        if (error) return /anonymous/i.test(`${error.code || ""} ${error.message || ""}`) ? "Publishing without a login isn't switched on yet. Log in instead." : "Couldn't publish. Try again.";
+        await onSession(data && data.session);
+      } else await (AUTH.loading || Promise.resolve());
+      if (!AUTH.profile) return "Couldn't publish. Try again.";
+      const bad = await saveBoardName(name);
+      if (bad) return bad;
+      if (!myName() || AUTH.anon) LS.set("name", name);
+      return (await postDaily(rec)) ? "" : "Couldn't publish. Try again.";
+    } catch { return "Couldn't reach the leaderboard. Try again later."; }
+  }
+  function publishModal(rec) {
+    const quiz = rec.mode === "dquiz";
+    const cur = (AUTH.profile && AUTH.profile.name) || myName() || "";
+    showModal("Publish your score", `<p class="muted">Your ${rec.score} goes on today's ${quiz ? "quiz " : ""}leaderboard under this name. Everyone can see it.</p>
+      <form id="pub-form" class="vs-form"><input class="search" id="pub-name" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(cur)}" aria-label="Name on the leaderboard">
+      <p class="pub-err" id="pub-err" role="alert"></p>
+      <div class="btn-row"><button class="btn primary" type="submit" id="pub-go">Publish</button></div></form>`);
+    const inp = $("#pub-name"), err = $("#pub-err"), btn = $("#pub-go");
+    inp.focus(); inp.select();
+    inp.addEventListener("input", () => { err.textContent = ""; });
+    $("#pub-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = cleanName(inp.value);
+      inp.value = name;
+      btn.disabled = true; btn.textContent = "Publishing…";
+      const bad = await publishScore(rec, name);
+      if (!$("#pub-form")) return;
+      btn.disabled = false; btn.textContent = "Publish";
+      if (bad) { err.textContent = bad; inp.focus(); return; }
+      closeModal(); toast("Published"); boardRedraw();
+    });
   }
   function boardRename() {
     if (!AUTH.profile) return;
@@ -2770,11 +2840,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const inp = $("#bn-input"); inp.focus(); inp.select();
     $("#bn-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const name = cleanName(inp.value);
-      if (!name) return toast("Pick a name with letters or digits");
-      const { data, error } = await sbClient.from("profiles").update({ name }).eq("id", AUTH.user.id).select("id,name").maybeSingle();
-      if (error || !data) return toast("Couldn't save the name. Try again.");
-      AUTH.profile = data;
+      const bad = await saveBoardName(cleanName(inp.value));
+      if (bad) return toast(bad);
+      if (AUTH.anon) LS.set("name", AUTH.profile.name);
       closeModal();
       boardRedraw();
     });
@@ -2805,13 +2873,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!box) return;
     box.hidden = !BOARD_ON;
     if (!BOARD_ON || !AUTH.ready) { box.innerHTML = ""; return; }
-    if (AUTH.user) {
+    if (AUTH.user && AUTH.anon) {
+      box.innerHTML = `<p class="acct-who">On the leaderboard as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. Log in to keep one name on every device.</p>
+        <div class="btn-row"><button class="btn sm" id="acct-name">Change name</button></div>${loginButtons()}`;
+      $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
+      wireLogin(box);
+    } else if (AUTH.user) {
       box.innerHTML = `<p class="acct-who">Logged in as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b></p>
         <div class="btn-row">${AUTH.admin ? `<a class="btn sm acct-admin" href="#admin">Admin panel</a>` : ""}<button class="btn sm" id="acct-name">Change name</button><button class="btn sm" id="acct-out">Log out</button></div>`;
       $("#acct-out", box).addEventListener("click", () => { closeDrawer(); boardLogout(); });
       $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
     } else {
-      box.innerHTML = `<p class="acct-who">Log in to keep your name and post daily scores.</p>${loginButtons()}`;
+      box.innerHTML = `<p class="acct-who">Log in to keep one name on every device. Your daily score posts by itself.</p>${loginButtons()}`;
       wireLogin(box);
     }
   }
@@ -2838,22 +2911,52 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return { rank: (above.count || 0) + (tied.count || 0) + 1, total: all.count || 0 };
   }
 
-  // The box under today's results: log in to post, or where you placed.
+  // Today's top five, read with the public key alone (no login, no client library).
+  async function boardTop(day, kind, n = 5) {
+    const quiz = kind === "quiz";
+    const order = quiz ? "score.desc,tenths.asc,created_at.asc" : "score.desc,created_at.asc";
+    const url = `${BOARD_CFG.url}/rest/v1/${BOARDS[kind].table}?select=user_id,score${quiz ? ",tenths" : ""},profiles(name)&day=eq.${day}&order=${order}&limit=${n}`;
+    const r = await fetch(url, { headers: { apikey: BOARD_CFG.key } });
+    if (!r.ok) throw new Error(String(r.status));
+    return (await r.json()).slice(0, n);
+  }
+  async function fillMiniBoard(el, day, kind) {
+    const href = kind === "quiz" ? "#board-quiz" : "#board";
+    let rows;
+    try { rows = await boardTop(day, kind); } catch { if (el.isConnected) el.innerHTML = ""; return; }
+    if (!el.isConnected) return;
+    let rank = 0, last = null;
+    el.innerHTML = `<div class="mb-head"><span>Today's leaderboard</span><a href="${href}">See all</a></div>
+      ${rows.length ? `<ol class="mb-list">${rows.map((row, i) => {
+        const tie = kind === "quiz" ? `${row.score}|${row.tenths}` : row.score;
+        if (tie !== last) { rank = i + 1; last = tie; }
+        const me = AUTH.user && row.user_id === AUTH.user.id;
+        return `<li class="${me ? "me" : ""}"><span class="rank">${rank}</span><span class="nm">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><b>${row.score}</b></li>`;
+      }).join("")}</ol>` : `<p class="muted small">No scores yet. Be the first.</p>`}`;
+  }
+
+  // The box under today's results: publish (or where you placed), then today's top five.
   async function fillBoardBox(box, rec) {
     if (!BOARD_ON || !rec) return;
     const kind = rec.mode === "dquiz" ? "quiz" : "daily", href = kind === "quiz" ? "#board-quiz" : "#board";
     if (!AUTH.ready) { box.innerHTML = `<p class="muted small">Checking the leaderboard…</p>`; return; }
-    if (!AUTH.user) {
-      box.innerHTML = `<p class="board-pitch">Put this score on today's <a href="${href}">leaderboard</a>.</p>${loginButtons()}`;
-      return wireLogin(box);
+    const mini = `<div class="mini-board" id="mini-board"></div>`;
+    const drawMini = () => { const m = $("#mini-board", box); if (m) fillMiniBoard(m, rec.date, kind); };
+    if (!AUTH.user || (AUTH.anon && !isPosted(rec))) {
+      box.innerHTML = `<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>
+        <p class="muted small">Or log in to keep one name on every device; then it posts by itself.</p>${loginButtons()}${mini}`;
+      $("#pub-btn", box).addEventListener("click", () => publishModal(rec));
+      wireLogin(box);
+      return drawMini();
     }
     box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
     const ok = await postDaily(rec).catch(() => false);
     const r = ok ? await rankFor(rec.date, AUTH.user.id, kind).catch(() => null) : null;
     if (!box.isConnected) return;
-    box.innerHTML = r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
+    box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
       : kind === "quiz" ? "" // the quiz board isn't open on this server yet
-      : `<p class="muted small">Couldn't post your score. <a href="${href}">Leaderboard</a></p>`;
+      : `<p class="muted small">Couldn't post your score. <a href="${href}">Leaderboard</a></p>`) + mini;
+    drawMini();
   }
 
   async function renderBoard(date, kind = "daily") {
@@ -2868,10 +2971,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     const prev = day > E.epoch() ? E.addDays(day, -1) : null;
     const next = day < today() ? E.addDays(day, 1) : null;
-    const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
-      : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>`
-      : `<p class="board-acct">Log in and your daily score shows up here. Only the name you pick is shown.</p>${loginButtons()}`;
     const played = records[`${quizBoard ? "dquiz" : "daily"}:${today()}`];
+    const canPublish = day === today() && played && AUTH.ready && (!AUTH.user || (AUTH.anon && !isPosted(played)));
+    const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
+      : (AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>` : "")
+      + (canPublish ? `<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>` : "")
+      + (!AUTH.user || AUTH.anon ? `<p class="board-acct">${AUTH.user ? "" : "Publish your score under any name, or "}log in to keep one name on every device.</p>${loginButtons()}` : "");
     const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? base : `${base}-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
     app.innerHTML = `<section class="screen split">
       <div class="side">
@@ -2881,15 +2986,16 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${day === today() && !played ? `<div><a class="btn primary big" href="#${quizBoard ? "daily-quiz" : "daily"}">Play today's ${quizBoard ? "quiz" : "daily"}</a></div>` : ""}
       </div>
       <div class="main"><ol class="list big board-list" id="board-list"><li class="muted">Loading…</li></ol>
-        <div class="board-side">${acct}<p class="muted small">One score per person per day: the first ${quizBoard ? "daily quiz" : "daily"} you finish while logged in, on the 25 s clock.${quizBoard ? " Equal scores rank by total time." : ""}</p></div>
+        <div class="board-side">${acct}<p class="muted small">One score per person per day, on the 25 s clock: the first ${quizBoard ? "daily quiz" : "daily"} you publish. Logged in, it posts by itself.${quizBoard ? " Equal scores rank by total time." : ""}</p></div>
       </div>
     </section>`;
     wireLogin(app);
     const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
+    const pub = $("#pub-btn"); if (pub) pub.addEventListener("click", () => publishModal(played));
     const list = $("#board-list");
     try {
       const sb = await loadSupabase();
-      if (AUTH.user && day === today()) await postDaily(played).catch(() => false);
+      if (AUTH.user && !AUTH.anon && day === today()) await postDaily(played).catch(() => false);
       let q = sb.from(BOARDS[kind].table).select(`user_id,score,${quizBoard ? "marks,tenths" : "tiers"},created_at,profiles(name)`).eq("day", day).order("score", { ascending: false });
       if (quizBoard) q = q.order("tenths", { ascending: true });
       const { data, error } = await q.order("created_at", { ascending: true }).limit(100);
@@ -4011,6 +4117,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     wireTimePicker((secs) => { settings.answerSecs = secs; saveSettings(); toast(`${secs} s per question`); });
     $("#set-name").addEventListener("change", (e) => {
       const v = e.target.value.trim().slice(0, 16);
+      if (v && !E.nameOk(v)) { e.target.value = myName(); return toast("That name isn't allowed. Pick another."); }
       e.target.value = v; LS.set("name", v);
       toast(v ? "Name saved" : "Name cleared");
     });
