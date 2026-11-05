@@ -3,7 +3,7 @@
  * both players type as many answers as they can on the same clock, each sees the other's count and points
  * tick up while the answers stay hidden, the round ends on the clock, the reveal marks an answer both named,
  * a player who leaves mid-round keeps the points they had sent, and the totals are the sum of tier points.
- *   node tests/live.sprint.e2e.js   (needs unpkg.com and public.cloud.shiftr.io)
+ *   node tests/live.sprint.e2e.js   (needs public.cloud.shiftr.io)
  * The minute is shortened to 8 s through window.MLION_SPRINT_TEST (honoured only with window.MLION_TEST). */
 "use strict";
 const { chromium } = require("playwright");
@@ -65,7 +65,7 @@ function plan(P) {
     await page.addInitScript(([code, clock, reveal]) => {
       window.MLION_TEST = true;
       window.MLION_SPRINT_TEST = { secs: clock, reveal };
-      if (code) window.MLION_LIVE_CODE = code;
+      if (code) { window.MLION_LIVE_CODE = code; window.MLION_LIVE_SECRET = code.padEnd(22, "K"); } // a fixed link, so a guest can open it before the room exists
       try { localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:settings", JSON.stringify({ sound: false })); } catch { /* */ }
     }, [init || null, CLOCK, REVEAL_MS]);
     return page;
@@ -88,7 +88,7 @@ function plan(P) {
   await ana.fill("#live-name", "Ana");
   await ana.click("#live-go");
   await ana.waitForSelector(".lv-code", { timeout: 20000 });
-  await ben.goto(base + `#live-${forced}`);
+  await ben.goto(base + `#live-${forced}-${forced.padEnd(22, "K")}`);
   await ben.fill("#live-name", "Ben");
   await ben.click("#live-go");
   await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 2, null, { timeout: 40000 });
@@ -148,12 +148,11 @@ function plan(P) {
   await ben.press("#chat-input", "Escape");
   // a forged list and a forged tally are ignored by the host
   const benId = b0.myId;
-  await ben.evaluate(({ code }) => {
-    const L = window.MLION_LIVE_STATE, up = `mlion/v2/r/${code}/up`;
-    L.client.publish(up, JSON.stringify({ from: L.myId, t: "spp", i: 0, n: 1, pts: 99999 }));
-    L.client.publish(up, JSON.stringify({ from: L.myId, t: "spans", i: 0, list: [99999] }));
-    L.client.publish(up, JSON.stringify({ from: L.myId, t: "spans", i: 0, list: [0, 0] }));
-  }, { code: forced });
+  await ben.evaluate(() => { // sealed like any message from Ben: a dishonest guest, not an outsider
+    window.MLION_LIVE_SEND({ t: "spp", i: 0, n: 1, pts: 99999 });
+    window.MLION_LIVE_SEND({ t: "spans", i: 0, list: [99999] });
+    window.MLION_LIVE_SEND({ t: "spans", i: 0, list: [0, 0] });
+  });
   await ana.waitForTimeout(1500);
   check(await ana.evaluate((id) => { const p = window.MLION_LIVE_STATE.players.get(id); return !p.ans[0] && (!p.sp || !p.sp[0] || p.sp[0].pts < 1000); }, benId), "the host ignores a tally above the maximum and a list with an unknown or repeated answer");
   await type(ben, A0.ben[1].a);

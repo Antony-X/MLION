@@ -164,6 +164,7 @@ js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Desce
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
 js/vendor/            third-party scripts served with the game (supabase-2.118.0.js), so launch doesn't depend on a CDN
 supabase/*.sql        additive SQL the owner runs by hand in the SQL editor (names_v2.sql after names.sql)
+js/vendor/mqtt-4.3.7.min.js  MQTT.js 4.3.7 browser bundle, vendored unchanged (MIT header added); loaded only for live play
 data/packs.json       7 packs (id, name, emoji, tagline)
 data/prompts/*.json   134 prompt files, one per prompt (schema below)
 data/display.json     per-prompt example / scope / offtopic overrides
@@ -180,6 +181,7 @@ tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQ
 tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat (--quiz: in a Quiz match, real data)
 tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, resume, results, stats) + #vq- challenge between two browsers
 tests/live.quiz.e2e.js  Playwright: live Quiz match, two browsers over MQTT (hidden picks, reveal, skip, chat, forged answers, time tie-break)
+tests/live.security.e2e.js  Playwright, fake relay (no network): outsider reads/forges/replays, a guest claiming a fake tier, open-room knock and full, room-list XSS, ten players
 tests/live.sprint.e2e.js  Playwright: live Sprint match, two browsers over MQTT (live tallies, clock end, shared answers, a player who leaves, totals); live.rejoin.e2e.js --sprint: a guest comes back mid-sprint
 README.md, package.json, .nojekyll (needed for Pages)
 ```
@@ -191,7 +193,7 @@ npm run build      # node tools/build.js
 npm run stats      # node tools/build.js --stats
 npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
-npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint (needs network: unpkg.com + public.cloud.shiftr.io)
+npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint, live.takeover.e2e.js, live.security.e2e.js (the first seven need network: public.cloud.shiftr.io)
 npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
 npm run e2e:launch # launch.e2e.js: launch-day race, broken links, two tabs, Supabase down, no CDN (no network)
 ```
@@ -664,24 +666,74 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 ### Live match (real time)
 
 **Transport: MQTT over a WebSocket on port 443.**
-- Broker: `wss://public.cloud.shiftr.io`, username and password `public`.
-- Library: `https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js`.
-- Topic root: `mlion/v2`.
-  - Room: `mlion/v2/r/<code>/{up,down,to/<id>}`.
-  - Public room info (retained): `mlion/v2/pub/<code>`, plus a last-will that clears it.
+- Broker: `wss://public.cloud.shiftr.io`, username and password `public` (the constants `BROKER` and
+  `BROKER_LOGIN` in app.js; change the relay there only).
+- Library: vendored at `js/vendor/mqtt-4.3.7.min.js` (MQTT.js 4.3.7, MIT; the header gives the source URL
+  and the sha256 of the untouched original). Nothing in live play loads from a CDN any more.
+- Topic root: `mlion/v3` (v2 pages sent plain JSON and can't talk to v3 rooms).
+  - Room: `mlion/v3/r/<code>/{up,down,to/<id>}`; open rooms also use `…/knock` and `…/knock/<nonce>`.
+  - Public room info (retained, plain): `mlion/v3/pub/<code>`, plus a last-will that clears it.
 - It's **disabled inside the Artifact**, because claude.ai blocks WebRTC and outside
   WebSockets. There, `#live` shows an "Open live mode" link to the Pages site.
+- The create and join page says: "Chat and answers pass through a public relay, encrypted with the room's
+  link." (`#live-relay`).
+
+**Room secret and sealed messages** (added 2026-11-05, pre-launch hardening)
+- Every room has a random secret (16 bytes from `crypto.getRandomValues`, base64url, 22 chars). The invite
+  link is `#live-<code>-<secret>`; the secret lives only in the URL fragment (never sent to a server) and is in
+  no topic name. A link without a secret shows "This invite link is missing its key" (old v2 links included),
+  except for `pub01`–`pub10`, which knock (below).
+- Key: HKDF-SHA-256(secret, salt `mlion/v3/room/<code>`, info `mlion live`) → AES-256-GCM (WebCrypto; needs a
+  secure page, so https or localhost; otherwise live says so).
+- Every room message (lobby, chat, answers, heartbeats, hello, closed, typing, sprint lists) is sealed:
+  plaintext `{s: sender id, c: counter, m: message}`, a fresh 12-byte IV, the topic as AES-GCM associated data,
+  sent as base64url. `sendSealed` queues seals so order is kept; `listenSealed` opens in arrival order and
+  drops anything that doesn't open (wrong key, other room, moved to another topic, tampered, plain JSON) and
+  any counter not higher than the last one from that sender (`rxCount`), so replays do nothing. The counter
+  starts at `Date.now() * 1000` and only goes up for the page's lifetime.
+- The sealed sender `s` is the only identity the host trusts: `m.from` is gone, and a message whose `from`
+  differs from `s` is dropped.
+
+**Open rooms (listed in the lobby)**
+- The listing stays plain so anyone can read it: code, host name, head count, max, phase. Never the secret.
+- A stranger who taps Join on `#live-pubNN` knocks (`liveKnock`): they send an ephemeral ECDH P-256 public key
+  and a nonce to `…/knock`. While the seat is free the host (`hostKnock`) draws a **fresh** room secret,
+  makes its own ephemeral key, and answers on `…/knock/<nonce>` with its public key and the secret sealed
+  under HKDF(ECDH shared bits). A listener sees both public keys but can't compute the shared key. The
+  knocker then joins as with an invite link (and the address bar gets the full link).
+- One knock is answered per free seat; the seat is held for 20 s (`KNOCK_HOLD_MS`; the same knocker asking
+  again gets the same answer, anyone else hears `{full}`). The host draws a new secret before each answer and
+  again when the stranger's seat is freed (`rotateSecret`), so someone who knocked and didn't sit down, or who
+  left, holds a dead key. The host's address bar follows (`history.replaceState`).
+- Trade-off (documented choice): anyone may take the free seat (that's what an open room is), and the
+  listing and the knock answers are unauthenticated, so an outsider can fake a listing, clear one, answer a
+  knock with `{full}` or a fake key (the stranger then sits in a dead room). None of that lets an outsider
+  read or forge a real room's messages. A host's invite link to an open room dies when the key rotates.
 
 **Rooms**
 - Private rooms use a random 5-character code from `abcdefghjkmnpqrstuvwxyz23456789`.
 - Public rooms use fixed codes `pub01`–`pub10` and hold **2 players** (duos). Private rooms hold
-  up to 8.
+  up to **12** (`ROOM_MAX`; 10 friends with room to spare). A full room says "That room is full: it holds 12
+  players."; a full open room says "That open room is full. Open rooms are for two players."
 - The `#rooms` list comes from retained info messages. Entries older than 45 s are hidden, and
-  the list redraws every 5 s.
+  the list redraws every 5 s. Only topics `pub01`–`pub10` are listed, and the code, name and link are
+  escaped (the audit's S8 XSS sink).
 
 **Host authority**
 - The host page admits players, paces rounds and relays answers and typing.
-- Messages carry `ep` (epoch), `hid` (host id) and `now` (host clock).
+- Messages carry `ep` (epoch), `hid` (host id) and `now` (host clock); the sealed `s` is what counts.
+- Guests apply room state only from their current host (`LIVE.hostId`, the sealed sender of the lobby that
+  seated them). Another page's claim is followed only if it is a seated player, its claim is newer (higher
+  `ep`, or the same `ep` and a smaller id: the audit's N2 tie-break), **and** the current host has been silent
+  for `HOST_QUIET_MS` (8 s). A host demotes itself only for a seated player's newer claim.
+- **The host re-judges answers.** Classic: the answer message carries the raw typed text; `hostAnswer` runs
+  `liveJudge` (the same rules as `submit()`: `E.matchAnswer`, then the room's autocorrect help; a chip only
+  counts if the text really offered it) and broadcasts the tier and answer it found. The tier a page claims
+  is ignored, so "not an answer" claimed as One in a MLion scores 0. Quiz: the pick must be -1..3 and not one
+  of the two options the 50:50 removed (`cutOptions`); every page recomputes right or wrong from its own
+  question. Sprint: `spans` carries `raws` next to the indexes, and `hostSprintFinal` keeps only the indexes
+  `sprintJudge` reaches from that text. A second answer for the same question is ignored. Hints count only
+  when the room has hints on. Still self-reported (clamped): answer time, wrong-guess count, hint use.
 
 **Flow**
 - Lobby shows a join banner, sound and vibration when someone joins.
@@ -789,6 +841,13 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   answer shows only "Locked in ✓", and their round points are hidden from the strip.
 - After you answer (user request, 2026-11-04): you see their draft and their bounced guesses
   (struck through) in the clear. Someone still thinking keeps seeing dots.
+- Typing traffic (cut 2026-11-05): a page sends its draft at most once every 2 s (`TYPING_EVERY_MS`), only
+  when the draft or bounced guesses changed, and never after it has answered; the host relays at most one
+  per player per second. Before, a draft went out every 220 ms and the host relayed each one to everyone,
+  which was 62–72% of all traffic and grew with the square of the room. Measured on the in-page fake relay
+  (the audit's `live_load.js`, 3-question Classic match, everyone typing): 8 players went from 568 published /
+  2,062 delivered messages to 273 / 819; 10 players: 323 / 1,139. Drafts on rivals' screens now update
+  every 2 s instead of live.
 
 **Chat** (added 2026-11-04)
 - A chat button (`#chat-btn`) in the top bar, visible only while `LIVE.active` (lobby, match,
@@ -810,12 +869,39 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - A guest is marked away after 9 s of silence, and their seat is freed after a further 15 s
   (`AWAY_GRACE_MS`).
 - A guest takes over hosting after 11 s with no host. The new host keeps the old host's seat
-  (away).
-- An old host that sees a higher epoch demotes itself and rejoins with the **same id**, so it
-  keeps its answers.
+  (away). Other guests follow it once their old host has been silent 8 s (see Host authority).
+- An old host that sees a seated player's newer claim demotes itself and rejoins with the **same id**
+  and the room secret, so it keeps its answers.
 - A rejoining player gets a `resume` message and re-enters the match.
-- Only an explicit **Leave** sends `{t:"closed"}`. Navigation doesn't.
+- Only an explicit **Leave** sends `{t:"closed"}`. Navigation doesn't. Guests act on it only from their
+  current host.
+- A guest's explicit **Leave** sends `{t:"leave"}`, and the host frees the seat at once (`hostRemove`, the same
+  path as a seat whose grace ran out). The ready check (`hostReadyCheck`) runs on every Ready tap and every
+  roster change: a seat marked away, freed or left. Before 2026-11-05 it ran only on a Ready tap, so if the
+  last player who wasn't ready walked off, the others sat in the lobby until someone tapped Ready again
+  (`tests/live.security.e2e.js` section F: Leave starts the match about 3 s later, closing the page about 13 s later).
 - The join screen shows every step and retry, with 2 minutes of patience.
+
+**What the hardening blocks, and what it doesn't** (tests: `tests/live.security.e2e.js`, no network)
+- Blocked for anyone without the room's link: reading names, chat or answers (they see ciphertext, topic
+  names and timing only); forging chat as the host or as a guest; pressing Ready for someone; answering for
+  someone; moving hosting with a forged heartbeat; closing the room for guests; replaying a real sealed
+  message on the same or another topic; injecting markup through the room list.
+- Blocked for a dishonest member: claiming a tier or score the text doesn't earn (host re-judges), picking a
+  removed 50:50 option, padding a sprint list.
+- **Not blocked: members who hold the link.** The room key is shared, so a member's page can seal a message
+  with another member's id, or speak as the host, and other pages can't tell. A member can also claim a
+  newer epoch and make the host hand over. Fixing that needs per-player signatures (ECDSA keys in hello and
+  the lobby list, host broadcasts signed), not done.
+- Still self-reported and only clamped: answer times (speed bonus), the wrong-guess count, hint use, and a
+  sprint's running tally before its list arrives.
+- The relay: still the shared public shiftr.io test instance (undocumented quotas, shared by everyone as
+  user `public`, no SLA). An outsider can still flood topics, fake or clear open-room listings, answer a
+  knock with "full", and see which room codes and player ids are active. Moving to an own broker or to
+  Supabase Realtime is out of scope for now; the sealed protocol works on any of them.
+- A replay to a page that has never heard from that sender (a fresh joiner, or a host just taken over) is
+  accepted once; only the same room's traffic can be replayed, and a joiner applies nothing but the lobby
+  that seats it before it knows its host.
 
 ---
 
@@ -1288,9 +1374,12 @@ is the lit exhibit.
    questions, the kick-out fix, and chat with the phone keyboard open (the panel follows
    `visualViewport`; only desktop and emulated phone sizes were checked). Ask the user what the screen says if anything
    fails.
-2. **Public broker risk:** shiftr.io's public instance is shared and unauthenticated, so anyone
-   can publish to `mlion/v2/*`. Messages are validated (types, lengths, tiers, and scores
-   recomputed from the tier), but a self-hosted or authenticated broker would be more robust.
+2. **Public broker risk:** shiftr.io's public instance is shared and unauthenticated. Since the 2026-11-05
+   hardening, room traffic is sealed with the link's secret and the host re-judges answers (see "What the
+   hardening blocks" in §7), so outsiders can't read or forge rooms; they can still flood, fake open-room
+   listings, and the instance has no published quota or SLA. Members holding a link can still impersonate
+   each other (needs per-player signatures). An own broker (shiftr Plus) or Supabase Realtime would be more
+   robust; the sealed protocol works unchanged on either.
 3. The never-written new prompts from the stopped workflow (special-token, numpy-function,
    turing-award, ai-leader, calculus-concept, and classic-cv / tabular-dataset in place of
    classic-cv-algo / classic-dataset were written overnight 2026-11-05). The original list of 46:
@@ -1308,7 +1397,7 @@ is the lit exhibit.
 4. Enrichment never reached most theory, stack, lore and llm prompts beyond the 9 Sonnet
    batches.
 5. Design polish noted in §8.
-6. Multiplayer formats: private rooms already allow up to 8 players free-for-all; public
+6. Multiplayer formats: private rooms allow up to 12 players free-for-all; public
    rooms are duos. 2v2 teams is a future request from the user.
 7. Explanation coverage is 30% of all answers (7,077 of 23,500): every core Baseline, Overfit and One in a
    MLion answer has one, In-Distribution 84%, Outlier 36%, Long Tail 12% (extras included). The rest is a content job (mind cost);
@@ -1347,7 +1436,8 @@ node tools/build.js              # after editing data/prompts/*.json or display.
 node tests/engine.test.js
 npx playwright install chromium  # only if you don't already have a Playwright browser
 node tests/e2e.js --fixture --fonts
-node tests/live.e2e.js           # needs network to unpkg.com and public.cloud.shiftr.io
+node tests/live.e2e.js           # needs network to public.cloud.shiftr.io (MQTT.js is vendored)
+node tests/live.security.e2e.js  # no network: outsider attacks, a dishonest guest, open rooms, ten players
 ```
 
 To deploy, push to `claude/mlion-game`. GitHub Pages ("Deploy from a branch", root) rebuilds
