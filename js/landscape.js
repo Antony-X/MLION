@@ -389,7 +389,9 @@
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
-    /** The ball's centre when it stands at x: one radius out along the slope's normal, so it touches the path. */
+    /** How far the ball sinks into the path: enough to cover the lit line and its glow where it ends. */
+    const sink = () => Math.min(st.R * 0.38, 7);
+    /** The ball's centre when it stands at x: out along the slope's normal (not straight up), r from the path. */
     const ballAt = (x, r) => {
       const e = st.view / 400, [px, py] = onPath(x), [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e);
       const th = Math.atan2(ry - ly, rx - lx);
@@ -732,7 +734,7 @@
       // (straight up leaves it floating beside its contact point on a slope)
       const e = st.view / 400, [lx, ly] = onPath(st.x - e), [rx, ry] = onPath(st.x + e);
       const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
-      const cx = bx + jx + nx * (R * ay + 1), cy = by + ny * (R * ay + 1);
+      const k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
       c.save();
       c.globalCompositeOperation = "lighter";
       // a pool of light where it rests
@@ -761,9 +763,16 @@
         });
       }
       c.restore();
+      // a soft contact shadow where it sits in the groove, drawn under the ball, so it looks seated, not pasted on
+      c.save();
+      c.translate(cx, cy); c.rotate(th); c.translate(0, R * 0.62); c.scale(1, 0.42); // an ellipse along the slope
+      g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.25);
+      g.addColorStop(0, "rgba(0,0,0,0.55)"); g.addColorStop(0.6, "rgba(0,0,0,0.3)"); g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g; c.fillRect(-R * 1.25, -R * 1.25, R * 2.5, R * 2.5);
+      c.restore();
       c.save();
       // squash against the ground it lands on, then turn back so the light stays top-left
-      c.translate(bx + jx + nx, by + ny); c.rotate(th); c.scale(ax, ay); c.translate(0, -R); c.rotate(-th);
+      c.translate(bx + jx - nx * k, by - ny * k); c.rotate(th); c.scale(ax, ay); c.translate(0, -R); c.rotate(-th);
       g = c.createRadialGradient(-R * 0.35, -R * 0.4, R * 0.08, 0, 0, R * 1.05);
       g.addColorStop(0, "#fff7e2"); g.addColorStop(0.34, css(L.body)); g.addColorStop(1, css(L.edge));
       c.fillStyle = g;
@@ -813,8 +822,8 @@
       // the wake behind a rolling ball: a ribbon that swells from nothing to the ball's width and
       // brightens towards it, with a hotter core
       if (st.trail.length > 1) {
-        const pts = st.trail.map((p) => { const [x, y] = ballAt(p.x, R); return [x, y]; });
-        const [hx, hy] = ballAt(st.x, R); pts.push([hx, hy]);
+        const pts = st.trail.map((p) => { const [x, y] = ballAt(p.x, R - sink()); return [x, y]; });
+        const [hx, hy] = ballAt(st.x, R - sink()); pts.push([hx, hy]);
         const fade = clamp(1 - (st.t - st.trail[st.trail.length - 1].t) / 300, 0, 1);
         const n = pts.length, [x0, y0] = pts[0], [x1, y1] = pts[n - 1];
         if (fade > 0 && Math.hypot(x1 - x0, y1 - y0) > R) {

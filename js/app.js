@@ -162,7 +162,7 @@
         try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
         const comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
-        const master = ctx.createGain(); master.gain.value = 0.9;
+        const master = ctx.createGain(); master.gain.value = 1.8;
         bus = ctx.createGain(); bus.connect(comp).connect(master).connect(ctx.destination);
         // a small room: a second of decaying stereo noise as the impulse, mixed in quietly
         const len = Math.round(ctx.sampleRate * 1.1), ir = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -242,9 +242,9 @@
     return {
       unlock() { ac(); },
       /** the last seconds of the clock: a dry woodblock */
-      tick() { noise(0.035, { from: 2600, q: 6, vol: 0.05, wet: 0 }); voice(1760, 0.04, { type: "sine", vol: 0.012, detune: 0, wet: 0 }); },
+      tick() { noise(0.035, { from: 2600, q: 6, vol: 0.12, wet: 0 }); voice(1760, 0.04, { type: "sine", vol: 0.03, detune: 0, wet: 0 }); },
       reject() { buzz([30, 50, 30]); voice(233, 0.12, { type: "square", vol: 0.03, bright: 900, wet: 0.1 }); voice(196, 0.18, { type: "square", vol: 0.03, bright: 800, wet: 0.1, delay: 0.11 }); },
-      submit() { noise(0.14, { from: 500, to: 2600, vol: 0.03, wet: 0.1 }); voice(660, 0.08, { type: "sine", vol: 0.02, slide: 1.5, detune: 0, wet: 0.1 }); },
+      submit() { noise(0.14, { from: 500, to: 2600, vol: 0.06, wet: 0.1 }); voice(660, 0.08, { type: "sine", vol: 0.04, slide: 1.5, detune: 0, wet: 0.1 }); },
       miss() {
         buzz(60);
         thump({ from: 110, to: 40, vol: 0.1 });
