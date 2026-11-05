@@ -3024,6 +3024,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     inp.addEventListener("input", () => { err.textContent = ""; });
     $("#pub-form").addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (!E.nameOk(inp.value)) { err.textContent = NAME_BAD; inp.focus(); return; } // as typed: cleaning drops the @ of "f@ggot"
       const name = cleanName(inp.value);
       inp.value = name;
       btn.disabled = true; btn.textContent = "Publishing…";
@@ -3042,7 +3043,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const inp = $("#bn-input"); inp.focus(); inp.select();
     $("#bn-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const bad = await saveBoardName(cleanName(inp.value));
+      const bad = E.nameOk(inp.value) ? await saveBoardName(cleanName(inp.value)) : NAME_BAD; // as typed, then cleaned
       if (bad === GONE) return closeModal();
       if (bad) return toast(bad);
       if (AUTH.anon) LS.set("name", AUTH.profile.name);
