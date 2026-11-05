@@ -20,9 +20,19 @@ points ÷ 100.
 
 - **Repo:** https://github.com/Antony-X/MLION
 - **Branch:** `claude/mlion-game`. It's the only branch on the remote and the default branch.
-- **Live site (GitHub Pages, deployed from that branch's root):** https://antony-x.github.io/MLION/
-  - Public room list: https://antony-x.github.io/MLION/#rooms
-  - Live match: https://antony-x.github.io/MLION/#live
+- **Live site: https://mlion.lol/** (since 2026-11-06). Hosted on Cloudflare: a static-assets Worker named
+  `mlion` (Cloudflare Pages is now part of Workers), config in `wrangler.jsonc`, headers in `_headers`.
+  **Deploy = commit, push to `claude/mlion-game`, then `bash tools/deploy.sh`** (builds, refuses uncommitted
+  served files, copies only index.html, sw.js, manifest, _headers, css/, js/, img/ into dist/, runs
+  `wrangler deploy`). Wrangler is logged in on this machine (`npx wrangler login` if it ever expires).
+  - Public room list: https://mlion.lol/#rooms · Live match: https://mlion.lol/#live
+  - Domain: mlion.lol at Porkbun (account "testcow"; registered 2026-11-05, expires 2027-11-05,
+    **auto-renew OFF** on purpose, WHOIS privacy ON). Nameservers point to Cloudflare
+    (aaron/gene.ns.cloudflare.com); DNS lives in Cloudflare (zone mlion.lol): the Worker custom domains
+    for mlion.lol and www.mlion.lol, a redirect rule www → https://mlion.lol (path and query kept),
+    Always Use HTTPS, TLS 1.2 minimum.
+  - GitHub Pages still builds the branch with a `CNAME` of mlion.lol, only so that old links
+    (https://antony-x.github.io/MLION/...) 301 to mlion.lol. It is not the live site any more.
 - **claude.ai Artifact build** (single file, solo and challenge modes only):
   https://claude.ai/artifact/5FHhFPswLs3jRjPBmMziH7. Shared "anyone with the link"; last
   published as Version 14 or later.
@@ -125,7 +135,7 @@ a future `LAUNCH_DATE` changes nothing until D (days before it are still pre-lau
 2. In `js/engine.js`, change the one line `const LAUNCH_DATE = null;` to `const LAUNCH_DATE = "D";`.
 3. `node tools/build.js` (re-stamps `?v=` hashes and the service worker list), then
    `node tests/engine.test.js` and the e2e suites (at least e2e, board, launch, pwa).
-4. Commit, `git tag launch-1`, push to `claude/mlion-game` (Pages deploys in about a minute).
+4. Commit, `git tag launch-1`, push to `claude/mlion-game`, then `bash tools/deploy.sh` (live in seconds).
 5. Admin panel → Game: set the same launch day (the Tomorrow button the evening before), or leave it
    empty: an empty value no longer undoes the code. A *different* valid date there wins over the code.
 6. After midnight on D, open the site in a private window: the header says MLion #1 and the first prompt
@@ -1037,8 +1047,9 @@ it are dropped, answers carry `pid` so late answers to the old prompt are ignore
   a config request that never answers). Buttons
   show only for providers switched on in the dashboard (read from `/auth/v1/settings`). Discord
   is on. Google needs an OAuth client from Google Cloud Console (not done yet).
-- Auth URL config: site URL https://antony-x.github.io/MLION/; the redirect allowlist also has
-  localhost:8000 and 127.0.0.1:8000. A new host (custom domain, Cloudflare Pages) must be added.
+- Auth URL config: site URL https://mlion.lol/; the redirect allowlist has https://mlion.lol/**,
+  https://www.mlion.lol/**, https://antony-x.github.io/MLION/**, localhost:8000 and 127.0.0.1:8000.
+  A new host must be added there.
 - The database recomputes the score from the 7 tier digits, keeps one row per account per day,
   only for today ±1 UTC day, with no edits or deletes. Checked with role-switching SQL tests.
   Answers still ship in js/data.js, so someone reading the data can post a top score; the real
