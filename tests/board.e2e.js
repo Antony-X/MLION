@@ -16,6 +16,7 @@ const MOCK = "https://mock.supabase.test";
 const UID = "00000000-0000-4000-8000-00000000a11a";
 const RIVAL = "00000000-0000-4000-8000-00000000b22b";
 const ANON = "00000000-0000-4000-8000-00000000c33c"; // a publish-only account (anonymous sign-in)
+const ANON2 = "00000000-0000-4000-8000-00000000d44d"; // a player who taps Suggest it (anonymous sign-in on that tap)
 const E = require("../js/engine.js");
 const PTS = [0, 10, 15, 30, 60, 85, 100];
 
@@ -33,13 +34,15 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
 
 // ---- the fake project: tiny in-memory tables that follow the real rules in supabase/schema.sql
 const db = { profiles: new Map(), scores: [], quiz: [], quizTable: false }; // the quiz table arrives with supabase/daily_quiz.sql
+const sugg = { table: true, rows: [], reviews: new Map(), counts: [], offline: false }; // supabase/suggestions.sql
 const calls = [];
 const providers = { google: false, discord: true }; // what the dashboard has switched on
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (sub) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`;
+let anonId = ANON; // whom the next anonymous sign-in makes
 function session(anon = false) {
   const user = anon
-    ? { id: ANON, aud: "authenticated", role: "authenticated", is_anonymous: true, user_metadata: {}, app_metadata: { provider: "anonymous" } }
+    ? { id: anonId, aud: "authenticated", role: "authenticated", is_anonymous: true, user_metadata: {}, app_metadata: { provider: "anonymous" } }
     : { id: UID, aud: "authenticated", role: "authenticated", email: "ada@example.invalid", user_metadata: { full_name: "Ada Lovelace" }, app_metadata: { provider: "google" } };
   return { access_token: jwt(user.id), refresh_token: anon ? "r2" : "r1", token_type: "bearer", expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user };
 }
@@ -80,7 +83,7 @@ async function mockRoute(route) {
     let sub = "";
     try { sub = JSON.parse(Buffer.from((hdr.authorization || "").replace(/^Bearer /, "").split(".")[1], "base64url").toString()).sub || ""; } catch { /* anon key */ }
     if (sub === ANON && anonGone) return json(403, { code: "user_not_found", msg: "User from sub claim in JWT does not exist" });
-    return json(200, sub === ANON ? session(true).user : session().user);
+    return json(200, sub === anonId ? session(true).user : session().user);
   }
   if (u.pathname === "/auth/v1/logout") return json(204);
 
@@ -131,6 +134,25 @@ async function mockRoute(route) {
         .map((s) => ({ ...s, profiles: db.profiles.get(s.user_id) ? { name: db.profiles.get(s.user_id).name } : null }));
       return reply(out);
     }
+  }
+  // suggestions, following supabase/suggestions.sql: own rows only, one per (user, prompt, key); the count leaves out
+  // the caller, says 0 below 4 players and 0 once an admin rejected the answer
+  if (u.pathname === "/rest/v1/rpc/suggestion_count" && method === "POST") {
+    if (!sugg.table) return json(404, { code: "PGRST202", message: "Could not find the function public.suggestion_count" });
+    const a = JSON.parse(req.postData() || "{}");
+    sugg.counts.push(a);
+    if (sugg.reviews.get(`${a.p_prompt}|${a.p_key}`) === "rejected") return json(200, 0);
+    const n = new Set(sugg.rows.filter((r) => r.prompt_id === a.p_prompt && r.answer_key === a.p_key && r.user_id !== me).map((r) => r.user_id)).size;
+    return json(200, n >= 4 ? n : 0);
+  }
+  if (u.pathname === "/rest/v1/answer_suggestions" && method === "POST") {
+    if (!sugg.table) return json(404, { code: "PGRST205", message: "Could not find the table 'public.answer_suggestions' in the schema cache" });
+    const r = JSON.parse(req.postData());
+    const row = Array.isArray(r) ? r[0] : r;
+    if (!me || row.user_id !== me) return json(403, { code: "42501", message: "rls" });
+    if (sugg.rows.some((x) => x.user_id === me && x.prompt_id === row.prompt_id && x.answer_key === row.answer_key)) return json(409, { code: "23505", message: "duplicate key" });
+    sugg.rows.push({ user_id: me, prompt_id: row.prompt_id, answer_key: row.answer_key, raw: row.raw, source: row.source || "tap" });
+    return json(201);
   }
   if (u.pathname === "/rest/v1/daily_quiz_scores") {
     if (!db.quizTable) return json(404, { code: "PGRST205", message: "Could not find the table 'public.daily_quiz_scores' in the schema cache" });
@@ -390,6 +412,127 @@ async function mockRoute(route) {
   await p2.waitForFunction(() => !/On the leaderboard as/.test(document.querySelector("#drawer-acct")?.textContent || "") && !!document.querySelector("#board-box #pub-btn"), null, { timeout: 8000 });
   check(!db.profiles.has(ANON), "the browser drops the dead login; Publish is offered again");
   await ctx2.close();
+
+  // ---- Suggest it: a rejected answer can be sent for review; the count of other players who sent it
+  anonId = ANON2;
+  const ctx3 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  await ctx3.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx3.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx3.route(`${MOCK}/**`, (r) => (sugg.offline ? r.abort("internetdisconnected") : mockRoute(r)));
+  const p3 = await ctx3.newPage();
+  p3.on("pageerror", (e) => { errors.push(e.message); console.log("  page error: " + e.message); });
+  p3.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|status of 40[69]|ERR_INTERNET_DISCONNECTED/.test(m.text())) errors.push(m.text()); });
+  const others = (n) => Array.from({ length: n }, (_, i) => `00000000-0000-4000-8000-0000000001${String(i).padStart(2, "0")}`);
+  const seed = (pid, raw, users) => users.forEach((u) => { if (!sugg.rows.some((r) => r.user_id === u && r.prompt_id === pid && r.answer_key === E.fullKey(raw))) sugg.rows.push({ user_id: u, prompt_id: pid, answer_key: E.fullKey(raw), raw, source: "tap" }); });
+  /** The prompt now open in the run stored under mlion:run:<prefix>…, after waiting for the answer box to open. */
+  const openPid = async (prefix) => {
+    for (let i = 0; i < 3; i++) { // a round that ran out while we were away shows Next first
+      await p3.waitForSelector("#answer:not([disabled]), #next:not([disabled])", { timeout: 15000 });
+      if (await p3.$("#answer:not([disabled])")) break;
+      await p3.click("#next");
+    }
+    return p3.evaluate((pre) => { const k = Object.keys(localStorage).find((x) => x.startsWith("mlion:run:" + pre)); const r = JSON.parse(localStorage.getItem(k)); return r.promptIds[r.round]; }, prefix);
+  };
+  const miss = async (box, raw) => {
+    await p3.fill(box, raw);
+    await p3.press(box, "Enter");
+    await p3.waitForFunction((t) => (document.querySelector("#status")?.textContent || "").includes(t), raw, { timeout: 5000 });
+  };
+  const shown = () => p3.waitForSelector("#status .sg:not([hidden])", { timeout: 8000 });
+  const sgText = () => p3.evaluate(() => (document.querySelector("#status .sg") || {}).textContent || "");
+  const focused = (id) => p3.evaluate((x) => document.activeElement && document.activeElement.id === x, id);
+
+  await p3.goto(base);
+  await p3.waitForSelector(".home");
+  // the daily: more than 3 others sent this answer, so the rejection says so
+  await p3.goto(base + "#daily");
+  let pid = await openPid("daily:");
+  seed(pid, "qqzx blorpnet", others(5));
+  const signups = () => calls.filter((c) => c.startsWith("POST /auth/v1/signup")).length;
+  const signed0 = signups();
+  await miss("#answer", "qqzx blorpnet");
+  await shown();
+  check(/5 other players tried this too/.test(await sgText()) && !!(await p3.$("#status .sg-btn")), "a daily miss five others sent says \"5 other players tried this too\" and offers Suggest it");
+  check(await focused("answer") && !(await p3.isDisabled("#answer")), "the answer box keeps focus and the round goes on");
+  check(signups() === signed0 && !(await p3.$('script[src*="supabase"]')), "a rejection alone signs nobody in and loads no login library");
+  await p3.screenshot({ path: path.join(OUT, "board-05-suggest-count.png") });
+
+  // Unlimited with a long clock, for the rest
+  await p3.evaluate(() => { const s = JSON.parse(localStorage.getItem("mlion:settings") || "{}"); s.answerSecs = 60; localStorage.setItem("mlion:settings", JSON.stringify(s)); });
+  await p3.goto("about:blank");
+  await p3.goto(base + "#unlimited-play");
+  pid = await openPid("unlimited:");
+  seed(pid, "vvkq snorkel", others(3));
+  await miss("#answer", "vvkq snorkel");
+  await shown();
+  check(!/other players/.test(await sgText()) && !!(await p3.$("#status .sg-btn")), "three others: no count yet, just Suggest it");
+  await p3.click("#status .sg-btn");
+  await p3.waitForFunction(() => /Sent for review\. Thanks\./.test(document.querySelector("#status .sg")?.textContent || ""), null, { timeout: 15000 });
+  const mine = sugg.rows.find((r) => r.user_id === ANON2);
+  check(!!mine && mine.prompt_id === pid && mine.answer_key === E.fullKey("vvkq snorkel") && mine.raw === "vvkq snorkel" && mine.source === "tap", `one tap sends the prompt, the key and the typed text (${pid}, "${mine && mine.answer_key}")`);
+  check(signups() === signed0 + 1, "the tap made the anonymous account");
+  check(await focused("answer") && !(await p3.isDisabled("#answer")), "after the tap you can keep typing");
+  seed(pid, "vvkq snorkel", others(4)); // a fourth other player
+  await miss("#answer", "VVKQ  snorkel");
+  await shown();
+  const again = await sgText();
+  check(/4 other players tried this too/.test(again) && /Sent for review/.test(again) && !(await p3.$("#status .sg-btn")), "the same answer again: 4 others (you aren't counted), already sent, no button");
+  check(sugg.rows.filter((r) => r.user_id === ANON2).length === 1, "and nothing is sent twice");
+  // an admin rejected it: the count stops showing
+  seed(pid, "ppzq gorp", others(6));
+  sugg.reviews.set(`${pid}|${E.fullKey("ppzq gorp")}`, "rejected");
+  await miss("#answer", "ppzq gorp");
+  await shown();
+  check(!/other players/.test(await sgText()) && !!(await p3.$("#status .sg-btn")), "a rejected suggestion shows no count");
+  // offline: no button; a tap that can't get through fails quietly
+  sugg.offline = true;
+  await miss("#answer", "zzkq vorpal");
+  await sleep(1200);
+  check(!(await p3.$("#status .sg:not([hidden])")) && /isn't in the key/.test(await p3.textContent("#status")), "offline: the rejection shows as usual, with no Suggest button");
+  sugg.offline = false;
+  await miss("#answer", "mmqz florp");
+  await shown();
+  sugg.offline = true;
+  await p3.click("#status .sg-btn");
+  await p3.waitForFunction(() => /Couldn't send it right now/.test(document.querySelector("#status .sg")?.textContent || ""), null, { timeout: 10000 });
+  check(!sugg.rows.some((r) => r.raw === "mmqz florp") && !(await p3.isDisabled("#answer")), "a tap that can't reach the server says so quietly; play goes on");
+  sugg.offline = false;
+  await p3.screenshot({ path: path.join(OUT, "board-06-suggest-sent.png") });
+
+  // Sprint
+  await p3.goto(base + "#sprint-loss-function");
+  await p3.click("#sp-go");
+  await p3.waitForSelector("#sp-answer");
+  seed("loss-function", "wqqz blurf", others(4));
+  await miss("#sp-answer", "wqqz blurf");
+  await shown();
+  check(/4 other players tried this too/.test(await sgText()), "Sprint misses show the count too");
+  await p3.click("#status .sg-btn");
+  await p3.waitForFunction(() => /Sent for review/.test(document.querySelector("#status .sg")?.textContent || ""), null, { timeout: 10000 });
+  check(sugg.rows.some((r) => r.user_id === ANON2 && r.prompt_id === "loss-function" && r.raw === "wqqz blurf"), "and Suggest it works in Sprint");
+  check(await focused("sp-answer"), "the sprint box keeps focus");
+
+  // opt-in: Settings → send every rejected answer
+  await p3.goto(base + "#prefs");
+  await p3.waitForSelector('input[data-k="shareMisses"]', { state: "attached" });
+  check(!(await p3.$eval('input[data-k="shareMisses"]', (i) => i.checked)), "Settings has \"Send answers the game rejects\", off by default");
+  await p3.$eval('input[data-k="shareMisses"]', (i) => i.click());
+  await p3.goto(base + "#unlimited-play");
+  pid = await openPid("unlimited:");
+  await miss("#answer", "kkzq auto miss");
+  await p3.waitForFunction(() => /Sent for review/.test(document.querySelector("#status .sg")?.textContent || ""), null, { timeout: 10000 });
+  check(sugg.rows.some((r) => r.user_id === ANON2 && r.raw === "kkzq auto miss" && r.source === "auto") && !(await p3.$("#status .sg-btn")), "switched on, a rejected answer is sent by itself (source auto)");
+
+  // the database without suggestions.sql: nothing shows, nothing is sent
+  sugg.table = false;
+  await p3.goto("about:blank");
+  await p3.goto(base + "#unlimited-play");
+  await openPid("unlimited:");
+  const before = sugg.rows.length;
+  await miss("#answer", "jjqz no table");
+  await sleep(1200);
+  check(!(await p3.$("#status .sg:not([hidden])")) && sugg.rows.length === before, "before suggestions.sql is run: no button and nothing sent");
+  await ctx3.close();
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();
