@@ -859,6 +859,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     let m; try { m = JSON.parse(payload.toString()); } catch { return; }
     if (!m || typeof m !== "object") return;
     if (topic.endsWith("/down")) { // another page claims the room with a newer epoch: hand over and rejoin
+      if (!LIVE.active || !LIVE.isHost) return; // already handed over: a second claim reaching the old client must not undo the rejoin
       if (m.hid && m.hid !== LIVE.myId && (+m.ep || 0) > (LIVE.ep || 0)) {
         const code = LIVE.code, me = LIVE.players.get(LIVE.myId), name = me ? me.name : myName();
         const keepId = LIVE.myId, carry = LIVE.phase === "playing" && liveSprint() ? spSnapshot() : null;
