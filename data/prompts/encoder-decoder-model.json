@@ -15,8 +15,8 @@
 
     { "a": "Donut", "t": "mlion", "aka": ["Document Understanding Transformer", "OCR-free Document Understanding Transformer", "naver-clova-ix/donut", "donut-base"], "q": "Swin encoder, BART-style decoder: reads a document image and writes out structured JSON. No OCR engine anywhere." },
 
-    { "a": "mT5", "t": "indist", "aka": ["multilingual T5", "mT5-small", "mT5-base", "mT5-large", "mT5-XXL", "mt5-xl"] },
-    { "a": "mBART", "t": "indist", "aka": ["multilingual BART", "mBART-25", "mBART-50", "mBART50", "mbart-large-cc25", "mbart-large-50"] },
+    { "a": "mT5", "t": "indist", "aka": ["multilingual T5", "mT5-small", "mT5-base", "mT5-large", "mT5-XXL", "mt5-xl"], "q": "Multilingual T5 trained on mC4 in 101 languages. Xue et al., 2020." },
+    { "a": "mBART", "t": "indist", "aka": ["multilingual BART", "mBART-25", "mBART-50", "mBART50", "mbart-large-cc25", "mbart-large-50"], "q": "BART pretrained on 25 languages, for translation. Liu et al., 2020." },
     { "a": "MarianMT", "t": "indist", "aka": ["Marian", "Marian NMT", "MarianNMT", "OPUS-MT", "opus-mt", "Helsinki-NLP", "Helsinki NLP opus-mt"], "q": "Helsinki's OPUS-MT checkpoints: the quick-and-cheap translator on Hugging Face, one per language pair." },
     { "a": "NLLB", "t": "indist", "aka": ["NLLB-200", "No Language Left Behind", "nllb-200-distilled-600M", "Meta NLLB", "NLLB-MoE", "nllb200"], "q": "No Language Left Behind: 200 languages, many with almost no web text." },
     { "a": "GNMT", "t": "indist", "aka": ["Google Neural Machine Translation", "Google's Neural Machine Translation System", "Google Translate NMT", "Google Translate"], "q": "Eight LSTM layers each side plus attention: the 2016 rebuild that moved Google Translate to neural." },
@@ -26,7 +26,7 @@
     { "a": "Variational autoencoder", "t": "indist", "aka": ["VAE", "variational auto-encoder", "VAEs", "beta-VAE", "CVAE", "conditional VAE", "NVAE", "Ladder VAE", "VAE-GAN"] },
     { "a": "DETR", "t": "indist", "aka": ["Detection Transformer", "DEtection TRansformer", "End-to-End Object Detection with Transformers", "facebook/detr-resnet-50", "DETR-R50", "Conditional DETR", "DAB-DETR", "DN-DETR"], "q": "A CNN backbone, a transformer encoder, and a decoder that turns N learned queries straight into boxes." },
     { "a": "Show and Tell", "t": "indist", "aka": ["Show and Tell: A Neural Image Caption Generator", "Neural Image Caption", "NIC", "Google NIC", "Show & Tell"], "q": "A CNN encoder and an LSTM decoder: the 2015 template for image captioning." },
-    { "a": "CodeT5", "t": "indist", "aka": ["codet5-base", "codet5-small", "Salesforce CodeT5"] },
+    { "a": "CodeT5", "t": "indist", "aka": ["codet5-base", "codet5-small", "Salesforce CodeT5"], "q": "Salesforce, 2021: T5 for code, pretrained to be aware of identifiers." },
     { "a": "Tacotron 2", "t": "indist", "aka": ["Tacotron2", "NVIDIA Tacotron 2"], "q": "Characters in, mel spectrogram out: attention-based seq2seq for TTS, with a WaveNet vocoder on the end." },
 
     { "a": "UL2", "t": "outlier", "aka": ["Unifying Language Learning Paradigms", "UL2 20B", "Mixture of Denoisers"] },
