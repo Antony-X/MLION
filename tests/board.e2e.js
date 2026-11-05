@@ -155,9 +155,8 @@ async function mockRoute(route) {
   page.on("pageerror", (e) => { errors.push(e.message); console.log("  page error: " + e.message); });
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|status of 40[69]/.test(m.text())) errors.push(m.text()); });
 
-  await page.goto(base);
-  await page.waitForSelector(".modal");
-  await page.click("#how-go");
+  await page.goto(base); // a first visit opens on the home page, no dialog
+  await page.waitForSelector(".home");
 
   // ---- logged out
   const today = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
