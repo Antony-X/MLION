@@ -16,6 +16,12 @@ const PROMPT_DIR = path.join(ROOT, "data", "prompts");
 const PACKS_FILE = path.join(ROOT, "data", "packs.json");
 const OUT = path.join(ROOT, "js", "data.js");
 
+// The site's public address, written down only here. The build puts it into index.html's link-preview
+// tags (og:url, og:image, twitter:image); the app reads og:url back (js/app.js WEB_URL, the address on
+// share cards). Moving to a custom domain: change this, run the build, see CONTEXT.md "Link preview".
+const SITE_URL = "https://antony-x.github.io/MLION/";
+if (!/^https:\/\/[^/\s]+\/([^\s?#]*\/)?$/.test(SITE_URL)) throw new Error(`SITE_URL must be an https URL ending in "/": ${SITE_URL}`);
+
 const args = process.argv.slice(2);
 const checkOnly = args.includes("--check");
 const showStats = args.includes("--stats");
@@ -224,11 +230,18 @@ console.log(`wrote ${path.relative(ROOT, OUT)} (${(body.length / 1024).toFixed(0
 const INDEX = path.join(ROOT, "index.html");
 let html = fs.readFileSync(INDEX, "utf8");
 const stamped = [];
-for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/app.js"]) {
+for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/sharecard.js", "js/app.js"]) {
   const h = E.hashString(fs.readFileSync(path.join(ROOT, f), "utf8")).toString(36);
   const esc = f.replace(/[.]/g, "\\.");
   html = html.replace(new RegExp(`(["'])${esc}(\\?v=[a-z0-9]+)?\\1`), `$1${f}?v=${h}$1`);
   stamped.push(`${f}?v=${h}`);
+}
+// The link preview: the site address, and og.png with its hash so chat apps fetch a changed image again.
+const ogHash = E.hashString(fs.readFileSync(path.join(ROOT, "img", "og.png")).toString("base64")).toString(36);
+for (const [key, value] of [["og:url", SITE_URL], ["og:image", `${SITE_URL}img/og.png?v=${ogHash}`], ["twitter:image", `${SITE_URL}img/og.png?v=${ogHash}`]]) {
+  const re = new RegExp(`(<meta (?:property|name)="${key}" content=")[^"]*(")`);
+  if (!re.test(html)) throw new Error(`index.html has no ${key} meta tag`);
+  html = html.replace(re, `$1${value}$2`);
 }
 fs.writeFileSync(INDEX, html);
 

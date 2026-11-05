@@ -591,7 +591,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // is the authority: it admits players, paces rounds and relays answers.
   // claude.ai blocks WebRTC inside artifacts, so there live mode points to the
   // web version.
-  const WEB_URL = "https://antony-x.github.io/MLION/";
+  const WEB_URL = ((document.querySelector('meta[property="og:url"]') || {}).content || "").trim(); // the public site (SITE_URL in tools/build.js)
   const MQTT_SRC = "https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js";
   const BROKER = "wss://public.cloud.shiftr.io";
   const TOPIC = "mlion/v2";
@@ -3304,7 +3304,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${isQ ? `${hits} of ${n} right · ${fmtSecs(rec.tenths || 0)}` : `${accepted} of ${n} accepted`}</p>
           <div class="btn-row">
             ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send my score"}</button>
-              <a class="btn big" href="#challenge">New challenge</a>` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
+              <a class="btn big" href="#challenge">New challenge</a>${window.MLION_CARD ? `<button class="btn big" id="share">Share image</button>` : ""}` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
           ${isDailyToday && BOARD_ON ? `<div class="board-box" id="board-box" data-key="${esc(rec.key)}"></div>` : ""}
@@ -3345,6 +3345,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (sb) sb.addEventListener("click", async () => {
       const url = settings.shareLink ? siteUrl() : "";
       const text = url ? `${share}\n\n${url}` : share;
+      // The share sheet (js/sharecard.js): an image of the run, plus the text grid. A challenge's text is its link (#send-vs).
+      if (window.MLION_CARD) return MLION_CARD.open({ rec, text: isVs ? null : text, url: SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL, packName: rec.mode === "pack" ? PACKS.get(rec.pack).name : "", ui: { showModal, toast, copyText } });
       if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
         try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === "AbortError") return; }
       }

@@ -5,15 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MLion · the daily descent</title>
   <meta name="description" content="A daily machine-learning word game. Seven prompts, 25 seconds each. Rarer answers roll deeper. One in a MLion.">
-  <meta name="theme-color" content="#0b0a08">
-  <meta property="og:title" content="MLion · the daily descent">
-  <meta property="og:description" content="A daily ML word game. Rarer answers roll deeper.">
-  <meta property="og:image" content="https://antony-x.github.io/MLION/img/og.png">
+  <!-- The link preview (Discord, Slack, X, iMessage). tools/build.js writes the site address (SITE_URL)
+       into og:url and the image URLs, with og.png's hash, so a new image is fetched again. -->
+  <meta name="theme-color" content="#f2b53c">
+  <!-- gold is the embed's side bar in Discord (crawlers run no script); the browser keeps the dark room -->
+  <script>document.querySelector('meta[name="theme-color"]').content = "#0b0a08";</script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="MLion">
+  <meta property="og:url" content="https://antony-x.github.io/MLION/">
+  <meta property="og:title" content="MLion, a daily word game for ML people">
+  <meta property="og:description" content="Seven prompts a day. Common answers barely count.">
+  <meta property="og:image" content="https://antony-x.github.io/MLION/img/og.png?v=17jgdf9">
+  <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="MLion: a daily machine-learning word game">
+  <meta property="og:image:alt" content="A ball rolling down a loss curve. Three right answers to “Name an activation function”: ReLU scores 10, GELU 30, and Snake rolls to the bottom for 100.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://antony-x.github.io/MLION/img/og.png">
+  <meta name="twitter:image" content="https://antony-x.github.io/MLION/img/og.png?v=17jgdf9">
+  <meta name="twitter:image:alt" content="A ball rolling down a loss curve. Three right answers to “Name an activation function”: ReLU scores 10, GELU 30, and Snake rolls to the bottom for 100.">
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -103,6 +112,7 @@
   <script src="js/data.js?v=10q21yt"></script>
   <script src="js/landscape.js?v=1n5ndoa"></script>
   <script src="js/hero3d.js?v=1qqfzi9"></script>
-  <script src="js/app.js?v=9p3t19"></script>
+  <script src="js/sharecard.js?v=1godt4k"></script>
+  <script src="js/app.js?v=3fix9x"></script>
 </body>
 </html>

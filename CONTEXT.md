@@ -132,6 +132,7 @@ css/style.css         all styles (taste-skill redesign: dark room, gold accent, 
 js/engine.js          tiers, normalization, matching layers, scheduling, share text (UMD; used by Node tools too)
 js/data.js            GENERATED bundle: window.MLION_DATA = {version, packs, prompts, extras}
 js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas (play stage), streak flame, tier glyphs, lion mark (MARK: Leo's curve + the ball)
+js/sharecard.js       the share card: draws a finished run as a PNG (1200x630 wide, 1080x1920 story) and runs the share sheet (window.MLION_CARD)
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
 data/packs.json       7 packs (id, name, emoji, tagline)
 data/prompts/*.json   134 prompt files, one per prompt (schema below)
@@ -139,12 +140,14 @@ data/display.json     per-prompt example / scope / offtopic overrides
 data/AUTHORING.md     authoring spec (schema, alias rules, tier calibration)
 tools/build.js        validate every prompt + write js/data.js + cache-bust index.html
 tools/build-single.js bundle everything into one HTML file (Artifact build)
-tools/icons.js        render img/ (favicon.svg, app icons, og.png share card) from MARK; needs Playwright + network for Archivo
+tools/icons.js        render img/ (favicon.svg, app icons, og.png link preview) from MARK; `og` = only og.png, `og mock` = plus mock Discord embeds in tests/out/og; needs Playwright + network for Archivo
 tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SUGGEST/NONE)
+tools/cards.js        render sample share cards (14 runs x 2 shapes) for design review; `thumbs` adds chat-size screenshots
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
 tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQTT broker
 tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat (--quiz: in a Quiz match, real data)
+tests/sharecard.e2e.js  Playwright: the share sheet with navigator.share / clipboard.write mocked (desktop + phone, daily, challenge, Daily Quiz) and the link-preview tags
 tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, resume, results, stats) + #vq- challenge between two browsers
 tests/live.quiz.e2e.js  Playwright: live Quiz match, two browsers over MQTT (hidden picks, reveal, skip, chat, forged answers, time tie-break)
 tests/live.sprint.e2e.js  Playwright: live Sprint match, two browsers over MQTT (live tallies, clock end, shared answers, a player who leaves, totals); live.rejoin.e2e.js --sprint: a guest comes back mid-sprint
@@ -160,6 +163,7 @@ npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
 npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint (needs network: unpkg.com + public.cloud.shiftr.io)
 npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
+npm run e2e:card   # sharecard.e2e.js (the share card and sheet; no network, add --fonts to load Archivo)
 ```
 
 ### Artifact build
@@ -603,6 +607,82 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   (or when `mlion:sw` is set, which `tests/pwa.e2e.js` does to play the daily offline).
 - The menu shows "Install the app" when the browser fires `beforeinstallprompt`.
 
+### Share card (`js/sharecard.js`, added 2026-11-05)
+
+Share on the results screen opens a sheet with an image of the run, drawn on a canvas at its real
+size: the descent (the run's landings on the play stage's slope, each segment in its tier
+colour, the lit ball at the final loss, the gold minimum), the score and band, the marks row, and the
+hook: the rarest answer with its tier glyph and the prompt it answered. The text grid stays one tap
+away. `app.js` only calls `MLION_CARD.open({rec, text, url, packName, ui})` from the `#share` handler;
+if `js/sharecard.js` is missing the old text share runs.
+
+- Shapes: Wide 1200x630 (the usual 1.91:1 link-preview shape; a chat shows a wide image whole; at
+  550 px wide the score, answer and lockup stay legible, at 330 px the score and answer: `tools/cards.js thumbs`) and Story
+  1080x1920 (Instagram and WhatsApp stories; following the common safe-zone guideline, the top ~280 px
+  and bottom ~220 px hold nothing important). The choice is remembered in
+  `mlion:cardFormat`. PNGs measure 137-177 KB wide and 208-257 KB story in Chrome (opaque canvas, so
+  RGB, no alpha; the basin glow is flat bands, not a gradient, to keep the PNG small).
+- Variants (`specFor(rec)`): the daily ("#12" and the long date), an archive replay, Unlimited
+  (sessions longer than 12 prompts show a tally of marks instead of a row), packs, quiz and Daily Quiz
+  (check/cross marks, speed points, the hook is the hardest question answered right and how fast),
+  and challenges (vs, vq: who won and by how much, the friend's score and a hollow ball with their
+  name, trimmed to 14 characters). All misses: "Stuck on the plateau." A perfect run gets contour rings
+  at the minimum. Live rooms have no card yet.
+- Personal data: none on daily, quiz or unlimited cards. A challenge card shows the opponent's name
+  as typed into the challenge link (it is already in the link the player was sent). The hook spoils
+  one answer of the day and its prompt; that is the point of the hook.
+- Sharing: phones (UA test, plus iPadOS) with `navigator.canShare({files})` get "Share image" (Web
+  Share with a PNG File, called straight from the tap with the image already drawn, so the user
+  gesture holds); a refused share saves the file instead, a cancelled one does nothing. Elsewhere
+  "Copy image" (`ClipboardItem` with image/png) and "Save image" (download `mlion-12.png`,
+  `mlion-12-story.png`). "Copy text" / "Share text" sends the old text grid. Challenge results get a
+  "Share image" button beside "Send result back" and no text grid (the link is the text).
+- Drawing: Archivo is loaded through `document.fonts.load` for the exact weights and text (2.5 s
+  timeout, then the system sans). Only vector paths (`MARK`, `GLYPHS`) and text are drawn, never
+  images, so the canvas is never tainted. The terrain is `V.terrain` after `V.setRounds(n)`, smoothed.
+  The hook text measures the slope and shrinks (down to 0.6x) rather than run into it.
+- Ids: `#share`, `#card-preview`, `#card-img` (data-w, data-h, data-bytes once drawn), `[data-fmt]`,
+  `#card-share`, `#card-copy`, `#card-text`, `#card-save`, `#card-textbox`.
+- `node tools/cards.js [outDir] [only=a,b] [thumbs]` renders 14 sample runs in both shapes
+  (default `tests/out/cards/`).
+- Not verified: a real phone's share sheet (only mocked), Safari and Firefox rendering (if a browser
+  lacks `ctx.fontStretch` or `ctx.letterSpacing` the text draws at normal width and tracking; their PNG
+  encoders give other sizes), how Instagram and Discord actually crop or recompress the images.
+
+### Link preview (Open Graph), added 2026-11-05
+
+What Discord, Slack, X and iMessage show when someone pastes the site address.
+
+- `img/og.png`, 1200x630, about 180 KB, drawn by `node tools/icons.js og` with the share card's own
+  pieces (`MLION_CARD.kit`): the descent with three right answers to "Name an activation function"
+  where they land (ReLU +10 near the rim, GELU +30, Snake "One in a MLion +100" in the basin with the
+  ball), the line "Name the rarest right answer you can." and the lockup. `node tools/icons.js og mock`
+  also writes mock Discord embeds (400 px and 516 px images, a 300 px phone) to `tests/out/og/`.
+  After a new image, run `node tools/build.js`: it stamps og.png's hash into the image URL
+  (`og.png?v=<hash>`), so Discord's cache fetches the new one.
+- Tags in `index.html`: og:type, og:site_name, og:url, og:title "MLion, a daily word game for ML
+  people", og:description "Seven prompts a day. Common answers barely count.", og:image with type,
+  width, height and alt, twitter:card summary_large_image, twitter:image and its alt.
+- theme-color is gold `#f2b53c` in the HTML, which Discord uses for the embed's side bar. An inline
+  script right after it sets it back to `#0b0a08`, so the browser's toolbar stays the dark room
+  (crawlers run no script). The installed app uses the manifest's `theme_color`.
+- Every link gets the same preview: a `#fragment` is never sent to the server, so `#vs-...`,
+  `#live-...` and `#results-...` links all fetch `/` (`tests/sharecard.e2e.js` checks this). A
+  challenge preview can't name the challenger without a server; that is fine for now.
+- **The site address is written in one place:** `SITE_URL` at the top of `tools/build.js`. The build
+  writes it into og:url, og:image and twitter:image. The app reads og:url back: `WEB_URL` in
+  js/app.js (live links from the Artifact build), and the address printed on share cards (when the
+  page runs on localhost or has no http address). `tools/build-single.js` copies og:url into the
+  Artifact build. To move to a custom domain:
+  1. set `SITE_URL` (https, ending in `/`) and run `node tools/build.js`;
+  2. add the domain in GitHub Pages settings (it writes a `CNAME` file on the branch);
+  3. add the new URL to the Supabase auth site URL and redirect allowlist (Daily leaderboard below);
+  4. paste the new address in Discord once to check the embed (Discord caches each URL for a while).
+  The address in sections 1 and 7 of this file is prose, not config.
+- Not verified: a real Discord, Slack or X unfurl (only the mock); Discord's exact image width; how
+  apps that crop to a square (WhatsApp's small preview) show it: the centre square holds part of the
+  line and GELU, not the ball.
+
 ### Live match (real time)
 
 **Transport: MQTT over a WebSocket on port 443.**
@@ -1027,6 +1107,11 @@ is the lit exhibit.
   the matcher accepts, off-topic excluded, small bundles). `tests/quiz.e2e.js` plays a solo run and a
   `#vq-` challenge. `tests/live.quiz.e2e.js` and `live.rejoin.e2e.js --quiz` play a live Quiz match.
   Not verified on a real phone or on the claude.ai Artifact build (live is disabled there anyway).
+- Share card (2026-11-05): `tests/sharecard.e2e.js` opens the sheet on a daily, a challenge and a Daily
+  Quiz result (desktop and an iPhone-sized phone, share and clipboard mocked): real 1200x630 and
+  1080x1920 PNGs under 300 KB, Copy image writes one image/png item, Share image passes one PNG File,
+  refused share saves, cancelled share does nothing, the text grid still copies, no page errors.
+  `e2e.js` and `quiz.e2e.js` now reach the text grid through the sheet's `#card-text`.
 
 ---
 
@@ -1043,7 +1128,8 @@ is the lit exhibit.
   #next #begin #card #dots #descent #hud-loss #hud-score .feedback.<tier> #share .score-big
   details.key .search .stat-grid .wordmark #how-go .modal #live-ready #live-name #live-go
   .lv-code .lv-players #live-rivals #rooms-list #vs-name #vs-go #send-vs .duel-head #chat-btn
-  #chat-badge #chat #chat-log #chat-input #chat-note #chat-peek`, and others
+  #chat-badge #chat #chat-log #chat-input #chat-note #chat-peek #card-img #card-text #card-copy
+  #card-share #card-save`, and others
   listed in the redesign brief.
 - The user doesn't want the live site changed while they're playing. **Ask before pushing**
   when they're in a session.

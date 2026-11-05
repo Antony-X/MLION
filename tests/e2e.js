@@ -127,11 +127,14 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   check(score === 15 + 100 + 10 + 60 + 85 + 0 + 30, `final score adds up (${score})`);
   await sleep(1200);
   await page.screenshot({ path: path.join(OUT, "07-results.png"), fullPage: true });
-  await page.click("#share");
+  await page.click("#share"); // opens the share sheet (image + text)
+  await page.click("#card-text");
+  await page.waitForFunction(() => /Text copied/.test(document.querySelector("#toast").textContent), null, { timeout: 4000 });
   // the Windows clipboard turns \n into \r\n; normalise so the check is platform-independent
   const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   check(/^MLion #\d+ 🦁\n300\/700 · loss 4\.00\n\n🦜🦁🐑🦄☄️⬛📊/.test(clip), "share text format");
   console.log(clip.split("\n").map((l) => "    | " + l).join("\n"));
+  await page.click("#mclose");
 
   const snakeNote = JSON.parse(fs.readFileSync(path.join(ROOT, "data/prompts/activation-function.json"), "utf8")).answers.find((a) => a.a === "Snake").q;
   check((await page.textContent(".run-list")).includes(snakeNote), "your answers come with their explanations");
