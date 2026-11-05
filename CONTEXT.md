@@ -450,6 +450,10 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - Pool: `soloPool()` prompts with at least 40 answers (so extras follow the setting). Unranked:
   bests in `mlion:sprints` (prompt id -> {best points, n answers, plays, at}), carried by
   Export/Import, shown on Stats. The end screen lists the common answers you missed and the lion.
+- Duels without a server: Share puts my result in the link, `#sprint-<prompt>~<points>~<answers>[~<nameHex>]`
+  (name as in `#vs-` links). Opening it shows "Ana named 6 for 210 points. Beat that.", keeps the
+  target beside the tally, and ends with who won and by how much. My own link (same best and name)
+  opens as a plain sprint.
 - An Enter pressed as time runs out can't press a button: the box is disabled and blurred, and
   nothing takes focus. Test: `tests/sprint.e2e.js` (fake clock).
 

@@ -84,6 +84,25 @@ for (const a of P.answers) {
 
   await p.goto(base + "#home"); await p.waitForTimeout(300);
   check(await p.$('.modes a[href="#sprint"]') !== null, "home lists Sprint");
+  // --- a duel: the link carries a friend's result; the share carries mine
+  const ctx2 = await b.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx2.route(/fonts\./, (r) => r.abort());
+  await ctx2.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await ctx2.addInitScript(() => { localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:name", JSON.stringify("Bo")); localStorage.setItem("mlion:settings", JSON.stringify({ sound: false })); });
+  const q = await ctx2.newPage(); q.on("pageerror", (e) => errs.push(e.message));
+  await q.clock.install();
+  await q.goto(base + "#sprint-loss-function~50~3~416e61"); await q.waitForSelector("#sp-go");
+  check((await q.textContent("#sp-card")).includes("Ana named 3 for 50 points"), "a duel link shows the friend's result to beat");
+  await q.click("#sp-go");
+  check((await q.textContent(".sp-tally")).includes("Ana: 50"), "the target stays in view while playing");
+  for (const s of [first.a, typo]) { await q.fill("#sp-answer", s); await q.press("#sp-answer", "Enter"); await q.waitForTimeout(50); }
+  await q.clock.runFor(61000); await q.waitForSelector("#sp-done");
+  check((await q.textContent(".sp-verdict")).includes(`You beat Ana by ${pts - 50} points`), "the end says who won and by how much");
+  await q.click("#sp-share"); await q.waitForTimeout(300);
+  const shared = await q.evaluate(() => navigator.clipboard.readText());
+  check(shared.includes(P.text) && shared.includes(`#sprint-loss-function~${pts}~2~426f`), "Share carries my result as the next challenge");
+  await ctx2.close();
+
   check(!errs.length, "no page errors" + (errs.length ? ": " + errs.join("; ") : ""));
   console.log("sprint e2e passed");
   await b.close(); srv.close();

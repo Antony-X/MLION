@@ -1061,3 +1061,7 @@ html:not(.reduce-motion) .sp-found li.pop { animation: sp-pop 420ms var(--ease-o
 .sp-done .gem-line { margin: 0; }
 .sp-of { margin: 0; color: var(--muted); }
 .sprint.done .sp-recent { display: none; }
+.sp-vs { margin: 0; font-size: var(--s2); color: var(--gold); }
+.sp-target { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sp-verdict { margin: 0; font-size: var(--s3); }
+.sp-verdict.win { color: var(--gold); }

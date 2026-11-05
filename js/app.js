@@ -2838,29 +2838,41 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const sprintAsk = (p) => `<p class="prompt-text">${esc(p.text)}${p.example ? ` <span class="eg">(e.g. ${esc(p.example)})</span>` : ""}</p>
     ${p.scope ? `<p class="prompt-note">${esc(p.scope)}</p>` : ""}`;
 
+  /** A sprint link can carry a friend's result to beat: #sprint-<prompt>~<points>~<answers>[~<nameHex>]. */
+  function sprintVs(parts) {
+    const pts = +parts[0], n = +parts[1];
+    if (!Number.isInteger(pts) || !Number.isInteger(n) || pts < 0 || pts > 99999 || n < 0 || n > 999) return null;
+    return { pts, n, name: (parts[2] && /^[0-9a-f]+$/.test(parts[2]) && decName(parts[2])) || "Your friend" };
+  }
+  const sprintLink = (pid, pts, n) => `${SHARE_BASE || siteUrl()}#sprint-${pid}~${pts}~${n}${myName() ? "~" + encName(myName()) : ""}`;
+
   function renderSprint(id) {
     setMid("Sprint");
     SPRINT = null;
     if (!id) { const p = sprintPick(); return p ? location.replace("#sprint-" + p.id) : go("home"); }
-    const p = PROMPTS.get(id);
+    const [pid, ...rest] = id.split("~");
+    const p = PROMPTS.get(pid);
     if (!p || p.reasoning) return go("sprint");
+    let vs = rest.length >= 2 ? sprintVs(rest) : null;
     const mine = sprints[p.id];
+    if (vs && mine && mine.best === vs.pts && (!myName() || vs.name === myName())) vs = null; // my own link
     const recent = Object.entries(sprints).filter(([pid]) => PROMPTS.has(pid)).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 8);
     app.innerHTML = `<section class="screen narrow sprint" id="sprint">
       <div class="page-head"><h1>Sprint</h1><p>One prompt, ${SPRINT_SECS} seconds. Name every answer you can. Rarer ones score more.</p></div>
       <div class="sp-card" id="sp-card">
         ${sprintAsk(p)}
+        ${vs ? `<p class="sp-vs">${esc(vs.name)} named ${vs.n} for ${vs.pts} points. Beat that.</p>` : ""}
         <p class="sp-meta">${fmt(p.answers.length)} answers in the key${mine ? `. Your best: ${mine.best} points` : ""}</p>
         <div class="btn-row"><button class="btn primary big" id="sp-go" type="button">Start</button><button class="btn big" id="sp-other" type="button">Another prompt</button></div>
       </div>
       ${recent.length ? `<section class="sp-recent"><h2 class="block-title">Your sprints</h2><ul class="list">${recent.map(([pid, r]) => `
         <li><a class="list-item" href="#sprint-${esc(pid)}"><span class="main"><span class="title">${esc(PROMPTS.get(pid).text)}</span><span class="sub">${r.plays} ${r.plays === 1 ? "run" : "runs"}</span></span><span class="right"><b>${r.best}</b></span></a></li>`).join("")}</ul></section>` : ""}
     </section>`;
-    $("#sp-go").addEventListener("click", () => startSprint(p));
+    $("#sp-go").addEventListener("click", () => startSprint(p, vs));
     $("#sp-other").addEventListener("click", () => { const q = sprintPick(p.id); if (q) location.replace("#sprint-" + q.id); });
   }
 
-  function startSprint(p) {
+  function startSprint(p, vs) {
     Sound.unlock();
     window.scrollTo(0, 0);
     $("#sprint").classList.add("playing");
@@ -2871,10 +2883,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <button class="btn primary step-btn" type="submit">Step</button>
       </form>
       <div class="status" id="status" role="status" aria-live="polite"></div>
-      <p class="sp-tally"><b id="sp-n">0</b> answers <b id="sp-pts">0</b> points</p>
+      <p class="sp-tally"><b id="sp-n">0</b> answers <b id="sp-pts">0</b> points${vs ? `<span class="sp-target">${esc(vs.name)}: ${vs.pts}</span>` : ""}</p>
       <ol class="sp-found" id="sp-found"></ol>`;
     const input = $("#sp-answer"), total = SPRINT_SECS * 1000;
-    const S = SPRINT = { p, t0: performance.now(), found: [], got: new Set(), pts: 0, done: false, lastTick: SPRINT_SECS };
+    const S = SPRINT = { p, vs, t0: performance.now(), found: [], got: new Set(), pts: 0, done: false, lastTick: SPRINT_SECS };
     input.focus();
     every(100, () => {
       if (S !== SPRINT || S.done) return;
@@ -2946,8 +2958,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const share = sprintShare(S);
     const sec = $("#sprint");
     sec.classList.remove("playing"); sec.classList.add("done");
+    const vs = S.vs, d = vs ? S.pts - vs.pts : 0;
+    const verdict = vs ? (d > 0 ? `You beat ${esc(vs.name)} by ${d} ${d === 1 ? "point" : "points"}` : d < 0 ? `${esc(vs.name)} wins by ${-d} ${d === -1 ? "point" : "points"}` : `A tie with ${esc(vs.name)}`) : "";
     $("#sp-card").outerHTML = `<div class="sp-done" id="sp-done">
       <p class="sp-of">${esc(p.text)}</p>
+      ${vs ? `<p class="sp-verdict${d > 0 ? " win" : ""}">${verdict}</p>` : ""}
       <div class="figures"><div class="figure"><b>${n}</b><span>${n === 1 ? "Answer" : "Answers"}</span></div><div class="figure"><b>${S.pts}</b><span>Points</span></div></div>
       <p class="sp-meta">${prev ? (best ? `New best on this prompt (was ${prev.best})` : `Your best here: ${prev.best} points`) : `${fmt(p.answers.length)} answers in the key`}</p>
       ${n ? `<div class="tier-counts">${E.TIERS_BY_SCORE.filter((t) => counts[t.id]).map((t) => `<span class="t-${t.id}" title="${esc(t.name)}">${G(t.id)}${counts[t.id]}</span>`).join("")}</div>` : ""}
@@ -2958,7 +2973,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${answerKey(p, null, false, true)}
     </div>`;
     wireAnswerKeys(app);
-    $("#sp-again").addEventListener("click", () => renderSprint(p.id));
+    $("#sp-again").addEventListener("click", () => renderSprint(vs ? `${p.id}~${vs.pts}~${vs.n}~${encName(vs.name)}` : p.id));
     $("#sp-next").addEventListener("click", () => { const q = sprintPick(p.id); if (q) location.replace("#sprint-" + q.id); });
     const sb = $("#sp-share");
     if (sb) sb.addEventListener("click", async () => {
@@ -2975,7 +2990,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   /** "MLion Sprint", the prompt, the count and points, then one tier emoji per answer in the order named. */
   function sprintShare(S) {
     const grid = S.found.slice(0, 40).map((a) => E.tierEmoji(a.t)).join("") + (S.found.length > 40 ? "…" : "");
-    const url = settings.shareLink && siteUrl() ? `\n\n${siteUrl()}#sprint-${S.p.id}` : "";
+    const url = settings.shareLink && (SHARE_BASE || siteUrl()) ? `\n\nBeat me: ${sprintLink(S.p.id, S.pts, S.found.length)}` : "";
     return `MLion Sprint 🦁\n${S.p.text}\n${S.found.length} answers · ${S.pts} points in ${SPRINT_SECS} s${grid ? `\n\n${grid}` : ""}${url}`;
   }
 
