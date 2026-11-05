@@ -302,6 +302,48 @@ body[data-view="play"] #app { max-width: none; }
 .play-meta:has(.stop-run) { display: flex; align-items: center; gap: 6px; }
 .stop-run { pointer-events: auto; min-height: 32px; padding: 0 14px; margin-left: 10px; font-size: var(--s1); }
 
+/* the streak: answers in a row light a flame at the top of the stage */
+.streak-wrap { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 6px; pointer-events: none; }
+.streak { position: relative; display: flex; align-items: center; gap: 6px; color: var(--ink); }
+.streak .flame { width: 26px; height: 32px; overflow: visible; }
+.streak b { font-size: var(--s3); font-weight: 400; line-height: 1; letter-spacing: -0.02em; }
+.streak .sk-name { font-size: var(--s1); color: var(--gold); font-stretch: 125%; }
+.streak.sk-3 .flame { width: 29px; height: 36px; }
+.streak.sk-4 .flame, .streak.sk-5 .flame { width: 31px; height: 38px; }
+.streak.sk-6 .flame, .streak.sk-7 .flame { width: 33px; height: 41px; }
+.streak.sk-5 .flame { filter: drop-shadow(0 0 6px rgba(111, 198, 255, 0.45)); }
+.streak.sk-6 .flame { filter: drop-shadow(0 0 8px rgba(214, 228, 255, 0.6)); }
+.streak.sk-7 .flame { filter: drop-shadow(0 0 9px rgba(242, 181, 60, 0.6)); }
+.flame .fl-out, .flame .fl-in, .flame .fl-core { transform-box: fill-box; transform-origin: 50% 100%; }
+html:not(.reduce-motion) .streak .fl-out { animation: flick var(--flick, 1100ms) ease-in-out infinite alternate; }
+html:not(.reduce-motion) .streak .fl-in { animation: flick calc(var(--flick, 1100ms) * 0.7) ease-in-out infinite alternate-reverse; }
+.streak.sk-3 { --flick: 820ms; } .streak.sk-4 { --flick: 700ms; } .streak.sk-5 { --flick: 600ms; } .streak.sk-6, .streak.sk-7 { --flick: 520ms; }
+@keyframes flick { 0% { transform: scale(1, 1) skewX(0deg); } 50% { transform: scale(0.95, 1.06) skewX(-3deg); } 100% { transform: scale(1.04, 0.96) skewX(2deg); } }
+html:not(.reduce-motion) .streak.pop { animation: sk-pop 560ms var(--ease-out); }
+@keyframes sk-pop { 0% { transform: scale(0.55); } 45% { transform: scale(1.32); } 100% { transform: scale(1); } }
+.sk-spark { position: absolute; left: 13px; top: 18px; width: 5px; height: 5px; border-radius: 50%; background: var(--c); opacity: 0; animation: sk-spark 640ms var(--ease-out) var(--d, 0ms) forwards; }
+@keyframes sk-spark { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); } }
+/* a miss: the flame sinks and greys out in a puff of smoke */
+.streak.out .flame { animation: sk-out 700ms ease-in forwards; }
+.streak.out b, .streak.out .sk-name { transition: opacity 500ms ease 150ms; opacity: 0; text-decoration: line-through; }
+@keyframes sk-out { 40% { filter: grayscale(1) brightness(0.8); transform: scale(0.9, 0.7); } 100% { filter: grayscale(1) brightness(0.4); transform: scale(0.5, 0.1); opacity: 0; } }
+.sk-smoke { position: absolute; left: 8px; top: 8px; width: 12px; height: 12px; border-radius: 50%; background: rgba(163, 155, 144, 0.5); opacity: 0; animation: sk-smoke 760ms ease-out forwards; }
+.sk-smoke + .sk-smoke { left: 14px; animation-delay: 90ms; }
+.sk-smoke + .sk-smoke + .sk-smoke { left: 4px; animation-delay: 170ms; }
+@keyframes sk-smoke { 0% { opacity: 0.8; transform: translateY(6px) scale(0.6); } 100% { opacity: 0; transform: translateY(-26px) scale(1.8); } }
+.sk-quick { font-size: 12px; font-weight: 600; line-height: 1; padding: 5px 11px; border-radius: var(--round); background: var(--ink); color: var(--bg); }
+html:not(.reduce-motion) .sk-quick.on { animation: sk-quick 1500ms var(--ease-out) forwards; }
+@keyframes sk-quick { 0% { opacity: 0; transform: translateX(-18px) skewX(-14deg); } 14% { opacity: 1; transform: translateX(3px) skewX(-6deg); } 26% { transform: none; } 78% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+.stage.flood .streak, .stage.flood .streak .sk-name { color: var(--gold-ink); }
+@media (min-width: 1000px) {
+  .streak .flame { width: 32px; height: 40px; }
+  .streak.sk-3 .flame { width: 35px; height: 44px; }
+  .streak.sk-4 .flame, .streak.sk-5 .flame { width: 38px; height: 47px; }
+  .streak.sk-6 .flame, .streak.sk-7 .flame { width: 41px; height: 51px; }
+  .streak b { font-size: var(--s4); font-weight: 300; }
+  .sk-spark { left: 16px; top: 22px; }
+}
+
 .prompt-card { padding-top: 28px; position: relative; }
 .round { display: grid; gap: 24px; }
 @media (min-width: 1000px) {
@@ -434,6 +476,10 @@ html:not(.reduce-motion) .feedback.mlion.landed .fb-name { animation: gem-in 900
 html.kb .stage { height: 96px; }
 html.kb .hud b { font-size: var(--s3); }
 html.kb .play-head { display: none; }
+html.kb .streak-wrap { top: 8px; }
+html.kb .streak .flame { width: 20px; height: 25px; }
+html.kb .streak b { font-size: var(--s2); }
+html.kb .sk-quick { display: none; }
 html.kb .prompt-card { padding-top: 14px; }
 html.kb .round { gap: 14px; }
 
