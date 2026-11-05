@@ -50,6 +50,16 @@ const db = {
   admins: new Set([ADA]),
   config: { launch: null, banner: null, reset_at: null },
   calls: [],
+  // supabase/suggestions.sql: one row per (user, prompt, key), and an admin's verdict per (prompt, key)
+  sugg: [
+    ...["u1", "u2", "u3", "u4", "u5"].map((u, i) => ({ user_id: u, prompt_id: "optimizer", answer_key: "zorblax", raw: i < 3 ? "Zorblax" : "ZorbLax", source: i === 4 ? "auto" : "tap", created_at: ts(i) })),
+    ...["u1", "u2"].map((u, i) => ({ user_id: u, prompt_id: "activation-function", answer_key: "squishu", raw: "SquishU", source: "tap", created_at: ts(i + 1) })),
+    { user_id: "u6", prompt_id: "loss-function", answer_key: "lossyloss", raw: "lossy loss", source: "tap", created_at: ts(0) },
+  ],
+  reviews: new Map(),
+  // supabase/rate_limits.sql
+  limits: [["daily_score", 200, 1000], ["profile", 60, 300], ["quiz_score", 200, 1000], ["rename", 60, 300], ["suggestion", 400, 3000]]
+    .map(([action, per_hour, per_day]) => ({ action, per_hour, per_day, note: null, updated_at: ts(1) })),
 };
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (sub) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`;
@@ -137,6 +147,45 @@ function mockFor(who, whoName) {
         db.profiles.delete(a.p_user); db.users.delete(a.p_user);
         db.scores = db.scores.filter((s) => s.user_id !== a.p_user); db.quiz = db.quiz.filter((s) => s.user_id !== a.p_user);
         return json(200, 1);
+      }
+      if (fn === "admin_suggestions") {
+        const groups = new Map();
+        for (const r of db.sugg) {
+          const k = `${r.prompt_id}|${r.answer_key}`, rv = db.reviews.get(k);
+          const st = a.p_status || "open";
+          if (st === "open" ? rv : st !== "all" && (!rv || rv.status !== st)) continue;
+          if (!groups.has(k)) groups.set(k, { prompt_id: r.prompt_id, answer_key: r.answer_key, users: new Set(), taps: 0, autos: 0, first_seen: r.created_at, last_seen: r.created_at, raws: new Map(), ...(rv || { status: null, answer: null, reviewed_at: null }), pulled_at: null });
+          const g = groups.get(k);
+          g.users.add(r.user_id); g[r.source === "auto" ? "autos" : "taps"]++;
+          if (r.created_at < g.first_seen) g.first_seen = r.created_at;
+          if (r.created_at > g.last_seen) g.last_seen = r.created_at;
+          g.raws.set(r.raw, (g.raws.get(r.raw) || 0) + 1);
+        }
+        return json(200, [...groups.values()].map(({ users, raws, ...g }) => ({ ...g, players: users.size, spellings: [...raws].sort((x, y) => y[1] - x[1]).map(([w]) => w).slice(0, 5) }))
+          .sort((x, y) => y.players - x.players || y.last_seen.localeCompare(x.last_seen)));
+      }
+      if (fn === "admin_review_suggestion") {
+        const k = `${a.p_prompt}|${a.p_key}`;
+        if (a.p_status === "open") { db.reviews.delete(k); return json(200, { status: null }); }
+        if (!["approved", "rejected"].includes(a.p_status)) return json(400, { code: "P0001", message: "status is approved, rejected or open" });
+        const spelled = a.p_answer || (db.sugg.find((r) => `${r.prompt_id}|${r.answer_key}` === k) || {}).raw;
+        db.reviews.set(k, { status: a.p_status, answer: spelled, reviewed_at: new Date().toISOString() });
+        return json(200, { prompt_id: a.p_prompt, answer_key: a.p_key, status: a.p_status, answer: spelled });
+      }
+      if (fn === "admin_rate_limits") {
+        return json(200, {
+          limits: db.limits.map((l) => ({ ...l, hour: l.action === "suggestion" ? 12 : 1, day: l.action === "suggestion" ? 40 : 3 })),
+          top: [{ ip_hash: "3f9a0c1b2d4e5f6a7b8c9d0e", action: "suggestion", day: 31, hour: 9, last_at: ts(0), at_limit: false },
+            { ip_hash: "aa11bb22cc33dd44ee55ff66", action: "daily_score", day: 3, hour: 1, last_at: ts(0), at_limit: false }],
+          unknown: 2, me: { source: "cf-connecting-ip", ip_hash: "0123456789abcdef01234567" },
+        });
+      }
+      if (fn === "admin_set_rate_limit") {
+        const l = db.limits.find((x) => x.action === a.p_action);
+        if (!l) return json(400, { code: "P0001", message: `no such action: ${a.p_action}` });
+        if (a.p_per_hour < 0 || a.p_per_day < 0) return json(400, { code: "P0001", message: "limits are 0 or more" });
+        Object.assign(l, { per_hour: a.p_per_hour, per_day: a.p_per_day, updated_at: new Date().toISOString() });
+        return json(200, l);
       }
       if (fn === "admin_set_launch") { db.config.launch = a.p_launch || null; return json(200, { ...db.config }); }
       if (fn === "admin_set_banner") { db.config.banner = String(a.p_text || "").trim().slice(0, 200) || null; return json(200, { ...db.config }); }
@@ -238,6 +287,50 @@ function mockFor(who, whoName) {
   await ada.waitForFunction(() => document.querySelectorAll(".adm-rows.scores li").length === 1);
   check(true, "any past day's board opens from the date picker");
 
+  // suggestions: most players first; approve with a chosen spelling, reject, undo
+  await tab(ada, "suggest");
+  await ada.waitForSelector(".adm-rows.sugg li");
+  const sgRows = () => ada.$$eval(".adm-rows.sugg li", (els) => els.map((e) => `${e.dataset.p}|${e.dataset.k}`));
+  check((await sgRows()).join() === "optimizer|zorblax,activation-function|squishu,loss-function|lossyloss", "suggestions to review, most players first");
+  const zrow = '.adm-rows.sugg li[data-k="zorblax"]';
+  const ztext = await ada.textContent(zrow);
+  check(/Name an optimizer/.test(ztext) && /5 players \(4 tapped, 1 sent by setting\)/.test(ztext) && /first .* · last /.test(ztext), "each shows its prompt, how many players, how they sent it, first and last seen");
+  check((await ada.$$eval(`${zrow} .sg-spell .chip`, (els) => els.map((e) => e.textContent))).join() === "Zorblax,ZorbLax", "and the spellings players typed, most common first");
+  await ada.screenshot({ path: path.join(OUT, "75-admin-suggestions.png"), fullPage: true });
+  await ada.click(`${zrow} .sg-spell .chip[data-v="ZorbLax"]`);
+  await ada.click(`${zrow} [data-a="approved"]`);
+  await ada.waitForFunction(() => !document.querySelector('.adm-rows.sugg li[data-k="zorblax"]'));
+  const zr = db.reviews.get("optimizer|zorblax");
+  check(zr && zr.status === "approved" && zr.answer === "ZorbLax", "Approve saves the verdict with the chosen spelling, and the row leaves the queue");
+  await ada.click('.adm-rows.sugg li[data-k="squishu"] [data-a="rejected"]');
+  await ada.waitForFunction(() => !document.querySelector('.adm-rows.sugg li[data-k="squishu"]'));
+  check(db.reviews.get("activation-function|squishu").status === "rejected", "Reject saves the verdict");
+  await ada.click('.adm-sgk[data-s="approved"]');
+  await ada.waitForFunction(() => /ZorbLax/.test(document.querySelector("#adm-list")?.textContent || ""));
+  check((await sgRows()).join() === "optimizer|zorblax", "the Approved list holds the approved one");
+  await ada.click('.adm-sgk[data-s="rejected"]');
+  await ada.waitForSelector('.adm-rows.sugg li[data-k="squishu"]');
+  await ada.click('.adm-rows.sugg li[data-k="squishu"] [data-a="open"]');
+  await ada.waitForFunction(() => /Nothing rejected/.test(document.querySelector("#adm-list")?.textContent || ""));
+  check(!db.reviews.has("activation-function|squishu"), "Undo puts a rejected one back in the queue");
+  await ada.click('.adm-sgk[data-s="open"]');
+  await ada.waitForFunction(() => document.querySelectorAll(".adm-rows.sugg li").length === 2);
+
+  // limits: each action's per-hour and per-day limit, editable; the busiest networks
+  await tab(ada, "limits");
+  await ada.waitForSelector(".adm-rows.lim li");
+  check((await ada.$$eval(".adm-rows.lim li", (els) => els.map((e) => e.dataset.a))).join() === "daily_score,profile,quiz_score,rename,suggestion", "Limits lists every write action");
+  const srow = '.adm-rows.lim li[data-a="suggestion"]';
+  check(await ada.$eval(`${srow} input[name=h]`, (i) => i.value) === "400" && /12 in the last hour · 40 in the last 24 h/.test(await ada.textContent(srow)), "with its limits and its writes in the last hour and day");
+  check(/3f9a0c1b2d/.test(await ada.textContent(".lim-top")) && /2 writes with no network/.test(await ada.textContent("#adm-body")) && /read from cf-connecting-ip/.test(await ada.textContent("#adm-body")), "the busiest networks by hash, unknown writes, and which header the database reads");
+  await ada.screenshot({ path: path.join(OUT, "76-admin-limits.png"), fullPage: true });
+  await ada.fill(`${srow} input[name=h]`, "25");
+  await ada.fill(`${srow} input[name=d]`, "");
+  await ada.click(`${srow} button[type=submit]`);
+  await ada.waitForFunction(() => document.querySelector('.adm-rows.lim li[data-a="suggestion"] input[name=h]')?.value === "25" && /Limit saved/.test(document.body.textContent));
+  const sl = db.limits.find((l) => l.action === "suggestion");
+  check(sl.per_hour === 25 && sl.per_day === null, "an admin changes a limit (25 an hour, no daily cap) and it's saved");
+
   // game: launch day and banner
   await tab(ada, "game");
   await ada.waitForSelector("#adm-launch-save");
@@ -276,6 +369,12 @@ function mockFor(who, whoName) {
   await pat.waitForFunction(() => /for MLion's admins/.test(document.querySelector("#app").textContent), null, { timeout: 20000 });
   check(!(await pat.$(".adm-tabs")) && !(await pat.$("#drawer-acct .acct-admin")), "a player who isn't an admin gets no panel and no link");
   check(!db.calls.some((c) => c.me === PAT && c.fn !== "is_admin"), "and the page never calls an admin function for them");
+  const patTry = await pat.evaluate(async (mock) => {
+    const tok = JSON.parse(localStorage.getItem("mlion:sb")).access_token;
+    const r = await fetch(`${mock}/rest/v1/rpc/admin_set_rate_limit`, { method: "POST", headers: { apikey: "k", authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ p_action: "suggestion", p_per_hour: 100000, p_per_day: null }) });
+    return r.status;
+  }, MOCK);
+  check(patTry === 403 && db.limits.find((l) => l.action === "suggestion").per_hour === 25, "a player who calls admin_set_rate_limit directly is refused (42501) and the limit stays");
 
   // ================= reset everyone
   await ada.evaluate(() => localStorage.setItem("mlion:seen", JSON.stringify(["activation-function"])));

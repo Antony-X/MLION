@@ -1305,3 +1305,20 @@ html:not(.reduce-motion) .sp-lp.bump em, html:not(.reduce-motion) .sp-lp.bump .s
 .sp-strip.many .lv-av { display: none; }
 .sp-strip.many .lp.me b { color: var(--gold); }
 html.kb .live-sp .sp-round { display: none; }
+
+/* Suggest it: under a rejected answer, the count of other players and a quiet button (js/app.js "suggest an answer") */
+.status.has-sg { flex-wrap: wrap; }
+.status .sg-msg { flex: 1 1 0; min-width: 0; }
+.status .sg { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-left: 32px; font-size: var(--s1); color: var(--muted); }
+.status .sg-count { color: var(--ink); }
+.sg-btn { min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--round); background: var(--raised); color: var(--ink); font: inherit; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .sg-btn:hover { background: var(--raised-2); } }
+.adm-rows.sugg .sg-spell { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-rows.sugg .sg-spell .chip { min-height: 32px; }
+.adm-rows.sugg .acts { grid-column: 1 / -1; grid-row: auto; }
+.adm-rows.sugg .sg-n { color: var(--gold); font-weight: 500; }
+/* #admin → Limits */
+.adm-rows.lim .lim-form { grid-column: 1 / -1; }
+.lim-form label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--s1); }
+.adm-bar .search.lim-n { flex: 0 0 110px; width: 110px; min-width: 0; }
+.lim-top .who b { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }

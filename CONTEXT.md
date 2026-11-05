@@ -142,6 +142,8 @@ tools/build.js        validate every prompt + write js/data.js + cache-bust inde
 tools/build-single.js bundle everything into one HTML file (Artifact build)
 tools/icons.js        render img/ (favicon.svg, app icons, og.png share card) from MARK; needs Playwright + network for Archivo
 tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SUGGEST/NONE)
+tools/pull_suggestions.js  pull approved answer suggestions into data/prompts/*.json (secret key at run time; see "Suggest this answer")
+supabase/*.sql        schema, daily_quiz, admin, names, quiz_speed, suggestions, rate_limits (each additive; run in the SQL editor)
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
 tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQTT broker
@@ -939,6 +941,112 @@ with no swear words on the board.
 - Test: `tests/board.e2e.js` (second browser: top five, anon sign-in off/on, swear name, publish, the
   database check, no auto-post).
 
+### Suggest this answer (added 2026-11-05, branch of the suggestions agent)
+
+The owner asked for a way for players to report answers the key is missing, and to see when many people typed
+the same one.
+- **Player side** (js/app.js, section "suggest an answer"; hooks: one line each in `reject()` and in
+  `sprintSubmit()`'s miss branch, so daily, Unlimited, archive/practice, solo Sprint, live Classic and live Sprint
+  all get it). After a rejection message, `suggestOffer(raw, pid)` wraps the message in `.sg-msg` and appends a
+  `.sg` line inside `#status` (the next `setStatus` wipes it). It first asks `rpc/suggestion_count` (plain REST,
+  publishable key, no login library, 6 s timeout); only when that answers does the line show:
+  "N other players tried this too" (when more than 3 others) and a quiet **Suggest it** button (`.sg-btn`,
+  `tabindex=-1`, mousedown prevented so the answer box keeps focus; focus is handed back after the tap, never out
+  of chat). A tap calls `suggestSend`: `loadSupabase()`, anonymous sign-in only if there is no session (never on a
+  reject alone), then inserts `{user_id, prompt_id, answer_key: E.fullKey(raw), raw (≤120), source: "tap"}`;
+  23505 counts as sent. The line then reads "Sent for review. Thanks." (or "Couldn't send it right now.", or the
+  rate-limit sentence). `mlion:suggested` ("<prompt>|<key>" → day, last 400) makes a repeat say it's already sent
+  and subtracts the player from the count; `mlion:suggestDay` caps a browser at 50 a day like the database.
+- **Nothing shows** when the board isn't configured (`BOARD_ON` false: the Artifact build, file://), in test
+  browsers without `MLION_BOARD`, when the count call fails (offline), or after a 404 from it (suggestions.sql not
+  run: `suggestBroken` for the session).
+- **Counting choice: explicit taps plus an opt-in, nothing automatic by default.** Logging every rejected answer
+  would give better counts, but it means sending text people typed without asking, and either an account per
+  player made on a reject (the brief said not to) or an anonymous insert endpoint nobody can attribute (no honest
+  distinct-player count, trivially spammed). So: a count is distinct players who tapped Suggest it, plus players
+  who turned on Settings → **"Send answers the game rejects"** (`settings.shareMisses`, off by default, shown only
+  when suggestions can work; rows carry `source: "auto"`). The FAQ says so ("What happens to answers the game
+  rejects?"), and "My answer is real but wasn't accepted" now points at Suggest it. The server hides counts under 4
+  (`suggestion_count` returns 0), so small numbers never leak.
+- **Side effect to know:** a suggest-only player gets the same anonymous account as "Publish my score", and
+  `onSession` gives it a profile (named after their Settings name, else "Player"; an empty Settings name becomes
+  "Player"). The menu then reads "On the leaderboard as Player", and the admin Players list includes them. Left
+  as is to avoid touching the shared login code.
+- **Admin** (`#admin` → Suggestions, `adminSuggestions()`): To review / Approved / Rejected; each row has the
+  most-used spelling, the prompt, players (taps, sent by setting), first and last seen, an "In the key now" tag
+  when the current data already accepts a spelling, the spellings as chips (pick the one to add), Approve, Reject,
+  and Undo on reviewed ones. Approving changes no game data.
+- **Pulling approved ones** (`tools/pull_suggestions.js`): dry run by default; `--apply` writes into
+  data/prompts/*.json line by line (layout kept): a spelling the matcher already corrects to an answer becomes an
+  `aka` of it, anything else a new answer with `--tier` (default outlier; the gem is never set by the script);
+  spellings already accepted are skipped; every edit is re-parsed and checked before writing. `--mark-pulled`
+  stamps `pulled_at` so later runs skip them; `--all`, `--from=<json>`, `--save=<json>`, `--data=<dir>`.
+  Key: the project's secret (or legacy service_role) key from `MLION_SUPABASE_SECRET_KEY` /
+  `SUPABASE_SERVICE_ROLE_KEY` or a file (`--key-file`, `MLION_SUPABASE_KEY_FILE`, default `~/.mlion_supabase_key`);
+  never printed; a JWT-style key is also sent as Bearer, an `sb_secret_` key only as `apikey`. Then
+  `node tools/build.js && node tests/engine.test.js` and read the diff. Checked against a local stand-in server
+  (download, apply, mark pulled, wrong key, key never in output); never run against production.
+- **Database: `supabase/suggestions.sql`** (new, additive, NOT applied yet). `answer_suggestions` (PK user,
+  prompt, key; checks: prompt id `^[a-z0-9][a-z0-9-]{0,63}$`, key ≤ 80, raw ≤ 120, source tap/auto; no foreign key
+  to auth.users, so deleting players or "Reset all players" keeps the queue), a security-definer BEFORE INSERT
+  trigger (stamps `user_id = auth.uid()` and `created_at`, refuses a 51st row in 24 h with 54000), RLS: insert own
+  rows (`authenticated`, which includes anonymous sign-ins), select for admins only; `suggestion_reviews` (prompt,
+  key, status approved/rejected, chosen `answer`, `pulled_at`; admin-only policies); `suggestion_count(prompt,
+  key)` (security definer, anon + authenticated: distinct players excluding the caller, 0 below 4, 0 when
+  rejected); `admin_suggestions(status, limit)` and `admin_review_suggestion(prompt, key, status, answer)` with
+  `admin_guard()`; grants narrowed like the other files, plus `service_role` for the pull script.
+- **Tests:** `tests/board.e2e.js` (block "Suggest it": daily count above the threshold, focus and clock kept, no
+  sign-in on a reject; Unlimited below the threshold, the tap's row, repeat, rejected-by-admin hides the count,
+  offline hides the button, an offline tap fails quietly; Sprint; the opt-in; no table). `tests/admin.e2e.js`
+  (Suggestions tab: order, details, approve with a chosen spelling, reject, undo). The SQL itself was run (twice)
+  with schema.sql, daily_quiz.sql, admin.sql, names.sql and quiz_speed.sql on PGlite (Postgres 17 in WASM) with a
+  stub `auth` schema and roles, and its rules checked one by one (RLS, caps, trigger, count, admin functions,
+  service role); that harness was ad hoc (tests/out, not committed), and real Supabase was not touched.
+
+### Per-network rate limits (added 2026-11-05)
+
+The owner wanted our own per-IP limits on every write, adjustable in #admin. (Supabase Auth's limit on anonymous
+sign-ins, 30 an hour per IP, is project config the orchestrator manages; not touched here.)
+- **Database: `supabase/rate_limits.sql`** (new, additive, NOT applied yet; run it LAST, after suggestions.sql,
+  because it adds triggers to the existing tables and skips any table that doesn't exist yet, with a notice).
+  `rate_limits(action, per_hour, per_day, note)` (public read; null = no limit, 0 = none allowed), defaults
+  profile 60/h 300/day, rename 60/300, daily_score 200/1000, quiz_score 200/1000, suggestion 400/3000 (generous on
+  purpose: an olympiad venue or school can put hundreds of players behind one address). A trigger
+  `a_rate_limit*` (runs first, by name) on profiles insert (`profile`), profiles update when the name changes
+  (`rename`), daily_scores, daily_quiz_scores and answer_suggestions calls `rate_limit_check(action)`: admins are
+  skipped; it deletes up to 200 log rows older than 2 days, counts that network's rows for the action in the last
+  hour and 24 h in `ip_events(ip_hash, action, at)` under an advisory lock, and past a limit raises SQLSTATE
+  **PT429** ("Too many tries from this network. Try again later."), which PostgREST sends as HTTP 429. Only
+  `left(sha256(salt || '|' || ip), 24)` is stored; the salt is in `rate_limit_secret` (no API access). No usable
+  header → `unknown`: logged, never limited. A refused write rolls back with its log row, so refusals themselves
+  aren't counted; the admin view shows who is *at* a limit.
+- **Which IP:** `request_ip_info()` reads `request.headers`: `cf-connecting-ip` first, else the **last**
+  `x-forwarded-for` value, never the first. Sources: Supabase's own guide uses the first x-forwarded-for value
+  (https://supabase.com/docs/guides/api/securing-your-api); a Supabase user showed a forged x-forwarded-for
+  arriving as "spoofed,<real ip>" with `cf-connecting-ip` holding the real one
+  (https://github.com/orgs/supabase/discussions/34647, unanswered); Cloudflare sets CF-Connecting-IP to the
+  connecting client and recommends it over X-Forwarded-For
+  (https://developers.cloudflare.com/fundamentals/reference/http-headers/). Supabase doesn't document any header
+  as spoof-proof, so this is the best available, not a guarantee. #admin → Limits shows which header the
+  admin's own request was read from; to verify on production, send a request with fake `X-Forwarded-For` and
+  `CF-Connecting-IP` headers and check the hash doesn't change.
+- **Admin** (`#admin` → Limits, `adminLimits()`; `admin_rate_limits()`, `admin_set_rate_limit(action, per_hour,
+  per_day)`): per action the limits (editable, Save), writes in the last hour and 24 h; the ten busiest network
+  hashes of the last day with an "At the limit" tag; unknown-network writes; how this request was read.
+- **Client:** `limitedErr(error)` (PT429, HTTP 429, or Auth's `over_request_rate_limit`) and `TOO_MANY`, in the
+  "per-network limits" section; the publish dialog, renames, the post under the results and Suggest it show
+  "Too many tries from this network. Try again later." (one-line hooks in loadProfile, postDaily, saveBoardName,
+  publishScore, fillBoardBox).
+- **Tests:** board.e2e.js (a limited suggestion and a limited publish show the sentence; publish works after);
+  admin.e2e.js (Limits tab, edit and save, a player's direct `admin_set_rate_limit` refused). The SQL was checked on
+  PGlite: limits per network across accounts, cf-connecting-ip beating a forged x-forwarded-for, last-value
+  fallback, unknown not limited but logged, only hashes stored, renames counted only on change, 0 and null,
+  admins exempt, admin view, cleanup, and that players can't read the log or salt or change limits.
+
+**Run order on production** (SQL editor, each additive and safe to re-run): `supabase/suggestions.sql`, then
+`supabase/rate_limits.sql` (after admin.sql, daily_quiz.sql, names.sql, quiz_speed.sql, which are already applied
+or pending as noted above).
+
 ## 8. Visual design (taste-skill redesign)
 
 The user asked to ingest https://github.com/leonxlnx/taste-skill (`skills/taste-skill/SKILL.md`
@@ -1206,6 +1314,11 @@ is the lit exhibit.
 11. Quiz follow-ups: a wrong option can be a real member of the category the answer list lacks (lists are
     incomplete); the host can't switch format from the podium; live quiz answer times are self-reported
     (clamped by the host). The Daily Quiz board needs `supabase/daily_quiz.sql` applied.
+13. **Suggestions and rate limits (2026-11-05):** run `supabase/suggestions.sql`, then `supabase/rate_limits.sql`,
+    on production; check on the live site that a request with forged `X-Forwarded-For`/`CF-Connecting-IP` headers
+    keeps the same hash (#admin → Limits shows the source); pull approved suggestions with
+    `tools/pull_suggestions.js`. Open: suggest-only players get a "Player" profile (see "Suggest this answer");
+    refusals aren't logged; nothing tried on a real phone.
 12. First load: `js/data.js` is 2.4 MB (about 730 KB gzipped). A first visit to home no longer waits
     for it: an inline script in `index.html` draws the home hero at once, and `renderHome()` builds the
     full home around that same node (measured, slow 4G with a 4x slower CPU: hero at 1.1 s instead of
