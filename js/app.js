@@ -2716,6 +2716,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         try {
           AUTH.profile = await loadProfile(user);
           if (AUTH.uid !== uid) return;
+          if (!AUTH.profile && await accountGone()) return;
           AUTH.admin = AUTH.anon ? false : await checkAdmin();
           if (AUTH.uid !== uid) return;
           if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
@@ -2776,6 +2777,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     AUTH.uid = null; AUTH.user = null; AUTH.profile = null; AUTH.admin = false; AUTH.anon = false; AUTH.loading = null;
     boardRedraw();
   }
+  // An account deleted on the server (by an admin reset, or in the dashboard) still has a working-looking
+  // login in this browser until its token runs out. Ask the server; if the account is gone, log out here.
+  const GONE = "That login was for an account that no longer exists. Log in again.";
+  async function accountGone() {
+    if (!sbClient || !AUTH.user) return false;
+    let res;
+    try { res = await sbClient.auth.getUser(); } catch { return false; } // offline: can't tell
+    const err = res && res.error;
+    if (!err && res.data && res.data.user) return false;
+    if (err && !(err.status === 401 || err.status === 403 || err.status === 404 || /not.?found|jwt|session/i.test(`${err.code || ""} ${err.message || ""}`))) return false;
+    try { await sbClient.auth.signOut({ scope: "local" }); } catch { /* ignore */ }
+    AUTH.uid = null; AUTH.user = null; AUTH.profile = null; AUTH.admin = false; AUTH.anon = false; AUTH.loading = null;
+    toast(GONE);
+    boardRedraw();
+    return true;
+  }
   const NAME_BAD = "That name isn't allowed. Pick another.";
   /** Save a new public name; returns an error to show, or "". */
   async function saveBoardName(name) {
@@ -2784,6 +2801,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (AUTH.profile && AUTH.profile.name === name) return "";
     const { data, error } = await sbClient.from("profiles").update({ name }).eq("id", AUTH.user.id).select("id,name").maybeSingle();
     if (error && error.code === "23514") return NAME_BAD; // the database's own check (supabase/names.sql)
+    if (!error && !data) { // no profile row to rename: the account was deleted, or only its profile was
+      if (await accountGone()) return GONE;
+      const ins = await sbClient.from("profiles").insert({ id: AUTH.user.id, name }).select("id,name").maybeSingle();
+      if (ins.error && ins.error.code === "23514") return NAME_BAD;
+      if (!ins.data) return "Couldn't save the name. Try again.";
+      AUTH.profile = ins.data;
+      return "";
+    }
     if (error || !data) return "Couldn't save the name. Try again.";
     AUTH.profile = data;
     return "";
@@ -2841,6 +2866,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $("#bn-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const bad = await saveBoardName(cleanName(inp.value));
+      if (bad === GONE) return closeModal();
       if (bad) return toast(bad);
       if (AUTH.anon) LS.set("name", AUTH.profile.name);
       closeModal();
@@ -2951,6 +2977,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
     const ok = await postDaily(rec).catch(() => false);
+    if (!ok && await accountGone()) return;
     const r = ok ? await rankFor(rec.date, AUTH.user.id, kind).catch(() => null) : null;
     if (!box.isConnected) return;
     box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} today as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`

@@ -44,6 +44,7 @@ function session(anon = false) {
   return { access_token: jwt(user.id), refresh_token: anon ? "r2" : "r1", token_type: "bearer", expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, user };
 }
 let anonOn = true; // "Allow anonymous sign-ins" in the dashboard
+let anonGone = false; // the publish-only account was deleted on the server (an admin reset)
 function filters(u) {
   const f = {};
   for (const [k, v] of u.searchParams) { const m = v.match(/^(eq|gt|lt)\.(.*)$/); if (m) f[k] = [m[1], m[2]]; }
@@ -75,7 +76,12 @@ async function mockRoute(route) {
     if (!anonOn) return json(422, { code: "anonymous_provider_disabled", msg: "Anonymous sign-ins are disabled" });
     return json(200, session(true));
   }
-  if (u.pathname === "/auth/v1/user") return json(200, /c33c/.test(hdr.authorization || "") ? session(true).user : session().user);
+  if (u.pathname === "/auth/v1/user") {
+    let sub = "";
+    try { sub = JSON.parse(Buffer.from((hdr.authorization || "").replace(/^Bearer /, "").split(".")[1], "base64url").toString()).sub || ""; } catch { /* anon key */ }
+    if (sub === ANON && anonGone) return json(403, { code: "user_not_found", msg: "User from sub claim in JWT does not exist" });
+    return json(200, sub === ANON ? session(true).user : session().user);
+  }
   if (u.pathname === "/auth/v1/logout") return json(204);
 
   // rest
@@ -355,6 +361,16 @@ async function mockRoute(route) {
   check(!db.scores.some((r) => r.user_id === ANON), "a publish-only account waits for the button; it never posts by itself");
   await p2.click("#menu-btn");
   check((await p2.textContent("#drawer-acct")).includes("On the leaderboard as Turing") && !(await p2.$("#acct-out")), "the menu shows the publish name, with login to keep it everywhere");
+  // the account is deleted on the server while this browser still holds its login: renaming logs out cleanly
+  anonGone = true;
+  db.profiles.delete(ANON);
+  await p2.click("#acct-name");
+  await p2.fill("#bn-input", "Lovelace");
+  await p2.click('#bn-form button[type="submit"]');
+  await p2.waitForFunction(() => /no longer exists/.test(document.body.textContent) && !document.querySelector("#bn-form"), null, { timeout: 8000 });
+  check(true, "renaming a deleted account says so and closes the dialog");
+  await p2.waitForFunction(() => !/On the leaderboard as/.test(document.querySelector("#drawer-acct")?.textContent || "") && !!document.querySelector("#board-box #pub-btn"), null, { timeout: 8000 });
+  check(!db.profiles.has(ANON), "the browser drops the dead login; Publish is offered again");
   await ctx2.close();
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
