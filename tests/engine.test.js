@@ -52,6 +52,12 @@ assert.strictEqual(E.singular("gans"), "gan"); ok("plural");
   assert.strictEqual(m("forest random").kind, "correction"); assert.strictEqual(m("forest random").answer.a, "Random forest"); ok("word order: a reversed name is a correction");
   assert.strictEqual(m("anything segment").answer.a, "Segment Anything"); ok("word order: any multi-word answer");
 }
+{ // close typos of two answers: the initials pick one (GA, SVM)
+  const P = (id) => DATA.prompts.find((p) => p.id === id);
+  const g = E.matchAnswer(P("feature-selection"), "Geetic algorithm"), s = E.matchAnswer(P("classifier"), "suport vector machine");
+  assert.strictEqual(g.kind, "correction"); assert.strictEqual(g.answer.a, "Genetic algorithm"); ok("'Geetic algorithm' is Genetic algorithm, not Memetic");
+  assert.strictEqual(s.kind, "correction"); assert.strictEqual(s.answer.a, "SVM"); ok("'suport vector machine' is SVM, not Import vector machine");
+}
 
 // --- a miss that answers another prompt says which
 E.setLexicon(DATA.prompts.concat(DATA.extras || []));

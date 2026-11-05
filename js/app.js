@@ -463,20 +463,23 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function liveReset() {
     LIVE.timers.forEach(clearTimeout); LIVE.timers = [];
     LIVE.intervals.forEach(clearInterval); LIVE.intervals = [];
+    for (const p of LIVE.players.values()) clearTimeout(p.awayTimer); // a seat's grace timer must not outlive the room
     const c = LIVE.client;
     if (c) {
       try { if (LIVE.isHost && !LIVE.quietLeave) pubJSON(c, `${roomTopic(LIVE.code)}/down`, { t: "closed", ep: LIVE.ep || 0 }); } catch { /* ignore */ }
       try { if (LIVE.isHost && LIVE.isPublic) c.publish(infoTopic(LIVE.code), "", { retain: true, qos: 1 }); } catch { /* ignore */ }
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
+    const n = LIVE.fmt === "sprint" || LIVE.mfmt === "sprint" ? (validQ(LIVE.nOther) ? LIVE.nOther : 7) : LIVE.n; // a Sprint room's count stays with Sprint
     Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
-      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", quiz: null, gone: new Map() });
+      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", quiz: null, gone: new Map(), spRec: null, n });
     liveSprintStop();
     chatRate.clear();
     syncChat();
   }
   function leaveLive(quiet) {
     LIVE.quietLeave = quiet !== false;
+    spCarry = null;
     if (joinState) {
       clearInterval(joinState.helloTimer);
       const c = joinState.client;
@@ -511,7 +514,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         // Update the existing object in place: the host's grace timer and last-seen time
         // live on it, and a fresh copy would let a stale timer free a seat its owner came back to.
         const old = LIVE.players.get(p.id);
-        next.set(p.id, Object.assign(old || { ans: {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready }));
+        const kept = !old && LIVE.spRec && LIVE.spRec.get(p.id); // a sprint match this page rebuilt after a takeover
+        next.set(p.id, Object.assign(old || { ans: kept ? kept.ans : {}, sp: kept ? kept.sp : {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready }));
         if (!before.has(p.id) && p.id !== LIVE.myId && before.size) {
           LIVE.flash = `${cleanName(p.name) || "Someone"} joined`;
           toast(LIVE.flash); Sound.tier("mlion");
@@ -530,7 +534,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
     } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && validQ(+m.n)) {
-      LIVE.seed = m.seed; LIVE.n = +m.n; LIVE.phase = "playing"; LIVE.revealed = -1; LIVE.countdownAt = 0;
+      LIVE.seed = m.seed; LIVE.n = +m.n; LIVE.phase = "playing"; LIVE.revealed = -1; LIVE.countdownAt = 0; LIVE.spRec = null;
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
       liveSprintStop();
@@ -664,7 +668,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       clearTimeout(pl.awayTimer); pl.awayTimer = 0; pl.away = false;
       LIVE.conns.set(conn.peer, conn);
       broadcast(lobbyMsg());
-      if (LIVE.phase === "playing") try { conn.send({ t: "resume", seed: LIVE.seed, n: LIVE.n }); } catch { /* ignore */ }
+      if (LIVE.phase === "playing") try { conn.send({ t: "resume", seed: LIVE.seed, n: LIVE.n, ...(liveSprint() ? { fmt: "sprint", ids: LIVE.ids, i: SPR ? SPR.i : 0, revealed: LIVE.revealed } : {}) }); } catch { /* ignore */ }
       return;
     }
     if (m.t === "hello") {
@@ -710,7 +714,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     pl.away = true; // keep their seat for a while: phones pause pages when you switch apps
     broadcast(lobbyMsg());
     pl.awayTimer = setTimeout(() => {
-      if (!pl.away || !LIVE.players.has(id)) return;
+      if (!pl.away || !LIVE.isHost || LIVE.players.get(id) !== pl) return; // this page may have been taken over since
       liveSprintKeep([id], new Map()); // before the seat goes, so a sprint match keeps their score
       LIVE.players.delete(id);
       broadcast(lobbyMsg());
@@ -857,9 +861,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (topic.endsWith("/down")) { // another page claims the room with a newer epoch: hand over and rejoin
       if (m.hid && m.hid !== LIVE.myId && (+m.ep || 0) > (LIVE.ep || 0)) {
         const code = LIVE.code, me = LIVE.players.get(LIVE.myId), name = me ? me.name : myName();
-        const keepId = LIVE.myId;
+        const keepId = LIVE.myId, carry = LIVE.phase === "playing" && liveSprint() ? spSnapshot() : null;
         toast("Reconnected. Your friend is hosting now");
         leaveLive(true);
+        spCarry = carry; // picked up when the new host says "resume"
         liveJoin(code, name, keepId);
       }
       return;
@@ -1004,6 +1009,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (d.t === "resume") {
         LIVE.phase = "playing";
         toast("Back in the match");
+        if (d.fmt === "sprint" && !(liveSprint() && SPR)) liveSprintRestore(d);
         if (liveSprint() && SPR) liveSprintBackIn();
         else if (RUN && RUN.mode === "live") {
           if (descent) { descent.destroy(); descent = null; }
@@ -2899,7 +2905,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function sprintVs(parts) {
     const pts = +parts[0], n = +parts[1];
     if (!Number.isInteger(pts) || !Number.isInteger(n) || pts < 0 || pts > 99999 || n < 0 || n > 999) return null;
-    return { pts, n, name: (parts[2] && /^[0-9a-f]+$/.test(parts[2]) && decName(parts[2])) || "Your friend" };
+    return { pts, n, name: (parts[2] && /^(?:[0-9a-f]{2}){1,32}$/.test(parts[2]) && decName(parts[2]).slice(0, 16)) || "Your friend" };
   }
   const sprintLink = (pid, pts, n) => `${SHARE_BASE || siteUrl()}#sprint-${pid}~${pts}~${n}${myName() ? "~" + encName(myName()) : ""}`;
 
@@ -2912,7 +2918,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!p || p.reasoning) return go("sprint");
     let vs = rest.length >= 2 ? sprintVs(rest) : null;
     const mine = sprints[p.id];
-    if (vs && mine && mine.best === vs.pts && (!myName() || vs.name === myName())) vs = null; // my own link
+    if (vs && mine && mine.best === vs.pts && myName() && vs.name === myName()) vs = null; // my own link (a nameless one stays a duel)
     const recent = Object.entries(sprints).filter(([pid]) => PROMPTS.has(pid)).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 8);
     app.innerHTML = `<section class="screen narrow sprint" id="sprint">
       <div class="page-head"><h1>Sprint</h1><p>One prompt, ${SPRINT_SECS} seconds. Name every answer you can. Rarer ones score more.</p></div>
@@ -3175,6 +3181,27 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     S.nextAt = Number.isFinite(+m.nextAt) ? +m.nextAt : 0;
     drawSprint();
     S.loop = setInterval(() => { const el = S === SPR && $("#sp-next"); if (el) el.textContent = spNextLine(S); }, 250);
+  }
+  let spCarry = null; // a taken-over host's sprint match, kept until the new host says "resume"
+  function spSnapshot() {
+    return { ids: LIVE.ids.slice(), gone: LIVE.gone, S: SPR, rec: new Map(playerList().map((p) => [p.id, { ans: p.ans, sp: p.sp || {} }])) };
+  }
+  /** Back in a sprint match this page lost track of (it was the host and was taken over, or it reloaded):
+   *  the format, prompts and round come from the host's "resume"; answers so far from what this page kept. */
+  function liveSprintRestore(d) {
+    const c = spCarry; spCarry = null;
+    const ids = Array.isArray(d.ids) && d.ids.length && d.ids.length <= Q_MAX && d.ids.every((id) => sprintOk(PROMPTS.get(id))) ? d.ids.slice() : null;
+    if (!ids) return;
+    const i = Number.isInteger(d.i) && d.i >= 0 && d.i < ids.length ? d.i : 0;
+    const same = !!c && c.ids.join() === ids.join();
+    Object.assign(LIVE, { mfmt: "sprint", quiz: null, skip: null, ids, n: ids.length, gone: same ? c.gone : new Map(), spRec: same ? c.rec : null,
+      revealed: Number.isInteger(d.revealed) ? Math.max(-1, Math.min(d.revealed, ids.length - 1)) : -1 });
+    for (const pl of LIVE.players.values()) { const k = same && c.rec.get(pl.id); pl.ans = k ? k.ans : {}; pl.sp = k ? k.sp : {}; }
+    liveSprintStop();
+    SPR = same && c.S && c.S.i === i ? c.S : spRound(i);
+    if (SPR.phase === "ended") spSendFinal(SPR); // its list may only have reached the old host: this page
+    if (SPR.phase === "intro" || SPR.phase === "reveal") SPR.phase = "away";
+    renderSprintShell();
   }
   /** A returning player waits for the next sprint, like Classic: this one ends for them with what they have. */
   function liveSprintBackIn() {
@@ -3530,7 +3557,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const tierMax = Math.max(1, ...Object.values(s.tierCounts));
     const bandMax = Math.max(1, ...s.bands.map((b) => b.n));
     const figs = [["Played", s.played], ["Average", s.avg || "—"], ["Best", s.best || "—"], ["Streak", s.cur], ["Max streak", s.max], ["Gems", s.gems]];
-    if (!s.played) {
+    if (!s.played && !s.allRuns) {
       app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Stats</h1><p>Your streak, best score and tier counts start with your first daily. They stay in this browser.</p></div>
         <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div>${quizBlock}${sprintBlock}</section>`;
       return;

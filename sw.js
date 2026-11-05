@@ -6,7 +6,7 @@
  *   - everything else (leaderboard, live rooms): straight to the network, never cached
  * tools/build.js rewrites the ASSETS line on every build. */
 "use strict";
-const ASSETS = /*ASSETS*/["./","css/style.css?v=1as2lmt","js/engine.js?v=1hbzkkk","js/data.js?v=n3v2hk","js/landscape.js?v=1wh6xx","js/hero3d.js?v=1qqfzi9","js/app.js?v=15faw8a","manifest.webmanifest","img/favicon.svg","img/icon-192.png","img/apple-touch-icon.png"]/*END*/;
+const ASSETS = /*ASSETS*/["./","css/style.css?v=1as2lmt","js/engine.js?v=v7ccyv","js/data.js?v=n3v2hk","js/landscape.js?v=1wh6xx","js/hero3d.js?v=1qqfzi9","js/app.js?v=1w0h0ev","manifest.webmanifest","img/favicon.svg","img/icon-192.png","img/apple-touch-icon.png"]/*END*/;
 const CACHE = "mlion-" + ASSETS.join("|").split("").reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7).toString(36);
 
 self.addEventListener("install", (e) => {
@@ -29,7 +29,8 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (req.mode === "navigate" && url.origin === location.origin) {
-    e.respondWith(fetch(req).then((res) => keep("./", res)).catch(() => caches.match("./")));
+    const shell = url.pathname === new URL("./", location).pathname || url.pathname === new URL("./index.html", location).pathname; // only the game's own page is its offline copy
+    e.respondWith(fetch(req).then((res) => (shell ? keep("./", res) : res)).catch(() => caches.match("./")));
     return;
   }
   if (url.origin === location.origin) {

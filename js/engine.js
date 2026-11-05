@@ -286,6 +286,8 @@
     // list already spells PI out as "Probability of improvement".
     let acIdx = -1;
     for (const ac of acronyms(text)) if (exact.has(ac) && !hasLongForm(answers[exact.get(ac)])) { acIdx = exact.get(ac); break; }
+    // the same initials, long form or not: only a tie-breaker between close typos ("Geetic algorithm": GA)
+    const acTie = [...acronyms(text)].map((ac) => (exact.has(ac) ? answers[exact.get(ac)] : null)).filter(Boolean);
 
     // ---- fuzzy: score every answer by its best key, then decide.
     const probes = [...new Set([kf, ks, kso])].filter(Boolean);
@@ -352,6 +354,9 @@
       if (near.length === 1 || (near.length === tied.length && pick.length === 1 && best >= 0.85)) {
         return { kind: "correction", answer: near.length === 1 ? near[0] : pick[0], from: text, confidence: best, via: "typo" };
       }
+      // close typos of several answers, and the initials point at one of them: that one
+      const byInitials = near.filter((a) => acTie.includes(a));
+      if (near.length > 1 && byInitials.length === 1) return { kind: "correction", answer: byInitials[0], from: text, confidence: typo.get(answers.indexOf(byInitials[0])), via: "typo" };
       if (near.length > 1) return { kind: "suggest", suggestions: near.slice(0, 3), confidence: best };
     }
     const [i1, s1] = ranked[0];
