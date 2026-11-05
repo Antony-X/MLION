@@ -57,7 +57,7 @@ const HOLD_MS = 2500;
     await p.waitForTimeout(700); // the button has risen into place
     await p.click(".pre-home .hero-cta a.primary");
     await p.waitForFunction(() => location.hash === "#daily" && document.querySelector(".play, .intro-card, .round"), null, { timeout: HOLD_MS + 10000 });
-    check(true, "Start training clicked before the questions arrived still opens today's run");
+    check(true, "Play today's daily clicked before the questions arrived still opens today's run");
     await ctx.close();
   }
 

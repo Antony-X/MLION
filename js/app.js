@@ -96,7 +96,14 @@
   /** What the page backdrop shows: the full surface at home, a horizon elsewhere. */
   function scene(view, opts) { document.body.dataset.view = view; if (V.scene) V.scene(view, opts); }
   /** The six tiers, each set as deep as it scores. */
-  const DEPTH_LINES = { baseline: "The answer everyone blurts out.", overfit: "The famous obscure pick.", indist: "Right in the fat middle.", outlier: "Genuinely uncommon.", longtail: "Few sample this far out.", mlion: "The global minimum." };
+  const DEPTH_LINES = {
+    baseline: "The answer almost everyone gives.",
+    overfit: "The “obscure” pick that everyone knows.",
+    indist: "A solid answer plenty of people know.",
+    outlier: "Uncommon. Most people won't think of it.",
+    longtail: "Rare. Hardly anyone types it.",
+    mlion: "The hidden gem: one per prompt, picked by hand.",
+  };
   function depthList(lines = false) {
     const order = E.TIERS_BY_SCORE.slice().reverse();
     return `<ol class="depths" aria-label="Rarity tiers">${order.map((t, i) => `<li class="t-${t.id}" style="--d:${(i / (order.length - 1)).toFixed(2)}">${G(t.id)}<span class="n">${esc(t.name)}${lines ? `<small>${DEPTH_LINES[t.id]}</small>` : ""}</span><span class="p">+${t.score}</span></li>`).join("")}</ol>`;
@@ -1761,37 +1768,37 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const inProg = !rec && LS.get(`run:daily:${date}`);
     const s = statsSummary();
     let cta;
-    if (rec) cta = `<a class="btn primary big" href="#results-${slugFor(rec.key)}">Today's run · ${rec.score}</a>
+    if (rec) cta = `<a class="btn primary big" href="#results-${slugFor(rec.key)}">Today's results · ${rec.score}</a>
       <span class="countdown">Next in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></span>`;
     else if (inProg) cta = `<a class="btn primary big" href="#daily">${resumeLabel(inProg)}</a>`;
-    else cta = `<a class="btn primary big" href="#daily">Start training</a>`;
+    else cta = `<a class="btn primary big" href="#daily">Play today's daily</a>`;
     cta += `<a class="btn big" href="#live">Play with friends</a>`;
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const unl = LS.get(`run:unlimited:${nextUnlimited()}`);
     const modes = [
       // [href, title, line, class, live format for the "With a friend" button beside it]
-      ["#daily", "Daily", rec ? `Today's run · ${rec.score}` : inProg ? `${resumeLabel(inProg)}` : `MLion #${n} · seven prompts`, "hl", "rarity"],
-      ["#unlimited-play", "Unlimited", unl && unl.results && unl.results.length ? `Resume · ${unl.results.length} answered` : "Endless prompts, no repeats"],
-      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Multiple choice, a daily one too", "", "quiz"],
-      ["#sprint", "Sprint", "60 s, rare answers add time", "", "sprint"],
+      ["#daily", "Daily", rec ? `Today's results · ${rec.score}` : inProg ? `${resumeLabel(inProg)}` : `MLion #${n} · seven prompts, the same for everyone`, "hl", "rarity"],
+      ["#unlimited-play", "Unlimited", unl && unl.results && unl.results.length ? `Resume · ${unl.results.length} answered` : "As many prompts as you like, no repeats"],
+      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Pick one of four answers. A new daily quiz too", "", "quiz"],
+      ["#sprint", "Sprint", "One prompt, 60 seconds, name all you can", "", "sprint"],
       ["#board", "Leaderboard", "Today's top scores"],
-      ["#prefs", "Settings", "Clock, sound, extra questions"],
+      ["#prefs", "Settings", "Time per question, sound, extra questions"],
     ].filter(([href]) => BOARD_ON || href !== "#board");
     const html = `<section class="screen home">
       <canvas id="hero3d" aria-hidden="true"></canvas>
       ${bannerHtml()}
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
-        <p class="pitch">A daily machine-learning word game. Rarer answers roll deeper.</p>
+        <p class="pitch">A daily machine-learning word game. Name the rarest right answer you can.</p>
         <div class="hero-cta">${cta}</div>
       </div>
-      <section class="depths-sec"><h2>Six depths</h2>${depthList(true)}</section>
+      <section class="depths-sec"><h2>How answers score</h2>${depthList(true)}</section>
       <div class="home-rest">
-        <section><h2>More</h2><ul class="modes">${modes.map(([href, t, d, c, f]) => `<li${f ? ` class="duo"` : ""}><a href="${href}"${c ? ` class="${c}"` : ""}>${t}<span>${esc(d)}</span></a>${f ? `<a class="friend" href="#live" data-fmt="${f}" aria-label="Play ${t === "Daily" ? "Classic" : t} with a friend">${DUO}<span>With a friend</span></a>` : ""}</li>`).join("")}</ul></section>
-        ${s.played ? `<section><h2>Your descent</h2><div class="figures">
-          <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
-          <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
-          <div class="figure"><b>${s.gems}</b><span>Gems</span></div>
+        <section><h2>Ways to play</h2><ul class="modes">${modes.map(([href, t, d, c, f]) => `<li${f ? ` class="duo"` : ""}><a href="${href}"${c ? ` class="${c}"` : ""}>${t}<span>${esc(d)}</span></a>${f ? `<a class="friend" href="#live" data-fmt="${f}" aria-label="Play ${t === "Daily" ? "Classic" : t} with a friend">${DUO}<span>With a friend</span></a>` : ""}</li>`).join("")}</ul></section>
+        ${s.played ? `<section><h2>Your stats</h2><div class="figures">
+          <div class="figure"><b>${s.cur}</b><span>Day streak</span></div>
+          <div class="figure"><b>${s.best || "—"}</b><span>Best daily</span></div>
+          <div class="figure"><b>${s.gems}</b><span>Gems found</span></div>
         </div></section>` : ""}
         <p class="home-close"><span>One in a MLion</span></p>
       </div>
