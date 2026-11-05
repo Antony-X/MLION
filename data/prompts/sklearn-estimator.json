@@ -219,6 +219,6 @@
     { "a": "RandomForestClassifier", "t": "baseline", "aka": ["random forest", "RF", "randomforest"], "q": "Breiman's 2001 forest: bagged trees with random feature subsets." },
     { "a": "KMeans", "t": "baseline", "aka": ["k-means clustering", "k-means++"], "q": "Lloyd's algorithm, with k-means++ initialization by default." },
     { "a": "SVC", "t": "baseline", "aka": ["SVM", "support vector machine", "support vector classifier", "svm classifier", "support vector classification"], "q": "Wraps libsvm. Training time grows at least quadratically with samples." },
-    { "a": "DecisionTreeClassifier", "t": "baseline", "aka": ["decision tree", "CART"] }
+    { "a": "DecisionTreeClassifier", "t": "baseline", "aka": ["decision tree", "CART"], "q": "scikit-learn's CART tree. Without max_depth or min_samples_leaf it grows until every leaf is pure." }
   ]
 }

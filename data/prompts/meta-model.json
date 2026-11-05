@@ -234,8 +234,8 @@
     { "a": "Cicero", "t": "overfit", "q": "Played Diplomacy in plain English on webDiplomacy.net and scored more than double the human average." },
 
     { "a": "LLaMA", "t": "baseline", "aka": ["Llama", "Llama 1", "LLaMA 7B", "LLaMA 13B", "LLaMA 33B", "LLaMA 65B", "Large Language Model Meta AI"], "q": "Released to researchers only in Feb 2023; the weights were on 4chan within a week." },
-    { "a": "Llama 2", "t": "baseline", "aka": ["Llama 2 7B", "Llama 2 13B", "Llama 2 70B", "Llama 2 Chat", "Llama 2 Long"] },
-    { "a": "Llama 3", "t": "baseline", "aka": ["Llama 3 8B", "Llama 3 70B"] },
+    { "a": "Llama 2", "t": "baseline", "aka": ["Llama 2 7B", "Llama 2 13B", "Llama 2 70B", "Llama 2 Chat", "Llama 2 Long"], "q": "Meta, July 2023: 7B to 70B parameters with chat versions, under a license that allowed commercial use." },
+    { "a": "Llama 3", "t": "baseline", "aka": ["Llama 3 8B", "Llama 3 70B"], "q": "Meta, April 2024: 8B and 70B, trained on about 15 trillion tokens with a 128K-token vocabulary." },
     { "a": "SAM", "t": "baseline", "aka": ["Segment Anything", "Segment Anything Model", "SAM 1"], "q": "Promptable segmentation trained on SA-1B: 1.1B masks over 11M images." },
     { "a": "Humpback", "t": "longtail", "aka": ["Self-Alignment with Instruction Backtranslation", "Instruction Backtranslation"] },
     { "a": "FBNet", "t": "longtail", "aka": ["FBNetV2", "FBNetV3"] }

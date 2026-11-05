@@ -75,7 +75,7 @@
 
     { "a": "MSE", "t": "baseline", "aka": ["mean squared error", "L2 loss", "squared error", "mean squared deviation", "MSD", "mean squared prediction error", "MSPE", "quadratic loss"], "q": "Squares the errors, so outliers shout." },
     { "a": "RMSE", "t": "baseline", "aka": ["root mean squared error", "root mean square error", "RMSD", "root-mean-square deviation"], "q": "MSE back in the target's units. The Netflix Prize was decided by it." },
-    { "a": "MAE", "t": "baseline", "aka": ["mean absolute error", "L1 loss", "absolute error", "mean absolute deviation", "MAD"] },
+    { "a": "MAE", "t": "baseline", "aka": ["mean absolute error", "L1 loss", "absolute error", "mean absolute deviation", "MAD"], "q": "Mean of |y − ŷ|, in the target's own units. Every unit of error counts the same, big miss or small." },
     { "a": "R²", "t": "baseline", "aka": ["R-squared", "coefficient of determination", "R2 score"], "q": "Can go negative on test data, which surprises people every single time." },
     { "a": "Normalized MAE", "t": "longtail", "aka": ["NMAE", "normalized mean absolute error"] },
     { "a": "Legates–McCabe efficiency", "t": "longtail", "aka": ["Legates-McCabe", "E1", "modified Nash–Sutcliffe efficiency"] },

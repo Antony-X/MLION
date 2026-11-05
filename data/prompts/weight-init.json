@@ -45,10 +45,10 @@
 
     { "a": "Orthogonal initialization", "t": "overfit", "aka": ["random orthogonal", "Haar orthogonal", "Saxe initialization", "unitary initialization", "orthonormal", "orthonormal initialization", "unitary RNN init"], "q": "Saxe et al. 2013: start from a random rotation so signals keep their norm. The RNN classic." },
 
-    { "a": "Xavier initialization", "t": "baseline", "aka": ["Glorot", "Xavier uniform", "Xavier normal", "Glorot uniform", "Glorot normal", "normalized initialization", "Xavier filler", "Keras default", "TensorFlow default", "Glorot uniform default"] },
+    { "a": "Xavier initialization", "t": "baseline", "aka": ["Glorot", "Xavier uniform", "Xavier normal", "Glorot uniform", "Glorot normal", "normalized initialization", "Xavier filler", "Keras default", "TensorFlow default", "Glorot uniform default"], "q": "Glorot & Bengio, 2010: variance 2/(fan_in + fan_out), so signals keep their scale both ways. Designed for tanh." },
     { "a": "He initialization", "t": "baseline", "aka": ["Kaiming", "Kaiming normal", "Kaiming uniform", "He normal", "He uniform", "MSRA", "MSRA filler"], "q": "Variance 2/fan_in to make up for ReLU zeroing half its inputs. He et al. 2015." },
-    { "a": "Random normal", "t": "baseline", "aka": ["normal", "Gaussian", "random Gaussian", "random", "random initialization", "small random numbers", "small random weights"] },
-    { "a": "Random uniform", "t": "baseline", "aka": ["uniform"] },
+    { "a": "Random normal", "t": "baseline", "aka": ["normal", "Gaussian", "random Gaussian", "random", "random initialization", "small random numbers", "small random weights"], "q": "Draw weights from N(0, σ²). With one fixed σ, deep nets vanish or explode; scaling σ to the layer's width fixes it." },
+    { "a": "Random uniform", "t": "baseline", "aka": ["uniform"], "q": "Draw weights from U(−a, a). PyTorch's Linear layers default to a Kaiming-uniform variant of exactly this." },
     { "a": "Zeros", "t": "baseline", "aka": ["zero", "zero initialization", "all zeros"], "q": "Every neuron identical, forever: the init your professor warned you about. (Fine for biases.)" },
     { "a": "Custom initializer", "t": "longtail", "aka": ["Initializer", "kernel initializer", "bias initializer", "custom init"] },
     { "a": "STFTInitializer", "t": "longtail", "aka": ["STFT initializer", "STFT initialization"] },

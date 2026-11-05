@@ -137,10 +137,10 @@
     { "a": "Cauchy", "t": "overfit", "aka": ["lorentz", "lorentzian", "breit-wigner"], "q": "No mean, no variance, and the law of large numbers doesn't apply. The pathological favorite." },
 
     { "a": "Normal", "t": "baseline", "aka": ["gaussian", "bell curve", "gauss", "normal distribution", "laplace-gauss", "standard normal", "unit normal", "standard gaussian"], "q": "The CLT's destination and the default assumption in about half of all papers." },
-    { "a": "Uniform", "t": "baseline", "aka": ["continuous uniform", "rectangular"] },
-    { "a": "Binomial", "t": "baseline" },
+    { "a": "Uniform", "t": "baseline", "aka": ["continuous uniform", "rectangular"], "q": "Every value in [a, b] equally likely. Mean (a+b)/2, variance (b−a)²/12." },
+    { "a": "Binomial", "t": "baseline", "q": "Successes in n Bernoulli trials: C(n,k)·pᵏ(1−p)ⁿ⁻ᵏ. Mean np, variance np(1−p)." },
     { "a": "Poisson", "t": "baseline", "q": "Counts of rare events. Bortkiewicz fit it to Prussian soldiers kicked to death by horses." },
-    { "a": "Bernoulli", "t": "baseline" },
+    { "a": "Bernoulli", "t": "baseline", "q": "One coin flip: 1 with probability p, else 0. Mean p, variance p(1−p)." },
     { "a": "Continuous Bernoulli", "t": "outlier", "aka": ["continuous bernoulli distribution"], "q": "A VAE fix: a Bernoulli likelihood on [0,1] pixels is not normalised. This one is." },
     { "a": "Log-uniform", "t": "outlier", "aka": ["loguniform", "reciprocal"], "q": "Uniform in log-space: the usual prior for learning rates and other scale parameters." },
     { "a": "Half-Student's t", "t": "outlier", "aka": ["half-t", "half student t", "half t"] },

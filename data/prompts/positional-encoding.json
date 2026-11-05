@@ -10,8 +10,8 @@
     { "a": "Sinusoidal", "t": "baseline", "aka": ["sinusoidal positional encoding", "sine cosine", "sin cos", "sine-cosine", "sinusoid", "fixed sinusoidal", "fixed", "vanilla transformer positional encoding", "timing signal", "absolute sinusoidal", "sine and cosine", "sines and cosines"], "q": "Vaswani et al. hoped it would extrapolate to longer sequences. It mostly didn't." },
     { "a": "Learned", "t": "baseline", "aka": ["learned absolute", "learnable", "trainable", "learned positional embedding", "BERT positional embedding", "GPT positional embedding", "wpe", "lookup table", "ViT position embedding", "GPT-2 positional embedding", "GPT2 positional embedding", "ViT learned position embedding"], "q": "One trainable vector per slot. Works great until token 1025 shows up." },
     { "a": "RoPE", "t": "baseline", "aka": ["rotary", "rotary positional embedding", "rotary position embedding", "RoFormer"], "q": "Rotate each query/key pair by an angle set by position, and the dot product only sees the offset." },
-    { "a": "Relative (Shaw et al.)", "t": "baseline", "aka": ["relative", "relative positional encoding", "relative position representations", "Shaw", "clipped relative position", "learned relative position"] },
-    { "a": "Absolute", "t": "baseline", "aka": ["absolute positional encoding", "absolute positional embedding"] },
+    { "a": "Relative (Shaw et al.)", "t": "baseline", "aka": ["relative", "relative positional encoding", "relative position representations", "Shaw", "clipped relative position", "learned relative position"], "q": "Attention sees how far apart two tokens are, not where each one sits. Shaw, Uszkoreit & Vaswani, 2018." },
+    { "a": "Absolute", "t": "baseline", "aka": ["absolute positional encoding", "absolute positional embedding"], "q": "Each position gets its own vector, added to the token: fixed sinusoids in the original transformer, learned in BERT and GPT-2." },
 
     { "a": "ALiBi", "t": "overfit", "aka": ["attention with linear biases", "linear biases"], "q": "Skip the embeddings, subtract a distance penalty from attention. Train short, test long." },
 

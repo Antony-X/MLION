@@ -89,7 +89,7 @@
     { "a": "Federated learning", "t": "overfit", "aka": ["FL", "federated"], "q": "Train on a billion phones without the data leaving them. McMahan et al. 2017." },
 
     { "a": "Supervised learning", "t": "baseline", "aka": ["supervised"], "q": "Inputs with answers attached. The paradigm that made labeling a job title." },
-    { "a": "Unsupervised learning", "t": "baseline", "aka": ["unsupervised"] },
+    { "a": "Unsupervised learning", "t": "baseline", "aka": ["unsupervised"], "q": "Find structure in data without labels: clusters, densities, low-dimensional maps." },
     { "a": "Reinforcement learning", "t": "baseline", "aka": ["RL", "reinforcement"], "q": "No labels, just rewards, often late. Sutton & Barto wrote the book. Literally." },
     { "a": "Self-supervised learning", "t": "baseline", "aka": ["self-supervised", "SSL", "self supervision"], "q": "The data labels itself: mask it, predict it. LeCun's cake, minus the cherry." },
     { "a": "Semi-supervised learning", "t": "baseline", "aka": ["semi-supervised", "semisupervised"], "q": "A few labels, a lot of unlabeled data, and the hope that clusters mean classes." },

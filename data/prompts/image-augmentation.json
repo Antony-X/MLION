@@ -8,9 +8,9 @@
     { "a": "Fancy PCA", "t": "mlion", "aka": ["PCA color augmentation", "PCA colour augmentation", "AlexNet color augmentation", "PCA lighting", "lighting noise", "PCA jitter"], "q": "AlexNet's trick: jitter RGB along the pixel PCA axes. Per the paper, it cut top-1 error by over 1%." },
 
     { "a": "Horizontal flip", "t": "baseline", "aka": ["flip", "flipping", "mirror", "mirroring", "RandomHorizontalFlip", "hflip", "left-right flip", "horizontal flipping"], "q": "Free 2x data, unless you're reading text or telling left hands from right." },
-    { "a": "Rotation", "t": "baseline", "aka": ["rotate", "rotations", "RandomRotation", "random rotation"] },
-    { "a": "Random crop", "t": "baseline", "aka": ["crop", "cropping", "RandomCrop", "pad and crop", "padding and cropping", "random cropping"] },
-    { "a": "Color jitter", "t": "baseline", "aka": ["ColorJitter", "color jittering", "colour jitter", "color augmentation", "colour augmentation", "photometric distortion", "HSV augmentation", "HSV jitter", "color distortion"] },
+    { "a": "Rotation", "t": "baseline", "aka": ["rotate", "rotations", "RandomRotation", "random rotation"], "q": "Turn the image by a random angle. Fine for cells and satellite tiles; turn a 6 far enough and it becomes a 9." },
+    { "a": "Random crop", "t": "baseline", "aka": ["crop", "cropping", "RandomCrop", "pad and crop", "padding and cropping", "random cropping"], "q": "Train on random patches of each image. AlexNet took 224×224 crops from 256×256 images, and flipped them too." },
+    { "a": "Color jitter", "t": "baseline", "aka": ["ColorJitter", "color jittering", "colour jitter", "color augmentation", "colour augmentation", "photometric distortion", "HSV augmentation", "HSV jitter", "color distortion"], "q": "Random shifts in brightness, contrast, saturation and hue, so the model stops leaning on exact colours." },
 
     { "a": "Mixup", "t": "overfit", "aka": ["mix-up", "input mixup"], "q": "Blend two images and their labels. A 40% cat, 60% dog: nonsense to humans, regularization to nets." },
     { "a": "CutMix", "t": "overfit", "aka": ["cut mix", "cut-mix"], "q": "Paste a patch of one image onto another, mix labels by area. Cutout meets Mixup, and wins." },

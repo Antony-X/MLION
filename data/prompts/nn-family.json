@@ -9,7 +9,7 @@
 
     { "a": "MLP", "t": "baseline", "aka": ["multilayer perceptron", "multi-layer perceptron", "feedforward", "feedforward neural network", "feed-forward network", "FFN", "FNN", "FFNN", "fully connected network", "dense network", "DNN", "deep neural network", "ANN", "artificial neural network", "vanilla neural network"], "q": "The universal approximator: one hidden layer is enough in theory, never in practice." },
     { "a": "CNN", "t": "baseline", "aka": ["convolutional neural network", "convolutional", "ConvNet", "convnet", "1D CNN", "2D CNN", "3D CNN", "3D convolutional network"], "q": "LeCun's nets read checks in the '90s. AlexNet made everyone care in 2012." },
-    { "a": "RNN", "t": "baseline", "aka": ["recurrent neural network", "recurrent", "vanilla RNN", "stacked RNN", "deep RNN", "multi-layer RNN", "multilayer RNN"] },
+    { "a": "RNN", "t": "baseline", "aka": ["recurrent neural network", "recurrent", "vanilla RNN", "stacked RNN", "deep RNN", "multi-layer RNN", "multilayer RNN"], "q": "One set of weights reused at every time step, with a hidden state carrying the past. Trained by backpropagation through time." },
     { "a": "Transformer", "t": "baseline", "aka": ["transformers", "attention network", "self-attention network"], "q": "\"Attention Is All You Need\", 2017. Turned out to be roughly true." },
     { "a": "LSTM", "t": "baseline", "aka": ["long short-term memory", "long short term memory", "peephole LSTM", "stacked LSTM", "deep LSTM"], "q": "Hochreiter & Schmidhuber, 1997. Schmidhuber would like you to remember that." },
     { "a": "GAN", "t": "baseline", "aka": ["generative adversarial network", "generative adversarial"], "q": "Goodfellow, an argument at a bar, and one night of coding in 2014." },

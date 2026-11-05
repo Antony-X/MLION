@@ -106,7 +106,7 @@
 
     { "a": "Andrew Ng's Machine Learning", "t": "baseline", "aka": ["Andrew Ng", "Coursera Machine Learning", "Coursera ML", "Machine Learning Specialization", "Andrew Ng Coursera"], "q": "The 2011 Stanford class that helped launch Coursera. Millions learned gradient descent in Octave." },
     { "a": "fast.ai", "t": "baseline", "aka": ["Practical Deep Learning for Coders", "fastai", "Jeremy Howard", "Rachel Thomas"], "q": "Top-down teaching: train a model in lesson one, learn what a gradient is later." },
-    { "a": "CS229", "t": "baseline", "aka": ["Stanford CS229", "Stanford Machine Learning"] },
+    { "a": "CS229", "t": "baseline", "aka": ["Stanford CS229", "Stanford Machine Learning"], "q": "Stanford's machine learning course. Andrew Ng's 2008 lectures went online and taught a generation." },
     { "a": "CS231n", "t": "baseline", "aka": ["Stanford CS231n", "Convolutional Neural Networks for Visual Recognition", "Fei-Fei Li"], "q": "Karpathy's lecture notes here taught a generation what backprop looks like on a whiteboard." },
     { "a": "3Blue1Brown", "t": "baseline", "aka": ["3b1b", "Grant Sanderson", "But what is a neural network", "Essence of linear algebra", "Essence of calculus"], "q": "The animated neural-net series. Pi-creatures included." },
     { "a": "Machine Learning Mastery", "t": "outlier", "aka": ["Jason Brownlee", "machinelearningmastery.com"] },

@@ -9,11 +9,11 @@
 
     { "a": "Gradient clipping", "t": "baseline", "aka": ["grad clipping", "clip grad norm", "clip_grad_norm", "gradient norm clipping", "clipping", "clip by value", "gradient value clipping", "norm clipping", "gradient clipping by norm", "gradient clipping by value", "global norm clipping", "global gradient norm clipping"], "q": "The seatbelt for RNNs since Pascanu et al. 2013. Now standard for every LLM run." },
     { "a": "Learning rate warmup", "t": "baseline", "aka": ["warmup", "warm-up", "lr warmup", "linear warmup", "gradual warmup", "learning rate warm-up"], "q": "Start tiny and ramp up, so early giant gradients and fresh Adam statistics don't wreck the weights." },
-    { "a": "Learning rate scheduling", "t": "baseline", "aka": ["lr schedule", "learning rate schedule", "lr scheduling", "learning rate decay", "lr decay", "learning rate annealing", "annealing", "scheduler", "lr scheduler"] },
+    { "a": "Learning rate scheduling", "t": "baseline", "aka": ["lr schedule", "learning rate schedule", "lr scheduling", "learning rate decay", "lr decay", "learning rate annealing", "annealing", "scheduler", "lr scheduler"], "q": "Change the learning rate as training goes: usually a short warm-up, then a decay." },
     { "a": "Dropout", "t": "baseline", "aka": ["dropout regularization"], "q": "Hinton's idea: randomly silence neurons so none can freeload on the others." },
     { "a": "Batch normalization", "t": "baseline", "aka": ["batch norm", "batchnorm", "BN"], "q": "Ioffe & Szegedy blamed 'internal covariate shift'. The fix stuck; the explanation didn't." },
     { "a": "Early stopping", "t": "baseline", "aka": ["early stop", "stopping early"], "q": "The cheapest regularizer there is: stop when validation loss stops improving." },
-    { "a": "Data augmentation", "t": "baseline", "aka": ["augmentation", "data augmentations", "augmenting data"] },
+    { "a": "Data augmentation", "t": "baseline", "aka": ["augmentation", "data augmentations", "augmenting data"], "q": "Train on transformed copies (flips, crops, noise) so the model learns what doesn't change the label." },
 
     { "a": "Label smoothing", "t": "overfit", "aka": ["label smoothing regularization", "LSR", "soft labels", "smoothed labels"], "q": "Tell the model the right answer is only 90% right. Szegedy et al.'s cure for overconfidence." },
 

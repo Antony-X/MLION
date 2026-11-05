@@ -111,8 +111,8 @@
     { "a": "NF4", "t": "overfit", "aka": ["NormalFloat", "4-bit NormalFloat", "NormalFloat4"], "q": "QLoRA's 4-bit type with levels at normal quantiles, since weights look Gaussian. Everyone's 'clever' format." },
 
     { "a": "INT8", "t": "baseline", "aka": ["8-bit integer", "8-bit"], "q": "The workhorse: 4x smaller than FP32 and supported by nearly every accelerator." },
-    { "a": "Post-training quantization", "t": "baseline", "aka": ["PTQ"] },
-    { "a": "Quantization-aware training", "t": "baseline", "aka": ["QAT", "fake quantization", "fake quant", "FakeQuantize"] },
+    { "a": "Post-training quantization", "t": "baseline", "aka": ["PTQ"], "q": "Quantize a trained model without retraining, using a little calibration data to set the ranges." },
+    { "a": "Quantization-aware training", "t": "baseline", "aka": ["QAT", "fake quantization", "fake quant", "FakeQuantize"], "q": "Simulate low precision during training (fake quantization, straight-through gradients) so the weights adapt to it." },
     { "a": "GPTQ", "t": "baseline", "aka": ["OPTQ", "AutoGPTQ"], "q": "Published at ICLR 2023 as OPTQ. Column-by-column with second-order error compensation." },
     { "a": "FP32", "t": "indist", "aka": ["float32","single precision"] },
     { "a": "UE8M0", "t": "longtail", "aka": ["E8M0"] },

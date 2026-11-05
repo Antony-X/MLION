@@ -109,9 +109,9 @@
     { "a": "Tree of Thoughts", "t": "overfit", "aka": ["ToT"], "q": "Search over branching thoughts with lookahead and backtracking. The fancy answer everyone has ready." },
     { "a": "ReAct", "t": "overfit", "aka": ["reason + act", "reasoning and acting"], "q": "Thought, Action, Observation, repeat. Half the agent frameworks are this loop." },
 
-    { "a": "Zero-shot prompting", "t": "baseline", "aka": ["direct prompting", "instruction prompting"] },
+    { "a": "Zero-shot prompting", "t": "baseline", "aka": ["direct prompting", "instruction prompting"], "q": "Just the instruction, no examples. The GPT-3 paper compared it with one-shot and few-shot." },
     { "a": "Few-shot prompting", "t": "baseline", "aka": ["in-context learning", "ICL", "one-shot prompting", "k-shot prompting", "few-shot learning"], "q": "GPT-3's party trick: Language Models are Few-Shot Learners." },
-    { "a": "Chain-of-thought prompting", "t": "baseline", "aka": ["CoT", "few-shot CoT", "step-by-step reasoning"] },
+    { "a": "Chain-of-thought prompting", "t": "baseline", "aka": ["CoT", "few-shot CoT", "step-by-step reasoning"], "q": "Show worked reasoning in the examples and the model writes out its own steps. Wei et al., 2022." },
     { "a": "Prompt tuning", "t": "outlier", "aka": ["soft prompt", "soft prompting", "soft prompt tuning", "continuous prompts"] },
     { "a": "Structured output", "t": "outlier", "aka": ["JSON mode", "structured outputs", "output format specification", "format constraints", "JSON output"] },
     { "a": "Tool use", "t": "outlier", "aka": ["function calling", "tool calling", "tool-augmented prompting"] },

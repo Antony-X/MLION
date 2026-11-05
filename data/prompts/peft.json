@@ -105,9 +105,9 @@
 
     { "a": "LoRA", "t": "baseline", "aka": ["low-rank adaptation","low-rank adapters","LoraConfig","peft LoraConfig"], "q": "Freeze W, learn BA. Rank 8 and a dream." },
     { "a": "QLoRA", "t": "baseline", "aka": ["quantized LoRA", "4-bit LoRA"], "q": "NF4 base plus LoRA: a 65B model fine-tuned on a single 48GB GPU." },
-    { "a": "Adapter", "t": "baseline", "aka": ["adapter tuning", "adapter layers", "bottleneck adapter", "Houlsby adapter", "serial adapter", "adapter modules", "Houlsby", "sequential adapter"] },
-    { "a": "Prefix tuning", "t": "baseline" },
-    { "a": "Prompt tuning", "t": "baseline", "aka": ["soft prompt", "soft prompt tuning", "soft prompting", "prompt learning"] },
+    { "a": "Adapter", "t": "baseline", "aka": ["adapter tuning", "adapter layers", "bottleneck adapter", "Houlsby adapter", "serial adapter", "adapter modules", "Houlsby", "sequential adapter"], "q": "Small bottleneck layers inserted in each block; only they are trained. Houlsby et al., 2019." },
+    { "a": "Prefix tuning", "t": "baseline", "q": "Learn key and value vectors prepended at every layer while the model stays frozen. Li & Liang, 2021." },
+    { "a": "Prompt tuning", "t": "baseline", "aka": ["soft prompt", "soft prompt tuning", "soft prompting", "prompt learning"], "q": "Learn a few soft token embeddings at the input only. Lester et al., 2021: it catches up with fine-tuning as models grow." },
     { "a": "MiSS", "t": "longtail", "aka": ["Bone","Block Affine","Matrix Shard Sharing"] },
     { "a": "C3A", "t": "longtail" },
     { "a": "EVA", "t": "longtail", "aka": ["Explained Variance Adaptation"] },

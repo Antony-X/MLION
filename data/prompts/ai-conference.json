@@ -104,9 +104,9 @@
     { "a": "COLT", "t": "overfit", "aka": ["Conference on Learning Theory", "Conference on Computational Learning Theory"], "q": "Where the experiments section is a proof." },
 
     { "a": "NeurIPS", "t": "baseline", "aka": ["NIPS", "Neural Information Processing Systems"], "q": "Renamed from NIPS in 2018. Tickets once sold out in 12 minutes." },
-    { "a": "ICML", "t": "baseline", "aka": ["International Conference on Machine Learning"] },
+    { "a": "ICML", "t": "baseline", "aka": ["International Conference on Machine Learning"], "q": "The International Conference on Machine Learning, first held in 1980, usually in July." },
     { "a": "ICLR", "t": "baseline", "aka": ["International Conference on Learning Representations"], "q": "OpenReview made its reviews public, so the whole field can watch Reviewer 2." },
-    { "a": "CVPR", "t": "baseline", "aka": ["Computer Vision and Pattern Recognition", "IEEE CVPR", "IEEE/CVF Conference on Computer Vision and Pattern Recognition", "CVPR conference"] },
+    { "a": "CVPR", "t": "baseline", "aka": ["Computer Vision and Pattern Recognition", "IEEE CVPR", "IEEE/CVF Conference on Computer Vision and Pattern Recognition", "CVPR conference"], "q": "Computer Vision and Pattern Recognition, held each June. Ranks among the top few venues of any field by Google Scholar's h5-index." },
     { "a": "SIGGRAPH", "t": "longtail", "aka": ["ACM SIGGRAPH", "SIGGRAPH Asia"] },
     { "a": "TREC", "t": "longtail", "aka": ["Text REtrieval Conference", "Text Retrieval Conference"] },
     { "a": "CLEF", "t": "longtail", "aka": ["Conference and Labs of the Evaluation Forum"] },

@@ -8,9 +8,9 @@
     { "a": "Glitch tokens", "t": "mlion", "aka": ["SolidGoldMagikarp", "under-trained tokens", "undertrained tokens", "anomalous tokens", "glitch token"], "q": "In the vocab, barely in the training data. Ask GPT-3-era models to repeat \" SolidGoldMagikarp\" and they dodge, insult or hallucinate." },
 
     { "a": "Overfitting", "t": "baseline", "aka": ["overfit", "over-fitting", "overtraining", "high variance", "too many epochs", "training too long"], "q": "Your model memorized the homework and failed the exam." },
-    { "a": "Underfitting", "t": "baseline", "aka": ["underfit", "under-fitting", "high bias", "insufficient model capacity", "model too small", "undertraining", "undertrained model", "training too short", "too few epochs"] },
+    { "a": "Underfitting", "t": "baseline", "aka": ["underfit", "under-fitting", "high bias", "insufficient model capacity", "model too small", "undertraining", "undertrained model", "training too short", "too few epochs"], "q": "High error on the training set itself: the model is too small, too regularized or not trained long enough." },
     { "a": "Vanishing gradients", "t": "baseline", "aka": ["vanishing gradient problem", "vanishing gradient", "gradient vanishing"], "q": "Hochreiter's 1991 thesis diagnosed it. His LSTM became the cure." },
-    { "a": "Exploding gradients", "t": "baseline", "aka": ["exploding gradient problem", "exploding gradient", "gradient explosion", "gradient cliffs", "cliffs in the loss landscape"] },
+    { "a": "Exploding gradients", "t": "baseline", "aka": ["exploding gradient problem", "exploding gradient", "gradient explosion", "gradient cliffs", "cliffs in the loss landscape"], "q": "Gradients grow layer by layer until the loss turns NaN. Gradient clipping is the usual fix." },
 
     { "a": "Mode collapse", "t": "overfit", "aka": ["mode dropping", "Helvetica scenario", "GAN mode collapse", "generator collapse"], "q": "The generator finds one output the discriminator likes and prints it forever. Goodfellow: the Helvetica scenario." },
     { "a": "Dying ReLU", "t": "overfit", "aka": ["dead ReLU", "dead ReLUs", "dead neurons", "dying ReLU problem", "dead units", "dying neurons"], "q": "Push a ReLU negative for every input and it never sees a gradient again. Rest in peace." },

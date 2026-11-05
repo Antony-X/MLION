@@ -50,10 +50,10 @@
     { "a": "FP8", "t": "overfit", "aka": ["float8", "8-bit float", "8-bit floating point"], "q": "Hopper's headline format. Comes in two flavors, E4M3 and E5M2, so choose wisely." },
     { "a": "Ternary", "t": "overfit", "aka": ["1.58-bit", "ternary weights", "bitnet b1.58", "trit", "int1.58", "bitnet"], "q": "BitNet b1.58: every weight in {−1, 0, 1}, log₂3 ≈ 1.58 bits. 'The Era of 1-bit LLMs.'" },
 
-    { "a": "FP32", "t": "baseline", "aka": ["float32", "single precision", "float", "binary32", "single", "torch.float32", "np.float32", "numpy float32", "tf.float32", "torch.float"] },
-    { "a": "FP16", "t": "baseline", "aka": ["float16", "half precision", "half", "binary16", "torch.float16", "np.float16", "tf.float16", "torch.half"] },
+    { "a": "FP32", "t": "baseline", "aka": ["float32", "single precision", "float", "binary32", "single", "torch.float32", "np.float32", "numpy float32", "tf.float32", "torch.float"], "q": "1 sign, 8 exponent and 23 mantissa bits. bf16 keeps the same 8-bit exponent with only 7 mantissa bits." },
+    { "a": "FP16", "t": "baseline", "aka": ["float16", "half precision", "half", "binary16", "torch.float16", "np.float16", "tf.float16", "torch.half"], "q": "1 sign, 5 exponent and 10 mantissa bits. The largest value is 65504, so mixed-precision training needs loss scaling." },
     { "a": "BF16", "t": "baseline", "aka": ["bfloat16", "brain float", "brain floating point", "bfloat", "torch.bfloat16", "tf.bfloat16"], "q": "The B is for Google Brain: FP32's exponent range with only 7 mantissa bits." },
-    { "a": "INT8", "t": "baseline", "aka": ["8-bit integer", "8-bit", "8-bit quantization", "torch.int8", "np.int8", "int8 quantization"] },
+    { "a": "INT8", "t": "baseline", "aka": ["8-bit integer", "8-bit", "8-bit quantization", "torch.int8", "np.int8", "int8 quantization"], "q": "Integers from −128 to 127, plus a scale (and maybe a zero point) to map them back to real values." },
     { "a": "UINT16", "t": "longtail", "aka": ["unsigned 16-bit", "torch.uint16", "np.uint16"] },
     { "a": "UINT32", "t": "longtail", "aka": ["unsigned 32-bit", "torch.uint32", "np.uint32"] },
     { "a": "UINT64", "t": "longtail", "aka": ["unsigned 64-bit", "torch.uint64", "np.uint64"] },

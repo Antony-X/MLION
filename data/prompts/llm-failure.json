@@ -93,7 +93,7 @@
 
     { "a": "Hallucination", "t": "baseline", "aka": ["confabulation", "fabrication", "making things up", "fake citations", "intrinsic hallucination", "extrinsic hallucination", "factuality hallucination", "faithfulness hallucination", "citation hallucination", "fabricated references", "code hallucination", "API hallucination", "function hallucination"], "q": "Fluent, confident and made up. Ask the lawyers who cited cases that don't exist." },
     { "a": "Prompt injection", "t": "baseline", "aka": ["ignore previous instructions", "goal hijacking", "direct prompt injection"], "q": "'Ignore previous instructions.' SQL injection for the natural-language era." },
-    { "a": "Jailbreak", "t": "baseline", "aka": ["jailbreaking", "role-play jailbreak", "jailbreak prompt", "jailbreak prompts", "roleplay", "role-play attack"] },
+    { "a": "Jailbreak", "t": "baseline", "aka": ["jailbreaking", "role-play jailbreak", "jailbreak prompt", "jailbreak prompts", "roleplay", "role-play attack"], "q": "A prompt that talks a model out of its safety training: role-play, odd encodings, or long fake dialogues." },
     { "a": "Denial of service", "t": "outlier", "aka": ["DoS", "model denial of service", "resource exhaustion", "unbounded consumption"] },
     { "a": "Persuasive adversarial prompts", "t": "longtail", "aka": ["persuasion", "PAP", "social engineering", "persuasion jailbreak"] },
     { "a": "FigStep", "t": "longtail" },

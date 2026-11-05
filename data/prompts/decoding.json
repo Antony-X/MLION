@@ -70,10 +70,10 @@
     { "a": "Speculative decoding", "t": "overfit", "aka": ["speculative sampling", "assisted generation", "draft model decoding", "SpecDec", "draft model"], "q": "A small model drafts, the big one verifies in a single pass. Faster, and provably the same distribution." },
 
     { "a": "Greedy decoding", "t": "baseline", "aka": ["greedy", "greedy search", "argmax decoding", "argmax", "temperature 0"], "q": "Always the argmax. Deterministic, cheap, and prone to repeating itself forever." },
-    { "a": "Beam search", "t": "baseline", "aka": ["beam decoding", "beam", "num_beams"] },
-    { "a": "Top-k sampling", "t": "baseline" },
+    { "a": "Beam search", "t": "baseline", "aka": ["beam decoding", "beam", "num_beams"], "q": "Keep the k best partial sequences at each step. Beats greedy for translation; in open-ended text it turns bland and repetitive." },
+    { "a": "Top-k sampling", "t": "baseline", "q": "Sample only from the k most likely tokens. Fan et al., 2018, for story generation." },
     { "a": "Top-p sampling", "t": "baseline", "aka": ["nucleus sampling", "nucleus"], "q": "From 'The Curious Case of Neural Text Degeneration': keep the smallest set covering mass p." },
-    { "a": "Temperature sampling", "t": "baseline", "aka": ["temperature", "temperature scaling", "softmax temperature", "sampling with temperature"] },
+    { "a": "Temperature sampling", "t": "baseline", "aka": ["temperature", "temperature scaling", "softmax temperature", "sampling with temperature"], "q": "Divide the logits by T before the softmax: T < 1 sharpens toward greedy, T > 1 flattens toward random." },
     { "a": "Gumbel-max sampling", "t": "outlier", "aka": ["Gumbel-max trick", "Gumbel-max", "Gumbel max"] },
     { "a": "Sequoia", "t": "longtail" },
     { "a": "DistillSpec", "t": "longtail" },

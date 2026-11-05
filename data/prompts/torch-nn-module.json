@@ -171,11 +171,11 @@
 
     { "a": "Identity", "t": "overfit", "q": "Does nothing, beautifully. The standard way to rip the head off a pretrained model." },
 
-    { "a": "Linear", "t": "baseline" },
-    { "a": "Conv2d", "t": "baseline", "aka": ["Conv"] },
-    { "a": "ReLU", "t": "baseline" },
-    { "a": "Sequential", "t": "baseline" },
-    { "a": "Module", "t": "baseline" },
+    { "a": "Linear", "t": "baseline", "q": "nn.Linear(in, out) computes y = xWᵀ + b, so its weight is stored as out × in." },
+    { "a": "Conv2d", "t": "baseline", "aka": ["Conv"], "q": "nn.Conv2d(in_channels, out_channels, kernel_size). Takes N×C×H×W tensors." },
+    { "a": "ReLU", "t": "baseline", "q": "nn.ReLU(inplace=True) saves memory by overwriting its input. Fine, until autograd needs that input back." },
+    { "a": "Sequential", "t": "baseline", "q": "Chains modules in order, each output feeding the next. No branches, so a residual block needs its own Module." },
+    { "a": "Module", "t": "baseline", "q": "The base class of every layer and model. Assign a submodule or nn.Parameter as an attribute and it is registered." },
     { "a": "LPPool3d", "t": "longtail" },
     { "a": "Buffer", "t": "longtail", "aka": ["nn.Buffer"] }
   ]

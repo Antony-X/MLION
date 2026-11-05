@@ -132,7 +132,7 @@
     {"a": "Mask2Former", "t": "overfit", "q": "Masked attention made one architecture SOTA on semantic, instance and panoptic at once.", "aka": ["Mask2Former Swin-L"]},
     {"a": "U-Net", "t": "baseline", "aka": ["UNet"], "q": "Built for cell images in 2015. Now it's in your diffusion model too."},
     {"a": "SAM", "t": "baseline", "aka": ["Segment Anything", "Segment Anything Model"], "q": "Trained on SA-1B: 1.1 billion masks over 11 million images."},
-    {"a": "Mask R-CNN", "t": "baseline"},
+    {"a": "Mask R-CNN", "t": "baseline", "q": "He et al., 2017: Faster R-CNN plus a small mask head per box. RoIAlign fixed RoIPool's misalignment."},
     {"a": "DeepLab", "t": "baseline", "aka": ["DeepLabv1", "DeepLab-LargeFOV"], "q": "Atrous convolution plus a fully connected CRF to sharpen edges."},
     {"a": "FCN", "t": "baseline", "aka": ["Fully Convolutional Network", "FCN-8s", "FCN-32s", "fcn_resnet50", "fcn_resnet101"], "q": "Swap FC layers for convolutions and upsample: dense prediction, end to end (2015)."},
     {"a": "SAM-Med2D", "t": "longtail", "aka": ["SA-Med2D", "SAM-Med3D", "SAMed", "SAT", "SegVol", "IMIS-Net"]},

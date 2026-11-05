@@ -116,9 +116,9 @@
 
     { "a": "BM25", "t": "baseline", "aka": ["Okapi BM25", "BM25F", "BM25+"], "q": "A 1990s formula that still embarrasses neural retrievers on BEIR." },
     { "a": "TF-IDF", "t": "baseline", "aka": ["term frequency-inverse document frequency"], "q": "Karen Spärck Jones, 1972: rare words matter more. Still in every IR course." },
-    { "a": "Dense retrieval", "t": "baseline", "aka": ["vector search", "semantic search", "embedding search", "embedding-based retrieval", "bi-encoder", "dual encoder", "two-tower", "neural retrieval", "vector database", "Pinecone", "Weaviate", "Chroma", "Qdrant", "Milvus", "pgvector"] },
+    { "a": "Dense retrieval", "t": "baseline", "aka": ["vector search", "semantic search", "embedding search", "embedding-based retrieval", "bi-encoder", "dual encoder", "two-tower", "neural retrieval", "vector database", "Pinecone", "Weaviate", "Chroma", "Qdrant", "Milvus", "pgvector"], "q": "Embed queries and documents as vectors and search by similarity. DPR, Karpukhin et al., 2020." },
     { "a": "Hybrid search", "t": "baseline", "aka": ["hybrid retrieval", "ensemble retriever"], "q": "BM25 for exact terms, embeddings for meaning, fuse the two lists." },
-    { "a": "Reranking", "t": "baseline", "aka": ["re-ranking", "reranker", "rerank", "second-stage ranking", "pointwise reranking", "pairwise reranking", "Cohere Rerank", "two-stage retrieval", "retrieve and rerank", "retrieve-then-rerank", "cascade ranking", "multi-stage ranking"] },
+    { "a": "Reranking", "t": "baseline", "aka": ["re-ranking", "reranker", "rerank", "second-stage ranking", "pointwise reranking", "pairwise reranking", "Cohere Rerank", "two-stage retrieval", "retrieve and rerank", "retrieve-then-rerank", "cascade ranking", "multi-stage ranking"], "q": "Retrieve many candidates cheaply, then rescore the top ones with a slower, sharper model, often a cross-encoder." },
     { "a": "Vector space model", "t": "indist", "aka": ["VSM", "cosine similarity", "cosine similarity search"] },
     { "a": "Maximum inner product search", "t": "longtail", "aka": ["MIPS", "inner product search", "dot product search"] },
     { "a": "Poly-encoder", "t": "longtail" },

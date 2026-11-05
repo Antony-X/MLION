@@ -95,12 +95,12 @@
     { "a": "Whisper", "t": "overfit", "aka": ["OpenAI Whisper", "whisper-1", "Whisper v3", "Whisper large-v3", "Whisper large-v2", "Whisper Turbo", "whisper-large-v3-turbo", "gpt-realtime-whisper", "Robust Speech Recognition via Large-Scale Weak Supervision", "Whisper v2", "Whisper large", "Whisper medium", "Whisper small", "Whisper base", "Whisper tiny"], "q": "680,000 hours of weakly labeled web audio. The open-source ASR everyone reaches for first." },
     { "a": "Sora", "t": "overfit", "aka": ["Sora Turbo", "Sora 1", "OpenAI Sora", "Video generation models as world simulators"], "q": "Feb 2024: a minute of video, opening on a stylish walk down a neon Tokyo street. Everyone remembers the reveal." },
 
-    { "a": "GPT-4", "t": "baseline", "aka": ["GPT-4 Turbo", "GPT-4V", "GPT-4 Vision", "GPT-4 with vision", "GPT-4-32k", "GPT-4 Turbo with Vision", "gpt-4-turbo-preview", "GPT-4.0", "ChatGPT-4"] },
+    { "a": "GPT-4", "t": "baseline", "aka": ["GPT-4 Turbo", "GPT-4V", "GPT-4 Vision", "GPT-4 with vision", "GPT-4-32k", "GPT-4 Turbo with Vision", "gpt-4-turbo-preview", "GPT-4.0", "ChatGPT-4"], "q": "March 2023. It accepted images, and its technical report withheld the model's size and architecture." },
     { "a": "ChatGPT", "t": "baseline", "aka": ["OpenAI ChatGPT"], "q": "Technically a product, not a model. We'll allow it." },
-    { "a": "GPT-3", "t": "baseline", "aka": ["GPT-3 175B", "davinci", "curie", "babbage", "ada", "davinci-002", "babbage-002", "Language Models are Few-Shot Learners", "GPT-3.0"] },
+    { "a": "GPT-3", "t": "baseline", "aka": ["GPT-3 175B", "davinci", "curie", "babbage", "ada", "davinci-002", "babbage-002", "Language Models are Few-Shot Learners", "GPT-3.0"], "q": "2020, 175B parameters. Showed that a big enough model learns a task from a few examples in the prompt." },
     { "a": "GPT-2", "t": "baseline", "aka": ["GPT-2 XL", "GPT-2 1.5B", "GPT-2 small", "Language Models are Unsupervised Multitask Learners", "GPT-2.0", "GPT-2 medium", "GPT-2 large", "GPT-2 124M", "GPT-2 355M", "GPT-2 774M"], "q": "'Too dangerous to release' in Feb 2019. The full 1.5B weights came out nine months later." },
     { "a": "GPT-4o", "t": "baseline", "aka": ["GPT-4 omni", "4o", "GPT-4o mini", "4o mini", "chatgpt-4o-latest", "ChatGPT-4o", "gpt2-chatbot", "im-also-a-good-gpt2-chatbot", "Advanced Voice Mode", "GPT-4o voice"], "q": "The o is for omni. It was tested anonymously on Chatbot Arena as 'im-also-a-good-gpt2-chatbot'." },
-    { "a": "GPT-5", "t": "baseline", "aka": ["GPT-5 mini", "GPT-5 nano", "GPT-5 Pro", "GPT-5 Thinking", "GPT-5 Instant", "GPT-5 Chat", "gpt-5-chat-latest", "ChatGPT-5", "GPT-5.0"] },
+    { "a": "GPT-5", "t": "baseline", "aka": ["GPT-5 mini", "GPT-5 nano", "GPT-5 Pro", "GPT-5 Thinking", "GPT-5 Instant", "GPT-5 Chat", "gpt-5-chat-latest", "ChatGPT-5", "GPT-5.0"], "q": "August 2025: one system that routes each request between a fast model and a deeper reasoning model." },
     { "a": "DALL·E", "t": "baseline", "aka": ["DALL·E 1", "OpenAI DALL·E"], "q": "WALL·E meets Dalí. Its 2021 avocado armchairs launched a thousand prompts." }
   ]
 }

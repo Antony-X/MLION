@@ -101,8 +101,8 @@
 
     { "a": "Lottery ticket hypothesis", "t": "overfit", "aka": ["lottery ticket", "LTH", "iterative magnitude pruning", "IMP", "winning tickets"], "q": "Dense nets hide sparse 'winning tickets' that train alone to full accuracy. Everyone's favorite clever pick." },
 
-    { "a": "Pruning", "t": "baseline", "aka": ["network pruning", "weight pruning", "sparsification", "sparsity", "iterative pruning", "one-shot pruning"] },
-    { "a": "Quantization", "t": "baseline", "aka": ["low-precision", "reduced precision", "weight quantization", "low-bit quantization", "int8 quantization", "INT8", "FP16", "half precision", "float16", "8-bit", "4-bit quantization"] },
+    { "a": "Pruning", "t": "baseline", "aka": ["network pruning", "weight pruning", "sparsification", "sparsity", "iterative pruning", "one-shot pruning"], "q": "Remove the weights or whole channels that matter least. LeCun's Optimal Brain Damage did it in 1989." },
+    { "a": "Quantization", "t": "baseline", "aka": ["low-precision", "reduced precision", "weight quantization", "low-bit quantization", "int8 quantization", "INT8", "FP16", "half precision", "float16", "8-bit", "4-bit quantization"], "q": "Store weights (and maybe activations) in fewer bits: INT8 instead of FP32 is four times smaller." },
     { "a": "Knowledge distillation", "t": "baseline", "aka": ["distillation", "KD", "teacher-student", "dark knowledge", "model distillation", "student-teacher", "logit distillation", "soft labels", "soft label distillation"], "q": "Hinton, Vinyals & Dean 2015: train the student on the teacher's softened logits. 'Dark knowledge.'" },
     { "a": "DistilBERT", "t": "indist", "aka": ["distilbert-base-uncased", "DistilGPT2"] },
     { "a": "TinyBERT", "t": "outlier" },

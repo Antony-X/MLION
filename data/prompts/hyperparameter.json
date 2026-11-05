@@ -9,8 +9,8 @@
 
     { "a": "Learning rate", "t": "baseline", "aka": ["lr", "step size", "eta", "η", "shrinkage", "learning_rate", "base learning rate", "initial learning rate", "peak learning rate", "max learning rate", "learning_rate_init", "initial lr"], "q": "Karpathy, 2016: \"3e-4 is the best learning rate for Adam, hands down.\"" },
     { "a": "Batch size", "t": "baseline", "aka": ["minibatch size", "mini-batch size", "batch", "batch_size", "effective batch size", "global batch size", "micro batch size", "per-device batch size", "micro-batch size"], "q": "LeCun, 2018: \"Friends don't let friends use minibatches larger than 32.\"" },
-    { "a": "Number of epochs", "t": "baseline", "aka": ["epochs", "epoch count", "training epochs", "num_epochs"] },
-    { "a": "Number of layers", "t": "baseline", "aka": ["layers", "num_layers", "n_layers", "network depth", "number of hidden layers", "hidden layers", "layer count"] },
+    { "a": "Number of epochs", "t": "baseline", "aka": ["epochs", "epoch count", "training epochs", "num_epochs"], "q": "How many full passes over the training data. Usually settled by early stopping rather than picked up front." },
+    { "a": "Number of layers", "t": "baseline", "aka": ["layers", "num_layers", "n_layers", "network depth", "number of hidden layers", "hidden layers", "layer count"], "q": "Depth. Before skip connections, adding layers could make even training error worse; ResNet trained 152." },
     { "a": "Dropout rate", "t": "baseline", "aka": ["dropout", "dropout probability", "keep probability", "keep prob", "dropout p"], "q": "0.5 for hidden units in the original paper. 0.1 in most transformers." },
 
     { "a": "Random seed", "t": "overfit", "aka": ["seed", "random_state", "rng seed"], "q": "Technically a hyperparameter. In practice, the most carefully tuned one in the paper." },

@@ -105,7 +105,7 @@
 
     { "a": "LSTM", "t": "baseline", "aka": ["long short-term memory", "peephole LSTM", "stacked LSTM", "deep LSTM", "LSTM-RNN"], "q": "Hochreiter & Schmidhuber, 1997. Gates against the vanishing gradient." },
     { "a": "GRU", "t": "baseline", "aka": ["gated recurrent unit"], "q": "An LSTM with one gate fewer and no cell state. Cho et al., 2014." },
-    { "a": "RNN", "t": "baseline", "aka": ["recurrent neural network", "vanilla RNN", "simple RNN"] },
+    { "a": "RNN", "t": "baseline", "aka": ["recurrent neural network", "vanilla RNN", "simple RNN"], "q": "One token at a time with a fixed-size state: linear time and no attention matrix, but no parallel training over the sequence." },
     { "a": "Mamba", "t": "baseline", "aka": ["selective state space", "selective SSM", "S6"], "q": "Input-dependent SSM parameters and a hardware-aware scan. Linear time, no attention." },
     { "a": "Mamba-3", "t": "outlier", "aka": ["Mamba 3", "Mamba3"] },
     { "a": "Kimi Linear", "t": "longtail", "aka": ["Kimi Delta Attention", "KDA"] },

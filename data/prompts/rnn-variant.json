@@ -92,7 +92,7 @@
 
     { "a": "LSTM", "t": "baseline", "aka": ["Long Short-Term Memory", "Vanilla LSTM", "Standard LSTM", "Basic LSTM", "LSTM cell", "Simple LSTM"], "q": "Hochreiter and Schmidhuber, 1997: the constant error carousel against vanishing gradients." },
     { "a": "GRU", "t": "baseline", "aka": ["Gated Recurrent Unit"], "q": "Cho et al., 2014: LSTM with two gates and no separate cell state." },
-    { "a": "Vanilla RNN", "t": "baseline", "aka": ["Simple RNN", "SimpleRNN", "Basic RNN", "RNN", "Recurrent Neural Network"] },
+    { "a": "Vanilla RNN", "t": "baseline", "aka": ["Simple RNN", "SimpleRNN", "Basic RNN", "RNN", "Recurrent Neural Network"], "q": "h = tanh(W·h + U·x), the Elman network (1990). Gradients fade over long sequences, which is why LSTMs exist." },
     { "a": "BiGRU", "t": "indist", "aka": ["Bidirectional GRU", "Bi-GRU", "Bidirectional Gated Recurrent Unit"] },
     { "a": "BiLSTM-CRF", "t": "outlier", "aka": ["LSTM-CRF", "Bidirectional LSTM-CRF", "BiLSTM CRF"], "q": "Huang et al., 2015: BiLSTM features with a CRF on top, for years the default sequence tagger." },
     { "a": "CRNN", "t": "outlier", "aka": ["Convolutional Recurrent Neural Network", "CNN-LSTM", "CNN-RNN", "CNN+LSTM", "CNN LSTM", "CNN-GRU"] },

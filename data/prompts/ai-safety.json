@@ -158,8 +158,8 @@
     { "a": "Mesa-optimization", "t": "overfit", "aka": ["mesa-optimizer", "mesa optimisation", "inner optimizer", "learned optimization"], "q": "When training produces a model that's itself an optimizer with goals of its own. LessWrong's favorite word." },
 
     { "a": "Reward hacking", "t": "baseline", "aka": ["reward gaming", "reward exploitation"], "q": "The CoastRunners boat that circled forever collecting points instead of finishing the race." },
-    { "a": "Interpretability", "t": "baseline", "aka": ["explainability", "transparency", "explainable AI", "XAI"] },
-    { "a": "RLHF", "t": "baseline", "aka": ["reinforcement learning from human feedback", "learning from human feedback", "human feedback"] },
+    { "a": "Interpretability", "t": "baseline", "aka": ["explainability", "transparency", "explainable AI", "XAI"], "q": "Working out what a model computes inside: probes, attributions, and circuits traced feature by feature." },
+    { "a": "RLHF", "t": "baseline", "aka": ["reinforcement learning from human feedback", "learning from human feedback", "human feedback"], "q": "Fit a reward model to human preference comparisons, then optimize the policy against it. Christiano et al., 2017; InstructGPT, 2022." },
     { "a": "Paperclip maximizer", "t": "baseline", "aka": ["paperclip", "paperclipper", "squiggle maximizer"], "q": "Bostrom's AI that turns the universe into paperclips. Not evil, just very focused." },
     { "a": "SHAP", "t": "indist", "aka": ["Shapley values", "SHapley Additive exPlanations", "Shapley additive explanations"] },
     { "a": "LIME", "t": "indist", "aka": ["local interpretable model-agnostic explanations"] },

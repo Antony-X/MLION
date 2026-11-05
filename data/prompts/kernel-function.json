@@ -81,7 +81,7 @@
     { "a": "Neural tangent kernel", "t": "overfit", "aka": ["NTK", "neural tangent"], "q": "Jacot et al., 2018: infinitely wide nets train like kernel regression. Everyone read that paper." },
 
     { "a": "Linear", "t": "baseline", "aka": ["dot product", "DotProduct", "inner product", "LinearKernel"], "q": "Just ⟨x, y⟩. The kernel trick, minus the trick." },
-    { "a": "Polynomial", "t": "baseline", "aka": ["poly", "homogeneous polynomial", "inhomogeneous polynomial", "PolynomialKernel", "quadratic"] },
+    { "a": "Polynomial", "t": "baseline", "aka": ["poly", "homogeneous polynomial", "inhomogeneous polynomial", "PolynomialKernel", "quadratic"], "q": "(x·y + c)^d: every product of up to d features, without ever building them." },
     { "a": "RBF", "t": "baseline", "aka": ["gaussian", "squared exponential", "SE", "radial basis function", "exponentiated quadratic", "gaussian RBF", "normal kernel", "RBFKernel"], "q": "exp(−γ‖x−y‖²). The SVM default, with an infinite-dimensional feature space." },
     { "a": "Weighted degree kernel", "t": "longtail", "aka": ["WD kernel", "weighted degree kernel with shifts"] },
     { "a": "Tensor product kernel", "t": "longtail" },

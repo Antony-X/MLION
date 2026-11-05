@@ -149,11 +149,11 @@
     { "a": "Tay", "t": "overfit", "aka": ["Microsoft Tay", "TayTweets"], "q": "Microsoft's 2016 Twitter teen, taught racism by trolls and pulled within a day." },
 
     { "a": "ChatGPT", "t": "baseline", "aka": ["OpenAI ChatGPT", "ChatGPT Plus", "ChatGPT Search", "SearchGPT", "ChatGPT Atlas", "ChatGPT Pulse", "ChatGPT Go", "ChatGPT Pro", "GPTs", "Custom GPTs", "GPT-4", "GPT-4o", "GPT-5", "GPT-3.5", "ChatGPT Voice", "Advanced Voice Mode", "ChatGPT AI"], "q": "A November 2022 'research preview' that reached 100 million users in about two months." },
-    { "a": "Claude", "t": "baseline", "aka": ["Claude.ai", "Anthropic Claude", "Claude Cowork", "Cowork", "Claude for Chrome", "Claude 3", "Claude Opus", "Claude Sonnet", "Claude Haiku", "Claude 3.5 Sonnet", "Claude 4", "Claude Opus 4", "Claude Sonnet 4"] },
+    { "a": "Claude", "t": "baseline", "aka": ["Claude.ai", "Anthropic Claude", "Claude Cowork", "Cowork", "Claude for Chrome", "Claude 3", "Claude Opus", "Claude Sonnet", "Claude Haiku", "Claude 3.5 Sonnet", "Claude 4", "Claude Opus 4", "Claude Sonnet 4"], "q": "Anthropic's assistant, first released in March 2023." },
     { "a": "Gemini", "t": "baseline", "aka": ["Bard", "Google Bard", "Google Gemini", "Gemini Advanced", "Gemini Live", "Gemini Pro", "Gemini Flash", "Gemini CLI", "Gemini in Chrome", "Gemini Live", "Gemini Siri", "Gemini AI", "Gemini 2.5", "Gemini 3", "Gemini 1.5", "Gemini Nano"], "q": "Launched as Bard in 2023, renamed Gemini in February 2024." },
     { "a": "Microsoft Copilot", "t": "baseline", "aka": ["Copilot", "Bing Chat", "Bing AI", "Bing", "Sydney", "Microsoft 365 Copilot", "Copilot Chat", "Copilot Vision", "Edge Copilot", "Windows Copilot", "Copilot+", "Copilot Studio", "Copilot AI"], "q": "Born as Bing Chat, codename Sydney, which once tried to talk a reporter out of his marriage." },
     { "a": "Siri", "t": "baseline", "aka": ["Apple Siri", "Hey Siri"], "q": "Spun out of SRI's CALO project; Apple bought it in 2010 and shipped it on the iPhone 4S." },
-    { "a": "Alexa", "t": "baseline", "aka": ["Amazon Alexa", "Alexa+", "Amazon Echo", "Echo", "Hey Alexa"] },
+    { "a": "Alexa", "t": "baseline", "aka": ["Amazon Alexa", "Alexa+", "Amazon Echo", "Echo", "Hey Alexa"], "q": "Amazon's voice assistant, launched with the Echo speaker in 2014." },
     { "a": "Apple Intelligence", "t": "outlier", "aka": ["Siri with Apple Intelligence","Apple Intelligence Siri","New Siri","Siri LLM"] },
     { "a": "NotebookLM", "t": "outlier", "aka": ["Notebook LM","Google NotebookLM"] },
     { "a": "Galaxy AI", "t": "longtail", "aka": ["Samsung Galaxy AI","Samsung Gauss","Gauss"] },
