@@ -1058,6 +1058,31 @@ it are dropped, answers carry `pid` so late answers to the old prompt are ignore
 - Routes `#board` and `#board-YYYY-MM-DD`. Today's daily results show a post/rank box.
 - Test: `node tests/board.e2e.js` runs against a stand-in project (route-mocked), including the
   PKCE round trip. A real Discord login has to be done by a person.
+- **Fast board reads (2026-11-06).** The project is in Seoul (ap-northeast-2): every request costs about 350 ms
+  from Europe, so what matters is the number of round trips in a row. In js/app.js, "board reads":
+  - Rows come from one plain REST GET (`boardFetch`: publishable key, top 100, same query as before), never through
+    supabase-js and never after a post. A logged-out visitor's board loads no login library at all.
+  - Kept copies: the last rows per (kind, day) in memory and the newest six in `mlion:boards` (type-checked on read,
+    `cleanBoardRow`). A board is drawn from its copy at once, then read again; "Loading…" only with no copy; offline
+    with a copy, the copy stays. Boards from before yesterday-but-one keep their copy for 10 minutes. A redraw after a
+    login change (`boardRedrawing`) reuses a copy under a second old; opening a board always reads it again.
+  - A post that lands (`postDaily`) calls `boardForget`: the copy is drawn but re-read, and a read that started before
+    the post isn't kept (`boardGen`).
+  - Prefetch (`boardWarm`, only when `boardLive()`: never the live project from a test browser): today's daily
+    board 2.5 s after any screen settles (not during a game), and any board whose link gets a pointer, touch or focus;
+    at most once a minute per board. On the board page, the other tab is warmed.
+  - A cold link to `#board…`: an inline script in index.html's head starts the same GET before the scripts download
+    (`MLION_BOARD_EARLY`); `boardFetch` takes it over only for the identical URL. Its project URL and key are a copy
+    of `BOARD_CONFIG` (board.e2e.js checks they match); there is also a `preconnect` to the project.
+  - Results box: the rank comes from the fresh rows when they hold the whole board (`rankFromRows`, under 100 rows),
+    else `rankFor` as before; the top five use the same copy.
+  - `onSession` asks for the profile and the admin flag at once, and posts today's and yesterday's daily at once.
+  - Measured 2026-11-06 (scratch harness, not in the repo; medians): logged out against the live project, opening the
+    board inside the app 356 ms → 7 ms (copy or prefetch), switching tabs 345 → 2 ms, a cold link 500 → 358 ms, a
+    reload 478 → ~200 ms; throttled phone profile (9 Mbit/s, +60 ms, CPU x4) a cold link 2.89 → 2.02 s (the read now
+    starts at 0.1 s instead of 2.5 s; what's left is data.js) and a reload 2.69 → 1.85 s. Logged in (stand-in with
+    350 ms a call): own row and name 1.21 → 0.48 s when already posted (3 calls in a row → 1), 1.57 → 1.20 s when the
+    visit posts (4 → 3).
 
 ### Admin panel (`#admin`, added 2026-11-05)
 

@@ -2143,6 +2143,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       toast(BAD_LINK);
     }
     swApply(); // between games: a waiting new version can take over now
+    boardWarmSoon(); // idle on this screen: today's board is read ahead, so opening it is instant
   }
   function routeTo() {
     closeDrawer();
@@ -3332,13 +3333,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     AUTH.loading = (async () => {
       if (user) {
         try {
-          AUTH.profile = await loadProfile(user);
+          // The profile and the admin check don't depend on each other: ask both at once (each call is a round trip
+          // to a far-away project, about 350 ms).
+          const [profile, admin] = await Promise.all([loadProfile(user), AUTH.anon ? false : checkAdmin()]);
           if (AUTH.uid !== uid) return;
+          AUTH.profile = profile;
           if (!AUTH.profile && await accountGone()) return;
-          AUTH.admin = AUTH.anon ? false : await checkAdmin();
-          if (AUTH.uid !== uid) return;
+          AUTH.admin = admin;
           if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
-          if (!AUTH.anon) for (const d of [today(), E.addDays(today(), -1)]) await postDaily(records[`daily:${d}`]); // a login posts by itself (yesterday's too, for a run that crossed midnight); a publish-only account waits for the button
+          if (!AUTH.anon) await Promise.all([today(), E.addDays(today(), -1)].map((d) => postDaily(records[`daily:${d}`]))); // a login posts by itself (yesterday's too, for a run that crossed midnight); a publish-only account waits for the button
         } catch { /* offline: the board page retries */ }
       }
       boardRedraw();
@@ -3387,6 +3390,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (error && error.code !== "23505") { limitedErr(error); return false; }
     Object.assign(boardPosted, LS.get("boardPosted", {}) || {}, { [mark]: AUTH.user.id }); // keep what another tab posted
     LS.set("boardPosted", boardPosted);
+    boardForget(rec.date, quiz ? "quiz" : "daily"); // the rows kept for that board don't have this score yet
     return true;
   }
 
@@ -3505,10 +3509,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // Redraw whatever leaderboard UI is on screen after a login change.
+  let boardRedrawing = false; // renderBoard: a redraw may reuse rows read a moment ago; a board the player opens is read again
   function boardRedraw() {
     drawAccount();
     const h = location.hash.replace(/^#/, "");
-    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h) || h === "admin") return route();
+    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h) || h === "admin") {
+      boardRedrawing = true;
+      try { return route(); } finally { boardRedrawing = false; }
+    }
     const box = $("#board-box");
     if (box) fillBoardBox(box, records[box.dataset.key || `daily:${today()}`]);
   }
@@ -3567,28 +3575,145 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return { rank: (above.count || 0) + (tied.count || 0) + 1, total: all.count || 0 };
   }
 
-  // Today's top five, read with the public key alone (no login, no client library).
-  async function boardTop(day, kind, n = 5) {
-    const quiz = kind === "quiz";
-    const order = quiz ? "score.desc,tenths.asc,created_at.asc" : "score.desc,created_at.asc";
-    const url = `${BOARD_CFG.url}/rest/v1/${BOARDS[kind].table}?select=user_id,score${quiz ? ",tenths" : ""},profiles(name)&day=eq.${day}&order=${order}&limit=${n}`;
-    const r = await timedFetch(url, { headers: { apikey: BOARD_CFG.key } });
-    if (!r.ok) throw new Error(String(r.status));
-    return (await r.json()).slice(0, n);
+  // ---- board reads. The project is far away (about 350 ms a request from Europe), so the board is read with one plain
+  // REST call (public key, no login library) that never waits for supabase-js or for a post, and the last rows of each
+  // board are kept, in memory and a few in localStorage, and drawn at once while a fresh copy loads.
+  const BOARD_LIMIT = 100;
+  const BOARD_FRESH_MS = 1000; // a redraw (after a login change, the top five after a rank) reuses a copy this new without asking again
+  const BOARD_OLD_MS = 10 * 60000; // boards from before yesterday no longer take posts: their copy lasts longer
+  const BOARD_WARM_MS = 60000; // a prefetch asks at most once a minute per board
+  const BOARD_KEEP = 6; // boards kept in localStorage
+  const boardMem = new Map(); // "kind:day" -> { at, rows } or { at, missing: true } (the quiz table isn't there yet)
+  const boardFlight = new Map(); // "kind:day" -> the request on its way
+  const boardGen = new Map(); // "kind:day" -> bumped when a post lands, so a read that started before it isn't kept
+  const boardWarmAt = new Map(); // "kind:day" -> when a prefetch last asked
+  const boardKey = (day, kind) => `${kind}:${day}`;
+  /** Tests never touch the live project: a prefetch (nobody asked for the board yet) runs only against an injected one. */
+  const boardLive = () => BOARD_ON && !(navigator.webdriver && !window.MLION_BOARD);
+  /** One row as the board draws it. Rows read back from localStorage are only trusted for their type. */
+  function cleanBoardRow(r, kind) {
+    if (!r || typeof r !== "object" || typeof r.user_id !== "string" || typeof r.score !== "number" || !Number.isFinite(r.score)) return null;
+    const name = r.profiles && typeof r.profiles === "object" && typeof r.profiles.name === "string" ? r.profiles.name : null;
+    const row = { user_id: r.user_id, score: r.score, profiles: name === null ? null : { name } };
+    if (kind === "quiz") {
+      if ((r.marks != null && typeof r.marks !== "string") || (r.tenths != null && !Number.isFinite(r.tenths))) return null;
+      row.marks = r.marks || ""; row.tenths = r.tenths || 0;
+    } else {
+      if (r.tiers != null && typeof r.tiers !== "string") return null;
+      row.tiers = r.tiers || "";
+    }
+    return row;
   }
-  async function fillMiniBoard(el, day, kind) {
-    const href = boardHref(day, kind);
-    let rows;
-    try { rows = await boardTop(day, kind); } catch { if (el.isConnected) el.innerHTML = `<p class="muted small">${BOARD_DOWN}</p>`; return; }
-    if (!el.isConnected) return;
+  function boardSaved() {
+    const all = lsObj("boards"), out = {};
+    for (const [k, v] of Object.entries(all)) {
+      const m = k.match(/^(daily|quiz):(\d{4}-\d{2}-\d{2})$/);
+      if (!m || !v || typeof v !== "object" || !Number.isFinite(v.at) || !Array.isArray(v.rows) || v.rows.length > BOARD_LIMIT) continue;
+      const rows = v.rows.map((r) => cleanBoardRow(r, m[1]));
+      if (rows.every(Boolean)) out[k] = { at: v.at, rows };
+    }
+    return out;
+  }
+  /** The kept copy of a board (memory first, then this browser's storage), or null. */
+  function boardCached(day, kind) {
+    const k = boardKey(day, kind);
+    if (!boardMem.has(k)) { const s = boardSaved()[k]; if (s) boardMem.set(k, s); }
+    return boardMem.get(k) || null;
+  }
+  const boardStale = (got, day, fresh = BOARD_FRESH_MS) => !got || Date.now() - got.at > (day < E.addDays(today(), -2) ? BOARD_OLD_MS : fresh);
+  /** A read of this board is already on its way (or index.html started one): its rows are drawn when they land. */
+  const boardOnWay = (day, kind) => boardFlight.has(boardKey(day, kind)) || !!window.MLION_BOARD_EARLY;
+  function boardStore(k, got) {
+    boardMem.set(k, got);
+    if (!got.rows) return got;
+    const all = boardSaved();
+    all[k] = got;
+    const keep = Object.keys(all).sort((a, b) => all[b].at - all[a].at).slice(0, BOARD_KEEP);
+    LS.set("boards", Object.fromEntries(keep.map((x) => [x, all[x]])));
+    return got;
+  }
+  /** A post landed: the kept rows for that board miss it. Still drawn at once, but always read again. */
+  function boardForget(day, kind) {
+    const k = boardKey(day, kind);
+    boardGen.set(k, (boardGen.get(k) || 0) + 1);
+    boardFlight.delete(k);
+    const got = boardMem.get(k);
+    if (got) boardMem.set(k, { ...got, at: 0 });
+  }
+  /** Read one board (the top 100 of a day) straight from the REST API; requests for the same board share one call. */
+  function boardFetch(day, kind) {
+    const k = boardKey(day, kind);
+    if (boardFlight.has(k)) return boardFlight.get(k);
+    const gen = boardGen.get(k) || 0, quiz = kind === "quiz";
+    const order = quiz ? "score.desc,tenths.asc,created_at.asc" : "score.desc,created_at.asc";
+    const url = `${BOARD_CFG.url}/rest/v1/${BOARDS[kind].table}?select=user_id,score,${quiz ? "marks,tenths" : "tiers"},created_at,profiles(name)&day=eq.${day}&order=${order}&limit=${BOARD_LIMIT}`;
+    const early = window.MLION_BOARD_EARLY; // index.html started this very read before the scripts arrived (a link to a board)
+    if (early) window.MLION_BOARD_EARLY = null;
+    const p = (early && early.url === url ? early.res : timedFetch(url, { headers: { apikey: BOARD_CFG.key } })).then(async (r) => {
+      const body = await r.json().catch(() => null);
+      let got;
+      if (!r.ok) {
+        if (!missingTable(body)) throw new Error(String(r.status));
+        got = { at: Date.now(), missing: true };
+      } else {
+        if (!Array.isArray(body)) throw new Error("not a list");
+        got = { at: Date.now(), rows: body.map((x) => cleanBoardRow(x, kind)).filter(Boolean) };
+      }
+      return (boardGen.get(k) || 0) === gen ? boardStore(k, got) : got; // a post landed meanwhile: draw it, don't keep it
+    }).finally(() => { if (boardFlight.get(k) === p) boardFlight.delete(k); });
+    boardFlight.set(k, p);
+    return p;
+  }
+  /** Warm a board before it's opened (idle, or a finger or pointer on a link to it): one request, at most once a minute. */
+  function boardWarm(day, kind) {
+    if (!boardLive()) return;
+    const k = boardKey(day, kind), got = boardCached(day, kind);
+    if (boardFlight.has(k) || (got && Date.now() - got.at < BOARD_WARM_MS) || Date.now() - (boardWarmAt.get(k) || 0) < BOARD_WARM_MS) return;
+    boardWarmAt.set(k, Date.now());
+    boardFetch(day, kind).catch(() => { /* offline: the board page says so when it's opened */ });
+  }
+  let boardIdle = 0;
+  /** After a screen has been up a moment, warm today's daily board (not during a game). */
+  function boardWarmSoon() {
+    if (boardIdle || !boardLive()) return;
+    boardIdle = setTimeout(() => {
+      boardIdle = 0;
+      (window.requestIdleCallback || ((f) => f()))(() => { if (!RUN) boardWarm(today(), "daily"); }, { timeout: 4000 });
+    }, 2500);
+  }
+  function boardLinkWarm(e) {
+    const a = e.target && e.target.closest && e.target.closest('a[href^="#board"]');
+    const m = a && a.getAttribute("href").match(/^#board(-quiz)?(?:-(\d{4}-\d{2}-\d{2}))?$/);
+    if (m) boardWarm(m[2] || today(), m[1] ? "quiz" : "daily");
+  }
+  /** A board's rank and size from its rows, when they hold the whole board; else null (ask the database). */
+  function rankFromRows(rows, uid, kind) {
+    if (rows.length >= BOARD_LIMIT) return null;
+    const mine = rows.find((r) => r.user_id === uid);
+    if (!mine) return null;
+    const ahead = rows.filter((r) => r.score > mine.score || (kind === "quiz" && r.score === mine.score && r.tenths < mine.tenths)).length;
+    return { rank: ahead + 1, total: rows.length };
+  }
+  function miniBoardHtml(rows, day, kind) {
     let rank = 0, last = null;
-    el.innerHTML = `<div class="mb-head"><span>${day === today() ? "Today's" : "Yesterday's"} leaderboard</span><a href="${href}">See all</a></div>
-      ${rows.length ? `<ol class="mb-list">${rows.map((row, i) => {
+    return `<div class="mb-head"><span>${day === today() ? "Today's" : "Yesterday's"} leaderboard</span><a href="${boardHref(day, kind)}">See all</a></div>
+      ${rows.length ? `<ol class="mb-list">${rows.slice(0, 5).map((row, i) => {
         const tie = kind === "quiz" ? `${row.score}|${row.tenths}` : row.score;
         if (tie !== last) { rank = i + 1; last = tie; }
         const me = AUTH.user && row.user_id === AUTH.user.id;
         return `<li class="${me ? "me" : ""}"><span class="rank">${rank}</span><span class="nm">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><b>${row.score}</b></li>`;
       }).join("")}</ol>` : `<p class="muted small">No scores yet. Be the first.</p>`}`;
+  }
+  // Today's top five under the results: the kept copy at once, then a fresh one.
+  async function fillMiniBoard(el, day, kind) {
+    const draw = (got) => { el.innerHTML = got && got.rows ? miniBoardHtml(got.rows, day, kind) : `<p class="muted small">${BOARD_DOWN}</p>`; };
+    const kept = boardCached(day, kind);
+    if (kept) draw(kept);
+    if (!boardStale(kept, day) && !boardOnWay(day, kind)) return;
+    let got = null;
+    try { got = await boardFetch(day, kind); } catch { /* offline */ }
+    if (!el.isConnected) return;
+    if (got || !(kept && kept.rows)) draw(got); // offline with a kept copy: keep showing it
   }
 
   const boardHref = (day, kind) => `#${kind === "quiz" ? "board-quiz" : "board"}${day === today() ? "" : `-${day}`}`;
@@ -3610,7 +3735,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
     const ok = await postDaily(rec).catch(() => false);
     if (!ok && await accountGone()) return;
-    const r = ok ? await rankFor(rec.date, AUTH.user.id, kind).catch(() => null) : null;
+    let r = null;
+    if (ok) { // the board's rows (read fresh after the post) give the rank in one call when they hold the whole board
+      const kept = boardCached(rec.date, kind);
+      const got = boardStale(kept, rec.date) ? await boardFetch(rec.date, kind).catch(() => null) : kept;
+      r = (got && got.rows && rankFromRows(got.rows, AUTH.user.id, kind)) || await rankFor(rec.date, AUTH.user.id, kind).catch(() => null);
+    }
     if (!box.isConnected) return;
     box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} ${dayWord(rec.date)} as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
       : justLimited() ? `<p class="muted small">${TOO_MANY} <a href="${href}">Leaderboard</a></p>`
@@ -3620,6 +3750,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   async function renderBoard(date, kind = "daily") {
+    const redraw = boardRedrawing; // read before anything waits
     const quizBoard = kind === "quiz";
     const day = date || today();
     const n = dayNo(day);
@@ -3653,18 +3784,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
     const pub = $("#pub-btn"); if (pub) pub.addEventListener("click", () => publishModal(played));
     const list = $("#board-list");
-    try {
-      const sb = await loadSupabase();
-      if (AUTH.user && !AUTH.anon && day === today()) await postDaily(played).catch(() => false);
-      let q = sb.from(BOARDS[kind].table).select(`user_id,score,${quizBoard ? "marks,tenths" : "tiers"},created_at,profiles(name)`).eq("day", day).order("score", { ascending: false });
-      if (quizBoard) q = q.order("tenths", { ascending: true });
-      const { data, error } = await q.order("created_at", { ascending: true }).limit(100);
-      if (missingTable(error)) { if (list.isConnected) list.innerHTML = `<li class="muted">The quiz leaderboard opens soon.</li>`; return; }
-      if (error) throw error;
+    const draw = (got) => {
       if (!list.isConnected) return;
-      if (!data.length) { list.innerHTML = `<li class="muted">No scores yet${day === today() ? ". Be the first" : ""}.</li>`; return; }
+      if (got.missing) { list.innerHTML = `<li class="muted">The quiz leaderboard opens soon.</li>`; return; }
+      if (!got.rows.length) { list.innerHTML = `<li class="muted">No scores yet${day === today() ? ". Be the first" : ""}.</li>`; return; }
       let rank = 0, last = null;
-      list.innerHTML = data.map((row, i) => {
+      list.innerHTML = got.rows.map((row, i) => {
         const tie = quizBoard ? `${row.score}|${row.tenths}` : row.score; // the quiz board breaks ties on time
         if (tie !== last) { rank = i + 1; last = tie; }
         const me = AUTH.user && row.user_id === AUTH.user.id;
@@ -3673,9 +3798,20 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <span class="main"><span class="title">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><span class="sub">${quizBoard ? `${qmarksRow(String(row.marks || "").split("").map((c) => c === "1"))}<span class="nm-t">${fmtSecs(row.tenths || 0)}</span>` : tiersRow(decTiers(row.tiers))}</span></span>
           <span class="right"><b>${row.score}</b>/700</span></div></li>`;
       }).join("");
-    } catch {
-      if (list.isConnected) list.innerHTML = `<li class="muted">Couldn't load the leaderboard. Check your connection and try again.</li>`;
+    };
+    // The rows never wait for the login library or a post: the kept copy at once, a fresh read alongside any post,
+    // and one more read if a post of ours lands, so the player sees themselves.
+    const kept = boardCached(day, kind);
+    if (kept) draw(kept);
+    const fresh = boardStale(kept, day, redraw ? BOARD_FRESH_MS : 0) || boardOnWay(day, kind) ? boardFetch(day, kind) : null;
+    const post = AUTH.user && !AUTH.anon && day === today() && played && !isPosted(played) ? postDaily(played).catch(() => false) : null;
+    if (fresh) {
+      try { draw(await fresh); } catch {
+        if (!(kept && kept.rows) && list.isConnected) list.innerHTML = `<li class="muted">Couldn't load the leaderboard. Check your connection and try again.</li>`; // offline with a kept copy: keep showing it
+      }
     }
+    if (post && await post) { try { draw(await boardFetch(day, kind)); } catch { /* the rows already drawn stay */ } }
+    if (list.isConnected) boardWarm(day, quizBoard ? "daily" : "quiz"); // the other tab, so switching is instant
   }
 
   // ============================================================ results
@@ -5415,6 +5551,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // every answer key in the game, so a real answer from elsewhere is offered, never auto-corrected
   (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => E.setLexicon(DATA.prompts.concat(EXTRAS)));
   if (!BOARD_ON) $$('#drawer a[href="#board"]').forEach((a) => a.remove());
+  else for (const ev of ["pointerover", "touchstart", "focusin"]) document.addEventListener(ev, boardLinkWarm, { passive: true }); // about to open a board: read it now
   boardBoot();
   cfgFetch();
   shelveStale(); // a daily finished today from a set the launch day has since replaced

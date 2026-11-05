@@ -5,7 +5,7 @@
   <!-- What the page may load and talk to. tools/build.js writes the sha256 of each inline script into script-src;
        connect-src: the Supabase project, the live-room relay, and the reserved test host the e2e mocks answer.
        GitHub Pages can't send headers, so frame-ancestors (ignored in a meta tag) is done by the script below. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nfnGaNZKFJ22IQbJPPzgKnd4wHe6eqjSIphxlvEOYTo=' 'sha256-Xfukbjw8KGbfR5vtMADfFEujTQ4O8h3PEklQrSL2TOw=' 'sha256-pMkukMvtz+Nn1pIGKr0QrRanc6cqawCYF8kIwXa5wvo='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ozqnznvxxxnefeetidwq.supabase.co wss://public.cloud.shiftr.io https://mock.supabase.test; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nfnGaNZKFJ22IQbJPPzgKnd4wHe6eqjSIphxlvEOYTo=' 'sha256-Xfukbjw8KGbfR5vtMADfFEujTQ4O8h3PEklQrSL2TOw=' 'sha256-64Ki0cnuiPL36PTwW2NKmUkNaxnfSIRTxhMRkRyq7hg=' 'sha256-pMkukMvtz+Nn1pIGKr0QrRanc6cqawCYF8kIwXa5wvo='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://ozqnznvxxxnefeetidwq.supabase.co wss://public.cloud.shiftr.io https://mock.supabase.test; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
@@ -77,6 +77,28 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- the leaderboard and settings project: open the connection while the game's scripts download -->
+  <link rel="preconnect" href="https://ozqnznvxxxnefeetidwq.supabase.co" crossorigin>
+  <script>
+    /* A link straight to a leaderboard (#board, #board-quiz, #board-YYYY-MM-DD): start reading it now, while the game's
+       scripts download. js/app.js takes this request over only if it asks for exactly the same URL (boardFetch), so keep
+       the project URL and key in step with BOARD_CONFIG there (tests/board.e2e.js checks). Tests inject their own project. */
+    (function () {
+      try {
+        var m = /^#board(-quiz)?(?:-(\d{4}-\d{2}-\d{2}))?$/.exec(location.hash);
+        var c = window.MLION_BOARD || (navigator.webdriver ? null : { url: "https://ozqnznvxxxnefeetidwq.supabase.co", key: "sb_publishable_xztj1Nx4sRbgltpd0u3XWg_2cASIAG5" });
+        if (!m || !c || !window.fetch || !window.AbortController || window.top !== window.self || !/^https?:$/.test(location.protocol)) return;
+        var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+        var day = m[2] || d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+        var q = m[1] ? ["daily_quiz_scores", "marks,tenths", "score.desc,tenths.asc,created_at.asc"] : ["daily_scores", "tiers", "score.desc,created_at.asc"];
+        var url = c.url + "/rest/v1/" + q[0] + "?select=user_id,score," + q[1] + ",created_at,profiles(name)&day=eq." + day + "&order=" + q[2] + "&limit=100";
+        var ctl = new AbortController(), res = fetch(url, { headers: { apikey: c.key }, signal: ctl.signal });
+        setTimeout(function () { ctl.abort(); }, 10000);
+        res.catch(function () { /* app.js reports it if it takes this request over */ });
+        window.MLION_BOARD_EARLY = { url: url, res: res };
+      } catch (e) { /* the game reads the board itself */ }
+    })();
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=1yhl3cc">
 </head>
@@ -160,6 +182,6 @@
   <script src="js/hero3d.js?v=1qqfzi9"></script>
   <script src="js/sharecard.js?v=1godt4k"></script>
   <script src="js/music.js?v=u43wv3"></script>
-  <script src="js/app.js?v=1a7n9in"></script>
+  <script src="js/app.js?v=187aoh3"></script>
 </body>
 </html>

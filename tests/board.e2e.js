@@ -21,12 +21,18 @@ const E = require("../js/engine.js");
 const PTS = [0, 10, 15, 30, 60, 85, 100];
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
+const hold = { sb: 0, data: 0 }; // ms to hold back the login library / the question bundle (the speed checks)
+const served = []; // [path, when it was sent]
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   const file = path.join(ROOT, url === "/" ? "index.html" : url);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("nf"); }
-  res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
-  fs.createReadStream(file).pipe(res);
+  const wait = /\/js\/vendor\/supabase-/.test(url) ? hold.sb : url === "/js/data.js" ? hold.data : 0;
+  setTimeout(() => {
+    served.push([url, Date.now()]);
+    res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
+    fs.createReadStream(file).pipe(res);
+  }, wait);
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,6 +43,8 @@ const db = { profiles: new Map(), scores: [], quiz: [], quizTable: false }; // t
 const sugg = { table: true, rows: [], reviews: new Map(), counts: [], offline: false, limited: false }; // supabase/suggestions.sql; limited: rate_limits.sql refuses writes
 const LIMITED = { code: "PT429", message: "Too many tries from this network. Try again later.", details: "suggestion", hint: "rate limit" };
 const calls = [];
+const boardGets = []; // when each board read (GET daily_scores) arrived
+const slow = { board: 0 }; // ms to hold back each board read
 const providers = { google: false, discord: true }; // what the dashboard has switched on
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (sub) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`;
@@ -132,7 +140,9 @@ async function mockRoute(route) {
       return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "content-range", "content-range": `*/${rows.length}` }, body: method === "HEAD" ? "" : "[]" });
     }
     if (method === "GET") {
-      const out = rows.slice().sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at))
+      boardGets.push(Date.now());
+      if (slow.board) await sleep(slow.board);
+      const out = db.scores.filter((s) => pass(s, f)).sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)) // as the table is when the answer leaves
         .map((s) => ({ ...s, profiles: db.profiles.get(s.user_id) ? { name: db.profiles.get(s.user_id).name } : null }));
       return reply(out);
     }
@@ -188,6 +198,12 @@ async function mockRoute(route) {
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}/`;
+  { // index.html starts reading a linked board before the scripts arrive; app.js takes that read over only if it is the same URL
+    const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), app = fs.readFileSync(path.join(ROOT, "js/app.js"), "utf8");
+    const cfg = app.match(/const BOARD_CONFIG = \{ url: "([^"]+)", key: "([^"]+)" \}/), early = html.match(/\{ url: "([^"]+)", key: "([^"]+)" \}/);
+    check(!!cfg && !!early && cfg[1] === early[1] && cfg[2] === early[2] && html.includes(`<link rel="preconnect" href="${cfg[1]}" crossorigin>`),
+      "index.html's early board read and preconnect use the project in BOARD_CONFIG");
+  }
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
@@ -216,6 +232,7 @@ async function mockRoute(route) {
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 15000 });
   await page.waitForSelector("#app [data-login]");
   check((await page.$$eval("#app [data-login]", (els) => els.map((e) => e.dataset.login))).join() === "discord", "only providers switched on in Supabase get a button (Discord)");
+  check(!(await page.$('script[src*="supabase"]')), "the board page itself loads no login library for someone who isn't logged in");
   providers.google = true;
   await page.goto("about:blank");
   await page.goto(base + "#board");
@@ -277,6 +294,83 @@ async function mockRoute(route) {
   await page.reload();
   await page.waitForSelector(".board-list .list-item.me");
   check(db.scores.filter((s) => s.user_id === UID).length === 1, "a second post the same day is refused; the first score stays");
+
+  // ---- speed: the board is drawn from the kept copy at once, read without waiting for the login library, read again after a post
+  {
+    const names = () => page.$$eval(".board-list .list-item .title", (els) => els.map((e) => e.textContent.trim()));
+    // a second visit: the kept rows at once, though the fresh read takes 2.5 s; then the fresh rows (a new player) replace them
+    slow.board = 2500;
+    db.profiles.set("hedy", { id: "hedy", name: "Hedy" });
+    db.scores.push({ user_id: "hedy", day: today, tiers: "5555555", score: 595, created_at: new Date().toISOString() });
+    await page.goto("about:blank");
+    const t0 = Date.now();
+    await page.goto(base + "#board", { waitUntil: "commit" });
+    await page.waitForSelector(".board-list .list-item", { timeout: 2000 });
+    const first = await names(), ms = Date.now() - t0;
+    check(ms < 2000 && first.length === 2 && first[0] === "Grace", `a second visit draws the kept rows at once (${ms} ms; the fresh read takes 2.5 s)`);
+    await page.waitForFunction(() => document.querySelectorAll(".board-list .list-item").length === 3, null, { timeout: 8000 });
+    check((await names()).join() === "Grace,Hedy,Ada · you", "then the fresh rows replace them (a new player appears)");
+    // damaged kept rows are never drawn: the page waits for the fresh read instead
+    await page.evaluate((t) => localStorage.setItem("mlion:boards", JSON.stringify({ [`daily:${t}`]: { at: Date.now(), rows: [{ user_id: 7, score: "<img src=x onerror=alert(1)>" }] }, "daily:junk": 5, x: null })), today);
+    await page.goto("about:blank");
+    await page.goto(base + "#board", { waitUntil: "commit" });
+    await page.waitForSelector("#board-list");
+    check(/Loading/.test(await page.textContent("#board-list")), "kept rows that fail their type check are dropped (Loading… until the fresh read)");
+    await page.waitForFunction(() => document.querySelectorAll(".board-list .list-item").length === 3, null, { timeout: 8000 });
+    check(true, "and the fresh rows come in as usual");
+    slow.board = 0;
+    db.scores = db.scores.filter((s) => s.user_id !== "hedy");
+
+    // a cold link to the board, the question bundle held back 1.5 s and the login library 4 s: the read starts from index.html
+    // before the bundle is even sent, the rows come before the login library, and the read isn't made twice
+    await page.evaluate(() => localStorage.removeItem("mlion:boards"));
+    await page.goto("about:blank");
+    hold.data = 1500; hold.sb = 4000;
+    const gets0 = boardGets.length, sent0 = served.length;
+    await page.goto(base + "#board", { waitUntil: "commit" });
+    await page.waitForSelector(".board-list .list-item", { timeout: 6000 });
+    const dataAt = (served.slice(sent0).find(([u]) => u === "/js/data.js") || [])[1];
+    check(boardGets.length > gets0 && dataAt && boardGets[gets0] < dataAt, `the board read starts before the question bundle has arrived (${dataAt - boardGets[gets0]} ms earlier)`);
+    check(!(await page.evaluate(() => !!window.supabase)), "the rows are drawn while the login library is still downloading");
+    check(boardGets.length - gets0 === 1, "the read index.html started is the one the game uses (one request, not two)");
+    await page.waitForSelector(".board-list .list-item.me", { timeout: 10000 });
+    check(await page.evaluate(() => !!window.supabase), "once the login library is in, your row is marked");
+    hold.data = 0; hold.sb = 0;
+
+    // a post that lands while the board is open: the board is read again and shows you
+    const mine = db.scores.find((s) => s.user_id === UID);
+    db.scores = db.scores.filter((s) => s !== mine);
+    await page.evaluate(() => { localStorage.removeItem("mlion:boardPosted"); localStorage.removeItem("mlion:boards"); });
+    slow.board = 800;
+    const calls0 = calls.length;
+    await page.goto("about:blank");
+    await page.goto(base + "#board", { waitUntil: "commit" });
+    await page.waitForSelector(".board-list .list-item.me", { timeout: 10000 });
+    const after = calls.slice(calls0), postAt = after.findIndex((c) => c.startsWith("POST /rest/v1/daily_scores"));
+    check(postAt >= 0 && after.slice(postAt + 1).some((c) => c.startsWith("GET /rest/v1/daily_scores")), "a post while the board is open reads the board again");
+    await sleep(1200); // the read that started before the post has landed by now: it must not put the old rows back
+    check((await names()).join() === "Grace,Ada · you" && db.scores.filter((s) => s.user_id === UID).length === 1, "and the board keeps showing you");
+    slow.board = 0;
+
+    // idle on another screen: today's board is read ahead, once; opening it then draws at once
+    await page.evaluate(() => localStorage.removeItem("mlion:boards"));
+    await page.goto("about:blank");
+    await page.goto(base + "#home");
+    await page.waitForSelector(".home");
+    const g0 = boardGets.length;
+    await sleep(4000);
+    check(boardGets.length - g0 === 1, "idle on the home page, today's board is read ahead");
+    await page.evaluate(() => { location.hash = "stats"; });
+    await sleep(4000);
+    check(boardGets.length - g0 === 1, "and not again within the minute, on another screen");
+    slow.board = 2500;
+    const t1 = Date.now();
+    await page.evaluate(() => { location.hash = "board"; });
+    await page.waitForSelector(".board-list .list-item.me", { timeout: 2000 });
+    check(Date.now() - t1 < 1500, `opening the board then draws its rows at once (${Date.now() - t1} ms; the fresh read takes 2.5 s)`);
+    await sleep(2700);
+    slow.board = 0;
+  }
 
   // rename
   await page.click("#bn-edit");
