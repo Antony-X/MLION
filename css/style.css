@@ -523,6 +523,8 @@ a.list-item { cursor: pointer; }
 .setting { display: flex; align-items: center; gap: 16px; padding: 16px 0; cursor: pointer; }
 .setting .txt { flex: 1; display: grid; gap: 2px; }
 .setting .txt span:not(.t) { color: var(--muted); font-size: var(--s1); }
+.name-setting { cursor: text; }
+.name-setting .search { flex: none; width: min(180px, 44%); }
 .switch { position: relative; width: 52px; height: 32px; flex: none; }
 .switch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
 .switch i { position: absolute; inset: 0; border-radius: var(--round); background: var(--raised-2); transition: background-color 200ms ease; pointer-events: none; }

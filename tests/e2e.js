@@ -266,6 +266,8 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.goto(base + "#prefs");
   await page.click('.t-size[data-s="40"]');
   check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:settings")).answerSecs === 40), "the time setting is saved");
+  await page.fill("#set-name", " Ada "); await page.press("#set-name", "Tab");
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:name")) === "Ada"), "Settings saves the name rooms and challenges use");
   await page.goto(base + "#unlimited-1");
   await page.waitForSelector("#begin");
   check((await page.$$eval(".beats li b", (els) => els.map((e) => e.textContent))).includes("40 s"), "a new run uses the chosen time");

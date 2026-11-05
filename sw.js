@@ -6,7 +6,7 @@
  *   - everything else (leaderboard, live rooms): straight to the network, never cached
  * tools/build.js rewrites the ASSETS line on every build. */
 "use strict";
-const ASSETS = /*ASSETS*/["./","css/style.css?v=aqwxhb","js/engine.js?v=1hbzkkk","js/data.js?v=n3v2hk","js/landscape.js?v=1wh6xx","js/hero3d.js?v=1qqfzi9","js/app.js?v=hxgv07","manifest.webmanifest","img/favicon.svg","img/icon-192.png","img/apple-touch-icon.png"]/*END*/;
+const ASSETS = /*ASSETS*/["./","css/style.css?v=1as2lmt","js/engine.js?v=1hbzkkk","js/data.js?v=n3v2hk","js/landscape.js?v=1wh6xx","js/hero3d.js?v=1qqfzi9","js/app.js?v=mhi35x","manifest.webmanifest","img/favicon.svg","img/icon-192.png","img/apple-touch-icon.png"]/*END*/;
 const CACHE = "mlion-" + ASSETS.join("|").split("").reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7).toString(36);
 
 self.addEventListener("install", (e) => {

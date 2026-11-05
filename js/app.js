@@ -3617,13 +3617,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
             ["aiCheck", "Ask Claude when nothing matches", "Uses your Claude usage. You confirm every match."],
           ].map(row).join("")}`)}
         ${group("Feel", [["sound", "Sound", ""], ...("vibrate" in navigator && matchMedia("(pointer: coarse)").matches ? [["haptics", "Vibration", "A short buzz with each verdict"]] : []), ["reducedMotion", "Reduce motion", "No rolling ball or camera moves"]].map(row).join(""))}
-        ${group("Sharing", row(["shareLink", "Add a link when sharing", "Results text ends with the site address"]))}
+        ${group("Sharing", `
+          <label class="setting name-setting"><span class="txt"><span class="t">Your name</span><span>Shown in rooms and on challenge links</span></span>
+            <input class="search" id="set-name" maxlength="16" autocomplete="nickname" placeholder="Not set" value="${esc(myName())}"></label>
+          ${row(["shareLink", "Add a link when sharing", "Results text ends with the site address"])}`)}
         <section class="set-group"><h2>Your data</h2><p class="muted">Runs, streaks and stats live in this browser. Export copies them so you can import them elsewhere.</p>
           <div class="btn-row"><button class="btn" id="exp">Export</button><button class="btn" id="imp">Import</button><button class="btn danger" id="reset">Reset all</button></div></section>
       </div>
     </section>`;
     $$("input[data-k]").forEach((i) => i.addEventListener("change", () => { settings[i.dataset.k] = i.checked; saveSettings(); }));
     wireTimePicker((secs) => { settings.answerSecs = secs; saveSettings(); toast(`${secs} s per question`); });
+    $("#set-name").addEventListener("change", (e) => {
+      const v = e.target.value.trim().slice(0, 16);
+      e.target.value = v; LS.set("name", v);
+      toast(v ? "Name saved" : "Name cleared");
+    });
     $("#exp").addEventListener("click", async () => {
       const blob = JSON.stringify({ v: 1, records, seen: [...seen], practice: practiceBest, settings, sprints });
       toast((await copyText(blob)) ? "Progress copied. Paste it into Import elsewhere" : "Couldn't copy");
@@ -3651,12 +3659,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       });
     });
     $("#reset").addEventListener("click", () => {
-      showModal("Reset all progress?", `<p class="muted">Every run, streak and stat in this browser goes. This can't be undone.</p>
+      showModal("Reset all progress?", `<p class="muted">Every run, streak and stat in this browser goes. Your settings and name stay. This can't be undone.</p>
         <div class="btn-row"><button class="btn" id="rs-no">Keep it</button><button class="btn danger" id="rs-yes">Delete everything</button></div>`);
       $("#rs-no").addEventListener("click", closeModal);
       $("#rs-yes").addEventListener("click", () => {
-        try { Object.keys(localStorage).filter((k) => k.startsWith("mlion:")).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
-        records = {}; seen = new Set(); practiceBest = {};
+        const keep = new Set(["mlion:settings", "mlion:name"]);
+        try { Object.keys(localStorage).filter((k) => k.startsWith("mlion:") && !keep.has(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
+        records = {}; seen = new Set(); practiceBest = {}; sprints = {};
         closeModal(); toast("All progress reset"); go("home");
       });
     });
