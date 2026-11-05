@@ -1484,6 +1484,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     board: () => renderBoard(""),
     "board-quiz": () => renderBoard("", "quiz"),
     "daily-quiz": () => openRun(dquizSpec(today())),
+    sprint: () => renderSprint(""),
   };
   const slugFor = (key) => key.replace(/:/g, "-");
   function keyFromSlug(s) {
@@ -1514,7 +1515,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (h !== "live" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
     if (RUN && RUN.mode === "live" && !LIVE.active) stopRun();
     scene("page");
-    $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + (h || "home")));
+    const navOn = "#" + (/^sprint-/.test(h) ? "sprint" : h || "home");
+    $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === navOn));
     if (!BROWSE && /^(packs|library|pack-|practice-|answers-|archive)/.test(h)) return go("home");
     if (!BROWSE && /^unlimited-\d+$/.test(h) && +h.slice(10) > nextUnlimited()) return go(`unlimited-${nextUnlimited()}`);
     if (!BROWSE && /^quiz-\d+$/.test(h) && +h.slice(5) > nextQuiz()) return go(`quiz-${nextQuiz()}`); // same launch rule as Unlimited: no jumping ahead
@@ -1523,6 +1525,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (/^vq-/.test(h)) return openQuizChallenge(h);
     if (/^quiz-\d+$/.test(h)) return openQuiz(Math.max(1, +h.slice(5)));
     if (/^live-[a-z0-9]{5}$/.test(h)) return openLive(h.slice(5));
+    if (/^sprint-.+$/.test(h)) return renderSprint(h.slice(7));
     let m;
     if ((m = h.match(/^unlimited-(\d+)$/))) return openRun(unlimitedSpec(Math.max(1, +m[1])));
     if ((m = h.match(/^pack-([a-z]+)$/))) return PACKS.has(m[1]) ? renderPack(m[1]) : go("packs");
@@ -1555,6 +1558,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const modes = [
       ["#unlimited", "Unlimited", "Endless runs"],
       ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Today's quiz and practice runs"],
+      ["#sprint", "Sprint", "One prompt, 60 seconds, every answer you know"],
       ["#board", "Leaderboard", "Today's top scores"],
       ["#stats", "Stats", s.played ? `${s.played} played` : ""],
     ].filter(([href]) => BOARD_ON || href !== "#board");
@@ -2819,6 +2823,162 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
   }
 
+
+  // =============================================================== sprint
+  // One prompt, sixty seconds, every answer you can name. Each answer scores its tier's points, so
+  // rare ones still count for more. Unranked: bests stay in this browser (mlion:sprints).
+  const SPRINT_SECS = 60;
+  let sprints = LS.get("sprints", {}); // prompt id -> { best (points), n (answers then), plays, at }
+  let SPRINT = null; // the sprint on screen
+  const sprintPool = () => soloPool().prompts.filter((p) => !p.reasoning && p.answers.length >= 40);
+  function sprintPick(not) {
+    const pool = sprintPool().filter((p) => p.id !== not);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  const sprintAsk = (p) => `<p class="prompt-text">${esc(p.text)}${p.example ? ` <span class="eg">(e.g. ${esc(p.example)})</span>` : ""}</p>
+    ${p.scope ? `<p class="prompt-note">${esc(p.scope)}</p>` : ""}`;
+
+  function renderSprint(id) {
+    setMid("Sprint");
+    SPRINT = null;
+    if (!id) { const p = sprintPick(); return p ? location.replace("#sprint-" + p.id) : go("home"); }
+    const p = PROMPTS.get(id);
+    if (!p || p.reasoning) return go("sprint");
+    const mine = sprints[p.id];
+    const recent = Object.entries(sprints).filter(([pid]) => PROMPTS.has(pid)).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 8);
+    app.innerHTML = `<section class="screen narrow sprint" id="sprint">
+      <div class="page-head"><h1>Sprint</h1><p>One prompt, ${SPRINT_SECS} seconds. Name every answer you can. Rarer ones score more.</p></div>
+      <div class="sp-card" id="sp-card">
+        ${sprintAsk(p)}
+        <p class="sp-meta">${fmt(p.answers.length)} answers in the key${mine ? `. Your best: ${mine.best} points` : ""}</p>
+        <div class="btn-row"><button class="btn primary big" id="sp-go" type="button">Start</button><button class="btn big" id="sp-other" type="button">Another prompt</button></div>
+      </div>
+      ${recent.length ? `<section class="sp-recent"><h2 class="block-title">Your sprints</h2><ul class="list">${recent.map(([pid, r]) => `
+        <li><a class="list-item" href="#sprint-${esc(pid)}"><span class="main"><span class="title">${esc(PROMPTS.get(pid).text)}</span><span class="sub">${r.plays} ${r.plays === 1 ? "run" : "runs"}</span></span><span class="right"><b>${r.best}</b></span></a></li>`).join("")}</ul></section>` : ""}
+    </section>`;
+    $("#sp-go").addEventListener("click", () => startSprint(p));
+    $("#sp-other").addEventListener("click", () => { const q = sprintPick(p.id); if (q) location.replace("#sprint-" + q.id); });
+  }
+
+  function startSprint(p) {
+    Sound.unlock();
+    window.scrollTo(0, 0);
+    $("#sprint").classList.add("playing");
+    $("#sp-card").innerHTML = `${sprintAsk(p)}
+      <div class="timer" id="sp-timer"><div class="timer-row"><span>Time left</span><b id="sp-secs">${SPRINT_SECS.toFixed(1)}</b></div><div class="timer-track"><div class="timer-fill" id="sp-fill"></div></div></div>
+      <form class="answer-form" id="sp-form" autocomplete="off">
+        <input class="answer-input" id="sp-answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Your answer" placeholder="Type an answer">
+        <button class="btn primary step-btn" type="submit">Step</button>
+      </form>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+      <p class="sp-tally"><b id="sp-n">0</b> answers <b id="sp-pts">0</b> points</p>
+      <ol class="sp-found" id="sp-found"></ol>`;
+    const input = $("#sp-answer"), total = SPRINT_SECS * 1000;
+    const S = SPRINT = { p, t0: performance.now(), found: [], got: new Set(), pts: 0, done: false, lastTick: SPRINT_SECS };
+    input.focus();
+    every(100, () => {
+      if (S !== SPRINT || S.done) return;
+      const left = Math.max(0, total - (performance.now() - S.t0));
+      const secs = $("#sp-secs"), fill = $("#sp-fill"), timer = $("#sp-timer");
+      if (!secs) return;
+      secs.textContent = (left / 1000).toFixed(1);
+      fill.style.transform = `scaleX(${(left / total).toFixed(4)})`;
+      timer.classList.toggle("low", left < 10000);
+      const whole = Math.ceil(left / 1000);
+      if (whole < S.lastTick) { S.lastTick = whole; if (whole <= 5 && whole > 0) Sound.tick(); }
+      if (left <= 0) finishSprint();
+    });
+    $("#sp-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (S.done) return;
+      const raw = input.value.trim();
+      if (!raw) return;
+      const m = E.matchAnswer(p, raw);
+      const a = m.kind === "exact" || (m.kind === "correction" && !(m.confidence < 0.88)) ? m.answer : null;
+      if (a) {
+        const idx = p.answers.indexOf(a);
+        input.value = "";
+        if (S.got.has(idx)) { setStatus(`Already counted: ${a.a}`, "info"); return; }
+        S.got.add(idx); S.found.push(a); S.pts += T[a.t].score;
+        Sound.tier(a.t);
+        setStatus(m.kind === "correction" ? `Counted as ${a.a}` : "");
+        $("#sp-n").textContent = S.found.length; $("#sp-pts").textContent = S.pts;
+        $("#sp-found").insertAdjacentHTML("afterbegin", `<li class="t-${a.t} pop">${G(a.t)}<span>${esc(a.a)}</span><b>+${T[a.t].score}</b></li>`);
+        return;
+      }
+      if (m.kind === "suggest" || m.kind === "correction") {
+        const s = m.kind === "suggest" ? m.suggestions[0] : m.answer;
+        setStatus(`Close to “${s.a}”. Check the spelling.`, "info");
+        input.select();
+        return;
+      }
+      Sound.reject();
+      setStatus(`“${raw}” isn't in the key.`, "bad");
+      input.value = "";
+      input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake");
+    });
+  }
+
+  function finishSprint() {
+    const S = SPRINT;
+    if (!S || S.done) return;
+    S.done = true;
+    clearScreenTimers();
+    const box = $("#sp-answer");
+    if (box) { box.disabled = true; box.blur(); } // an Enter typed as time runs out must not press anything
+    const prev = sprints[S.p.id];
+    const best = !prev || S.pts > prev.best;
+    sprints[S.p.id] = { best: best ? S.pts : prev.best, n: best ? S.found.length : prev.n, plays: (prev ? prev.plays : 0) + 1, at: Date.now() };
+    LS.set("sprints", sprints);
+    if (S.found.length) Sound.tier(S.found.some((a) => a.t === "mlion") ? "mlion" : "outlier"); else Sound.miss();
+    renderSprintDone(S, prev, best);
+  }
+
+  function renderSprintDone(S, prev, best) {
+    const p = S.p, n = S.found.length;
+    const counts = Object.fromEntries(E.TIER_IDS.map((t) => [t, 0]));
+    S.found.forEach((a) => counts[a.t]++);
+    // the most common answers first: what a strong player would have reached for
+    const missed = p.answers.filter((a, i) => !S.got.has(i) && (a.t === "baseline" || a.t === "overfit" || a.t === "indist"))
+      .sort((a, b) => T[a.t].score - T[b.t].score).slice(0, 8);
+    const gem = p.answers.find((a) => a.t === "mlion");
+    const gotGem = gem && S.got.has(p.answers.indexOf(gem));
+    const share = sprintShare(S);
+    const sec = $("#sprint");
+    sec.classList.remove("playing"); sec.classList.add("done");
+    $("#sp-card").outerHTML = `<div class="sp-done" id="sp-done">
+      <p class="sp-of">${esc(p.text)}</p>
+      <div class="figures"><div class="figure"><b>${n}</b><span>${n === 1 ? "Answer" : "Answers"}</span></div><div class="figure"><b>${S.pts}</b><span>Points</span></div></div>
+      <p class="sp-meta">${prev ? (best ? `New best on this prompt (was ${prev.best})` : `Your best here: ${prev.best} points`) : `${fmt(p.answers.length)} answers in the key`}</p>
+      ${n ? `<div class="tier-counts">${E.TIERS_BY_SCORE.filter((t) => counts[t.id]).map((t) => `<span class="t-${t.id}" title="${esc(t.name)}">${G(t.id)}${counts[t.id]}</span>`).join("")}</div>` : ""}
+      <div class="btn-row"><button class="btn primary big" id="sp-again" type="button">Again</button><button class="btn big" id="sp-next" type="button">Another prompt</button>${n ? `<button class="btn big" id="sp-share" type="button">Share</button>` : ""}</div>
+      ${n ? `<section><h2 class="block-title">You named</h2><ol class="sp-found">${S.found.map((a) => `<li class="t-${a.t}">${G(a.t)}<span>${esc(a.a)}</span><b>+${T[a.t].score}</b></li>`).join("")}</ol></section>` : ""}
+      ${missed.length ? `<section><h2 class="block-title">Common ones you missed</h2><ul class="sp-missed">${missed.map((a) => `<li class="t-${a.t}">${G(a.t)}<span>${esc(a.a)}</span></li>`).join("")}</ul></section>` : ""}
+      ${gem && !gotGem ? `<div class="gem-line">${G("mlion")}<span><b>${esc(gem.a)}</b>${gem.q ? `<span class="gq">${esc(gem.q)}</span>` : ""}</span></div>` : ""}
+      ${answerKey(p, null, false, true)}
+    </div>`;
+    wireAnswerKeys(app);
+    $("#sp-again").addEventListener("click", () => renderSprint(p.id));
+    $("#sp-next").addEventListener("click", () => { const q = sprintPick(p.id); if (q) location.replace("#sprint-" + q.id); });
+    const sb = $("#sp-share");
+    if (sb) sb.addEventListener("click", async () => {
+      if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        try { await navigator.share({ text: share }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+      }
+      if (await copyText(share)) return toast("Copied to clipboard");
+      showModal("Share your sprint", `<p class="muted">Copying is blocked here. Select the text and copy it.</p>
+        <textarea class="search share-box" id="share-box" readonly aria-label="Share text">${esc(share)}</textarea>`);
+      const box = $("#share-box"); box.focus(); box.select();
+    });
+  }
+
+  /** "MLion Sprint", the prompt, the count and points, then one tier emoji per answer in the order named. */
+  function sprintShare(S) {
+    const grid = S.found.slice(0, 40).map((a) => E.tierEmoji(a.t)).join("") + (S.found.length > 40 ? "…" : "");
+    const url = settings.shareLink && siteUrl() ? `\n\n${siteUrl()}#sprint-${S.p.id}` : "";
+    return `MLion Sprint 🦁\n${S.p.text}\n${S.found.length} answers · ${S.pts} points in ${SPRINT_SECS} s${grid ? `\n\n${grid}` : ""}${url}`;
+  }
+
   // ================================================================= quiz
   function renderQuizHub() {
     setMid("Quiz");
@@ -2958,12 +3118,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     setMid("Stats");
     const s = statsSummary(), q = quizSummary();
     const quizBlock = q.played ? `<section><h2 class="block-title">Daily quiz</h2><div class="stat-grid quiz-grid">${[["Played", q.played], ["Average", `${q.avg}/7`], ["Best", `${q.best}/7`], ["Streak", q.cur]].map(([l, v]) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`).join("")}</div></section>` : "";
+    const sp = Object.values(sprints), spRuns = sp.reduce((t, r) => t + (r.plays || 0), 0);
+    const sprintBlock = sp.length ? `<section><h2 class="block-title">Sprint</h2><div class="stat-grid quiz-grid">${[["Runs", spRuns], ["Prompts", sp.length], ["Best", Math.max(...sp.map((r) => r.best))], ["Most answers", Math.max(...sp.map((r) => r.n || 0))]].map(([l, v]) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`).join("")}</div></section>` : "";
     const tierMax = Math.max(1, ...Object.values(s.tierCounts));
     const bandMax = Math.max(1, ...s.bands.map((b) => b.n));
     const figs = [["Played", s.played], ["Average", s.avg || "—"], ["Best", s.best || "—"], ["Streak", s.cur], ["Max streak", s.max], ["Gems", s.gems]];
     if (!s.played) {
       app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Stats</h1><p>Your streak, best score and tier counts start with your first daily. They stay in this browser.</p></div>
-        <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div>${quizBlock}</section>`;
+        <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div>${quizBlock}${sprintBlock}</section>`;
       return;
     }
     app.innerHTML = `<section class="screen split">
@@ -2977,6 +3139,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <section><h2 class="block-title">Tiers landed</h2><div class="bars">${[...E.TIERS_BY_SCORE.map((t) => t.id), "miss"].map((t) => `
           <div class="bar-row t-${t}"><span class="lab">${G(t === "miss" ? null : t)}${t === "miss" ? "Miss" : esc(T[t].name)}</span><span class="tr"><i style="width:${(100 * s.tierCounts[t] / tierMax).toFixed(0)}%"></i></span><span class="v">${s.tierCounts[t]}</span></div>`).join("")}</div></section>
         ${quizBlock}
+        ${sprintBlock}
       </div>
     </section>`;
   }
@@ -3048,7 +3211,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     $$("input[data-k]").forEach((i) => i.addEventListener("change", () => { settings[i.dataset.k] = i.checked; saveSettings(); }));
     wireTimePicker((secs) => { settings.answerSecs = secs; saveSettings(); toast(`${secs} s per question`); });
     $("#exp").addEventListener("click", async () => {
-      const blob = JSON.stringify({ v: 1, records, seen: [...seen], practice: practiceBest, settings });
+      const blob = JSON.stringify({ v: 1, records, seen: [...seen], practice: practiceBest, settings, sprints });
       toast((await copyText(blob)) ? "Progress copied. Paste it into Import elsewhere" : "Couldn't copy");
     });
     $("#imp").addEventListener("click", () => {
@@ -3065,6 +3228,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           }
           LS.set("records", records);
           (d.seen || []).forEach((id) => seen.add(id)); LS.set("seen", [...seen]);
+          for (const [pid, r] of Object.entries(d.sprints || {})) {
+            if (r && typeof r.best === "number" && (!sprints[pid] || sprints[pid].best < r.best)) sprints[pid] = r;
+          }
+          LS.set("sprints", sprints);
           closeModal(); toast(`Imported ${n} run${n === 1 ? "" : "s"}`);
         } catch { toast("That doesn't look like MLion progress"); }
       });

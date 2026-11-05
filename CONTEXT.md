@@ -311,6 +311,7 @@ use `#/…`, and never `#settings`, which claude.ai reserves.
 | `#challenge`, `#vs-…`, `#vq-…` | challenge setup (Format: Rarity or Quiz), a rarity challenge link, a quiz challenge link |
 | `#quiz`, `#quiz-N` | Quiz hub (today's quiz first, then practice runs), solo quiz run N (hidden-ahead rule below) |
 | `#daily-quiz`, `#results-dquiz-YYYY-MM-DD` | today's Daily Quiz, its results |
+| `#sprint`, `#sprint-<promptId>` | Sprint: `#sprint` picks a random prompt and replaces itself with its link |
 | `#board`, `#board-YYYY-MM-DD`, `#board-quiz`, `#board-quiz-YYYY-MM-DD` | leaderboard, Daily and Quiz tabs |
 | `#live`, `#live-<code>` | live match setup, a room |
 | `#rooms` | public room list |
@@ -440,6 +441,17 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   the Quiz tab says "The quiz leaderboard opens soon" (the client detects PGRST205/42P01).
 - Tests: the daily-quiz block in `tests/quiz.e2e.js`; the quiz-board block in `tests/board.e2e.js`
   (mock table off, then on; tie-break by time).
+
+### Sprint (added overnight 2026-11-05)
+
+- One prompt, 60 seconds, as many answers as you can; each scores its tier's points. Answers count
+  once (aliases included); a confident typo counts and says "Counted as X"; a near miss says
+  "Close to X" and keeps the text; a miss clears. Everything is in app.js under `// sprint`.
+- Pool: `soloPool()` prompts with at least 40 answers (so extras follow the setting). Unranked:
+  bests in `mlion:sprints` (prompt id -> {best points, n answers, plays, at}), carried by
+  Export/Import, shown on Stats. The end screen lists the common answers you missed and the lion.
+- An Enter pressed as time runs out can't press a button: the box is disabled and blurred, and
+  nothing takes focus. Test: `tests/sprint.e2e.js` (fake clock).
 
 ### Home: the 3D descent (added overnight 2026-11-05)
 

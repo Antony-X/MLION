@@ -1036,3 +1036,28 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 
 /* Keyboard hints mean nothing on a touch screen with no keyboard. */
 @media (hover: none) and (pointer: coarse) { .hint:has(kbd) { display: none; } }
+
+/* Sprint: one prompt, sixty seconds */
+.sp-card { display: grid; gap: 16px; padding: 20px; border-radius: var(--soft); background: var(--surface); max-width: 620px; }
+.sp-card .prompt-text { font-size: var(--s3); line-height: 1.25; }
+.sp-card .prompt-note, .sp-meta { color: var(--muted); font-size: var(--s1); margin: 0; }
+.sp-card .btn-row { margin-top: 4px; }
+.sprint.playing .page-head, .sprint.playing .sp-recent { display: none; }
+.sprint.playing .sp-card { background: none; padding: 0; }
+.sp-tally { margin: 0; color: var(--muted); font-size: var(--s1); display: flex; gap: 6px; align-items: baseline; }
+.sp-tally b { color: var(--ink); font-size: var(--s3); font-weight: 400; font-variant-numeric: tabular-nums; }
+.sp-tally b + b, .sp-tally b:nth-of-type(2) { margin-left: 12px; }
+.sp-found, .sp-missed { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.sp-found li, .sp-missed li { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--raised); }
+.sp-missed li { grid-template-columns: 22px 1fr; color: var(--muted); }
+.sp-found .glyph, .sp-missed .glyph { font-size: 18px; color: var(--tc); }
+.sp-found b { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sp-found li.t-mlion b, .sp-found li.t-mlion span { color: var(--gold); }
+html:not(.reduce-motion) .sp-found li.pop { animation: sp-pop 420ms var(--ease-out); }
+@keyframes sp-pop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.sp-done { display: grid; gap: 22px; max-width: 620px; }
+.sp-done > section { display: grid; gap: 10px; }
+.sp-done .tier-counts { margin: 0; }
+.sp-done .gem-line { margin: 0; }
+.sp-of { margin: 0; color: var(--muted); }
+.sprint.done .sp-recent { display: none; }
