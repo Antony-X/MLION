@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Live match end to end: two separate browsers connect through PeerJS and
  * play 5 questions on the same clock.  node tests/live.e2e.js
- * Needs network access to unpkg.com and public.cloud.shiftr.io (the MQTT relay). */
+ * Needs network access to public.cloud.shiftr.io (the MQTT relay). */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
@@ -44,7 +44,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await page.addInitScript((code) => {
       window.MLION_TEST = true;
-      if (code) window.MLION_LIVE_CODE = code;
+      if (code) { window.MLION_LIVE_CODE = code; window.MLION_LIVE_SECRET = code.padEnd(22, "K"); } // a fixed link, so a guest can open it before the room exists
       try { localStorage.setItem("mlion:seenHow", "true"); } catch { /* */ }
     }, init || null);
     return page;
@@ -52,7 +52,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   const ana = await player("ana", forced), ben = await player("ben"), cy = await player("cy");
 
   // Ben opens the link before the room exists (the host switched apps): he must wait, not fail.
-  await ben.goto(base + `#live-${forced}`);
+  await ben.goto(base + `#live-${forced}-${forced.padEnd(22, "K")}`);
   await ben.fill("#live-name", "Ben");
   await ben.click("#live-go");
   await ben.waitForFunction(() => /Waiting for the host|Connecting|reaching/.test(document.body.textContent), null, { timeout: 20000 });
@@ -70,7 +70,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
 
   // The host's phone drops its server connection; a third player must still get in.
   await ana.evaluate(() => window.MLION_LIVE_STATE.client.stream.end());
-  await cy.goto(base + `#live-${code}`);
+  await cy.goto(base + `#live-${code}-${code.padEnd(22, "K")}`);
   await cy.fill("#live-name", "Cy");
   await cy.click("#live-go");
   await ana.waitForFunction(() => document.querySelectorAll(".lv-players li:not(.lv-wait)").length === 3, null, { timeout: 40000 });

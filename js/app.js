@@ -620,17 +620,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // ================================================================ live
-  // Real-time matches. Browsers talk directly over WebRTC; PeerJS's public
-  // server only introduces them, so nobody needs an account. The host's page
-  // is the authority: it admits players, paces rounds and relays answers.
-  // claude.ai blocks WebRTC inside artifacts, so there live mode points to the
-  // web version.
+  // Real-time matches over a public MQTT relay. The host's page is the authority: it admits players,
+  // paces rounds, re-judges answers and relays them. Every room message is sealed (AES-GCM) with a key
+  // derived from a random room secret that travels only in the invite link's #fragment, so the relay
+  // and anyone listening on it see ciphertext and can't forge anything. claude.ai blocks outside
+  // WebSockets inside artifacts, so there live mode points to the web version.
   const WEB_URL = "https://antony-x.github.io/MLION/";
-  const MQTT_SRC = "https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js";
-  const BROKER = "wss://public.cloud.shiftr.io";
-  const TOPIC = "mlion/v2";
+  const MQTT_SRC = "js/vendor/mqtt-4.3.7.min.js"; // vendored (MIT), so live play doesn't hang on a CDN
+  const BROKER = "wss://public.cloud.shiftr.io"; // the relay: change it here and only here
+  const BROKER_LOGIN = { username: "public", password: "public" };
+  const TOPIC = "mlion/v3"; // v3: sealed messages; v2 pages (plain JSON) can't talk to these rooms
   const PUB_SLOTS = 10; // public rooms live at fixed codes pub01..pub10 so anyone can find them
   const pubCode = (k) => `pub${String(k).padStart(2, "0")}`;
+  const isPubCode = (c) => /^pub\d{2}$/.test(c);
+  const ROOM_MAX = 12, PUB_MAX = 2; // a private room seats 12 (10 friends with room to spare); an open room is a duo
+  const roomMax = () => (LIVE.isPublic ? PUB_MAX : ROOM_MAX);
+  const HOST_QUIET_MS = 8000; // a guest accepts a new host only after the current one has been silent this long
   const AWAY_GRACE_MS = 15000;
   const REVEAL_MS = 4500;
   const CODE_ABC = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -688,12 +693,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     for (const p of LIVE.players.values()) clearTimeout(p.awayTimer); // a seat's grace timer must not outlive the room
     const c = LIVE.client;
     if (c) {
-      try { if (LIVE.isHost && !LIVE.quietLeave) pubJSON(c, `${roomTopic(LIVE.code)}/down`, { t: "closed", ep: LIVE.ep || 0 }); } catch { /* ignore */ }
+      try { if (LIVE.isHost && !LIVE.quietLeave) sendSealed(c, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/down`, { t: "closed", ep: LIVE.ep || 0, hid: LIVE.myId, now: Date.now() }); } catch { /* ignore */ }
       try { if (LIVE.isHost && LIVE.isPublic) c.publish(infoTopic(LIVE.code), "", { retain: true, qos: 1 }); } catch { /* ignore */ }
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
     const n = LIVE.fmt === "sprint" || LIVE.mfmt === "sprint" ? (validQ(LIVE.nOther) ? LIVE.nOther : 7) : LIVE.n; // a Sprint room's count stays with Sprint
-    Object.assign(LIVE, { active: false, code: "", isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
+    Object.assign(LIVE, { active: false, code: "", secret: "", key: null, hostId: "", knock: null, isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
       players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, moreOpen: false, quiz: null, gone: new Map(), spRec: null, n });
     liveSprintStop();
     chatRate.clear();
@@ -710,7 +715,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (LIVE.active) liveReset();
   }
-  const liveHash = () => `live-${LIVE.code}`;
+  /** The room's link: its code, then its secret. The secret sits in the #fragment, which browsers never send to a server. */
+  const liveHash = () => `live-${LIVE.code}${LIVE.secret ? `-${LIVE.secret}` : ""}`;
+  /** "live-<code>" or "live-<code>-<secret>" from a hash, else null. */
+  function liveRoute(h) {
+    const m = /^live-([a-z0-9]{5})(?:-([A-Za-z0-9_-]{22}))?$/.exec(h);
+    return m ? { code: m[1], secret: m[2] || "" } : null;
+  }
   const playerList = () => [...LIVE.players.values()];
   const inMatch = () => playerList().filter((p) => !p.late); // late joiners wait for the next match
   /** Clash (a room rule): once a Classic round is revealed, an answer someone else in the match also gave scores half. */
@@ -734,7 +745,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (m.t === "lobby" && Array.isArray(m.players)) {
       const before = new Set(LIVE.players.keys());
       const next = new Map();
-      for (const p of m.players.slice(0, 12)) {
+      for (const p of m.players.slice(0, ROOM_MAX)) {
         if (!p || typeof p.id !== "string") continue;
         // Update the existing object in place: the host's grace timer and last-seen time
         // live on it, and a fresh copy would let a stale timer free a seat its owner came back to.
@@ -872,7 +883,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function broadcast(m) {
     m.ep = LIVE.ep || 0; m.hid = LIVE.myId; m.now = Date.now();
-    if (LIVE.client) pubJSON(LIVE.client, `${roomTopic(LIVE.code)}/down`, m);
+    if (LIVE.client) sendSealed(LIVE.client, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/down`, m);
     if (m.t === "lobby") publishInfo();
     apply(m);
   }
@@ -906,7 +917,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!m || typeof m !== "object") return;
     if (m.t === "info") {
       const host = playerList().find((p) => p.host);
-      try { conn.send({ t: "info", host: host ? host.name : "Someone", players: LIVE.players.size, max: LIVE.isPublic ? 2 : 8, phase: LIVE.phase, n: LIVE.n }); } catch { /* ignore */ }
+      try { conn.send({ t: "info", host: host ? host.name : "Someone", players: LIVE.players.size, max: roomMax(), phase: LIVE.phase, n: LIVE.n }); } catch { /* ignore */ }
       setTimeout(() => { try { conn.close(); } catch { /* ignore */ } }, 400);
       return;
     }
@@ -919,17 +930,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       return;
     }
     if (m.t === "hello") {
-      if (LIVE.players.size >= (LIVE.isPublic ? 2 : 8)) { try { conn.send({ t: "full" }); } catch { /* ignore */ } return; }
+      if (LIVE.players.size >= roomMax()) { try { conn.send({ t: "full", max: roomMax() }); } catch { /* ignore */ } return; }
       let name = cleanName(m.name) || "Player";
       const taken = new Set(playerList().map((p) => p.name));
       for (let k = 2; taken.has(name); k++) name = `${cleanName(m.name) || "Player"} ${k}`;
       LIVE.conns.set(conn.peer, conn);
-      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {} });
+      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now() });
+      LIVE.knock = null; // an open room's seat is taken: the next knock hears "full"
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
     } else if (m.t === "ready" && LIVE.players.has(conn.peer)) {
       hostReady(conn.peer, !!m.v);
     } else if (m.t === "typing" && LIVE.players.has(conn.peer)) {
+      const pl = LIVE.players.get(conn.peer), now = Date.now();
+      if (now - (pl.typedAt || 0) < TYPING_EVERY_MS / 2) return; // honest pages send one every 2 s at most; this leaves room for network jitter
+      pl.typedAt = now;
       broadcast({ t: "typing", id: conn.peer, i: m.i, draft: m.draft, tried: m.tried });
     } else if (m.t === "ans" && LIVE.players.has(conn.peer)) {
       hostAnswer(conn.peer, m);
@@ -946,16 +961,41 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function hostAnswer(id, m) {
     if (LIVE.phase !== "playing" || !Number.isInteger(m.i) || m.i <= LIVE.revealed || liveSprint()) return;
     if (m.pid && RUN && RUN.mode === "live" && RUN.promptIds[m.i] !== m.pid) return; // answered a question that was skipped
-    if (liveQuiz()) { // the host decides what counts: a real option index (or none), a time inside the clock
-      if (!LIVE.quiz || !LIVE.quiz[m.i] || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
+    const pl = LIVE.players.get(id);
+    if (!pl || pl.ans[m.i]) return; // one answer per question: a second one (or a replay) changes nothing
+    const hint = m.hint === true && !!LIVE.mrules && LIVE.mrules.hints !== "off";
+    if (liveQuiz()) { // the host decides what counts: a real option index (or none), never one the 50:50 removed, a time inside the clock
+      const q = LIVE.quiz && LIVE.quiz[m.i];
+      if (!q || !Number.isInteger(m.pick) || m.pick < -1 || m.pick >= E.QUIZ_OPTIONS) return;
+      if (hint && cutOptions(q, LIVE.seed, m.i).includes(m.pick)) return; // that button was disabled on an honest page
       const ms = Math.max(0, Math.min(Math.round(+m.ms) || 0, liveMs(m.i)));
-      broadcast({ t: "ans", id, i: m.i, pick: m.pick, ms, hint: m.hint === true });
+      broadcast({ t: "ans", id, i: m.i, pick: m.pick, ms, hint });
     } else {
+      // the host re-judges the typed text itself; the tier a page claims is never used
+      const a = m.answer == null ? null : liveJudge(PROMPTS.get(LIVE.ids && LIVE.ids[m.i]), m.raw, m.answer, (RUN && RUN.mode === "live" && RUN.assist) || "typos");
       const ms = Number.isFinite(+m.ms) ? Math.max(0, Math.min(Math.round(+m.ms), liveMs(m.i))) : undefined;
-      broadcast({ t: "ans", id, i: m.i, answer: m.answer, tier: m.tier, ms, miss: Math.max(0, Math.min(99, Math.round(+m.miss) || 0)), hint: m.hint === true });
+      broadcast({ t: "ans", id, i: m.i, answer: a ? a.a : null, tier: a ? a.t : null, ms, miss: Math.max(0, Math.min(99, Math.round(+m.miss) || 0)), hint });
     }
     const everyone = inMatch().every((p) => p.ans[m.i]);
     if (everyone) liveLater(() => hostReveal(m.i), 700);
+  }
+  /** What a typed answer counts as under the room's autocorrect help, judged from the raw text alone (the same
+   *  rules submit() applies). `named` is the answer the player settled on: it decides only between the
+   *  suggestions their text really offered (a tapped chip). Anything the text can't reach is a miss. */
+  function liveJudge(p, raw, named, assist) {
+    const text = String(raw == null ? "" : raw).slice(0, E.MAX_ANSWER_LENGTH);
+    if (!p || !text.trim()) return null;
+    const m = E.matchAnswer(p, text);
+    if (m.kind === "exact") return m.answer;
+    if (assist === "off") return null;
+    if (m.kind === "correction") return assist === "typos" && m.confidence !== undefined && m.confidence < 0.88 ? null : m.answer;
+    if (m.kind === "suggest" && (assist === "full" || assist === "generous")) return m.suggestions.find((a) => a.a === named) || null;
+    return null;
+  }
+  /** The two wrong options a quiz 50:50 removes: the same two on every page. */
+  function cutOptions(q, seed, i) {
+    const wrong = [...Array(E.QUIZ_OPTIONS).keys()].filter((k) => k !== q.correct);
+    return E.shuffled(wrong, E.mulberry32(E.hashString(`cut:${seed}:${i}`))).slice(0, 2);
   }
   function hostDrop(id) {
     const pl = LIVE.players.get(id);
@@ -967,6 +1007,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (!pl.away || !LIVE.isHost || LIVE.players.get(id) !== pl) return; // this page may have been taken over since
       liveSprintKeep([id], new Map()); // before the seat goes, so a sprint match keeps their score
       LIVE.players.delete(id);
+      if (LIVE.isPublic && LIVE.players.size < PUB_MAX) rotateSecret(); // the stranger who left keeps no key to this room
       broadcast(lobbyMsg());
       hostCheckRound();
     }, AWAY_GRACE_MS);
@@ -1065,7 +1106,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** Called from renderFeedback when this player's answer for the round is final. */
   function liveLocalAnswer(res) {
-    const m = { t: "ans", i: RUN.round, pid: RUN.promptIds[RUN.round], answer: res.answer, tier: res.tier, ms: res.ms, miss: res.misses || 0, hint: !!res.hinted };
+    // the raw text goes with the answer: the host re-judges it rather than trusting the tier
+    const m = { t: "ans", i: RUN.round, pid: RUN.promptIds[RUN.round], answer: res.answer, raw: res.raw, tier: res.tier, ms: res.ms, miss: res.misses || 0, hint: !!res.hinted };
     if (RUN.fmt === "quiz") Object.assign(m, { pick: res.picked });
     if (LIVE.isHost) hostAnswer(LIVE.myId, m);
     else guestSend(m);
@@ -1073,32 +1115,106 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // ---- connecting
   // ---- transport: a public MQTT broker over WebSocket on port 443.
-  // Works on any network (no peer-to-peer); public rooms announce themselves
-  // with retained messages so the room list is instant.
+  // Works on any network (no peer-to-peer). Room traffic is sealed (see "room crypto"); only the open-room
+  // listings (retained, so the room list is instant) and the open-room knock travel in the clear.
   const rid = (n) => Array.from({ length: n }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join("");
   async function mqttConnect(extra) {
     const m = await loadMqtt();
-    return m.connect(BROKER, Object.assign({ username: "public", password: "public", clientId: "mlion-" + rid(12),
+    return m.connect(BROKER, Object.assign({ ...BROKER_LOGIN, clientId: "mlion-" + rid(12),
       keepalive: 15, reconnectPeriod: 1500, connectTimeout: 9000, clean: true }, extra || {}));
   }
   const roomTopic = (code) => `${TOPIC}/r/${code}`;
   const infoTopic = (code) => `${TOPIC}/pub/${code}`;
+  const knockTopic = (code) => `${roomTopic(code)}/knock`;
   const pubJSON = (client, topic, m, opts) => { try { client.publish(topic, JSON.stringify(m), opts || {}); } catch { /* offline: mqtt queues */ } };
-  const hostSendTo = (id, m) => LIVE.client && pubJSON(LIVE.client, `${roomTopic(LIVE.code)}/to/${id}`, m);
-  const guestSend = (m) => LIVE.client && pubJSON(LIVE.client, `${roomTopic(LIVE.code)}/up`, Object.assign({ from: LIVE.myId }, m));
+
+  // ---- room crypto (WebCrypto). The room secret (16 random bytes, base64url) comes from the invite link and
+  // never goes over the relay or into a topic name. HKDF-SHA-256 turns it into the room's AES-GCM key. A message
+  // is {s: sender id, c: counter, m: message}, sealed with a fresh 12-byte IV and its topic as associated data,
+  // so it can't be moved to another topic or room. Pages drop anything that doesn't open, and any counter from a
+  // sender that isn't higher than the last one seen from them (a replay).
+  const enc8 = new TextEncoder(), dec8 = new TextDecoder();
+  const b64u = (bytes) => { let s = ""; for (let k = 0; k < bytes.length; k++) s += String.fromCharCode(bytes[k]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  function unb64u(text) {
+    const t = String(text).replace(/-/g, "+").replace(/_/g, "/");
+    const bin = atob(t + "=".repeat((4 - (t.length % 4)) % 4)); // throws on anything that isn't base64
+    const out = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) out[k] = bin.charCodeAt(k);
+    return out;
+  }
+  const SECRET_RE = /^[A-Za-z0-9_-]{22}$/;
+  const newSecret = () => b64u(crypto.getRandomValues(new Uint8Array(16)));
+  const cryptoOk = () => !!(window.crypto && crypto.subtle);
+  async function hkdfKey(bytes, salt) {
+    const base = await crypto.subtle.importKey("raw", bytes, "HKDF", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: enc8.encode(salt), info: enc8.encode("mlion live") }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  const roomKey = (code, secret) => hkdfKey(unb64u(secret), `${TOPIC}/room/${code}`);
+  async function sealText(key, aad, text) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: enc8.encode(aad) }, key, enc8.encode(text)));
+    const out = new Uint8Array(12 + ct.length);
+    out.set(iv); out.set(ct, 12);
+    return b64u(out);
+  }
+  /** The JSON inside a sealed payload, or null when it doesn't open (wrong key, wrong topic, tampered, not ours). */
+  async function openText(key, aad, payload) {
+    try {
+      const s = String(payload);
+      if (s.length < 40 || s.length > 200000) return null;
+      const raw = unb64u(s);
+      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.subarray(0, 12), additionalData: enc8.encode(aad) }, key, raw.subarray(12));
+      return JSON.parse(dec8.decode(pt));
+    } catch { return null; }
+  }
+  let txCount = Date.now() * 1000; // this page's message counter: it only goes up, across rooms and rejoins
+  const rxCount = new Map(); // "code sender" -> the highest counter accepted from them
+  let sendChain = Promise.resolve(); // sealing is async; the chain keeps messages in the order they were sent
+  function sendSealed(client, key, sender, topic, m, opts) {
+    if (!client || !key) return;
+    const body = JSON.stringify({ s: sender, c: ++txCount, m }); // now, before anything can change m
+    sendChain = sendChain.then(() => sealText(key, topic, body))
+      .then((payload) => { try { client.publish(topic, payload, opts || {}); } catch { /* offline: mqtt queues */ } })
+      .catch(() => { /* a failed seal sends nothing */ });
+  }
+  /** Listen for sealed messages on a client: open each in arrival order, drop what doesn't open and replays, then
+   *  call handle(topic, message, sender). `plain` gets the first look and takes the topics that aren't sealed. */
+  function listenSealed(client, code, keyOf, handle, plain) {
+    let chain = Promise.resolve();
+    client.removeAllListeners("message");
+    client.on("message", (topic, payload) => {
+      if (plain && plain(topic, payload)) return;
+      chain = chain.then(async () => {
+        const key = keyOf();
+        if (!key) return;
+        const d = await openText(key, topic, payload.toString());
+        if (!d || typeof d.s !== "string" || !/^[a-z0-9]{1,20}$/.test(d.s) || !Number.isFinite(d.c) || !d.m || typeof d.m !== "object") return;
+        const k = `${code} ${d.s}`;
+        if (d.c <= (rxCount.get(k) || 0)) return; // a replay, or older than what we already have
+        rxCount.set(k, d.c);
+        try { handle(topic, d.m, d.s); } catch (e) { setTimeout(() => { throw e; }); } // keep app errors visible
+      });
+    });
+  }
+
+  const hostSendTo = (id, m) => LIVE.client && sendSealed(LIVE.client, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/to/${id}`, m);
+  const guestSend = (m) => LIVE.client && sendSealed(LIVE.client, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/up`, m);
   function publishInfo() {
     if (!LIVE.isHost || !LIVE.isPublic || !LIVE.client) return;
     const host = playerList().find((p) => p.host);
-    pubJSON(LIVE.client, infoTopic(LIVE.code), { host: host ? host.name : "Someone", players: LIVE.players.size, max: 2, phase: LIVE.phase, at: Date.now() }, { retain: true, qos: 1 });
+    // the listing is plain on purpose, so anyone can read it: the code, the host's name and the head count, never the secret
+    pubJSON(LIVE.client, infoTopic(LIVE.code), { host: host ? host.name : "Someone", players: LIVE.players.size, max: PUB_MAX, phase: LIVE.phase, at: Date.now() }, { retain: true, qos: 1 });
   }
   const liveEvery = (fn, ms) => { const id = setInterval(fn, ms); LIVE.intervals.push(id); return id; };
   function fakeConn(id) { return { peer: id, send: (x) => hostSendTo(id, x), close() {} }; }
-  /** This page runs the room: heartbeat, presence checks, public listing. */
+  /** This page runs the room: heartbeat, presence checks, public listing, knocks on an open room. */
   function becomeHost() {
     LIVE.isHost = true;
+    LIVE.hostId = LIVE.myId;
     for (const p of LIVE.players.values()) p.host = p.id === LIVE.myId;
     const client = LIVE.client, code = LIVE.code;
-    client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`]);
+    client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`, ...(LIVE.isPublic ? [knockTopic(code)] : [])]);
+    listenSealed(client, code, () => LIVE.key, hostIncoming, (topic, payload) => topic === knockTopic(code) && (hostKnock(payload), true));
     publishInfo();
     liveEvery(() => { broadcast({ t: "hb" }); publishInfo(); }, 3000);
     liveEvery(() => { // a player who went quiet: hold the seat, then free it
@@ -1106,26 +1222,30 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (const p of LIVE.players.values()) if (!p.host && !p.away && now - (p.seen || now) > 9000) hostDrop(p.id);
     }, 2000);
   }
-  function hostIncoming(topic, payload) {
-    let m; try { m = JSON.parse(payload.toString()); } catch { return; }
-    if (!m || typeof m !== "object") return;
-    if (topic.endsWith("/down")) { // another page claims the room with a newer epoch: hand over and rejoin
-      if (!LIVE.active || !LIVE.isHost) return; // already handed over: a second claim reaching the old client must not undo the rejoin
-      if (m.hid && m.hid !== LIVE.myId && (+m.ep || 0) > (LIVE.ep || 0)) {
-        const code = LIVE.code, me = LIVE.players.get(LIVE.myId), name = me ? me.name : myName();
+  /** A sealed message reached the host page. `s` is the sender sealed inside it: the only identity the host trusts. */
+  function hostIncoming(topic, m, s) {
+    const room = roomTopic(LIVE.code);
+    if (topic === `${room}/down`) {
+      // Another page speaks for the room. Only a seated player can take it over: one with a newer epoch, or the same
+      // epoch and a smaller id (two guests who took over at once). Then hand over and rejoin as a guest.
+      if (!LIVE.active || !LIVE.isHost || s === LIVE.myId) return; // our own echo, or already handed over
+      const ep = +m.ep || 0, mine = LIVE.ep || 0;
+      if (LIVE.players.has(s) && (ep > mine || (ep === mine && s < LIVE.myId))) {
+        const code = LIVE.code, secret = LIVE.secret, me = LIVE.players.get(LIVE.myId), name = me ? me.name : myName();
         const keepId = LIVE.myId, carry = LIVE.phase === "playing" && liveSprint() ? spSnapshot() : null;
         toast("Reconnected. Your friend is hosting now");
         leaveLive(true);
         spCarry = carry; // picked up when the new host says "resume"
-        liveJoin(code, name, keepId);
+        liveJoin(code, name, keepId, secret);
       }
       return;
     }
-    if (!LIVE.isHost || typeof m.from !== "string" || m.from.length > 20) return;
-    const pl = LIVE.players.get(m.from);
+    if (topic !== `${room}/up` || !LIVE.isHost) return;
+    if (m.from !== undefined && m.from !== s) return; // a message naming anyone but its sealed sender is forged
+    const pl = LIVE.players.get(s);
     if (pl) pl.seen = Date.now();
-    if (m.t === "hb") { if (pl && pl.away) hostHandle(fakeConn(m.from), { t: "hello" }); return; }
-    hostHandle(fakeConn(m.from), m);
+    if (m.t === "hb") { if (pl && pl.away) hostHandle(fakeConn(s), { t: "hello" }); return; }
+    hostHandle(fakeConn(s), m);
   }
   /** The host vanished: the remaining player with the smallest id takes over. */
   function maybeTakeOver() {
@@ -1137,10 +1257,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.ep = (LIVE.ep || 0) + 1;
     LIVE.offset = 0;
     for (const p of LIVE.players.values()) p.seen = Date.now();
-    becomeHost();
+    becomeHost(); // also moves this page's client over to the host's listener
     if (oldHost) hostDrop(oldHost.id); // their seat is held for the grace period
-    LIVE.client.removeAllListeners("message");
-    LIVE.client.on("message", (topic, payload) => hostIncoming(topic, payload));
     if (joinState) { clearInterval(joinState.helloTimer); joinState = null; }
     toast(`${oldHost ? oldHost.name : "The host"} left. You're hosting now`);
     broadcast(lobbyMsg());
@@ -1152,15 +1270,91 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
   }
 
+  // ---- open rooms. A listed room can't put its secret in the listing, so a stranger knocks: they send an
+  // ephemeral ECDH (P-256) public key on the room's knock topic, and while the seat is free the host answers with
+  // its own ephemeral key and the room secret sealed under the shared ECDH key, which a listener can't compute.
+  // One knock is answered per free seat (held for KNOCK_HOLD_MS), and the host draws a fresh secret before each
+  // answer and whenever the seat empties, so nobody who knocked without sitting down, or who left, keeps a key.
+  const KNOCK_HOLD_MS = 20000;
+  const ECDH = { name: "ECDH", namedCurve: "P-256" };
+  async function ecdhPair() {
+    const pair = await crypto.subtle.generateKey(ECDH, true, ["deriveBits"]);
+    return { priv: pair.privateKey, pub: b64u(new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey))) };
+  }
+  async function knockKey(priv, pubText, code, n) {
+    const pub = await crypto.subtle.importKey("raw", unb64u(pubText), ECDH, false, []);
+    const bits = await crypto.subtle.deriveBits({ name: "ECDH", public: pub }, priv, 256);
+    return hkdfKey(new Uint8Array(bits), `${TOPIC}/knock/${code}/${n}`);
+  }
+  /** A fresh secret for an open room this page hosts with nobody else seated. */
+  async function rotateSecret() {
+    const code = LIVE.code, secret = newSecret(), key = await roomKey(code, secret);
+    if (!LIVE.active || !LIVE.isHost || LIVE.code !== code) return;
+    Object.assign(LIVE, { secret, key });
+    const r = liveRoute(location.hash.slice(1));
+    if (r && r.code === code) history.replaceState(null, "", `#${liveHash()}`); // keep the address bar's link working
+  }
+  async function hostKnock(payload) {
+    if (!LIVE.active || !LIVE.isHost || !LIVE.isPublic) return;
+    let k = null;
+    try { k = JSON.parse(payload.toString()); } catch { return; }
+    if (!k || typeof k.pub !== "string" || k.pub.length > 120 || typeof k.n !== "string" || !/^[a-z0-9]{12}$/.test(k.n)) return;
+    const code = LIVE.code, client = LIVE.client, reply = `${knockTopic(code)}/${k.n}`, now = Date.now(), held = LIVE.knock;
+    if (held && held.n === k.n && held.until > now) { if (held.answer) pubJSON(client, reply, held.answer); return; } // the same stranger asking again
+    if (LIVE.players.size >= PUB_MAX || (held && held.until > now)) return pubJSON(client, reply, { full: true });
+    const hold = LIVE.knock = { n: k.n, until: now + KNOCK_HOLD_MS, answer: null };
+    try {
+      await rotateSecret();
+      const mine = await ecdhPair();
+      const key = await knockKey(mine.priv, k.pub, code, k.n);
+      if (LIVE.knock !== hold || LIVE.code !== code) return;
+      hold.answer = { pub: mine.pub, box: await sealText(key, reply, JSON.stringify({ secret: LIVE.secret })) };
+      pubJSON(client, reply, hold.answer);
+    } catch { if (LIVE.knock === hold) LIVE.knock = null; }
+  }
+  /** Join an open room from the list: knock, get the room secret from its host, then join as from an invite link. */
+  async function liveKnock(code, name) {
+    LS.set("name", name);
+    leaveLive(true);
+    if (!cryptoOk()) return renderLiveStatus("Live play needs a secure page (https). Open MLion from its web address.", true);
+    renderJoinWait(code, "Asking the host to let you in…");
+    let client, me;
+    try { me = await ecdhPair(); client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
+    const n = rid(12), reply = `${knockTopic(code)}/${n}`;
+    const js = joinState = { code, name, client, knocking: true, started: Date.now() };
+    const ask = () => pubJSON(client, knockTopic(code), { pub: me.pub, n });
+    client.on("connect", () => { client.subscribe(reply); ask(); });
+    js.helloTimer = setInterval(() => {
+      if (joinState !== js) return clearInterval(js.helloTimer);
+      if (Date.now() - js.started > 30000) { leaveLive(); return renderLiveStatus("The host of that room didn't answer. It may have closed; try another room.", true); }
+      if (client.connected) ask();
+    }, 3000);
+    client.on("message", async (topic, payload) => {
+      if (topic !== reply || joinState !== js) return;
+      let d = null;
+      try { d = JSON.parse(payload.toString()); } catch { return; }
+      if (!d || typeof d !== "object") return;
+      if (d.full === true) { leaveLive(); return renderLiveStatus("That open room is full. Open rooms are for two players.", true); }
+      if (typeof d.pub !== "string" || typeof d.box !== "string") return;
+      let secret = null;
+      try { const o = await openText(await knockKey(me.priv, d.pub, code, n), reply, d.box); secret = o && o.secret; } catch { secret = null; }
+      if (joinState !== js || !SECRET_RE.test(secret || "")) return; // an answer that doesn't open isn't the host's: keep waiting
+      history.replaceState(null, "", `#live-${code}-${secret}`);
+      liveJoin(code, name, null, secret);
+    });
+  }
+
   /** Read the public room list once (or keep listening with onUpdate). */
   async function scanPublic(ms, onUpdate) {
     const client = await mqttConnect();
     const rooms = new Map();
-    client.on("connect", () => client.subscribe(`${TOPIC}/pub/+`));
+    const pre = `${TOPIC}/pub/`;
+    client.on("connect", () => client.subscribe(`${pre}+`));
     client.on("message", (topic, payload) => {
-      const code = topic.split("/").pop();
+      const code = topic.slice(pre.length);
+      if (!topic.startsWith(pre) || !isPubCode(code)) return; // only the ten fixed codes; any other topic is junk or an attack
       let d = null; try { d = payload.length ? JSON.parse(payload.toString()) : null; } catch { d = null; }
-      if (!d || Date.now() - (+d.at || 0) > 45000) rooms.delete(code); else rooms.set(code, d);
+      if (!d || typeof d !== "object" || Date.now() - (+d.at || 0) > 45000) rooms.delete(code); else rooms.set(code, d);
       if (onUpdate) onUpdate(rooms);
     });
     if (!ms) return { client, rooms };
@@ -1171,8 +1365,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   async function liveCreate(name, isPublic) {
     LS.set("name", name);
+    if (!cryptoOk()) return renderLiveStatus("Live play needs a secure page (https). Open MLion from its web address.", true);
     renderLiveStatus("Opening a room…");
     let code = window.MLION_LIVE_CODE || rid(5);
+    const secret = window.MLION_TEST && SECRET_RE.test(window.MLION_LIVE_SECRET || "") ? window.MLION_LIVE_SECRET : newSecret(); // tests may fix the link
     try {
       if (isPublic) {
         renderLiveStatus("Finding a free public room…");
@@ -1181,48 +1377,51 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         for (let k = 1; k <= PUB_SLOTS && !code; k++) if (!rooms.has(pubCode(k))) code = pubCode(k);
         if (!code) return renderLiveStatus("All public rooms are in use. Join one, or make a private room.", true);
       }
+      const key = await roomKey(code, secret);
       renderLiveStatus("Connecting to the live server…");
       const client = await mqttConnect(isPublic ? { will: { topic: infoTopic(code), payload: "", retain: true, qos: 1 } } : {});
       const id = "h" + rid(8);
       let ready = false;
       const fail = setTimeout(() => { if (!ready) { try { client.end(true); } catch { /* ignore */ } renderLiveStatus("Couldn't reach the live server. Check your connection and try again.", true); } }, 15000);
       client.on("connect", () => {
-        client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`]);
+        client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`, ...(isPublic ? [knockTopic(code)] : [])]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)) });
+        Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)) });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
         if (LIVE.fmt === "sprint") liveSetFmt("sprint", true);
         becomeHost();
         go(liveHash());
       });
-      client.on("message", (topic, payload) => hostIncoming(topic, payload));
     } catch {
       renderLiveStatus("Couldn't load live play. Check your connection and try again.", true);
     }
   }
 
   const JOIN_PATIENCE_MS = 120000;
-  let joinState = null; // { code, name, client, id, started, joined, lastHost }
-  async function liveJoin(code, name, keepId) {
+  let joinState = null; // { code, name, client, id, secret, key, started, joined, lastHost } (or a knock: { code, name, client, knocking })
+  async function liveJoin(code, name, keepId, secret) {
     LS.set("name", name);
     leaveLive(true);
+    if (!cryptoOk()) return renderLiveStatus("Live play needs a secure page (https). Open MLion from its web address.", true);
+    if (!SECRET_RE.test(secret || "")) return renderLiveStatus("This invite link is missing its key. Ask your friend to send the link again from inside the room.", true);
     renderJoinWait(code, "Connecting to the live server…");
-    let client;
-    try { client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
+    let client, key;
+    try { key = await roomKey(code, secret); client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
     const id = keepId || "g" + rid(8);
-    const js = joinState = { code, name, client, id, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
-    const hello = () => pubJSON(client, `${roomTopic(code)}/up`, { from: id, t: "hello", name, v: 2 });
+    const js = joinState = { code, name, client, id, secret, key, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
+    const up = `${roomTopic(code)}/up`, down = `${roomTopic(code)}/down`, mine = `${roomTopic(code)}/to/${id}`;
+    const hello = () => sendSealed(client, key, id, up, { t: "hello", name, v: 3 });
     client.on("connect", () => {
-      client.subscribe([`${roomTopic(code)}/down`, `${roomTopic(code)}/to/${id}`]);
-      if (LIVE.isHost && LIVE.client === client) { client.subscribe(`${roomTopic(code)}/up`); broadcast(lobbyMsg()); return; }
+      client.subscribe([down, mine]);
+      if (LIVE.isHost && LIVE.client === client) { client.subscribe([up, ...(LIVE.isPublic ? [knockTopic(code)] : [])]); broadcast(lobbyMsg()); return; }
       if (!js.joined) { renderJoinWait(code, "Connected. Asking the host to let you in…"); hello(); }
     });
     client.on("offline", () => { if (js.joined) toast("Connection lost. Reconnecting…"); });
     js.helloTimer = setInterval(() => {
       if (joinState !== js) return clearInterval(js.helloTimer);
       if (js.joined) {
-        pubJSON(client, `${roomTopic(code)}/up`, { from: id, t: "hb" });
+        sendSealed(client, key, id, up, { t: "hb" });
         const quiet = Date.now() - js.lastHost;
         if (quiet > 11000 && client.connected) maybeTakeOver();
         if (joinState !== js) return;
@@ -1240,19 +1439,29 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         hello();
       } else renderJoinWait(code, "Reaching the live server…");
     }, 3000);
-    client.on("message", (topic, payload) => {
-      let d; try { d = JSON.parse(payload.toString()); } catch { return; }
-      if (joinState !== js || !d || typeof d !== "object") return;
-      if (Number.isFinite(+d.ep)) { if (+d.ep < (LIVE.ep || 0)) return; LIVE.ep = +d.ep; }
+    listenSealed(client, code, () => (joinState === js ? js.key : null), (topic, d, s) => {
+      if (joinState !== js || (topic !== down && topic !== mine) || s === id) return;
+      const ep = Number.isFinite(+d.ep) ? +d.ep : 0;
+      if (LIVE.active && s !== LIVE.hostId) {
+        // Someone other than our host speaks for the room. Follow them only if they hold a seat, their claim is newer
+        // (a higher epoch, or the same epoch and a smaller id), and our host has been silent for HOST_QUIET_MS.
+        const cur = LIVE.ep || 0, newer = ep > cur || (ep === cur && s < LIVE.hostId);
+        if (!LIVE.players.has(s) || !newer || Date.now() - js.lastHost < HOST_QUIET_MS) return;
+        LIVE.hostId = s;
+      }
+      if (LIVE.active) LIVE.ep = ep;
       js.lastHost = Date.now(); js.warned = false;
       if (Number.isFinite(+d.now)) { const o = +d.now - Date.now(); LIVE.offset = LIVE.offset == null ? o : LIVE.offset * 0.7 + o * 0.3; }
       if (d.t === "hb") return;
-      if (d.t === "full") { leaveLive(); return renderLiveStatus("That room is full. Make your own room, or join another one.", true); }
+      if (d.t === "full") {
+        leaveLive();
+        return renderLiveStatus(+d.max === PUB_MAX ? "That open room is full. Open rooms are for two players." : `That room is full: it holds ${+d.max || ROOM_MAX} players.`, true);
+      }
       if (!LIVE.active) {
         if (d.t !== "lobby" || !Array.isArray(d.players) || !d.players.some((p) => p && p.id === id)) return;
         js.joined = true;
         const me = d.players.find((p) => p.id === id);
-        Object.assign(LIVE, { active: true, code, isHost: false, client, myId: id, phase: me.late && d.phase === "playing" ? "waiting" : "lobby" });
+        Object.assign(LIVE, { active: true, code, secret: js.secret, key: js.key, hostId: s, ep, isHost: false, client, myId: id, phase: me.late && d.phase === "playing" ? "waiting" : "lobby" });
         syncChat();
         if (LIVE.phase === "waiting") { renderLiveStatus("You're in. A match is in progress, so you'll play the next one.", false); return; }
       }
@@ -1281,11 +1490,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   });
 
   // ---- screens
-  function renderLiveBlocked(code) {
+  function renderLiveBlocked(code, secret) {
     setMid("Live");
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>Live match</h1><p>Live matches only work on the MLion website. Open it there to play.</p></div>
-      <div class="btn-row"><a class="btn primary big" href="${WEB_URL}#${code ? `live-${code}` : "live"}" target="_blank" rel="noopener">Open live mode</a></div>
+      <div class="btn-row"><a class="btn primary big" href="${WEB_URL}#${code ? `live-${esc(code)}${secret ? `-${esc(secret)}` : ""}` : "live"}" target="_blank" rel="noopener">Open live mode</a></div>
     </section>`;
   }
   function renderJoinWait(code, text) {
@@ -1304,7 +1513,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${retry ? `<div class="btn-row"><a class="btn primary big" href="#live">Back</a></div>` : ""}
     </section>`;
   }
-  function renderLiveStart(code) {
+  function renderLiveStart(code, secret) {
     const joining = !!code;
     setMid(joining ? "Live" : "Play with friends");
     app.innerHTML = `<section class="screen live">
@@ -1315,6 +1524,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
         ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms, so one other player can join you</span></label>`}
         <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button></div>
+        <p class="lv-note" id="live-relay">Chat and answers pass through a public relay, encrypted with the room's link.</p>
       </div>
       ${joining ? "" : `<section class="lv-open"><h2 class="block-title">Open rooms</h2><p id="rooms-status" role="status">Looking for rooms…</p>
         <ul class="lv-players" id="rooms-list"></ul>
@@ -1323,7 +1533,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!joining) watchRooms();
     const go1 = () => {
       const name = cleanName($("#live-name").value) || "Player";
-      joining ? liveJoin(code, name) : liveCreate(name, !!($("#live-public") && $("#live-public").checked));
+      if (!joining) liveCreate(name, !!($("#live-public") && $("#live-public").checked));
+      else if (secret) liveJoin(code, name, null, secret);
+      else liveKnock(code, name); // an open room from the list: its host hands over the key
     };
     $("#live-go").addEventListener("click", go1);
     $("#live-name").addEventListener("keydown", (e) => { if (e.key === "Enter") go1(); });
@@ -1459,17 +1671,23 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       return `<div class="rv${a ? " done" : ""}">${avatar(p.name)}<div class="rv-main"><span class="rv-name">${esc(p.name)}${p.away ? " · reconnecting" : ""}</span>${line}${tried}</div></div>`;
     }).join("");
   }
-  let typingSent = 0, typingTimer = 0;
-  /** Tell the room what this player is typing (throttled). */
+  // Typing used to go out every 220 ms and the host relayed each one to everyone, so it grew with the square of the
+  // room and made up two thirds of all traffic. Now: one message per player every 2 s at most, only when it changed.
+  const TYPING_EVERY_MS = 2000;
+  let typingSent = 0, typingTimer = 0, typingLast = "";
+  /** Tell the room what this player is typing (throttled, and only when it changed). */
   function liveTyping() {
     if (!RUN || RUN.mode !== "live" || !LIVE.active) return;
     const send = () => {
-      typingSent = Date.now();
+      if (!RUN || RUN.mode !== "live" || !LIVE.active || RUN.results.length > RUN.round) return; // answered: the answer says the rest
       const m = { t: "typing", i: RUN.round, draft: String(RUN.draft || "").slice(0, 60), tried: (RUN.tried || []).slice(-6) };
+      const sig = JSON.stringify(m);
+      if (sig === typingLast) return; // nothing new since the last one
+      typingLast = sig; typingSent = Date.now();
       if (LIVE.isHost) broadcast(Object.assign({ id: LIVE.myId }, m)); else guestSend(m);
     };
     clearTimeout(typingTimer);
-    const wait = 220 - (Date.now() - typingSent);
+    const wait = TYPING_EVERY_MS - (Date.now() - typingSent);
     if (wait <= 0) send(); else typingTimer = setTimeout(send, wait);
   }
   function renderStrip() {
@@ -1782,7 +2000,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       st.textContent = rooms.length ? `${rooms.length} open ${rooms.length === 1 ? "room" : "rooms"}` : settled ? "No open rooms right now. Create one and tick the box above to list it here." : "Looking for rooms…";
       list.innerHTML = rooms.map(([code, r]) => {
         const max = +r.max || 2, n = +r.players || 1, full = n >= max;
-        return `<li>${avatar(r.host)}<b>${esc(cleanName(r.host) || "Someone")}'s room</b><span>${n}/${max} · ${full ? "full" : r.phase === "playing" ? "playing" : "open"}</span>${full ? "" : `<a class="btn sm primary" href="#live-${code}">Join</a>`}</li>`;
+        return `<li>${avatar(cleanName(r.host) || "Someone")}<b>${esc(cleanName(r.host) || "Someone")}'s room</b><span>${n}/${max} · ${full ? "full" : r.phase === "playing" ? "playing" : "open"}</span>${full ? "" : `<a class="btn sm primary" href="#live-${esc(code)}">Join</a>`}</li>`;
       }).join("") || (settled ? "" : `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Looking for rooms…</span></li>`);
     };
     try {
@@ -1797,13 +2015,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
   }
 
-  if (window.MLION_TEST) window.MLION_LIVE_STATE = LIVE;
-  function openLive(code) {
-    if (liveBlocked()) return renderLiveBlocked(code);
+  if (window.MLION_TEST) { window.MLION_LIVE_STATE = LIVE; window.MLION_LIVE_SEND = (m) => guestSend(m); } // tests play a dishonest guest with this
+  function openLive(code, secret) {
+    if (liveBlocked()) return renderLiveBlocked(code, secret);
     if (LIVE.active && code === LIVE.code) return LIVE.phase === "done" ? renderPodium() : LIVE.phase === "playing" && liveSprint() && SPR ? renderSprintShell() : renderLobby();
     if (joinState && joinState.code === code) return renderJoinWait(code, "Connecting…");
     leaveLive();
-    renderLiveStart(code);
+    if (code && !secret && !isPubCode(code)) return renderLiveStatus("This invite link is missing its key. Ask your friend to send the link again from inside the room.", true);
+    renderLiveStart(code, secret);
   }
 
   // ============================================================ routing
@@ -1847,7 +2066,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     unmountHomeHero();
     window.scrollTo(0, 0);
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, "")).replace(/\//g, "-");
-    if ((LIVE.active && h !== liveHash()) || (joinState && h !== `live-${joinState.code}`)) leaveLive();
+    const lr = liveRoute(h); // a room's own link, with or without its secret, keeps you in the room
+    if ((LIVE.active && !(lr && lr.code === LIVE.code)) || (joinState && !(lr && lr.code === joinState.code))) leaveLive();
     syncChat();
     if (h !== "live" && typeof roomsWatch !== "undefined" && roomsWatch) { try { roomsWatch.end(true); } catch { /* ignore */ } roomsWatch = null; }
     if (RUN && RUN.mode === "live" && !LIVE.active) stopRun();
@@ -1861,7 +2081,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (/^vs-/.test(h)) return openChallenge(h);
     if (/^vq-/.test(h)) return openQuizChallenge(h);
     if (/^quiz-\d+$/.test(h)) return openQuiz(Math.max(1, +h.slice(5)));
-    if (/^live-[a-z0-9]{5}$/.test(h)) return openLive(h.slice(5));
+    if (lr) return openLive(lr.code, lr.secret);
     if (/^sprint-.+$/.test(h)) return renderSprint(h.slice(7));
     let m;
     if ((m = h.match(/^unlimited-(\d+)$/))) return records[`unlimited:${+m[1]}`] ? go(`results-unlimited-${+m[1]}`) : openUnlimited(); // old run links
@@ -2471,8 +2691,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   /** The 50:50: the same two wrong options go for everyone. */
   function cutTwo() {
     const q = RUN.quiz[RUN.round];
-    const wrong = [...Array(E.QUIZ_OPTIONS).keys()].filter((k) => k !== q.correct);
-    for (const k of E.shuffled(wrong, E.mulberry32(E.hashString(`cut:${RUN.seed}:${RUN.round}`))).slice(0, 2)) {
+    for (const k of cutOptions(q, RUN.seed, RUN.round)) {
       const b = $(`.mcq-opt[data-i="${k}"]`);
       if (b) { b.classList.add("cut"); b.disabled = true; }
     }
@@ -3748,6 +3967,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       input.value = "";
       if (S.got.has(r.idx)) { setStatus(`Already counted: ${r.a.a}`, "info"); return false; }
       S.got.add(r.idx); S.found.push(r.a); S.pts += T[r.a.t].score;
+      (S.raws = S.raws || []).push(raw); // what was typed: a live host re-judges it
       sprintAddTime(S, r.a.t);
       Sound.tier(r.a.t);
       setStatus(r.corrected ? `Counted as ${r.a.a}` : "");
@@ -3848,7 +4068,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const spTest = () => (window.MLION_TEST && window.MLION_SPRINT_TEST) || {};
   const spMs = () => (+spTest().secs > 0 ? +spTest().secs : SPRINT_SECS) * 1000;
   const spRevealMs = (most) => (+spTest().reveal > 0 ? +spTest().reveal : Math.min(18000, SP_REVEAL_MS + 300 * most));
-  const spRound = (i) => ({ i, p: PROMPTS.get(LIVE.ids[i]), phase: "intro", found: [], got: new Set(), pts: 0, bonus: 0, lastTick: Infinity, shown: {} });
+  const spRound = (i) => ({ i, p: PROMPTS.get(LIVE.ids[i]), phase: "intro", found: [], raws: [], got: new Set(), pts: 0, bonus: 0, lastTick: Infinity, shown: {} });
   /** A progress tally that could be real: answers, their points, and the time they added (ms). */
   const spTallyOk = (n, pts, b) => n >= 0 && n <= SP_CAP && pts >= 0 && pts <= 100 * n && b >= 0 && b <= Math.min(SPRINT_BONUS_CAP, SPRINT_BONUS_MAX * n);
 
@@ -4013,7 +4233,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (left <= 0) liveSprintEnd();
   }
   function spSendFinal(S) {
-    const m = { t: "spans", i: S.i, list: S.found.map((a) => S.p.answers.indexOf(a)) };
+    const m = { t: "spans", i: S.i, list: S.found.map((a) => S.p.answers.indexOf(a)), raws: (S.raws || []).slice(0, S.found.length) };
     if (LIVE.isHost) hostSprintFinal(LIVE.myId, m); else guestSend(m);
   }
   function liveSprintEnd() {
@@ -4087,7 +4307,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     el.hidden = !on;
     if (!on) return;
     const ps = spPlayers();
-    el.classList.toggle("many", ps.length > 4); // up to eight players: drop the avatars so the strip stays a row or two
+    el.classList.toggle("many", ps.length > 4); // up to twelve players: drop the avatars so the strip stays a row or two
     el.innerHTML = ps.map((pl) => {
       const me = pl.id === LIVE.myId, s = me ? { n: S.found.length, pts: S.pts } : spNow(pl, S.i);
       const key = `${s.n}/${s.pts}`, bump = S.shown[pl.id] !== undefined && S.shown[pl.id] !== key;
@@ -4154,12 +4374,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!spTallyOk(n, pts, b)) return;
     broadcast({ t: "spp", id, i: m.i, n, pts, b });
   }
-  /** A player's finished list: only the first one for the round counts, and every index must be a real answer. */
+  /** A player's finished list: only the first one for the round counts, every index must be a real answer, and the
+   *  host re-judges the text typed for each (sprintJudge), keeping only the answers that text really names. */
   function hostSprintFinal(id, m) {
     const pl = LIVE.players.get(id);
     if (LIVE.phase !== "playing" || !liveSprint() || !SPR || !pl || pl.late || m.i !== SPR.i || m.i <= LIVE.revealed || pl.ans[m.i]) return;
-    const list = spCleanList(SPR.p, m.list);
-    if (!list) return;
+    const claimed = spCleanList(SPR.p, m.list);
+    if (!claimed) return;
+    const raws = Array.isArray(m.raws) ? m.raws : [];
+    const list = claimed.filter((x, k) => typeof raws[k] === "string" && sprintJudge(SPR.p, raws[k].slice(0, E.MAX_ANSWER_LENGTH)).idx === x);
     broadcast({ t: "spans", id, i: m.i, list });
     hostSprintCheck(m.i);
   }
