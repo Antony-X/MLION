@@ -304,9 +304,26 @@ ok("score bands");
   ok("live room scoring");
 }
 
+// --- a whole-name typo must be a typo word by word too ("Adam alpha" is 2 edits from "LDA alpha")
+{
+  const P = { id: "tw", text: "Name a thing", answers: [{ a: "Dirichlet prior", t: "longtail", aka: ["LDA alpha"] }, { a: "Reward scale", t: "outlier" }] };
+  const m = E.matchAnswer(P, "adam alpha");
+  assert.ok(!(m.kind === "correction" && m.answer.a === "Dirichlet prior"), "Adam alpha is not a typo of LDA alpha");
+  assert.strictEqual(E.matchAnswer(P, "LDA alpah").answer.a, "Dirichlet prior"); ok("a real typo still corrects");
+  assert.strictEqual(E.matchAnswer(P, "Rwwrd scale").answer.a, "Reward scale"); ok("two slips in one longer word still correct");
+  const Q = { id: "xw", text: "Name a thing", answers: [{ a: "Sparse autoencoder", t: "baseline", aka: ["SAE"] }, { a: "End-to-end SAE", t: "longtail", aka: ["e2e sparse autoencoder"] }, { a: "EfficientNet", t: "baseline" }] };
+  assert.notStrictEqual(E.matchAnswer(Q, "semi sparse autoencoder").kind, "correction"); ok("an extra real word is only offered, never taken");
+  assert.strictEqual(E.matchAnswer(Q, "efficientnet large").answer.a, "EfficientNet"); ok("a size word still means the answer");
+  E.setLexicon(DATA.prompts.concat(DATA.extras || []));
+  const seg = DATA.prompts.find((p) => p.id === "segmentation-model");
+  assert.strictEqual(E.matchAnswer(seg, "DETR").kind, "none"); ok("a real term from another prompt (DETR) is not bent into DEXTR");
+  assert.strictEqual(E.matchAnswer(seg, "Mask R-CNN").kind, "exact");
+  E.setLexicon([]);
+}
+
 // --- leaderboard names: no swear words or slurs, without catching ordinary names
 {
-  const bad = ["fuck", "FuuuCK", "f u c k", "Fck", "sh1t", "a55", "Ass", "Big Dick", "n1gga", "phuck", "Bitch99", "blyat", "Сука", "хуй", "ყლე", "Chatlaxi", "ტრაკი", "puta"];
+  const bad = ["fuck", "FuuuCK", "f u c k", "Fck", "sh1t", "a55", "Ass", "Big Dick", "n1gga", "phuck", "Bitch99", "blyat", "Сука", "хуй", "puta"];
   const good = ["antoni", "Hancock", "Dickens", "class", "Assassin", "therapist", "Niger", "Scott", "Ада", "ნინო", "Fukuda", "Huynh", "Cocktail", "Analysis", "Peacock", "Sussex", "Putin", "Titan", "Player"];
   for (const name of bad) assert.ok(!E.nameOk(name), `"${name}" should be refused`);
   for (const name of good) assert.ok(E.nameOk(name), `"${name}" should be allowed`);

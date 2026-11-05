@@ -78,6 +78,9 @@
     "model", "models", "algorithm", "algorithms", "method", "methods", "technique", "techniques",
     "framework", "frameworks", "library", "libraries", "approach", "system", "tool", "tools",
   ]);
+  // Words that name a size or version of the same thing ("EfficientNet large", "Llama 3 instruct").
+  const VERSION_WORDS = new Set(["base", "large", "small", "tiny", "mini", "medium", "huge", "giant", "nano", "micro",
+    "pro", "plus", "lite", "ultra", "max", "turbo", "flash", "instruct", "chat", "preview", "original", "vanilla", "standard"]);
   const STOP = new Set(["of", "the", "and", "for", "with", "a", "an", "in", "on", "to", "via", "by", "using"]);
 
   /** Split any string into lowercase ascii word tokens. */
@@ -191,10 +194,13 @@
       }
     }
     const softPairs = [], acPairs = [], words = [];
+    const keyWords = new Map(); // key -> the words it was made from (for the per-word typo guard)
     answers.forEach((ans, idx) => {
       for (const n of [ans.a].concat(ans.aka || [])) {
         claim(fullKey(n), idx, `"${n}"`);
         claim(strippedKey(n, strip), idx, `"${n}" stripped`);
+        if (!keyWords.has(fullKey(n))) keyWords.set(fullKey(n), contentWords(n, null));
+        if (!keyWords.has(strippedKey(n, strip))) keyWords.set(strippedKey(n, strip), contentWords(n, strip));
         softPairs.push([softKey(n, strip), idx]);
         for (const ac of acronyms(n)) acPairs.push([ac, idx]);
         const seen = new Set();
@@ -222,7 +228,7 @@
       for (const [t, c] of g) { const v = c * idf(t); w.set(t, v); norm += v * v; }
       return { w, norm: Math.sqrt(norm) || 1 };
     });
-    return { index: { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words }, errors };
+    return { index: { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words, keyWords }, errors };
   }
 
   /**
@@ -256,12 +262,14 @@
   }
   function matchAnswer(prompt, raw) {
     const m = matchRaw(prompt, raw);
-    if (m.kind === "correction" && LEXICON && LEXICON.has(fullKey(raw))) return { kind: "suggest", suggestions: [m.answer], confidence: Math.min(m.confidence || 0.9, 0.7), via: "known-elsewhere" };
+    // what was typed is itself a known answer somewhere (DETR under segmentation models): it means that
+    // thing, so no correction and no "did you mean" (a wrong guess would hand out an answer as a hint)
+    if ((m.kind === "correction" || m.kind === "suggest") && LEXICON && LEXICON.has(fullKey(raw))) return { kind: "none", via: "known-elsewhere" };
     return m;
   }
   function matchRaw(prompt, raw) {
     if (!prompt._index) prompt._index = buildIndex(prompt).index;
-    const { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words } = prompt._index;
+    const { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words, keyWords } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
     const kf = fullKey(text);
     if (!kf) return { kind: "none" };
@@ -298,6 +306,24 @@
     });
     const score = new Map(); // answer idx -> best score
     const typo = new Map(); // answer idx -> best edit-distance score
+    // A whole-name typo must also be a typo word by word when both have the same number of words:
+    // "Adam alpha" is two edits from "LDA alpha", but "Adam" is not a misspelt "LDA".
+    const typedWords = [contentWords(text, strip), contentWords(text, null)];
+    const extraWord = (key) => {
+      const kw = new Set(keyWords.get(key) || [key]);
+      return typedWords[1].some((w) => !kw.has(w) && /^[a-z]{3,}$/.test(w) && !VERSION_WORDS.has(w) && !kw.has(singular(w)));
+    };
+    const wordsAgree = (key) => {
+      const kw = keyWords.get(key);
+      if (!kw || kw.length < 2) return true;
+      const same = typedWords.filter((iw) => iw.length === kw.length);
+      if (!same.length) return true; // "efficent net" for "EfficientNet": the words don't line up
+      return same.some((iw) => iw.every((w, i) => {
+        if (w === kw[i]) return true;
+        const b = Math.max(1, Math.floor(0.4 * Math.max(w.length, kw[i].length))); // "rwwrd" for reward, not "adam" for LDA
+        return editDistance(w, kw[i], b) <= b;
+      }));
+    };
     const bump = (m, idx, s) => { if (s > (m.get(idx) || 0)) m.set(idx, s); };
     keys.forEach((key, ki) => {
       const idx = exact.get(key);
@@ -307,7 +333,7 @@
         const budget = Math.min(fuzzyBudget(q.p.length), fuzzyBudget(key.length));
         if (budget && Math.abs(key.length - q.p.length) <= budget) {
           const d = editDistance(q.p, key, budget);
-          if (d <= budget) {
+          if (d <= budget && (d <= 1 || wordsAgree(key))) {
             const s = 1 - (0.6 * d) / Math.max(key.length, q.p.length);
             bump(typo, idx, s); bump(score, idx, s);
           }
@@ -319,7 +345,10 @@
         // 3. containment: "efficientnetb" contains "efficientnet"; "llama" sits inside "llama3"
         const short = q.p.length < key.length ? q.p : key, long = short === key ? q.p : key;
         if (short.length >= 4 && short.length / long.length >= 0.5 && long.includes(short)) {
-          bump(score, idx, 0.45 + 0.5 * (short.length / long.length));
+          // typed words beyond the answer's: a version or size ("b7", "large") still means it; a real
+          // word ("semi sparse autoencoder") is something else, so it can only be offered, not taken
+          const extra = long === q.p && extraWord(key);
+          bump(score, idx, extra ? 0.7 : 0.45 + 0.5 * (short.length / long.length));
         }
       }
     });
@@ -701,7 +730,7 @@
   // -------------------------------------------------------------- share
   // ------------------------------------------------------------------ public names
   // Names on the leaderboard can't be swear words or slurs (English, Spanish/French, Russian in both
-  // scripts, Georgian in both scripts). The same patterns run in the database (supabase/names.sql,
+  // scripts). The same patterns run in the database (supabase/names.sql,
   // written by tools/names-sql.js), so a name typed past the page is refused there too.
   // A name is lowercased, accents dropped (Latin only), digits read as letters (0→o, 1→i, 3→e, 4→a,
   // 5→s, 7→t, 8→b), "ph" read as "f", and every repeated letter may repeat more ("fuuuck").
@@ -714,15 +743,13 @@
     "piss", "blowjob", "handjob", "orgasm", "douchebag", "hentai", "cumshot",
     "blyat", "blyad", "pizd", "ebat", "eblan", "mudak", "pidor", "pidar", "gandon", "zalup", "huesos", "nahui", "nahuy",
     "бля", "пизд", "хуй", "хуе", "хуя", "ебат", "ебан", "еблан", "ебло", "пидор", "пидар", "педик", "мудак", "гандон", "залуп", "шлюх",
-    "mutel", "chatlakh", "chatlax", "dedamot",
-    "მუტელ", "ჩათლახ", "ტრაკ", "დედამოტყ", "პიდარას",
   ];
   const NAME_WORDS = [
     "ass", "arse", "dick", "cock", "rape", "rapist", "cum", "sex", "tit", "tits", "fag", "fags", "crap", "anal", "anus",
     "nazi", "pedo", "paedo", "prick", "knob", "tosser", "wank", "fuk", "fck", "fu", "stfu", "wtf", "milf", "nude", "nudes",
     "horny", "semen", "sperm", "dyke", "tranny", "homo", "spic", "chink", "gook", "kike", "coon", "negro", "wetback", "jap",
     "slag", "skank", "hoe", "hoes", "thot", "douche", "boner", "puta", "puto", "putain", "merde", "mierda", "cabron", "pendejo",
-    "suka", "hui", "huy", "xui", "xuy", "blya", "сука", "ебу", "traki", "yle", "qle", "bozi", "ყლე", "ბოზი", "ბოზო",
+    "suka", "hui", "huy", "xui", "xuy", "blya", "сука", "ебу",
   ];
   /** "fuck" → "f+u+c+k+", "nigger" → "n+i+g{2,}e+r+": each run of a letter may be longer. */
   const runPattern = (w) => w.replace(/(.)\1*/gu, (run, c) => (run.length > 1 ? `${c}{${run.length},}` : `${c}+`));

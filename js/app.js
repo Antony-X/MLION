@@ -2004,7 +2004,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (r) return r.tier ? `<i class="done t-${r.tier}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="Miss"></i>`;
       return `<i class="${i === RUN.round && RUN.phase !== "intro" ? "cur" : ""}"></i>`;
     }).join("");
-    $("#play-meta").innerHTML = `<b>${Math.min(RUN.round + 1, n)}</b> of ${n}`;
+    const lvl = RUN.fmt === "quiz" && (PROMPTS.get(RUN.promptIds[RUN.round]) || {}).lvl;
+    $("#play-meta").innerHTML = `<b>${Math.min(RUN.round + 1, n)}</b> of ${n}${lvl ? ` <span class="lvl-tag lvl-${esc(lvl)}">${esc(lvl[0].toUpperCase() + lvl.slice(1))}</span>` : ""}`;
   }
   function setHud(score) {
     hudRange = [score, score];
@@ -3912,7 +3913,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
         <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run, from easy to hard, four answers each, and a short explanation after every one. ${E.QUIZ_POINTS} a right answer.</p></div>
-        ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
+        ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}. They start easy and get harder as you go.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
         <h2 class="block-title dq-practice">Practice runs</h2>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
         <div class="btn-row"><a class="btn big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>

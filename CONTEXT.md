@@ -233,8 +233,13 @@ node tools/build-single.js <out.html> --fragment --url=https://claude.ai/artifac
   matrix-property.
 - Prompts added after launch should carry `added` in display.json, so dailies dealt before then
   don't change. The pre-launch dates were cleared on 2026-11-05 (nothing was launched).
-- Autocorrect bench (`node tools/matchbench.js`): typos right 97.9%, wrong 0.1%; other prompts'
-  answers falsely accepted 0.4%.
+- Autocorrect bench (`node tools/matchbench.js`): typos right 98.0%, wrong 0.1%, missed 0.3%;
+  other prompts' answers falsely accepted 0.5%, offered as a hint 0.0% (was 3.7%).
+- Autocorrect guards (2026-11-05, after "adam alpha" -> Dirichlet prior, "semi sparse autoencoder"
+  -> End-to-end SAE, DETR -> DEXTR): (1) a multi-word typo over distance 1 needs each typed word
+  to be a near-spelling of the answer's word in the same place; (2) containment with an extra real
+  word (not a size/version word, VERSION_WORDS) can only be offered, never taken; (3) a term that
+  is itself an answer to any prompt (LEXICON) is never corrected or offered.
 
 ### Tier calibration rule (AUTHORING.md)
 

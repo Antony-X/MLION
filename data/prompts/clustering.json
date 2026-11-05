@@ -115,7 +115,7 @@
     {"a": "Bisecting k-means", "t": "indist", "aka": ["BisectingKMeans"], "q": "Start with one cluster and keep splitting one in two with 2-means, which gives a hierarchy."},
     {"a": "Divisive clustering", "t": "indist", "aka": ["divisive hierarchical clustering", "top-down clustering"], "q": "Hierarchical clustering from the top: start with everything together and keep splitting."},
     {"a": "Louvain", "t": "indist", "aka": ["louvain method", "louvain algorithm", "louvain community detection", "modularity maximization", "modularity optimization"], "q": "Greedy modularity, born at UCLouvain. Leiden later fixed its badly connected communities."},
-    {"a": "HDBSCAN", "t": "overfit", "aka": ["hierarchical DBSCAN", "HDBSCAN*", "robust single linkage", "RSL"], "q": "DBSCAN without the epsilon. Every UMAP-and-BERTopic pipeline's plus-one."},
+    {"a": "HDBSCAN", "t": "overfit", "aka": ["hierarchical DBSCAN", "HDBSCAN*", "robust single linkage", "RSL"], "q": "Hierarchical DBSCAN: no epsilon radius to tune, and it finds clusters of different densities. Usually run after UMAP, as in BERTopic."},
     {"a": "k-means++", "t": "overfit", "aka": ["kmeans++"], "q": "Arthur & Vassilvitskii, 2007: smarter seeding, O(log k)-competitive. Still just how k-means starts."},
     {"a": "k-means", "t": "baseline", "aka": ["kmeans", "KMeans", "lloyd's algorithm", "lloyd", "lloyd-forgy", "macqueen", "sklearn KMeans"], "q": "Stuart Lloyd wrote it up at Bell Labs in 1957. It stayed unpublished until 1982."},
     {"a": "DBSCAN", "t": "baseline", "aka": ["density-based spatial clustering of applications with noise"], "q": "Ester et al., 1996. KDD's test-of-time award winner in 2014."},
