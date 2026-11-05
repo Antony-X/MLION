@@ -856,7 +856,9 @@ rounded.
 5. Design polish noted in §8.
 6. Multiplayer formats: private rooms already allow up to 8 players free-for-all; public
    rooms are duos. 2v2 teams is a future request from the user.
-7. Explanation coverage is about 25%; filling it is a content job (mind cost).
+7. Explanation coverage is 28% of all answers (6,611 of 23,500): every Baseline, Overfit and One in a MLion
+   answer has one, In-Distribution 68%, Outlier 37%, Long Tail 13%. The rest is a content job (mind cost);
+   generic answers ("Bad hyperparameters") were skipped on purpose.
 8. Launch mode hides question picking only on the client (see §7 Routes).
 9. Optional: a proper `main` branch. Pages currently serves from `claude/mlion-game`, so moving
    it means changing the Pages source.
