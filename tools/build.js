@@ -224,7 +224,7 @@ console.log(`wrote ${path.relative(ROOT, OUT)} (${(body.length / 1024).toFixed(0
 const INDEX = path.join(ROOT, "index.html");
 let html = fs.readFileSync(INDEX, "utf8");
 const stamped = [];
-for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/app.js"]) {
+for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/music.js", "js/app.js"]) {
   const h = E.hashString(fs.readFileSync(path.join(ROOT, f), "utf8")).toString(36);
   const esc = f.replace(/[.]/g, "\\.");
   html = html.replace(new RegExp(`(["'])${esc}(\\?v=[a-z0-9]+)?\\1`), `$1${f}?v=${h}$1`);

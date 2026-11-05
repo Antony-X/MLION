@@ -24,7 +24,7 @@ const fonts = html.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/)[0
 const icon = `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(read("img/favicon.svg").trim())}">`;
 const desc = html.match(/<meta name="description"[^>]+>/)[0];
 const body = html.slice(html.indexOf("<body>") + 6, html.search(/<script src="js\/engine\.js/)).trim();
-const scripts = ["js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/app.js"]
+const scripts = ["js/engine.js", "js/data.js", "js/landscape.js", "js/hero3d.js", "js/music.js", "js/app.js"]
   .map((f) => `<script>/* ${f} */\n${safe(read(f))}\n</script>`).join("\n");
 
 const head = [
