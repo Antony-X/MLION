@@ -393,7 +393,7 @@
   }
 
   // ------------------------------------------------------------- dates
-  // Launch day: MLion #1 and Daily Quiz #1, and day 1 of the hand-picked launch week (data/launch.json).
+  // Launch day: MLion #1 and Daily Quiz #1, and day 1 of the hand-picked launch week (data/daily.json).
   // null until the game launches: every day is #1 then, and the daily deals from a pre-launch
   // stream that never touches the launch week. Set it to the launch date ("YYYY-MM-DD") that day.
   const LAUNCH = (typeof window !== "undefined" && window.MLION_LAUNCH) || null; // tests set window.MLION_LAUNCH
