@@ -275,7 +275,11 @@ body[data-view="play"] #app { max-width: none; }
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 0 var(--edge-r) 0 var(--edge-l); color: var(--muted); font-size: var(--s1);
 }
-@media (min-width: 1000px) { .stage { height: clamp(320px, 56vh, 640px); } }
+/* the stage takes what the answer panel leaves: on a 768 px laptop Next stays on screen */
+@media (min-width: 1000px) {
+  .stage { height: clamp(240px, calc(100vh - 400px), 640px); }
+  .play.quiz .stage { height: clamp(200px, calc(100vh - 560px), 560px); } /* four options, each with a line on why, below */
+}
 .dots { display: flex; gap: 8px; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; background: var(--raised-2); transition: background-color 240ms ease, transform 240ms var(--ease-out); }
 .dots i.cur { background: var(--ink); transform: scale(1.2); }
@@ -380,6 +384,10 @@ html .answer-input.corrected, html:not(.reduce-motion) .answer-input.corrected.s
   .feedback { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: 64px; align-items: end; }
   .feedback > * { grid-column: 1; }
   .feedback > .btn { grid-column: 2; grid-row: 1 / span 6; align-self: end; justify-self: stretch; }
+  /* a quiz answer keeps the shape of its question: the verdict where the question was, the options where they were */
+  .feedback:has(> .mcq-key) { align-items: start; grid-template-rows: auto auto auto 1fr; }
+  .feedback > .mcq-key { grid-column: 2; grid-row: 1 / span 3; }
+  .feedback:has(> .mcq-key) > .btn { grid-row: 4; align-self: start; }
 }
 /* the reveal: the verdict waits for the ball to land */
 html:not(.reduce-motion) .feedback:not(.landed) .fb-tier,

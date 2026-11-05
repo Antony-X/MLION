@@ -1797,6 +1797,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     RUN.answerEndsAt = RUN.previewEndsAt + answerMs();
     RUN.tried = [];
     persistRun();
+    if (window.scrollY) window.scrollTo(0, 0); // Next may have been scrolled up to; the new question starts at the top
     // a new question: fold the chat away so the prompt is in view, unless they're mid-message
     if (RUN.mode === "live" && CHAT.open && !(chatTyping() && $("#chat-input").value)) setChatOpen(false);
     renderRound();
@@ -2151,7 +2152,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     next.addEventListener("click", advance);
     const done = () => {
       if (fb.isConnected) fb.classList.add("landed");
-      if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); }
+      if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); revealNext(next); }
     };
     const total = totalScore(RUN.results);
     if (animate && descent) {
@@ -2197,7 +2198,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     next.addEventListener("click", advance);
     const done = () => {
       if (fb.isConnected) fb.classList.add("landed");
-      if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); }
+      if (next.isConnected) { next.disabled = false; next.focus({ preventScroll: true }); revealNext(next); }
     };
     const total = totalScore(RUN.results);
     if (animate && descent) {
@@ -2207,6 +2208,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       // never hold the player behind the animation
       setTimeout(done, 1500);
     } else { setHud(total); done(); }
+  }
+
+  /** Once the ball has landed, bring Next up if the feedback pushed it below the fold (short laptops, long explanations). */
+  function revealNext(el) {
+    if (!el.isConnected || !RUN || RUN.phase !== "feedback") return;
+    const over = el.getBoundingClientRect().bottom + 16 - innerHeight;
+    if (over > 0) window.scrollBy({ top: over, behavior: settings.reducedMotion ? "auto" : "smooth" });
   }
 
   function oppLine(opp, i) {
