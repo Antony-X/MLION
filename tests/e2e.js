@@ -68,7 +68,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.fill("#answer", "definitely not an activation");
   await page.press("#answer", "Enter");
   await page.waitForSelector("#status.bad");
-  check((await page.textContent("#status")).includes("no gradient"), "wrong answer rejected");
+  check((await page.textContent("#status")).includes("isn't an accepted answer"), "wrong answer rejected");
   // Autocorrect preview, then confirm.
   await page.fill("#answer", "swishh");
   await page.press("#answer", "Enter");
@@ -270,7 +270,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   check(parseFloat(await page.textContent("#timer-num")) > 30, "the clock counts down from 40");
   check((await page.textContent("#step")).trim() === "Skip" && !(await page.$("#step.primary")), "an empty box offers Skip");
   await page.fill("#answer", "re");
-  check((await page.textContent("#step")).trim() === "Step" && !!(await page.$("#step.primary")), "typing turns it back into Step");
+  check((await page.textContent("#step")).trim() === "Submit" && !!(await page.$("#step.primary")), "typing turns it back into Submit");
   await page.fill("#answer", "");
   await page.click("#step");
   await page.waitForSelector(".feedback", { timeout: 5000 });
