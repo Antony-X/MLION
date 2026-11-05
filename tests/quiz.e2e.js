@@ -78,12 +78,8 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   assert.strictEqual(run1.length, 7);
   check(!!(await page.$('.dq-card a.btn.primary[href="#daily-quiz"]')), "the hub leads with today's quiz");
   await page.click('a.btn[href="#quiz-1"]');
-  await page.waitForSelector("#begin");
-  check((await page.textContent("#card")).includes("Quiz #1") && (await page.textContent(".beats li b")) === "7", "run 1 opens on an intro of seven questions");
-  check((await page.textContent(".beats")).includes("10 s"), "the question time from Settings applies");
-  await page.screenshot({ path: path.join(OUT, "41-quiz-intro.png") });
-  await page.click("#begin");
   await page.waitForSelector("#veil:not(.hidden)");
+  check(!(await page.$("#begin")) && (await page.textContent("#topbar-mid")).includes("Quiz #1") && (await page.textContent("#play-meta")).includes("of 7"), "run 1 starts straight away: seven questions, no intro page");
   check(await page.$$eval(".mcq-opt", (els) => els.length === 4 && els.every((e) => e.disabled)), "the four options are locked while the question is being read");
   check(!!(await page.$("#mcq.locked")) && !!(await page.$("#veil:not(.hidden)")), "a veil covers them through the preview");
   // a stray global .locked rule once squeezed the options into a 40 px column during the preview
@@ -173,8 +169,6 @@ const hexName = (s) => Buffer.from(s).toString("hex");
 
   // ---- resume after a reload: same options, the clock keeps running
   const run2 = E.quizRun(CORE, 2);
-  await page.waitForSelector("#begin");
-  await page.click("#begin");
   const before = await readQuestion(page);
   await page.waitForTimeout(2000); // let the clock run (a bank question gets 14 s on the 10 s setting)
   await page.reload();
@@ -273,9 +267,9 @@ const hexName = (s) => Buffer.from(s).toString("hex");
     check(want.length === 7 && want.every((q) => q.reasoning && bank.has(q.promptId)), "the engine deals today's quiz: seven hand-written bank questions");
     await dq.page.goto(base + "#quiz");
     await dq.page.click('.dq-card a[href="#daily-quiz"]');
-    await dq.page.waitForSelector("#begin");
-    check((await dq.page.textContent("#card")).includes("Daily Quiz #1") && (await dq.page.textContent(".beats")).includes("25 s"), "the daily quiz opens on its own intro, on the 25 s clock whatever Settings says");
-    await dq.page.click("#begin");
+    await dq.page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
+    const dqClock = parseFloat(await dq.page.textContent("#timer-num"));
+    check((await dq.page.textContent("#topbar-mid")).includes("Daily Quiz #1") && dqClock > 25 && dqClock <= 35, `the daily quiz starts straight away on the 25 s clock (35 s for a bank question) whatever Settings says (${dqClock} s left)`);
     for (let i = 0; i < 7; i++) {
       const shown = await readQuestion(dq.page);
       check(JSON.stringify(shown.opts) === JSON.stringify(want[i].options), `daily quiz question ${i + 1}: the browser deals the engine's question`);

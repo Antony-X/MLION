@@ -241,6 +241,7 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
   transition: background-color 180ms ease;
 }
 .modes a span { color: var(--muted); font-size: var(--s1); letter-spacing: 0; }
+.modes a.hl { color: var(--gold); } /* today's daily: what most people scrolling down came for */
 @media (hover: hover) and (pointer: fine) { .modes a:hover { background: var(--surface); } }
 .home-close { margin: 0; grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: var(--s1); padding-top: 24px; }
 
@@ -286,6 +287,8 @@ body[data-view="play"] #app { max-width: none; }
 .dots i.done { background: var(--tc); }
 .dots i.miss { background: transparent; box-shadow: inset 0 0 0 2px var(--t-miss); }
 .play-meta b { color: var(--ink); font-weight: 400; }
+.play-meta:has(.stop-run) { display: flex; align-items: center; gap: 6px; }
+.stop-run { pointer-events: auto; min-height: 32px; padding: 0 14px; margin-left: 10px; font-size: var(--s1); }
 
 .prompt-card { padding-top: 28px; position: relative; }
 .round { display: grid; gap: 24px; }
@@ -380,10 +383,14 @@ html .answer-input.corrected, html:not(.reduce-motion) .answer-input.corrected.s
 .fb-quip { color: var(--muted); max-width: 52ch; }
 .fb-note { color: var(--faint); font-size: var(--s1); }
 .feedback .btn { margin-top: 6px; min-width: 200px; }
+.fb-acts { display: flex; gap: 10px; flex-wrap: wrap; }
+.fb-acts #stop-here { min-width: 0; }
 @media (min-width: 1000px) {
   .feedback { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: 64px; align-items: end; }
   .feedback > * { grid-column: 1; }
   .feedback > .btn { grid-column: 2; grid-row: 1 / span 6; align-self: end; justify-self: stretch; }
+  .feedback > .fb-acts { grid-column: 2; grid-row: 1 / span 6; align-self: end; justify-self: stretch; }
+  .fb-acts #next { flex: 1; }
   /* a quiz answer keeps the shape of its question: the verdict where the question was, the options where they were */
   .feedback:has(> .mcq-key) { align-items: start; grid-template-rows: auto auto auto 1fr; }
   .feedback > .mcq-key { grid-column: 2; grid-row: 1 / span 3; }
@@ -433,7 +440,7 @@ html.kb .round { gap: 14px; }
 .band { font-size: var(--s3); letter-spacing: -0.015em; }
 .band.t-mlion { color: var(--gold); }
 .loss-line { color: var(--muted); font-size: var(--s1); }
-.grid-tiers { font-size: 32px; margin-top: 10px; }
+.grid-tiers { font-size: 32px; margin-top: 10px; flex-wrap: wrap; row-gap: 0.3em; } /* an endless session can be long */
 .score-hero .btn-row { margin-top: 18px; }
 .profile { display: block; width: 100%; height: auto; margin: 0; }
 .profile-wrap { margin: 0 calc(var(--side-r) * -1) 0 calc(var(--side-l) * -1); }

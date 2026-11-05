@@ -319,7 +319,7 @@ use `#/…`, and never `#settings`, which claude.ai reserves.
 |---|---|
 | `#home` | home |
 | `#daily` | today's daily |
-| `#unlimited`, `#unlimited-N` | Unlimited hub, run N |
+| `#unlimited`, `#unlimited-play`, `#unlimited-N` | Unlimited hub (sessions), the endless session (resume or start), an old run link (its results if played, else the session) |
 | `#packs`, `#pack-<id>`, `#pack-<id>-N` | packs, pack detail, pack run (hidden in launch mode) |
 | `#archive`, `#archive-YYYY-MM-DD` | archive, a past day |
 | `#library`, `#practice-<id>`, `#answers-<id>` | library, practice one prompt, its answer key (hidden in launch mode) |
@@ -334,14 +334,31 @@ use `#/…`, and never `#settings`, which claude.ai reserves.
 | `#rooms` | public room list |
 
 **Launch mode** (`const BROWSE = false` near the top of app.js): Packs and the Library are
-hidden (home tiles, drawer links), their routes redirect home, and `#unlimited-N` beyond the
-next unplayed run redirects to it (`#quiz-N` follows the same rule). This stops people choosing
+hidden (home tiles, drawer links), their routes redirect home, and `#quiz-N` beyond the next
+unplayed run redirects to it. This stops people choosing
 questions or reading a key and replaying. It is client-side only: `js/data.js` and the public repo still contain every
 answer. Real protection would need a server. `BROWSE = true` restores everything.
 
 ### Round state machine
 
 intro → preview (3 s, input locked) → answering (default 25 s) → feedback → next.
+
+- **Since 2026-11-05 solo runs skip the intro** (user: "we don't need this in between page"):
+  `resumePhase()` calls `startRound()` at once for the daily, Daily Quiz, Quiz, Unlimited, archive and
+  practice; only `vs`/`vq` challenges (name field, send-now link) and live matches show `renderIntro()`.
+  The 3 s preview of the first question is the read time. The AI-check consent is asked lazily now.
+
+### Home "More" list and endless Unlimited (2026-11-05)
+
+- Order (user's request): **Daily** (class `hl`, gold), Unlimited, Quiz, Sprint, Leaderboard (when the
+  board is configured), **Settings** (`#prefs`, replaced Stats on home; `#stats` still exists in the menu).
+- Unlimited is one endless session (`RUN.endless`, key `unlimited:N`, N = next unplayed). Each Next deals
+  one more prompt from one long shuffled deck per question set: `E.streamIds(CORE|WIDE,
+  "unlimited-v3:core|wide", k)`, position in LS `unlPos:<pool>`, so nothing repeats until the whole deck
+  (103 core prompts) has been dealt, across sessions. Stop (`#stop-run` on the stage, `#stop-here` beside
+  Next) ends the session: the unanswered prompt is dropped and the answered ones become the record (no
+  record if none). The stage shows "Answered" instead of Loss, the last six dots, and "Prompt N". Old
+  seven-prompt runs in progress finish the old way (`unlimitedSpec`, "unlimited-v2").
 
 - Time per question: presets 10/15/25/40/60 s (`TIME_PRESETS`, `answerMs()`). Set in
   Settings (`settings.answerSecs`), in challenge setup (link suffix `tNN`), and by the live
@@ -481,9 +498,8 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 
 ### First visit (changed overnight 2026-11-05)
 
-- No dialog on arrival: the home hero and its "Six depths" rows explain the game. Until a player
-  finishes a first run, the round intro carries a "How scoring works" link that opens the old
-  How to play dialog (`showHowModal`). `mlion:seenHow` is no longer read (tests still set it).
+- No dialog on arrival: the home hero and its "Six depths" rows explain the game. (The intro's "How
+  scoring works" link went with the intro page on 2026-11-05; How to play is in the menu.) `mlion:seenHow` is no longer read (tests still set it).
 
 ### Smaller overnight changes (2026-11-05)
 

@@ -14,26 +14,36 @@ async function runIds(b, base, hash, { extras, time, launch }) {
   await ctx.addInitScript(([x, l]) => { if (l) window.MLION_LAUNCH = l; localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:settings", JSON.stringify({ extraQuestions: x })); }, [extras, launch || null]);
   const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message));
   if (time) await p.clock.install({ time: new Date(time) });
-  await p.goto(base + hash); await p.waitForSelector("#begin", { timeout: 15000 });
-  const intro = await p.textContent(".screen");
-  await p.click("#begin"); await p.waitForTimeout(800);
-  const runs = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("mlion:run:")).map((k) => JSON.parse(localStorage.getItem(k)).promptIds));
+  await p.goto(base + hash); await p.waitForSelector("#answer, .mcq-opt", { timeout: 15000 }); // solo runs start without an intro
+  const intro = await p.textContent("#topbar-mid");
+  await p.waitForTimeout(800);
+  const saved = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("mlion:run:")).map((k) => JSON.parse(localStorage.getItem(k))));
+  const runs = saved.map((r) => r.promptIds);
   const setText = await (async () => { await p.goto(base + "#prefs"); await p.waitForTimeout(300); return p.textContent(".screen"); })();
-  await ctx.close(); return { ids: runs[0], errs, intro, setText };
+  await ctx.close(); return { ids: runs[0], run: saved[0], errs, intro, setText };
 }
 (async () => {
   await new Promise((r) => srv.listen(0, r)); const base = `http://127.0.0.1:${srv.address().port}/`;
   const b = await chromium.launch();
   const ex = (ids) => ids.filter((i) => EXTRA.has(i));
-  let r = await runIds(b, base, "#unlimited-1", { extras: false });
-  check(!ex(r.ids).length && !r.errs.length, "Unlimited deals only core questions by default");
+  // Unlimited deals one endless deck per question set: core by default, core plus extras with the switch on
+  const E = require(path.join(ROOT, "js/engine.js"));
+  const CORE = { version: `${D.version}:core`, packs: D.packs, prompts: D.prompts.filter((p) => !p.extra) };
+  const WIDE = { version: `${D.version}:wide`, packs: D.packs, prompts: D.prompts.concat(D.extras) };
+  const coreDeck = E.streamIds(CORE, "unlimited-v3:core", 400), wideDeck = E.streamIds(WIDE, "unlimited-v3:wide", 60);
+  check(!ex(coreDeck).length && new Set(coreDeck.slice(0, CORE.prompts.length)).size === CORE.prompts.length, "the core deck never deals an extra, and shows every core prompt once before any repeats");
+  check(ex(wideDeck).length > 0, "the deck with extras mixes them in");
+  let r = await runIds(b, base, "#unlimited-play", { extras: false });
+  check(r.run.endless && r.run.pool === "core" && r.ids.join() === coreDeck[0] && !r.errs.length, "Unlimited deals the core deck by default");
   check(/Extra questions/.test(r.setText) && /\d+ more outside the IOAI syllabus/.test(r.setText), "Settings has the Extra questions switch");
-  r = await runIds(b, base, "#unlimited-1", { extras: true });
-  check(r.ids.length === 7 && ex(r.ids).length > 0 && !r.errs.length, "with the switch on, Unlimited mixes extras in");
-  r = await runIds(b, base, "#quiz-1", { extras: false });
-  check(!ex(r.ids).length && !r.errs.length, "Quiz deals only core questions by default");
-  r = await runIds(b, base, "#quiz-1", { extras: true });
-  check(r.ids.length === 7 && ex(r.ids).length > 0, "with the switch on, Quiz mixes extras in");
+  r = await runIds(b, base, "#unlimited-play", { extras: true });
+  check(r.run.pool === "wide" && r.ids.join() === wideDeck[0] && !r.errs.length, "with the switch on, Unlimited deals the deck with extras");
+  // the Quiz deals the hand-written bank whatever the switch says
+  const BANK = new Set(E.quizBank(D).map((q) => q.id));
+  for (const extras of [false, true]) {
+    r = await runIds(b, base, "#quiz-1", { extras });
+    check(r.ids.length === 7 && r.ids.every((id) => BANK.has(id)) && !r.errs.length, `Quiz deals seven bank questions (extras ${extras ? "on" : "off"})`);
+  }
   // the daily: only the hand-picked pool, always. Before launch every day is #1.
   const POOL = new Set(D.daily.pool), WEEK = D.daily.launch, inWeek = (ids) => ids.filter((i) => WEEK.some((d) => d.includes(i)));
   const offPool = (ids) => ids.filter((i) => !POOL.has(i));

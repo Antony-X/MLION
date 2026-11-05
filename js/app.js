@@ -283,6 +283,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return { key: `practice:${promptId}`, mode: "practice", number: 1, label: "Practice", promptIds: [promptId] };
   }
   function nextUnlimited() { let n = 1; while (records[`unlimited:${n}`]) n++; return n; }
+  // Unlimited is one endless session at a time, dealt from one long shuffled deck per question set
+  // (core, or core plus extras): no prompt comes back until the whole deck has been dealt, across
+  // sessions. LS unlPos:<pool> counts the prompts dealt so far.
+  const UNL_STREAM = "unlimited-v3";
+  const unlPoolName = () => (settings.extraQuestions ? "wide" : "core");
+  function unlDeal(pool) {
+    const data = pool === "wide" ? WIDE : CORE, key = `unlPos:${pool}`;
+    const at = Math.max(0, +LS.get(key, 0) || 0);
+    LS.set(key, at + 1);
+    return E.streamIds(data, `${UNL_STREAM}:${pool}`, at + 1)[at];
+  }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
   // The daily quiz: everyone's same seven questions, on the fixed 25 s clock so the board compares.
   // Numbered like the daily (#1 until launch). From launch, days 1..QUIZ_DAYS.length play the
@@ -1590,8 +1601,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const navOn = "#" + (/^sprint-/.test(h) ? "sprint" : h || "home");
     $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === navOn));
     if (!BROWSE && /^(packs|library|pack-|practice-|answers-|archive)/.test(h)) return go("home");
-    if (!BROWSE && /^unlimited-\d+$/.test(h) && +h.slice(10) > nextUnlimited()) return go(`unlimited-${nextUnlimited()}`);
     if (!BROWSE && /^quiz-\d+$/.test(h) && +h.slice(5) > nextQuiz()) return go(`quiz-${nextQuiz()}`); // same launch rule as Unlimited: no jumping ahead
+    if (h === "unlimited-play") return openUnlimited();
     if (SIMPLE[h]) return SIMPLE[h]();
     if (/^vs-/.test(h)) return openChallenge(h);
     if (/^vq-/.test(h)) return openQuizChallenge(h);
@@ -1599,7 +1610,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (/^live-[a-z0-9]{5}$/.test(h)) return openLive(h.slice(5));
     if (/^sprint-.+$/.test(h)) return renderSprint(h.slice(7));
     let m;
-    if ((m = h.match(/^unlimited-(\d+)$/))) return openRun(unlimitedSpec(Math.max(1, +m[1])));
+    if ((m = h.match(/^unlimited-(\d+)$/))) return records[`unlimited:${+m[1]}`] ? go(`results-unlimited-${+m[1]}`) : openUnlimited(); // old run links
     if ((m = h.match(/^pack-([a-z]+)$/))) return PACKS.has(m[1]) ? renderPack(m[1]) : go("packs");
     if ((m = h.match(/^pack-([a-z]+)-(\d+)$/))) return PACKS.has(m[1]) ? openRun(packSpec(m[1], Math.max(1, +m[2]))) : go("packs");
     if ((m = h.match(/^archive-(\d{4}-\d{2}-\d{2})$/))) return openArchive(m[1]);
@@ -1627,12 +1638,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     else cta = `<a class="btn primary big" href="#daily">Start training</a>`;
     cta += `<a class="btn big" href="#live">Play with friends</a>`;
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
+    const unl = LS.get(`run:unlimited:${nextUnlimited()}`);
     const modes = [
-      ["#unlimited", "Unlimited", "Endless runs"],
-      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Today's quiz and practice runs"],
+      ["#daily", "Daily", rec ? `Today's run · ${rec.score}` : inProg ? `Resume · ${Math.min(inProg.results.length + 1, 7)} of 7` : `MLion #${n} · seven prompts`, "hl"],
+      ["#unlimited-play", "Unlimited", unl && unl.results && unl.results.length ? `Resume · ${unl.results.length} answered` : "Endless prompts, no repeats"],
+      ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Multiple choice, a daily one too"],
       ["#sprint", "Sprint", "One prompt, 60 seconds"],
       ["#board", "Leaderboard", "Today's top scores"],
-      ["#stats", "Stats", s.played ? `${s.played} played` : ""],
+      ["#prefs", "Settings", "Clock, sound, extra questions"],
     ].filter(([href]) => BOARD_ON || href !== "#board");
     const html = `<section class="screen home">
       <canvas id="hero3d" aria-hidden="true"></canvas>
@@ -1643,7 +1656,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
       <section class="depths-sec"><h2>Six depths</h2>${depthList(true)}</section>
       <div class="home-rest">
-        <section><h2>More</h2><ul class="modes">${modes.map(([href, t, d]) => `<li><a href="${href}">${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
+        <section><h2>More</h2><ul class="modes">${modes.map(([href, t, d, c]) => `<li><a href="${href}"${c ? ` class="${c}"` : ""}>${t}<span>${esc(d)}</span></a></li>`).join("")}</ul></section>
         ${s.played ? `<section><h2>Your descent</h2><div class="figures">
           <div class="figure"><b>${s.cur}</b><span>Streak</span></div>
           <div class="figure"><b>${s.best || "—"}</b><span>Best</span></div>
@@ -1760,6 +1773,33 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     openRun(spec);
   }
 
+  /** Unlimited: resume the session in progress, or start a new one with the next prompt of the deck. */
+  function openUnlimited() {
+    const n = nextUnlimited(), saved = LS.get(`run:unlimited:${n}`);
+    if (saved && !saved.endless) return openRun(unlimitedSpec(n)); // a run of seven from before endless sessions: finish it
+    if (saved && saved.promptIds.every((id) => PROMPTS.has(id))) RUN = saved;
+    else {
+      const pool = unlPoolName();
+      RUN = { key: `unlimited:${n}`, mode: "unlimited", endless: true, pool, number: n, label: `Unlimited #${n}`, promptIds: [unlDeal(pool)],
+        answerMs: (validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS) * 1000, round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() };
+    }
+    renderPlayShell();
+    resumePhase();
+  }
+  /** Stop an endless session: the prompt on screen is dropped unless answered, and what was answered becomes the session's result. */
+  function stopEndless() {
+    if (!RUN || !RUN.endless) return;
+    clearTimeout(runTimer); cancelAnimationFrame(runRaf); runTimer = 0; runRaf = 0;
+    if (RUN.aiCtl) { try { RUN.aiCtl.abort(); } catch { /* ignore */ } RUN.aiCtl = null; }
+    RUN.promptIds = RUN.promptIds.slice(0, RUN.results.length);
+    if (!RUN.results.length) { LS.del("run:" + RUN.key); stopRun(); return go("unlimited"); }
+    RUN.round = RUN.results.length - 1;
+    RUN.phase = "done";
+    persistRun();
+    finalize();
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("#stop-run, #stop-here")) stopEndless(); });
+
   function resumePhase() {
     const now = Date.now();
     if (RUN.phase === "preview" || RUN.phase === "answering") {
@@ -1769,7 +1809,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (RUN.phase === "feedback") return renderFeedback(RUN.results[RUN.results.length - 1], false);
     if (RUN.phase === "done") return finalize();
-    renderIntro();
+    // solo runs start straight away (the first question has its own read time); a challenge keeps its
+    // intro for the name and the send-now link, and a live match waits for the host
+    if (RUN.mode === "vs" || RUN.mode === "vq" || RUN.mode === "live") return renderIntro();
+    startRound();
   }
 
   function renderPlayShell() {
@@ -1777,7 +1820,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen play${RUN.fmt === "quiz" ? " quiz" : ""}">
       <div class="stage" id="stage">
         <canvas id="descent" aria-hidden="true"></canvas>
-        <div class="hud"><span>Loss</span><b id="hud-loss">7.00</b></div>
+        <div class="hud"><span>${RUN.endless ? "Answered" : "Loss"}</span><b id="hud-loss">${RUN.endless ? RUN.results.length : "7.00"}</b></div>
         <div class="hud hud-r"><span>Score</span><b id="hud-score">0</b></div>
         <div class="play-head">
           <div class="dots" id="dots" aria-label="progress"></div>
@@ -1787,14 +1830,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div class="prompt-card" id="card"></div>
     </section>`;
     scene("play");
-    V.setRounds(RUN.promptIds.length);
+    V.setRounds(RUN.endless ? 100000 : RUN.promptIds.length); // an endless session's hill never bottoms out
     descent = V.Descent($("#descent"), {
       onFrame: (x) => {
         if (!RUN) return;
         const [lo, hi] = hudRange;
         const pts = Math.min(hi, Math.max(lo, Math.round(x / 10)));
         const l = $("#hud-loss"), sc = $("#hud-score");
-        if (l) l.textContent = ((RUN.promptIds.length * 100 - pts) / 100).toFixed(2);
+        if (l) l.textContent = RUN.endless ? RUN.results.length : ((RUN.promptIds.length * 100 - pts) / 100).toFixed(2);
         if (sc) sc.textContent = pts;
       },
       onFlood: (on) => { const st = $("#stage"); if (st) st.classList.toggle("flood", on); },
@@ -1807,6 +1850,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function updateHead() {
     if (!RUN) return;
     const n = RUN.promptIds.length;
+    if (RUN.endless) { // the last few answers, the prompt on screen, and a way out
+      const done = RUN.results.slice(-6).map((r) => (r.tier ? `<i class="done t-${r.tier}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="Miss"></i>`)).join("");
+      $("#dots").innerHTML = done + (RUN.phase === "feedback" ? "" : `<i class="cur"></i>`);
+      $("#play-meta").innerHTML = `Prompt <b>${RUN.round + 1}</b><button class="btn stop-run" id="stop-run" type="button">Stop</button>`;
+      const c = $("#hud-loss"); if (c) c.textContent = RUN.results.length; // a miss doesn't roll the ball, so count here
+      return;
+    }
     $("#dots").innerHTML = RUN.promptIds.map((_, i) => {
       const r = RUN.results[i];
       if (r && RUN.mode === "live" && RUN.fmt === "quiz" && i > LIVE.revealed) return `<i class="done t-baseline" title="Locked in"></i>`; // the verdict waits for the reveal
@@ -1819,7 +1869,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     hudRange = [score, score];
     const n = RUN.promptIds.length;
     $("#hud-score").textContent = score;
-    $("#hud-loss").textContent = ((n * 100 - score) / 100).toFixed(2);
+    $("#hud-loss").textContent = RUN.endless ? RUN.results.length : ((n * 100 - score) / 100).toFixed(2);
   }
 
   function renderIntro() {
@@ -2253,7 +2303,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderFeedback(res, animate) {
     if (RUN.fmt === "quiz") return renderQuizFeedback(res, animate);
     updateHead();
-    const isLast = RUN.results.length >= RUN.promptIds.length;
+    const isLast = !RUN.endless && RUN.results.length >= RUN.promptIds.length;
     const p = PROMPTS.get(res.promptId);
     const t = res.tier ? T[res.tier] : null;
     const card = $("#card");
@@ -2266,7 +2316,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${res.corrected && res.raw ? `<p class="fb-note">Autocorrected from “${esc(res.raw)}”</p>`
           : res.answer && res.raw && E.fullKey(res.raw) !== E.fullKey(res.answer) ? `<p class="fb-note">“${esc(res.raw)}” counts as ${esc(res.answer)}</p>` : ""}
         ${RUN.mode === "vs" && RUN.opp ? oppLine(RUN.opp, RUN.results.length - 1) : ""}
-        <button class="btn primary big" id="next" ${animate ? "disabled" : ""}>${isLast ? "See results" : "Next"}</button>
+        ${RUN.endless ? `<div class="fb-acts"><button class="btn primary big" id="next" ${animate ? "disabled" : ""}>Next</button><button class="btn big" id="stop-here" type="button">Stop</button></div>`
+          : `<button class="btn primary big" id="next" ${animate ? "disabled" : ""}>${isLast ? "See results" : "Next"}</button>`}
       </div>`;
     if (RUN.mode === "live") {
       $("#next").outerHTML = `<p class="lv-note" id="live-wait" aria-live="polite"></p>`;
@@ -2307,6 +2358,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function advance() {
     if (!RUN || RUN.phase !== "feedback" || RUN.mode === "live") return;
+    if (RUN.endless) { RUN.promptIds.push(unlDeal(RUN.pool)); RUN.round = RUN.results.length; return startRound(); }
     if (RUN.results.length >= RUN.promptIds.length) { RUN.phase = "done"; persistRun(); return finalize(); }
     RUN.round = RUN.results.length;
     startRound();
@@ -2686,11 +2738,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const share = E.shareText({ mode: rec.mode, number: rec.number, score: rec.score, tiers: rec.tiers, secs: rec.secs, label: rec.mode === "pack" ? PACKS.get(rec.pack).name : rec.label });
     const isDailyToday = (rec.mode === "daily" || rec.mode === "dquiz") && rec.date === today();
     const picked = !BROWSE && (rec.mode === "pack" || rec.mode === "practice"); // those pages are hidden
-    const nextHref = picked ? "#unlimited" : rec.mode === "unlimited" ? `#unlimited-${nextUnlimited()}` :
+    const nextHref = picked ? "#unlimited" : rec.mode === "unlimited" ? "#unlimited-play" :
       rec.mode === "quiz" || rec.mode === "dquiz" ? `#quiz-${nextQuiz()}` :
       rec.mode === "pack" ? `#pack-${rec.pack}-${nextPackRun(rec.pack) > E.packRunCount(DATA, rec.pack) ? 1 : nextPackRun(rec.pack)}` :
       rec.mode === "practice" ? "#library" : "#unlimited";
-    const nextLabel = picked ? "Play Unlimited" : rec.mode === "dquiz" ? "Practice quiz" : rec.mode === "unlimited" || rec.mode === "quiz" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
+    const nextLabel = picked ? "Play Unlimited" : rec.mode === "dquiz" ? "Practice quiz" : rec.mode === "unlimited" ? "Keep going" : rec.mode === "quiz" ? "Next run" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
     const isVs = rec.mode === "vs" || rec.mode === "vq";
     const meQ = isQ ? { name: rec.name || "You", picks: rec.picks || [], tenths: rec.tenths || 0, you: true } : null;
@@ -2907,18 +2959,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderUnlimited() {
     setMid("Unlimited");
     const runs = Object.values(records).filter((r) => r.mode === "unlimited").sort((a, b) => b.number - a.number);
-    const next = nextUnlimited();
-    const inProg = LS.get(`run:unlimited:${next}`);
-    const avg = runs.length ? Math.round(runs.reduce((s, r) => s + r.score, 0) / runs.length) : 0;
-    const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
+    const inProg = LS.get(`run:unlimited:${nextUnlimited()}`);
+    const answered = runs.reduce((s, r) => s + r.results.length, 0);
+    const points = runs.reduce((s, r) => s + r.score, 0);
+    const deck = soloPool().prompts.length;
+    const label = inProg && inProg.results && inProg.results.length ? `Resume · ${inProg.results.length} answered` : runs.length ? "Keep going" : "Start";
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
-        <div class="page-head"><h1>Unlimited</h1><p>Runs of seven from ${soloPool().prompts.length} prompts${settings.extraQuestions ? ", extras included" : ""}.</p></div>
-        ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
-        <div><a class="btn primary big" href="#unlimited-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a></div>
+        <div class="page-head"><h1>Unlimited</h1><p>Prompt after prompt from one shuffled deck of ${deck}${settings.extraQuestions ? ", extras included" : ""}. Nothing repeats until you've seen them all. Stop whenever you like; next time picks up where you left off.</p></div>
+        ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Sessions</span></div><div class="figure"><b>${answered}</b><span>Answered</span></div><div class="figure"><b>${answered ? Math.round(points / answered) : 0}</b><span>Avg points</span></div></div>` : ""}
+        <div><a class="btn primary big" href="#unlimited-play">${label}</a></div>
       </div>
       ${runs.length ? `<div class="main"><ul class="list">${runs.slice(0, 50).map((r) => `
-        <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Run ${r.number}</span><span class="sub">${tiersRow(r.tiers)}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}
+        <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Session ${r.number} · ${r.results.length} ${r.results.length === 1 ? "prompt" : "prompts"}</span><span class="sub">${tiersRow(r.tiers.slice(-14))}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}
     </section>`;
   }
 
@@ -3632,7 +3685,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderHow() {
     setMid("How to play");
     const ways = [
-      ["#unlimited", "Unlimited", "More runs of seven, any time"],
+      ["#unlimited-play", "Unlimited", "Endless prompts, no repeats. Stop whenever you like"],
       ["#quiz", "Quiz", "Four answers, one fits. A daily one too"],
       ["#sprint", "Sprint", "One prompt, 60 seconds, as many as you can"],
       ["#live", "Play with friends", "A live room (Classic, Quiz or Sprint), or a challenge link"],

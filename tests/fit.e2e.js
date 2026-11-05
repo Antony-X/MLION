@@ -31,7 +31,7 @@ const measure = (p) => p.evaluate(() => {
   await ctx.route(/fonts\./, (r) => r.abort());
   await ctx.addInitScript(() => { localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:settings", JSON.stringify({ sound: false, answerSecs: 60 })); });
   const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message));
-  await p.goto(base + "#quiz-1"); await p.click("#begin");
+  await p.goto(base + "#quiz-1");
   for (let k = 0; k < 7; k++) {
     await p.waitForSelector(".mcq-opt:not([disabled])", { timeout: 20000 });
     if (await p.$(".rq-text")) break;

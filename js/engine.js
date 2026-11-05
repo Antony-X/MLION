@@ -469,6 +469,20 @@
     while (c.runs.length < n) c.runs.push(c.stream.take(ROUNDS));
     return c.runs[n - 1];
   }
+  const _seqCache = new Map();
+  /** The first `n` ids of an endless flat deal (Unlimited): every prompt once per shuffled pass,
+   *  never the same prompt twice in a row where one pass meets the next. Deterministic per label. */
+  function streamIds(data, label, n) {
+    const key = `${label}|${data.version}`;
+    let c = _seqCache.get(key);
+    if (!c) { c = { stream: makeStream(data, label, null, true), ids: [] }; _seqCache.set(key, c); }
+    while (c.ids.length < n) {
+      const id = c.stream.take(1)[0];
+      if (id !== c.ids[c.ids.length - 1] || data.prompts.length < 2) c.ids.push(id);
+      else c.ids.push(c.stream.take(1)[0], id); // a pass ended on the prompt the next one starts with
+    }
+    return c.ids.slice(0, n);
+  }
   function dailyPromptIds(data, dayNumber) { return runFor(data, "daily-v1", Math.max(1, dayNumber)); }
   function unlimitedPromptIds(data, n) { return runFor(data, "unlimited-v1", n); }
   function packPromptIds(data, packId, n) {
@@ -658,7 +672,7 @@
     tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
     LAUNCH, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
-    makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
+    makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,

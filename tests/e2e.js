@@ -58,14 +58,8 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   check(await page.isVisible(".wordmark"), "home renders");
 
   await page.click("text=Start training");
-  await page.waitForSelector("#begin");
-  await page.click("#how-open"); await page.waitForSelector(".modal");
-  await page.screenshot({ path: path.join(OUT, "01-howto.png") });
-  check((await page.textContent(".modal")).includes("One in a MLion"), "a first-timer can open how scoring works from the intro");
-  await page.click("#how-go");
-  check(!(await page.$(".modal .how")), "Got it closes it");
-  await page.click("#begin");
   await page.waitForSelector("#veil:not(.hidden)");
+  check(!(await page.$("#begin")), "Start training goes straight into the first prompt, no intro page");
   await page.screenshot({ path: path.join(OUT, "03-preview.png") });
   check(await page.isDisabled("#answer"), "input locked during preview");
   await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 6000 });
@@ -175,8 +169,11 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.waitForSelector("#rooms-list", { state: "attached" });
   check((await page.textContent(".page-head h1")).trim() === "Play with friends" && !!(await page.$('a[href="#challenge"]')) && !!(await page.$("#live-go")), "Play with friends holds room creation, open rooms and the challenge link");
   await page.goto(base + "#unlimited-9");
-  await page.waitForFunction(() => location.hash === "#unlimited-1", null, { timeout: 5000 });
-  check(true, "Unlimited can't jump ahead to a later run");
+  await page.waitForSelector("#stop-run");
+  check(true, "an old Unlimited run link opens the endless session");
+  await page.click("#stop-run");
+  await page.waitForFunction(() => location.hash === "#unlimited", null, { timeout: 5000 });
+  check(!(await page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("mlion:run:unlimited") || k.startsWith("mlion:records") && localStorage.getItem(k).includes("unlimited:")))), "Stop before answering anything leaves no session behind");
 
   // ---- quiz: the tile and the drawer link exist. This fixture is nine clones of one prompt, so every
   // wrong option would be accepted by the question's own matcher: a run must say so, not break.
@@ -268,10 +265,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:settings")).answerSecs === 40), "the time setting is saved");
   await page.fill("#set-name", " Ada "); await page.press("#set-name", "Tab");
   check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:name")) === "Ada"), "Settings saves the name rooms and challenges use");
-  await page.goto(base + "#unlimited-1");
-  await page.waitForSelector("#begin");
-  check((await page.$$eval(".beats li b", (els) => els.map((e) => e.textContent))).includes("40 s"), "a new run uses the chosen time");
-  await page.click("#begin");
+  await page.goto(base + "#unlimited-play");
   await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
   check(parseFloat(await page.textContent("#timer-num")) > 30, "the clock counts down from 40");
   check((await page.textContent("#step")).trim() === "Skip" && !(await page.$("#step.primary")), "an empty box offers Skip");

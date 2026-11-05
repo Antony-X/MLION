@@ -55,13 +55,12 @@ const check = (cond, msg) => { if (!cond) throw new Error("FAIL: " + msg); conso
   await ctx.setOffline(true);
   const before = served.length;
   await page.goto(base + "#daily");
-  await page.waitForSelector("#begin", { timeout: 15000 });
+  await page.waitForSelector("#answer", { timeout: 15000 });
   check(served.length === before, "offline: the page and every script come from the cache (no requests reach the server)");
-  await page.click("#begin");
   await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 10000 });
   check(!!(await page.$("#answer")), "offline: today's daily starts and takes answers");
   await page.goto(base + "#quiz-1");
-  await page.waitForSelector("#begin", { timeout: 10000 });
+  await page.waitForSelector(".mcq-opt", { timeout: 10000 });
   check(true, "offline: the quiz opens too");
 
   // the Install entry stays hidden until the browser offers installation

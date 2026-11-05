@@ -165,9 +165,9 @@ async function mockRoute(route) {
 
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("mlion:settings") || "{}"); s.answerSecs = 40; localStorage.setItem("mlion:settings", JSON.stringify(s)); });
   await page.goto(base + "#daily");
-  await page.waitForSelector("#begin");
-  const beats = await page.$$eval(".beats li b", (els) => els.map((e) => e.textContent));
-  check(beats.includes("25 s") && !beats.includes("40 s"), "the daily keeps the 25 s clock even when Settings says 40 s");
+  await page.waitForSelector("#veil.hidden", { state: "attached", timeout: 8000 });
+  const clock = parseFloat(await page.textContent("#timer-num"));
+  check(clock > 20 && clock <= 25, `the daily keeps the 25 s clock even when Settings says 40 s (${clock} s left)`);
 
   await page.goto(base + "#board");
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#board-list")?.textContent || ""), null, { timeout: 15000 });
@@ -246,8 +246,6 @@ async function mockRoute(route) {
   db.quizTable = true;
   await page.goto(base + "#quiz");
   await page.click('.dq-card a[href="#daily-quiz"]');
-  await page.waitForSelector("#begin");
-  await page.click("#begin");
   for (let i = 0; i < 7; i++) {
     await page.waitForSelector(".mcq:not(.locked) .mcq-opt:not([disabled])", { timeout: 10000 });
     await page.keyboard.press("1");
