@@ -53,6 +53,11 @@ assert.strictEqual(E.singular("gans"), "gan"); ok("plural");
   assert.strictEqual(m("anything segment").answer.a, "Segment Anything"); ok("word order: any multi-word answer");
 }
 
+// --- a miss that answers another prompt says which
+E.setLexicon(DATA.prompts.concat(DATA.extras || []));
+assert.ok(E.whereElse("ReLU", "optimizer").includes("activation-function")); ok("whereElse: ReLU answers the activation prompt");
+assert.deepStrictEqual(E.whereElse("definitely not an answer", "optimizer"), []); ok("whereElse: nonsense belongs nowhere");
+
 // --- every answer and alias matches itself, in every prompt
 let names = 0;
 for (const p of DATA.prompts.concat(DATA.extras || [])) {

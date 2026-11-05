@@ -239,10 +239,20 @@
   // Every answer key in the game (set by the app with setLexicon). A player who types something that
   // is a real answer somewhere else meant that thing, not a typo of an answer here: a fuzzy match is
   // only offered ("did you mean"), never accepted on its own.
-  let LEXICON = null;
+  let LEXICON = null, LEXWHERE = null; // every answer key; key -> ids of the prompts it answers
   function setLexicon(prompts) {
-    LEXICON = new Set();
-    for (const p of prompts) for (const a of p.answers || []) for (const n of [a.a].concat(a.aka || [])) { const k = fullKey(n); if (k) LEXICON.add(k); }
+    LEXICON = new Set(); LEXWHERE = new Map();
+    for (const p of prompts) for (const a of p.answers || []) for (const n of [a.a].concat(a.aka || [])) {
+      const k = fullKey(n);
+      if (!k) continue;
+      LEXICON.add(k);
+      if (!LEXWHERE.has(k)) LEXWHERE.set(k, []);
+      if (!LEXWHERE.get(k).includes(p.id)) LEXWHERE.get(k).push(p.id);
+    }
+  }
+  /** The other prompts a typed answer belongs to, exactly as typed ("ReLU" under "Name an optimizer"). */
+  function whereElse(raw, exceptId) {
+    return LEXWHERE ? (LEXWHERE.get(fullKey(raw)) || []).filter((id) => id !== exceptId) : [];
   }
   function matchAnswer(prompt, raw) {
     const m = matchRaw(prompt, raw);
@@ -625,7 +635,7 @@
   return {
     TIERS, TIER_IDS, TIERS_BY_SCORE, MISS_EMOJI, ROUNDS, MAX_SCORE, PREVIEW_MS, ANSWER_MS,
     MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
-    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon,
+    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
     EPOCH, localDateString, dayNumberFor, dateForDay, addDays, msUntilLocalMidnight,
     makeStream, runFor, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,

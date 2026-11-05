@@ -26,8 +26,11 @@ for (const a of P.answers) {
   if (m.kind === "correction" && m.answer === a && !(m.confidence < 0.88)) { typo = t; typoOf = a; break; }
 }
 
+// An answer to another prompt, typed here: the miss should name the prompt it does answer.
+const elsewhere = ["ReLU", "Adam", "GELU", "XGBoost", "K-means"].find((s) => E.matchAnswer(P, s).kind === "none" && E.whereElse(s, P.id).length);
+
 (async () => {
-  if (!first || !typo) throw new Error("FAIL: test setup could not find answers to type");
+  if (!first || !typo || !elsewhere) throw new Error("FAIL: test setup could not find answers to type");
   await new Promise((r) => srv.listen(0, r)); const base = `http://127.0.0.1:${srv.address().port}/`;
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
@@ -57,6 +60,8 @@ for (const a of P.answers) {
   check((await p.textContent("#sp-n")) === "1" && /Already counted/.test(await p.textContent("#status")), `its alias "${alias}" is not counted twice`);
   await send("banana bread");
   check((await p.textContent("#sp-n")) === "1" && /isn't in the key/.test(await p.textContent("#status")), "a miss bounces");
+  await send(elsewhere);
+  check((await p.textContent("#sp-n")) === "1" && /answers “Name an? /.test(await p.textContent("#status")), `"${elsewhere}" is turned down with the prompt it does answer`);
   await send(typo);
   check((await p.textContent("#sp-n")) === "2" && (await p.textContent("#status")).includes(`Counted as ${typoOf.a}`), `a typo "${typo}" counts as ${typoOf.a} and says so`);
   const pts = E.TIERS[first.t].score + E.TIERS[typoOf.t].score;

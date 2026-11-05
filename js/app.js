@@ -1988,11 +1988,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }));
   }
 
+  /** "ReLU" typed under "Name an optimizer": the prompt it does answer, so a miss still teaches. */
+  function otherHome(raw, pid) {
+    const ids = E.whereElse(raw, pid).filter((id) => PROMPTS.has(id));
+    const core = ids.find((id) => !PROMPTS.get(id).extra) || ids[0];
+    return core ? PROMPTS.get(core) : null;
+  }
   function reject(raw, input) {
     RUN.tried = (RUN.tried || []).concat(raw);
     liveTyping();
     Sound.reject();
-    setStatus(`“${raw}” isn't in the key: no gradient. Try again.`, "bad");
+    const other = otherHome(raw, currentPrompt().id);
+    setStatus(other ? `“${raw}” answers “${other.text}”, not this one. Try again.` : `“${raw}” isn't in the key: no gradient. Try again.`, "bad");
     input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake");
     if (settings.clearRejected) { input.value = ""; RUN.draft = ""; syncStep(); }
     else input.select();
@@ -2930,7 +2937,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         return;
       }
       Sound.reject();
-      setStatus(`“${raw}” isn't in the key.`, "bad");
+      const other = otherHome(raw, p.id);
+      setStatus(other ? `“${raw}” answers “${other.text}”, not this one.` : `“${raw}” isn't in the key.`, "bad");
       input.value = "";
       input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake");
     });
