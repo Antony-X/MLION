@@ -59,7 +59,7 @@
   // Per-layer levels and the master, set by measurement (offline renders against the effects): at the
   // default volume the music sits about 15 dB under a typical answer sound.
   const LEVEL = { pad: 0.16, bass: 0.13, pulse: 0.19, arp: 0.07, far: 0.07, air: 0.012 };
-  const MASTER = 0.063;
+  const MASTER = 0.032; // owner: "too loud" after the first listen, so about 6 dB under the first mix
   const SCENE_DB = { play: 0, results: -1.5, menu: -3 };
   // How far each effect pushes the music down: [dB, hold s, release s].
   const DUCK = { tier: [6, 0.35, 1.2], streak: [6, 0.3, 1.4], miss: [5, 0.3, 1.0], reject: [3, 0.15, 0.5], submit: [2, 0.1, 0.4],
