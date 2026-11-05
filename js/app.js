@@ -1763,14 +1763,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     let cta;
     if (rec) cta = `<a class="btn primary big" href="#results-${slugFor(rec.key)}">Today's run · ${rec.score}</a>
       <span class="countdown">Next in <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></span>`;
-    else if (inProg) cta = `<a class="btn primary big" href="#daily">Resume · ${Math.min(inProg.results.length + 1, 7)} of 7</a>`;
+    else if (inProg) cta = `<a class="btn primary big" href="#daily">${resumeLabel(inProg)}</a>`;
     else cta = `<a class="btn primary big" href="#daily">Start training</a>`;
     cta += `<a class="btn big" href="#live">Play with friends</a>`;
     const progress = rec ? rec.score / 700 : inProg ? totalScore(inProg.results || []) / 700 : 0;
     const unl = LS.get(`run:unlimited:${nextUnlimited()}`);
     const modes = [
       // [href, title, line, class, live format for the "With a friend" button beside it]
-      ["#daily", "Daily", rec ? `Today's run · ${rec.score}` : inProg ? `Resume · ${Math.min(inProg.results.length + 1, 7)} of 7` : `MLion #${n} · seven prompts`, "hl", "rarity"],
+      ["#daily", "Daily", rec ? `Today's run · ${rec.score}` : inProg ? `${resumeLabel(inProg)}` : `MLion #${n} · seven prompts`, "hl", "rarity"],
       ["#unlimited-play", "Unlimited", unl && unl.results && unl.results.length ? `Resume · ${unl.results.length} answered` : "Endless prompts, no repeats"],
       ["#quiz", "Quiz", records[`dquiz:${date}`] ? `Today's quiz · ${records[`dquiz:${date}`].score}` : "Multiple choice, a daily one too", "", "quiz"],
       ["#sprint", "Sprint", "60 s, rare answers add time", "", "sprint"],
@@ -1876,6 +1876,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!RUN || RUN.mode === "practice" || RUN.mode === "live") return;
     const { aiCtl, ...plain } = RUN; // eslint-disable-line no-unused-vars
     LS.set("run:" + RUN.key, plain);
+  }
+  /** "Resume · 2 of 7 done": what the daily in progress has behind it (a question left open times out). */
+  function resumeLabel(run) {
+    const done = Math.min((run.results || []).length, 7);
+    return done ? `Resume · ${done} of 7 done` : "Resume";
   }
   function totalScore(results) { return results.reduce((s, r) => s + r.score, 0); }
 
