@@ -131,7 +131,7 @@ index.html            app shell; drawer nav; Google Fonts (Archivo); scripts wit
 css/style.css         all styles (taste-skill redesign: dark room, gold accent, Archivo only)
 js/engine.js          tiers, normalization, matching layers, scheduling, share text (UMD; used by Node tools too)
 js/data.js            GENERATED bundle: window.MLION_DATA = {version, packs, prompts, extras}
-js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas, tier glyphs, lion mark (MARK: Leo's curve + the ball)
+js/landscape.js       topographic backdrop, 3D ridge-line landscape scene, Descent canvas (play stage), streak flame, tier glyphs, lion mark (MARK: Leo's curve + the ball)
 js/app.js             everything else: routing, round state machine, results, challenge, live match, settings
 data/packs.json       7 packs (id, name, emoji, tagline)
 data/prompts/*.json   134 prompt files, one per prompt (schema below)
@@ -869,6 +869,53 @@ rounded.
   stood in for its inspector.
 - An earlier design agent used a different direction (Unbounded, IBM Plex Mono, tracked caps,
   glows). It was stopped, and its partial patch was discarded.
+
+### The play stage: descent and streak (2026-11-05)
+
+The play stage is the one place that breaks the "no gradients, no glows" rule, on purpose: it
+is the lit exhibit.
+
+- **Depth drives everything.** `depthAt(x)` maps the ball's position to depth 0–1. It is
+  front-loaded (`1-(1-d)^2`), so a typical run already warms by Q4. Endless runs use
+  `1-exp(-x/6000)`.
+  - Three acts, blended: a cold, misty plateau; terraced ravines (a step schedule in
+    `terrain()`); a basin lit gold from below.
+  - Palette keyframes (`PAL`, `lightAt`) move from cold grey to warm gold and set the haze
+    and glow strength.
+- **Layers.** Four parallax ridge ranges sit in fog. Each has a rim line and two contour
+  lines. In front are the ground and its strata lines, then the basin glow.
+  - A cached world canvas is redrawn only when the camera or size changes. The ball,
+    trail, ripples, sparks and texts are drawn live on top each frame.
+- **Camera.** `opts.avoid()` returns the DOM boxes over the stage (`stageBoxes()` in app.js:
+  the HUD, dots, meta and streak). The camera solves for the ball's screen height so the path
+  stays clear of the top boxes and the ball stays above the bottom ones. If both can't hold, it
+  flattens the slope.
+  - The camera is eased, with a look-ahead from velocity and a zoom kick on landing.
+  - Ridges dip under the boxes, and tick labels fade near them.
+  - Call `descent.layout()` after a box changes size.
+- **Landing.** The size of the moment scales with the tier through the tables `RIPPLE`,
+  `POWER`, `SPARKS` and `KICK`: squash, ripples, sparks, flash and camera kick. A miss dims the
+  stage and makes the ball shiver.
+  - The ball has a pool of light, an aura, a specular highlight, rim light and a tapered
+    trail. At a streak of 3 or more it has fire tongues in the flame colour.
+- **Streak.** `streakOf(results)` counts trailing results that have a tier. That means
+  accepted answers in Classic and right answers in the quiz formats.
+  - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` (`FLAME` colours) over the
+    stage:
+    - 2: orange
+    - 3: hotter
+    - 4: purple
+    - 5: blue
+    - 6: white-hot
+    - 7 and up: gold with the lion mark and "MLion"
+  - `celebrate()` runs when the ball lands. It plays `Sound.streak(n)` (a chord that climbs
+    each step, with a buzz), `Sound.quick()` with a "Quick" pill for answers under
+    `QUICK_MS` (5 s), and `Sound.fizzle()` with smoke when a streak of 2 or more breaks.
+- **Settings.** Sound and vibration are respected through `Sound`/`buzz`.
+  - With Reduce motion, animations land at once, there are no effects or idle loop, and the
+    flame is static.
+- **Idle loop.** It paints at about 30 fps, stops when the tab is hidden, and pauses when the
+  stage is off screen.
 
 ---
 
