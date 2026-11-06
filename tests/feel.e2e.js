@@ -4,9 +4,10 @@
  *      landing doesn't stop; Reduce motion has none
  *   B. Sprint's coin ladder: each counted answer one note higher, a wrong answer starts the climb again
  *   C. a wrong answer is the soft reject sound; switches, sliders and choice buttons click; hover is silent
- *   D. the streak badge (an ink count of one size centred on the flame, the lion from seven, --font-num, ink on the
- *      gem's gold, the stage avoids it, a miss puts it out), the ball's fire (embers, put out by a miss, under the
- *      numbers) and the gem's lion (under the badge); Reduce motion keeps the badge and the fire still
+ *   D. the streak badge (an ink count of one size centred on the flame, the lion from seven wholly inside the
+ *      flame, --font-num, ink on the gem's gold, the stage avoids it, a miss puts it out), the ball's fire (embers,
+ *      put out by a miss, under the numbers) and the gem's lion (under the badge); Reduce motion keeps the badge
+ *      and the fire still
  *   E. sound comes back after leaving the page: the context is let go when the page hides and rebuilt on the next tap
  * Sounds are read from window.MLION_SOUNDS (test builds log every Sound call, even with sound off). */
 "use strict";
@@ -165,6 +166,48 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     check(sizes.size === 1 && off < 1, `the count keeps one size (${[...sizes].join(", ")}) while the flame grows, centred on it (off by ${off.toFixed(2)} px at most)`);
     const seven = await badge(9, "set");
     check(seven.text === "9" && seven.lion && seven.name === "MLion" && seven.color === INK && seven.nameColor === GOLD, "from seven the flame is gold with the lion in it, and the gold name stands beside the ink count");
+    // the lion sits wholly inside the flame: points round its stroke and its ball, pushed out by a margin,
+    // all fall inside the inner flame (and further inside the outer one), at rest and at the flicker's
+    // widest sways (style.css sk-flick, about each flame's bottom centre). In viewBox units, so it holds
+    // at every size the badge is drawn (phone, laptop, the keyboard strip).
+    const fit = await p.evaluate(() => {
+      const svg = document.querySelector("#streak svg.flame"), g = svg.querySelector(".fl-core g");
+      const stroke = g.querySelector("path"), ball = g.querySelector("circle"), M = g.transform.baseVal.consolidate().matrix;
+      const at = (x, y) => [M.a * x + M.c * y + M.e, M.b * x + M.d * y + M.f], s = Math.hypot(M.a, M.b);
+      const rings = [];
+      const n = stroke.getTotalLength();
+      for (let i = 0; i <= 90; i++) { const q = stroke.getPointAtLength((i / 90) * n); rings.push([...at(q.x, q.y), (s * stroke.getAttribute("stroke-width")) / 2]); }
+      rings.push([...at(+ball.getAttribute("cx"), +ball.getAttribute("cy")), s * ball.getAttribute("r")]);
+      const ctx = document.createElement("canvas").getContext("2d");
+      const poses = [[1, 1, 0], [0.97, 1.05, -2.5], [1.03, 0.96, 1.5]];
+      // the least margin (viewBox units) by which the lion clears a flame's edge, over the poses
+      const clear = (el) => {
+        const P = new Path2D(el.getAttribute("d")), bb = el.getBBox(), ox = bb.x + bb.width / 2, oy = bb.y + bb.height;
+        let best = Infinity;
+        for (const [sx, sy, sk] of poses) {
+          let lo = -2;
+          for (let m = 0; m <= 4; m += 0.05) {
+            const ok = rings.every(([x, y, r]) => {
+              for (let k = 0; k < 16; k++) {
+                const a = (k / 16) * 2 * Math.PI;
+                // where this point sat before the pose (the pose moves the flame, the lion stays put)
+                let v = (y + Math.sin(a) * (r + m) - oy) / sy, u = (x + Math.cos(a) * (r + m) - ox) / sx;
+                u -= Math.tan((sk * Math.PI) / 180) * v;
+                if (!ctx.isPointInPath(P, u + ox, v + oy)) return false;
+              }
+              return true;
+            });
+            if (!ok) break;
+            lo = m;
+          }
+          best = Math.min(best, lo);
+        }
+        return best;
+      };
+      const unit = svg.getBoundingClientRect().height / svg.viewBox.baseVal.height;
+      return { inner: clear(svg.querySelector(".fl-in")), outer: clear(svg.querySelector(".fl-out")), unit };
+    });
+    check(fit.inner >= 0.75 && fit.outer >= 1.5, `the lion sits inside the flame with room to spare, even as it flickers (${fit.inner.toFixed(2)} units inside the inner flame, ${fit.outer.toFixed(2)} inside the outer; 1 unit = ${fit.unit.toFixed(2)} px here)`);
     const flood = await p.evaluate(() => {
       const st = document.querySelector("#stage"), el = document.querySelector("#streak");
       st.classList.add("flood");
@@ -204,16 +247,22 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     }
     await p.evaluate(() => document.documentElement.classList.remove("kb"));
 
-    // the gem: the lion grows out of the ball up to the badge and no further
-    await badge(4, "set");
-    await p.waitForTimeout(300);
-    const lion = await p.evaluate(() => new Promise((done) => {
-      const S = window.MLION_STAGE, cv = document.querySelector("#descent").getBoundingClientRect();
-      S.anim = { from: S.x, to: S.x + 300, tier: "mlion", start: performance.now(), dur: 200, t: 0, done: null };
-      setTimeout(() => done({ top: S.flood && S.flood.top, under: document.querySelector("#streak").getBoundingClientRect().bottom - cv.top }), 1400);
-    }));
-    check(lion.top != null && lion.top >= lion.under, `the gem's lion (top at ${Math.round(lion.top)} px) stays under the badge (${Math.round(lion.under)} px)`);
-    await p.waitForFunction(() => !window.MLION_STAGE.flood, null, { timeout: 4000 });
+    // the gem: the lion grows out of the ball up to the badge and no further, on the full stage and on the
+    // keyboard strip (too short for a ball-sized lion)
+    for (const kb of [false, true]) {
+      await p.evaluate((kb) => document.documentElement.classList.toggle("kb", kb), kb);
+      await p.waitForTimeout(400);
+      await badge(4, "set");
+      await p.waitForTimeout(300);
+      const lion = await p.evaluate(() => new Promise((done) => {
+        const S = window.MLION_STAGE, cv = document.querySelector("#descent").getBoundingClientRect();
+        S.anim = { from: S.x, to: S.x + 300, tier: "mlion", start: performance.now(), dur: 200, t: 0, done: null };
+        setTimeout(() => done({ top: S.flood && S.flood.top, under: document.querySelector("#streak").getBoundingClientRect().bottom - cv.top }), 1400);
+      }));
+      check(lion.top != null && lion.top >= lion.under, `${kb ? "keyboard strip" : "full stage"}: the gem's lion (top at ${Math.round(lion.top)} px) stays under the badge (${Math.round(lion.under)} px)`);
+      await p.waitForFunction(() => !window.MLION_STAGE.flood, null, { timeout: 4000 });
+    }
+    await p.evaluate(() => document.documentElement.classList.remove("kb"));
 
     // the ball's fire on a stage of its own: it sheds embers, and a miss puts it out with smoke
     const fire = (reduce) => p.evaluate((reduce) => new Promise((done) => {
