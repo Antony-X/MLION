@@ -91,7 +91,7 @@ async function drawOg() {
   lockup(c, PAD, 40, 44, "");
   const size = 54;
   c.textAlign = "left"; c.textBaseline = "alphabetic";
-  const words = [["Name the ", COL.ink, 500, -0.022], ["RAREST", COL.gold, 600, 0.03], [" right answer you can", COL.ink, 500, -0.022]];
+  const words = [["Name the ", COL.ink, 500, -0.022], ["RAREST", COL.gold, 600, 0.03], [" answer you can", COL.ink, 500, -0.022]];
   let x = PAD;
   const y1 = 152, y2 = 220;
   for (const [t, col, wt, tr] of words) {

@@ -746,7 +746,7 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
 - `img/og.jpg`, 1200x630, about 120 KB (a JPEG at 0.9 since 2026-11-07: the stage's soft light made a 600 KB
   PNG, and WhatsApp skips preview images over about 300 KB; tests/sharecard.e2e.js checks the cap), drawn by
   `node tools/icons.js og` with the share card's own pieces (`MLION_CARD.kit`, so the course is the play
-  stage's poster, see below): the home page's line "Name the RAREST right answer you can to a machine
+  stage's poster, see below): the home page's line "Name the RAREST answer you can to a machine
   learning question." (RAREST gold and underlined), three right answers to "Name an activation function"
   where they land (ReLU +10 near the rim, GELU +30, Snake "One in a MLion +100" in the basin with the
   ball; spaced to read, not to scale, so the poster's score marks are off), and a caption saying the rarer
@@ -1853,8 +1853,8 @@ run is grey, a deep one gold, as in the game. Marks are left out past 12 prompts
 Cards stay PNG (the only image type a page can put on the clipboard): about 0.6 MB wide, 1.4 MB story; the test
 caps are 1.5 MB and 3 MB. "ML" is gold in the card's lockup.
 
-Home page, same day (user): the pitch is now "Name the RAREST right answer you can to a machine learning
-question." (in index.html's first-visit script and app.js renderHome; the build re-stamps the CSP hash); "ML" in
+Home page, same day (user): the pitch is now "Name the RAREST answer you can to a machine learning
+question." ("right" dropped the same day: the user found it implied) (in index.html's first-visit script and app.js renderHome; the build re-stamps the CSP hash); "ML" in
 gold in the wordmark and the top bar's brand (`.ml`); under "One in a MLion" a small `.home-credit` line:
 "Krillion, but for machine learning. Made by @cowile", @cowile linking to the user's Discord profile. The user
 asked for the credit on the site, not in the images. tools/icons.js reads MARK by running landscape.js in a

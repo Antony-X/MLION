@@ -2564,7 +2564,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${bannerHtml()}
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span><span class="ml">ML</span>ion</span></span></h1></div>
-        <p class="pitch">Name the <em class="rare">rarest</em> right answer you can to a machine learning question.</p>
+        <p class="pitch">Name the <em class="rare">rarest</em> answer you can to a machine learning question.</p>
         <div class="hero-cta">${cta}</div>
         ${xpChipHtml()}
       </div>
