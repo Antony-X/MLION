@@ -24,9 +24,6 @@
     bg: "#0b0a08", earth: "#0f0d0a", ink: "#f2ede4", muted: "#a39b90", faint: "#8c857b", line: "#5c544a",
     gold: "#f2b53c", goldBand: "#e6a52c", goldInk: "#1a1306",
   };
-  // the stage's light, from the rim (cold) to the basin (gold): js/landscape.js PAL, ends only
-  const COLD = { path: "#737a82", strata: "#2b3035", rim: "#8a949e" };
-  const WARM = { path: "#d89c34", strata: "#714b12", rim: "#f2b53c" };
   const FONT = 'Geologica, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
   const FORMATS = {
     card: { w: 1200, h: 630, name: "Card" },
@@ -37,9 +34,6 @@
   const CHECK = "M4.5 12.5l4.8 4.8L19.5 6.8", CROSS = "M6.5 6.5l11 11M17.5 6.5l-11 11";
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-  const rgba = (h, a) => { const [r, g, b] = rgb(h); return `rgba(${r},${g},${b},${a})`; };
-  const mixHex = (a, b, t) => { const x = rgb(a), y = rgb(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
 
   // ------------------------------------------------------------------ spec
   /** Plain words for the address printed on the card. */
@@ -259,8 +253,11 @@
     c.fillStyle = COL.ink; c.textBaseline = "alphabetic"; c.textAlign = "left";
     const base = y + size * 0.79;
     let tx = x + size * 1.16;
-    c.fillText("MLion", tx, base);
-    tx += c.measureText("MLion").width + fs * 0.3;
+    // "ML" in the mark's gold: the name says machine learning
+    c.fillStyle = COL.gold; c.fillText("ML", tx, base);
+    tx += c.measureText("ML").width;
+    c.fillStyle = COL.ink; c.fillText("ion", tx, base);
+    tx += c.measureText("ion").width + fs * 0.3;
     if (title) {
       font(c, fs, 300, "normal", -0.01 * fs);
       c.fillStyle = COL.ink;
@@ -271,126 +268,48 @@
   }
 
   // --------------------------------------------------------------- descent
-  /** The slope, the run painted on it and the ball, inside box {x, y, w, h}. Returns where things
-   * landed and `pathAt(sx)`, the slope's screen height at screen x, so text can keep clear of it. */
+  /** The whole course with the run on it, drawn by the play stage itself (MLION_VISUALS.poster): its sky, ridges,
+   * light, the line painted by tier and the ball seated on it exactly as in the game. The stage draws at css size
+   * (canvas / k) and k times as sharp, so its lines and ball keep their in-game proportions at the card's size.
+   * The course runs from the rim (lead) to past the basin (tail) across the canvas, its heights fitted into
+   * box.y .. box.y + box.h. Returns where things landed and `pathAt(sx)`, the slope's screen height at screen
+   * x, so text can keep clear of it. */
   function descent(c, spec, box, o) {
     const V = Vi();
     V.setRounds(spec.n);
-    const END = Math.max(7, spec.n) * 1000;
-    const xa = -o.lead * END, xb = END * (1 + o.tail);
-    // the play stage's terrain, seen whole: its small ripples are smoothed away at this distance,
-    // the swells and the terraces stay
-    const N = 600, dx = (xb - xa) / N, raw = [];
-    for (let i = 0; i <= N; i++) raw.push(V.terrain(xa + i * dx));
-    const sig = (o.smooth * (xb - xa)) / dx, rad = Math.ceil(sig * 3), kern = [];
-    for (let j = -rad; j <= rad; j++) kern.push(Math.exp(-(j * j) / (2 * sig * sig)));
-    const ys = raw.map((_, i) => { let s = 0, w = 0; kern.forEach((k, j) => { const t = i + j - rad; if (t >= 0 && t <= N) { s += raw[t] * k; w += k; } }); return s / w; });
-    let lo = Infinity, hi = -Infinity;
-    ys.forEach((y) => { lo = Math.min(lo, y); hi = Math.max(hi, y); });
-    const Y = (x) => { const f = clamp((x - xa) / dx, 0, N), i = Math.min(N - 1, Math.floor(f)), t = f - i; return ys[i] + (ys[i + 1] - ys[i]) * t; };
-    const SX = (x) => box.x + ((x - xa) / (xb - xa)) * box.w;
-    const SY = (y) => box.y + ((y - lo) / (hi - lo)) * box.h;
-    const P = (x) => [SX(x), SY(Y(x))];
-    const pathAt = (sx) => SY(Y(xa + ((sx - box.x) / box.w) * (xb - xa)));
-    const step = (xb - xa) / (box.w / 2.5);
-    const line = (a, b) => { const p = new Path2D(); for (let x = a, f = true; x <= b + 1e-6; x += step) { const [px, py] = P(Math.min(x, b)); if (f) { p.moveTo(px, py); f = false; } else p.lineTo(px, py); } const [ex, ey] = P(b); p.lineTo(ex, ey); return p; };
-    const full = line(xa, xb);
-    const [minX, minY] = P(END);
+    const END = Math.max(7, spec.n) * 1000, k = o.k;
     const W = c.canvas.width, H = c.canvas.height;
-
-    // the basin's light, in flat steps like the contours of the bowl it comes from
-    // (flattened, so it lies on the basin floor rather than hanging in the sky like a sun)
-    for (let k = o.bands; k >= 1; k--) {
-      const r = o.glow * (k / o.bands) ** 1.15;
-      c.fillStyle = rgba(COL.gold, 0.026);
-      c.beginPath(); c.ellipse(minX, minY, r, r * 0.42, 0, 0, Math.PI * 2); c.fill();
-    }
-
-    // the ground under the slope, and the strata pressed into it
-    const ground = new Path2D(full);
-    ground.lineTo(SX(xb) + 4, H + 4); ground.lineTo(SX(xa) - 4, H + 4); ground.closePath();
-    c.fillStyle = COL.earth; c.fill(ground);
-    c.save(); c.clip(ground);
-    o.strata.forEach((gap, j) => {
-      const g = c.createLinearGradient(box.x, 0, box.x + box.w, 0);
-      const a = 0.5 - j * 0.16;
-      g.addColorStop(0, rgba("#3a4048", a)); g.addColorStop(0.7, rgba(WARM.strata, a + 0.08)); g.addColorStop(1, rgba(WARM.strata, a + 0.08));
-      c.save(); c.translate(0, gap); c.strokeStyle = g; c.lineWidth = o.thin; c.stroke(full); c.restore();
+    const results = spec.steps.map((s) => ({ tier: s.tier, score: s.pts }));
+    const { canvas, geo } = V.poster(results, {
+      width: W / k, height: H / k, dpr: k, R: o.ball / k,
+      xa: -o.lead * END, xb: END * (1 + o.tail), y0: box.y / k, y1: (box.y + box.h) / k,
+      // the score marks, one per question, unless there are too many to read (a long Unlimited session)
+      top: o.ridgeTop / k, band: o.ridgeBand / k, marks: o.marks !== false && END <= 12000,
     });
-    c.restore();
-
-    // the slope ahead: cold at the rim, warm in the basin
-    const pg = c.createLinearGradient(box.x, 0, box.x + box.w, 0);
-    pg.addColorStop(0, rgba(COLD.path, 0.7)); pg.addColorStop(0.75, rgba(WARM.path, 0.85)); pg.addColorStop(1, rgba(WARM.path, 0.85));
-    c.strokeStyle = pg; c.lineWidth = o.path; c.lineCap = "round"; c.lineJoin = "round"; c.stroke(full);
-
-    // a mark set into the ground every 100 points, one per question, faint
-    const lv = Math.round(END / 1000);
-    if (lv <= 12) {
-      c.fillStyle = rgba(COL.muted, 0.5);
-      for (let k = 0; k <= lv; k++) { const [px, py] = P(k * 1000); c.fillRect(px - o.thin / 2, py + o.path * 2.5, o.thin, o.tick); }
-    }
-
-    // the run, painted by tier
-    const run = (steps) => { const out = []; let x = 0; for (const s of steps) { const nx = Math.min(END, x + s.pts * 10); out.push({ x0: x, x1: nx, tier: s.tier }); x = nx; } return { segs: out, end: x }; };
-    const mine = run(spec.steps);
-    for (const sg of mine.segs) {
-      if (!sg.tier || sg.x1 <= sg.x0) continue;
-      const p = line(sg.x0, sg.x1);
-      c.strokeStyle = rgba(V.TIER_COLORS[sg.tier], 0.2); c.lineWidth = o.run * 3; c.stroke(p);
-      c.strokeStyle = V.TIER_COLORS[sg.tier]; c.lineWidth = o.run; c.stroke(p);
-    }
-    for (const sg of mine.segs) { // where each answer landed (a miss stands still; a crowded run shows none)
-      if (!sg.tier || SX(sg.x1) - SX(sg.x0) < o.dot * 3) continue;
-      const [px, py] = P(sg.x1);
-      c.fillStyle = V.TIER_COLORS[sg.tier]; c.beginPath(); c.arc(px, py, o.dot, 0, Math.PI * 2); c.fill();
-    }
-
-    // the global minimum: a gold ring; with the ball in it, the basin's contours around the ball
-    const perfect = mine.end >= END - 0.5;
-    if (!perfect) {
-      c.strokeStyle = COL.gold; c.lineWidth = o.thin * 2.2;
-      c.beginPath(); c.arc(minX, minY, o.dot * 1.6, 0, Math.PI * 2); c.stroke();
-    } else {
-      for (let k = 1; k <= 3; k++) {
-        c.strokeStyle = rgba(COL.goldBand, 0.6 - k * 0.15); c.lineWidth = o.thin * 1.6;
-        const r = o.ball * (1.5 + k * 1.1);
-        c.beginPath(); c.ellipse(minX, minY, r, r * 0.3, 0, 0, Math.PI * 2); c.stroke();
-      }
-    }
-
-    // a friend's run on the same slope: a hollow ball where they stopped
+    c.drawImage(canvas, 0, 0, W, H);
+    canvas.width = canvas.height = 0; // let its memory go now (a phone's canvas budget is small)
+    const P = (x) => { const [px, py] = geo.onPath(x); return [px * k, py * k]; };
+    const pathAt = (sx) => geo.groundY(sx / k) * k;
+    const [minX, minY] = P(END);
+    const end = (steps) => Math.min(END, steps.reduce((x, s) => x + (s.tier ? s.pts * 10 : 0), 0));
+    const mineEnd = end(spec.steps);
+    const me = geo.ball ? { x: geo.ball.x * k, y: geo.ball.y * k, R: geo.ball.R * k } : { x: P(mineEnd)[0], y: P(mineEnd)[1], R: o.ball };
+    // a friend's run on the same slope: a hollow ball where they stopped (not over mine when we stopped together)
     let friend = null;
-    if (spec.duel) friend = ball(c, P, run(spec.duel.steps).end, step, o.ball * 0.8, null);
-    const lastTier = [...spec.steps].reverse().find((s) => s.tier);
-    const me = ball(c, P, mine.end, step, o.ball, lastTier ? V.TIER_COLORS[lastTier.tier] : COL.gold);
-    return { P, pathAt, minX, minY, me, friend, perfect };
+    if (spec.duel) {
+      const R = o.ball * 0.8, s = geo.seat(end(spec.duel.steps), R / k);
+      friend = { x: s.cx * k, y: s.cy * k, R };
+      if (Math.hypot(friend.x - me.x, friend.y - me.y) > me.R + R) hollowBall(c, friend);
+    }
+    return { P, pathAt, minX, minY, me, friend, perfect: mineEnd >= END - 0.5 };
   }
 
-  /** The ball at world x: lit, resting on the slope along its normal. `tint` null draws a hollow one. */
-  function ball(c, P, x, step, R, tint) {
-    const [lx, ly] = P(x - step), [rx, ry] = P(x + step), [bx, by] = P(x);
-    const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
-    const cx = bx + nx * (R + 1), cy = by + ny * (R + 1);
-    if (!tint) {
-      const lw = Math.max(2, R * 0.2);
-      c.fillStyle = COL.bg; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = COL.ink; c.lineWidth = lw;
-      c.beginPath(); c.arc(cx, cy, R - lw / 2, 0, Math.PI * 2); c.stroke();
-      return { x: cx, y: cy, R };
-    }
-    c.save();
-    c.globalCompositeOperation = "lighter";
-    let g = c.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 4);
-    g.addColorStop(0, rgba(tint, 0.4)); g.addColorStop(0.45, rgba(tint, 0.09)); g.addColorStop(1, rgba(tint, 0));
-    c.fillStyle = g; c.beginPath(); c.arc(cx, cy, R * 4, 0, Math.PI * 2); c.fill();
-    c.restore();
-    g = c.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.08, cx, cy, R * 1.05);
-    g.addColorStop(0, "#fff7e2"); g.addColorStop(0.36, "#f6c768"); g.addColorStop(1, "#b3711a");
-    c.fillStyle = g; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill();
-    c.fillStyle = "rgba(255,255,255,0.85)";
-    c.beginPath(); c.ellipse(cx - R * 0.36, cy - R * 0.42, R * 0.26, R * 0.17, -0.6, 0, Math.PI * 2); c.fill();
-    return { x: cx, y: cy, R };
+  /** A friend's ball: hollow, the page's dark inside an ink ring. */
+  function hollowBall(c, { x, y, R }) {
+    const lw = Math.max(2, R * 0.2);
+    c.fillStyle = COL.bg; c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = COL.ink; c.lineWidth = lw;
+    c.beginPath(); c.arc(x, y, R - lw / 2, 0, Math.PI * 2); c.stroke();
   }
 
   // ----------------------------------------------------------------- hook
@@ -454,7 +373,7 @@
   }
 
   // -------------------------------------------------------------- layouts
-  /** Score, band, the friend's line and the marks, aligned left or right at x. Returns the bottom. */
+  /** Score, band, the friend's line and the marks, aligned left or right at x. Returns the box it covers. */
   function scoreBlock(c, spec, x, top, S, align) {
     c.textBaseline = "alphabetic"; c.textAlign = "left";
     const ofText = `/${spec.max}`;
@@ -464,6 +383,8 @@
     const gap = S.of * 0.2, total = sW + gap + ofW;
     const left = align === "right" ? x - total : x - S.score * 0.04;
     const base = top + S.score * 0.72;
+    let x0 = left, x1 = left + total;
+    const span = (w) => { if (align === "right") x0 = Math.min(x0, x - w); else x1 = Math.max(x1, x + w); };
     c.fillStyle = COL.ink; c.fillText(sText, left, base);
     font(c, S.of, 400); c.fillStyle = COL.muted; c.fillText(ofText, left + sW + gap, base);
     c.textAlign = align === "right" ? "right" : "left";
@@ -473,20 +394,20 @@
       y += S.band * 1.55;
       font(c, S.band, 500, "normal", -0.01 * S.band);
       c.fillStyle = spec.band.tier === "baseline" ? COL.ink : Vi().TIER_COLORS[spec.band.tier];
-      c.fillText(spec.band.name, ax, y);
+      c.fillText(spec.band.name, ax, y); span(c.measureText(spec.band.name).width);
     }
     if (spec.duel) {
       y += S.band * 1.3;
       font(c, S.small, 400); c.fillStyle = COL.muted;
-      c.fillText(`${spec.duel.name} scored ${spec.duel.score}`, ax, y);
+      c.fillText(`${spec.duel.name} scored ${spec.duel.score}`, ax, y); span(c.measureText(`${spec.duel.name} scored ${spec.duel.score}`).width);
     }
     c.textAlign = "left";
     y += S.mark * 0.75;
     const k = Math.min(spec.marks.length, ROW_MAX), rowW = k * S.mark + (k - 1) * S.markGap;
     const fitMark = rowW > S.rowMax ? S.rowMax / rowW : 1; // a ten-question challenge's row shrinks to fit
     const ms = S.mark * fitMark, mg = S.markGap * fitMark;
-    marksRow(c, spec, x, y, ms, mg, align);
-    return y + ms;
+    span(marksRow(c, spec, x, y, ms, mg, align));
+    return { x0, x1, y0: top, y1: y + ms };
   }
   // (The ball used to carry the run's final loss beside it. Players only see the score since 2026-11-06, and the
   // score is already the card's headline.)
@@ -513,9 +434,8 @@
   function drawCard(c, spec) {
     const W = 1200, H = 630, M = 64;
     const S = { score: 180, of: 36, band: 31, small: 24, answer: 60, tier: 28, url: 21, mark: 31, markGap: 10, rowMax: 470 };
-    const at = descent(c, spec, { x: 0, y: 204, w: W, h: 310 }, {
-      lead: 0.06, tail: 0.12, smooth: 0.012, glow: 840, bands: 7, thin: 1.4, path: 2.6, run: 6.5, dot: 5.5, ball: 18, tick: 7, strata: [13, 28, 46],
-    });
+    // the ridges stand low, under the text along the top
+    const at = descent(c, spec, { x: 0, y: 204, w: W, h: 310 }, { lead: 0.06, tail: 0.12, k: 1.5, ball: 19.5, ridgeTop: 160, ridgeBand: 165 });
     lockup(c, M, 50, 48, spec.title);
     font(c, S.small, 400); c.fillStyle = COL.muted; c.textAlign = "left"; c.textBaseline = "alphabetic";
     if (spec.sub) c.fillText(spec.sub, M, 50 + 48 + 38);
@@ -528,9 +448,7 @@
   function drawStory(c, spec) {
     const W = 1080, H = 1920, M = 84;
     const S = { score: 300, of: 54, band: 48, small: 35, answer: 88, tier: 40, url: 31, mark: 48, markGap: 15, rowMax: W - 2 * M };
-    const at = descent(c, spec, { x: 0, y: 980, w: W, h: 470 }, {
-      lead: 0.05, tail: 0.14, smooth: 0.012, glow: 1350, bands: 7, thin: 2, path: 3.4, run: 9, dot: 8, ball: 27, tick: 10, strata: [18, 38, 62],
-    });
+    const at = descent(c, spec, { x: 0, y: 980, w: W, h: 470 }, { lead: 0.05, tail: 0.14, k: 2, ball: 27, ridgeTop: 880, ridgeBand: 240 });
     lockup(c, M, 286, 68, spec.title);
     font(c, S.small, 400); c.fillStyle = COL.muted; c.textAlign = "left"; c.textBaseline = "alphabetic";
     if (spec.sub) c.fillText(spec.sub, M, 286 + 68 + 52);

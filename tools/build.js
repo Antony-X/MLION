@@ -276,9 +276,9 @@ for (const f of ["css/style.css", "js/engine.js", "js/data.js", "js/landscape.js
   html = html.replace(new RegExp(`(["'])${esc}(\\?v=[a-z0-9]+)?\\1`), `$1${f}?v=${h}$1`);
   stamped.push(`${f}?v=${h}`);
 }
-// The link preview: the site address, and og.png with its hash so chat apps fetch a changed image again.
-const ogHash = E.hashString(fs.readFileSync(path.join(ROOT, "img", "og.png")).toString("base64")).toString(36);
-for (const [key, value] of [["og:url", SITE_URL], ["og:image", `${SITE_URL}img/og.png?v=${ogHash}`], ["twitter:image", `${SITE_URL}img/og.png?v=${ogHash}`]]) {
+// The link preview: the site address, and og.jpg with its hash so chat apps fetch a changed image again.
+const ogHash = E.hashString(fs.readFileSync(path.join(ROOT, "img", "og.jpg")).toString("base64")).toString(36);
+for (const [key, value] of [["og:url", SITE_URL], ["og:image", `${SITE_URL}img/og.jpg?v=${ogHash}`], ["twitter:image", `${SITE_URL}img/og.jpg?v=${ogHash}`]]) {
   const re = new RegExp(`(<meta (?:property|name)="${key}" content=")[^"]*(")`);
   if (!re.test(html)) throw new Error(`index.html has no ${key} meta tag`);
   html = html.replace(re, `$1${value}$2`);

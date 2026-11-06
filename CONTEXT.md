@@ -743,13 +743,17 @@ if `js/sharecard.js` is missing the old text share runs.
 
 What Discord, Slack, X and iMessage show when someone pastes the site address.
 
-- `img/og.png`, 1200x630, about 180 KB, drawn by `node tools/icons.js og` with the share card's own
-  pieces (`MLION_CARD.kit`): the descent with three right answers to "Name an activation function"
+- `img/og.jpg`, 1200x630, about 120 KB (a JPEG at 0.9 since 2026-11-07: the stage's soft light made a 600 KB
+  PNG, and WhatsApp skips preview images over about 300 KB; tests/sharecard.e2e.js checks the cap), drawn by
+  `node tools/icons.js og` with the share card's own pieces (`MLION_CARD.kit`, so the course is the play
+  stage's poster, see below): the home page's line "Name the RAREST right answer you can to a machine
+  learning question." (RAREST gold and underlined), three right answers to "Name an activation function"
   where they land (ReLU +10 near the rim, GELU +30, Snake "One in a MLion +100" in the basin with the
-  ball), the line "Name the rarest right answer you can." and the lockup. `node tools/icons.js og mock`
-  also writes mock Discord embeds (400 px and 516 px images, a 300 px phone) to `tests/out/og/`.
-  After a new image, run `node tools/build.js`: it stamps og.png's hash into the image URL
-  (`og.png?v=<hash>`), so Discord's cache fetches the new one.
+  ball; spaced to read, not to scale, so the poster's score marks are off), and a caption saying the rarer
+  the answer, the further the ball rolls. `node tools/icons.js og mock` also writes mock Discord embeds
+  (400 px and 516 px images, a 300 px phone) to `tests/out/og/`. After a new image, run
+  `node tools/build.js`: it stamps og.jpg's hash into the image URL (`og.jpg?v=<hash>`), so Discord's cache
+  fetches the new one.
 - Tags in `index.html`: og:type, og:site_name, og:url, og:title "MLion, a daily word game for ML
   people", og:description "Seven prompts a day. Common answers barely count.", og:image with type,
   width, height and alt, twitter:card summary_large_image, twitter:image and its alt.
@@ -1834,3 +1838,24 @@ desktop 1920x640, laptop (1.25x, CPU/2), phone (3x, CPU/4), all with `--disable-
   tests/e2e.js `swishh` autocorrect check fails depending on the date's prompt, identically on the old code.
 - Pixel parity old vs new: same picture (largest diffs are a few anti-aliasing pixels on band seams, ≤7
   levels in low time, and mote/ember phase).
+
+### Share card and link preview drawn by the stage (2026-11-07)
+The user found both images out of date after the stage's polish, with the ball not sitting on the line (the
+card drew its own smoothed slope and its own ball). Now `MLION_VISUALS.poster(results, {width, height, dpr,
+xa, xb, y0, y1, R, top, band, marks})` in js/landscape.js draws a run as one still picture with the play stage
+itself: a `Descent` with `opts.poster` (fixed size, its own camera fitting the course from xa to xb into y0..y1,
+lit for the ball's depth, everything calm, no listeners, no edge fades, ridges in their own band `top`/`band`
+with each column's character taken from the course below it). So the ball, its seat on the line, the glow, the
+fire on a streak, the lit line by tier, the ridges and the 100..700 marks are the game's own. sharecard.js
+`descent()` draws the poster at css size (canvas / k, k = 1.5 wide, 2 story) and k times as sharp, then the
+text over it; `geo` gives the path and the ball back for the hook and a challenge friend's hollow ball. A weak
+run is grey, a deep one gold, as in the game. Marks are left out past 12 prompts (long Unlimited sessions).
+Cards stay PNG (the only image type a page can put on the clipboard): about 0.6 MB wide, 1.4 MB story; the test
+caps are 1.5 MB and 3 MB. "ML" is gold in the card's lockup.
+
+Home page, same day (user): the pitch is now "Name the RAREST right answer you can to a machine learning
+question." (in index.html's first-visit script and app.js renderHome; the build re-stamps the CSP hash); "ML" in
+gold in the wordmark and the top bar's brand (`.ml`); under "One in a MLion" a small `.home-credit` line:
+"Krillion, but for machine learning. Made by @cowile", @cowile linking to the user's Discord profile. The user
+asked for the credit on the site, not in the images. tools/icons.js reads MARK by running landscape.js in a
+Node vm, so module-level code there must not touch `navigator` unguarded (CHROMIUM is guarded).

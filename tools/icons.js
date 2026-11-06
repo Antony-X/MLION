@@ -2,13 +2,13 @@
 /* Render the site icons from the lion mark (MARK in js/landscape.js), and the link-preview image.
  *
  *   node tools/icons.js            writes img/favicon.svg, img/icon-192.png, img/icon-512.png,
- *                                  img/apple-touch-icon.png and img/og.png
- *   node tools/icons.js og         only img/og.png (then run tools/build.js: it stamps og.png's hash
+ *                                  img/apple-touch-icon.png and img/og.jpg
+ *   node tools/icons.js og         only img/og.jpg (then run tools/build.js: it stamps og.jpg's hash
  *                                  into the og:image URL, so chat apps fetch the new one)
  *   node tools/icons.js og mock [--out=dir]
  *                                  also screenshots the image inside mock Discord embeds (desktop and
  *                                  phone widths, the real title/description/theme-color from index.html)
- *                                  and its square crop; with --out, og.png goes there instead of img/
+ *                                  and its square crop; with --out, og.jpg goes there instead of img/
  *
  * The preview image is drawn on a canvas with the share card's own pieces (js/sharecard.js `kit`:
  * the descent, tier glyphs, lockup), so it speaks the same visual language as a shared result.
@@ -65,62 +65,74 @@ function appIconHtml(size) {
 <rect x="-32" y="-32" width="64" height="64" fill="${COL.bg}"/>${markSvg(COL.gold, { k: 0.62, stroke: M.stroke * 1.08, ball: M.ball[2] * 1.04 })}</svg></body></html>`;
 }
 
-/** In the page: the link-preview image, 1200 x 630. One prompt and three right answers on the
- * descent: the common one barely leaves the rim, the rare one rolls to the global minimum. */
+/** In the page: the link-preview image, 1200 x 630. What the game is, in one picture: the line from the home page,
+ * then one prompt and three right answers on the real course (drawn by the play stage itself, as the share card
+ * is): the common one barely leaves the rim, the rare one rolls down to the minimum. */
 async function drawOg() {
-  const K = window.MLION_CARD.kit, V = window.MLION_VISUALS, { COL, font, glyph, lockup, descent } = K;
+  const K = window.MLION_CARD.kit, V = window.MLION_VISUALS, { COL, font, fit, glyph, lockup, descent } = K;
   const W = 1200, H = 630, PAD = 64;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext("2d", { alpha: false });
   c.fillStyle = COL.bg; c.fillRect(0, 0, W, H);
 
+  // where each answer would take the ball (spaced to read at a glance, not to scale)
   const stops = [
-    { x: 700, tier: "baseline", answer: "ReLU", pts: 10 },
-    { x: 2100, tier: "indist", answer: "GELU", pts: 30 },
+    { x: 650, tier: "baseline", answer: "ReLU", pts: 10 },
+    { x: 2050, tier: "indist", answer: "GELU", pts: 30 },
     { x: 7000, tier: "mlion", answer: "Snake", pts: 100 },
   ];
   const spec = { n: 7, steps: stops.map((s, i) => ({ tier: s.tier, pts: (s.x - (i ? stops[i - 1].x : 0)) / 10 })), duel: null };
-  const at = descent(c, spec, { x: 0, y: 300, w: W, h: 268 }, {
-    lead: 0.06, tail: 0.12, smooth: 0.012, glow: 900, bands: 7, thin: 1.6, path: 3, run: 8, dot: 7.5, ball: 24, tick: 0, strata: [15, 32, 54],
-  });
+  const at = descent(c, spec, { x: 0, y: 300, w: W, h: 252 }, { lead: 0.06, tail: 0.12, k: 1.5, ball: 24, ridgeTop: 255, ridgeBand: 150, marks: false });
   /** The slope's highest point (smallest y) under [x0, x1], to keep text clear of it. */
   const top = (x0, x1) => { let m = Infinity; for (let x = x0; x <= x1; x += 6) m = Math.min(m, at.pathAt(x)); return m; };
 
-  // the rule, then the brand
-  lockup(c, PAD, 44, 44, "");
-  font(c, 68, 500, "normal", -0.022 * 68);
-  c.fillStyle = COL.ink; c.textAlign = "left"; c.textBaseline = "alphabetic";
-  c.fillText("Name the rarest", PAD, 174);
-  c.fillText("right answer you can.", PAD, 250);
+  // the brand, then the line from the home page: RAREST in gold capitals, underlined, as there
+  lockup(c, PAD, 40, 44, "");
+  const size = 54;
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  const words = [["Name the ", COL.ink, 500, -0.022], ["RAREST", COL.gold, 600, 0.03], [" right answer you can", COL.ink, 500, -0.022]];
+  let x = PAD;
+  const y1 = 152, y2 = 220;
+  for (const [t, col, wt, tr] of words) {
+    font(c, size, wt, "normal", tr * size); c.fillStyle = col; c.fillText(t, x, y1);
+    const w = c.measureText(t).width;
+    if (t === "RAREST") { c.fillRect(x, y1 + size * 0.15, w - tr * size, size * 0.075); }
+    x += w;
+  }
+  font(c, size, 500, "normal", -0.022 * size); c.fillStyle = COL.ink;
+  c.fillText("to a machine learning question.", PAD, y2);
 
-  // the common answers, above where they landed (the slope falls away to their right)
+  // the common answers, over where they landed
   for (const s of stops.slice(0, 2)) {
     const [px, py] = at.P(s.x);
-    const tx = px - 6, ty = py - 26;
-    font(c, 38, 500, "normal", -0.01 * 38); c.fillStyle = COL.ink; c.fillText(s.answer, tx, ty);
+    const tx = px - 8, ty = py - 24;
+    font(c, 36, 500, "normal", -0.01 * 36); c.fillStyle = COL.ink; c.fillText(s.answer, tx, ty);
     const w = c.measureText(s.answer).width;
-    font(c, 32, 500); c.fillStyle = V.TIER_COLORS[s.tier]; c.fillText(`+${s.pts}`, tx + w + 12, ty);
+    font(c, 30, 600); c.fillStyle = V.TIER_COLORS[s.tier]; c.fillText(`+${s.pts}`, tx + w + 12, ty);
   }
 
   // the rare one, in the basin: right-aligned over the ball, lifted until it clears the slope
-  const b = at.me, rx = b.x + 34;
-  font(c, 33, 500);
-  const tierText = "One in a MLion  +100", tw = c.measureText(tierText).width + 48;
-  let base = b.y - 70;
-  while (base + 10 > top(rx - tw, rx) - 18) base -= 4;
+  const b = at.me, rx = Math.min(W - 40, b.x + 40);
+  font(c, 31, 600);
+  const tierText = "One in a MLion  +100", tw = c.measureText(tierText).width + 46;
+  let base = b.y - 64;
+  while (base + 10 > top(rx - tw, rx) - 16) base -= 4;
   c.textAlign = "right";
   c.fillStyle = V.TIER_COLORS.mlion; c.fillText(tierText, rx, base);
-  glyph(c, "mlion", rx - tw, base - 32, 37);
-  font(c, 76, 500, "normal", -0.02 * 76); c.fillStyle = COL.ink;
-  c.fillText("Snake", rx, base - 48);
+  glyph(c, "mlion", rx - tw, base - 31, 35);
+  font(c, 72, 500, "normal", -0.02 * 72); c.fillStyle = COL.ink;
+  c.fillText("Snake", rx, base - 46);
   c.textAlign = "left";
 
-  // the prompt they all answer
-  font(c, 32, 400, "normal", -0.005 * 32); c.fillStyle = COL.muted;
-  c.fillText("Three right answers to “Name an activation function”", PAD, H - 42);
+  // what it shows, in words
+  const cap = fit(c, "Three right answers to “Name an activation function”. The rarer the answer, the further the ball rolls.", 640, 2, [27, 25, 23], 400, "normal", -0.005);
+  c.fillStyle = COL.muted;
+  cap.lines.forEach((ln, i) => c.fillText(ln, PAD, H - 40 - (cap.lines.length - 1 - i) * cap.size * 1.32));
 
-  const blob = await K.toBlob(canvas);
+  // a JPEG: the stage's soft light makes a PNG of about 600 KB, and some chat apps (WhatsApp) skip a preview image
+  // over about 300 KB; at 0.9 the text stays clean
+  const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
   const u8 = new Uint8Array(await blob.arrayBuffer());
   let bin = "";
   for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
@@ -178,19 +190,19 @@ body { margin: 0; width: ${pageW}px; background: #313338; color: #dbdee1; font: 
     await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${FONT_CSS}"></head><body style="background:${COL.bg}"></body></html>`, { waitUntil: "networkidle" });
     for (const f of ["engine.js", "landscape.js", "sharecard.js"]) await page.addScriptTag({ path: path.join(ROOT, "js", f) });
     const fontOk = await page.evaluate(async () => {
-      await Promise.all(["300", "400", "500"].map((w) => document.fonts.load(`${w} 40px Geologica`, "MLion Name the rarest right answer you can. ReLU GELU Snake One in a MLion +100 “”")));
+      await Promise.all(["300", "400", "500", "600"].map((w) => document.fonts.load(`${w} 40px Geologica`, "MLion Name the RAREST right answer you can to a machine learning question. ReLU GELU Snake One in a MLion +100 “”. Three answers Name an activation function rarer further ball rolls")));
       return document.fonts.check('500 40px "Geologica"');
     });
     if (!fontOk) throw new Error("Geologica did not load; the preview image needs it (check the network)");
     const b64 = await page.evaluate(`(${drawOg.toString()})()`);
     fs.mkdirSync(OG_DIR, { recursive: true });
-    const ogPath = path.join(OG_DIR, "og.png");
+    const ogPath = path.join(OG_DIR, "og.jpg");
     fs.writeFileSync(ogPath, Buffer.from(b64, "base64"));
     console.log(`wrote ${path.relative(ROOT, ogPath)} (${(fs.statSync(ogPath).size / 1024).toFixed(0)} KB)`);
 
     if (mock) {
       fs.mkdirSync(MOCK_DIR, { recursive: true });
-      const src = `data:image/png;base64,${b64}`;
+      const src = `data:image/jpeg;base64,${b64}`;
       for (const [name, img, pageW, scale] of [["desktop", 400, 560, 1], ["desktop-wide", 516, 680, 1], ["phone", 300, 390, 2]]) {
         const p = await browser.newPage({ viewport: { width: pageW, height: 400 }, deviceScaleFactor: scale });
         await p.setContent(mockHtml(src, img, pageW));

@@ -456,7 +456,7 @@
   const TENSE_RED = rgb("#e8412f"); // a deeper cousin of the house's negative red
   const SMOKE = "#8c857b";
   // Chrome, Edge and the other Chromium browsers (the only ones with userAgentData; every browser on an iPhone is Safari's engine)
-  const CHROMIUM = !!navigator.userAgentData;
+  const CHROMIUM = typeof navigator !== "undefined" && !!navigator.userAgentData;
   /** Is there a real GPU (window.MLION_GPU)? The home page's 3D hero says so for free (hero3d.js, noteGpu). Without
    *  it, ask WebGPU once, in idle time: it answers without stalling a frame, null when Chrome draws on the CPU. Until
    *  an answer comes (or with no WebGPU to ask) the stage assumes a GPU, as nearly every device has one. */
@@ -563,8 +563,11 @@
       anim: null, raf: 0, onScreen: true, reported: NaN,
       onFrame: opts.onFrame || null, onFlood: opts.onFlood || null,
     };
-    const still = prefersReduced; // read on every frame: the setting can change mid-run
-    if (window.MLION_TEST) window.MLION_STAGE = st; // tests time the hit-stop (tests/feel.e2e.js)
+    // A poster (opts.poster, see poster() below) is one still picture on a canvas off the page: a fixed size, its own
+    // camera, nothing moving, nothing listening
+    const POSTER = opts.poster || null;
+    const still = POSTER ? () => true : prefersReduced; // read on every frame: the setting can change mid-run
+    if (window.MLION_TEST && !POSTER) window.MLION_STAGE = st; // tests time the hit-stop (tests/feel.e2e.js)
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
@@ -626,14 +629,22 @@
       for (let i = 0; i < n; i++) st.motes.push({ x: Math.random() * st.w, y: Math.random() * st.h, f: 0.25 + Math.random() * 0.75, ph: Math.random() * 6.3, sp: 0.6 + Math.random() * 0.8 });
     }
     function resize() {
-      const r = canvas.getBoundingClientRect();
-      st.dpr = Math.min(2, window.devicePixelRatio || 1);
+      const r = POSTER || canvas.getBoundingClientRect();
+      st.dpr = POSTER ? POSTER.dpr : Math.min(2, window.devicePixelRatio || 1);
       st.w = Math.max(10, r.width); st.h = Math.max(10, r.height);
       canvas.width = world.width = Math.floor(st.w * st.dpr);
       canvas.height = world.height = Math.floor(st.h * st.dpr);
       for (const lo of [skyLo, fogLo]) { lo.cv.width = Math.ceil(canvas.width / LOWRES) + 1; lo.cv.height = Math.ceil(canvas.height / LOWRES) + 1; }
-      st.view = st.w < 560 ? 820 : st.w < 1000 ? 1100 : 1500;
-      st.R = st.w < 560 ? 10.5 : 13;
+      st.view = POSTER ? POSTER.xb - POSTER.xa : st.w < 560 ? 820 : st.w < 1000 ? 1100 : 1500;
+      st.R = POSTER ? POSTER.R : st.w < 560 ? 10.5 : 13;
+      if (POSTER) { // the course from xa to xb across the width, its heights fitted between y0 and y1
+        const s = st.w / st.view;
+        let lo = Infinity, hi = -Infinity;
+        for (let x = POSTER.xa; x <= POSTER.xb; x += st.view / 600) { const y = terrain(x); lo = Math.min(lo, y); hi = Math.max(hi, y); }
+        POSTER.camX = POSTER.xa + AX * st.view;
+        POSTER.sy = (POSTER.y1 - POSTER.y0) / (Math.max(1, hi - lo) * s);
+        POSTER.by = POSTER.y0 - (lo - terrain(POSTER.camX)) * s * POSTER.sy;
+      }
       st.sig = ""; st.framed = false;
       measure();
       seedMotes();
@@ -718,6 +729,7 @@
       }
       // the easing may lag, but the path never crosses the numbers: hold the hard limit every frame
       if (!calm) st.by = Math.max(st.by, targets().need(st.sy));
+      if (POSTER) { st.lead = 0; st.camX = POSTER.camX; st.by = POSTER.by; st.sy = POSTER.sy; st.zoom = 1; st.topY = POSTER.top; }
       st.camY = terrain(st.camX);
       st.shake = st.shake > 0.2 && !calm ? st.shake * Math.exp(-dt / 120) : 0;
 
@@ -989,7 +1001,7 @@
 
       // ridges behind, far to near: each one mistier than the one in front, its rim lit, its
       // contours stepping down into it
-      const band = Math.max(24, st.by - st.topY);
+      const band = POSTER ? POSTER.band : Math.max(24, st.by - st.topY); // a poster gives its ridges a band of their own
       const stepPx = w < 560 ? 4 : 6;
       // the ridges part under the numbers at the top: a peak that would cross one sinks into a col below it
       const tops = st.rects.filter((r) => r.y + r.h / 2 < h / 2);
@@ -1007,14 +1019,18 @@
       // (2026-11-06). The 3 px under the next line keep its soft edge over this range's colour, as before.
       const xs = [];
       for (let px = -stepPx; px <= w + stepPx; px += stepPx) xs.push(px);
+      const ridgeK = POSTER ? 1500 / st.view : 1;
       const ranges = RANGES.map((Rg, i) => {
         const near = (i + 1) / RANGES.length;
         const base = st.topY + band * (Rg.base - 0.16 * L.d * near);
         const amp = band * Rg.amp * (0.8 + 0.45 * L.d);
         let top = Infinity;
         const ys = xs.map((px) => {
-          const off = (px - w * AX) / s;
-          const y = Math.max(floorAt(px), base - amp * ridge(off + st.camX * Rg.p, st.camX + off / Rg.p, Rg.seed));
+          const off = ((px - w * AX) / s) * ridgeK; // a poster sees far more of the path; its ridges keep their size
+          // (on a poster, which sees the whole course, each column's character is the course's below it: hills at the
+          // rim, peaks in the ravine, a bowl round the minimum)
+          const u = POSTER ? st.camX + (px - w * AX) / s : st.camX + off / Rg.p;
+          const y = Math.max(floorAt(px), base - amp * ridge(off + st.camX * Rg.p, u, Rg.seed));
           if (y < top) top = y;
           return y;
         });
@@ -1086,7 +1102,7 @@
       // score marks every 100 points, set into the ground (the gold one at the bottom is a perfect run); they fade
       // near the ball and never sit under a number. They read as loss (7.00 down to 0.00) until 2026-11-06, when the
       // user took loss off the screens so players see one number, the score.
-      if (!endless()) {
+      if (!endless() && !(POSTER && POSTER.marks === false)) {
         const n = Math.round(END / 1000);
         c.font = `500 ${w < 560 ? 11 : 12}px Geologica, system-ui, sans-serif`;
         c.textAlign = "center";
@@ -1745,7 +1761,8 @@
       }
 
       // the stage's edges dissolve into the page: last, over the gold and the coins too (the gem's gold used to
-      // cover them, a hard gold rectangle)
+      // cover them, a hard gold rectangle). A poster is a picture of its own, with no page round it.
+      if (POSTER) return;
       g = c.createLinearGradient(0, h - 30, 0, h);
       g.addColorStop(0, css(bg, 0)); g.addColorStop(1, css(bg, 1));
       c.fillStyle = g; c.fillRect(0, h - 30, w, 30);
@@ -1792,7 +1809,7 @@
 
     function paint() {
       if (!st.w) return;
-      const L = lightAt(depthAt(st.camX));
+      const L = lightAt(depthAt(POSTER ? st.x : st.camX)); // a poster is lit for where the ball got to
       const P = pose(flameLevel(st.streak));
       const cover = floodCovers(P);
       if (!st.tense && gray) { gray.width = gray.height = 0; gray = null; st.grayFor = null; } // low time is over
@@ -1838,7 +1855,7 @@
       if (active || (!still() && st.onScreen)) st.raf = requestAnimationFrame(frame);
       else last = 0;
     }
-    function kick() { if (!st.raf && !document.hidden && st.w) { last = 0; st.raf = requestAnimationFrame(frame); } }
+    function kick() { if (!POSTER && !st.raf && !document.hidden && st.w) { last = 0; st.raf = requestAnimationFrame(frame); } }
     /** Settle the camera and draw now (resume, a resize, a jump). */
     function snap() {
       st.framed = false;
@@ -1935,6 +1952,11 @@
       },
       get x() { return st.x; },
       get streak() { return st.streak; },
+      /** For a poster's caller: where the path and the ball are on it, in css px. */
+      geometry() {
+        const S = st.pose && st.pose.S;
+        return { onPath, groundY, seat: (x, r) => seat(x, r, r, -1), ball: S ? { x: S.cx, y: S.cy, R: st.R } : null, dpr: st.dpr };
+      },
       destroy() {
         cancelAnimationFrame(st.raf); st.raf = 0;
         window.removeEventListener("resize", onResize);
@@ -1945,6 +1967,7 @@
     };
     const onResize = () => resize();
     const onVis = () => { if (document.hidden) { cancelAnimationFrame(st.raf); st.raf = 0; last = 0; } else kick(); };
+    if (POSTER) { resize(); return api; }
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVis);
     // the stage folds when a phone keyboard opens, which no window resize reports
@@ -1956,6 +1979,22 @@
     resize();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { st.sig = ""; if (!st.raf && st.w) paint(); });
     return api;
+  }
+
+  // ------------------------------------------------------------ poster
+  /** A finished run as one still picture drawn by the stage itself, for the share card and the link preview: the
+   *  course from world x xa to xb across a width x height canvas (css px, drawn at dpr), its heights fitted between
+   *  y0 and y1, the ball where the run stopped; the ridges stand in a band `band` px high from `top` down; marks: false leaves out the score marks. Being the stage's own drawing, the ball sits on the line, and the
+   *  light, ridges and fire are the game's. results: [{tier, score}] as Descent.set takes them.
+   *  Returns {canvas, geo}: geo.onPath(x) and geo.groundY(sx) in css px, geo.ball {x, y, R}. */
+  function poster(results, o) {
+    const canvas = document.createElement("canvas");
+    const D = Descent(canvas, {
+      poster: { width: o.width, height: o.height, dpr: o.dpr || 1, xa: o.xa, xb: o.xb, y0: o.y0, y1: o.y1, R: o.R || 13, top: o.top, band: o.band, marks: o.marks },
+      avoid: () => o.avoid || [], // boxes of text over it: the ridges part under them, as under the game's numbers
+    });
+    D.set(results);
+    return { canvas, geo: D.geometry() };
   }
 
   // ----------------------------------------------------------- profile
@@ -1989,5 +2028,5 @@
     </svg>`;
   }
 
-  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, depthAt, glyph, mark, MARK, profileSvg, GLYPHS, setRounds, flame, FLAME, flameLevel, keepsStreak };
+  window.MLION_VISUALS = { initBackdrop, scene, Descent, poster, TIER_COLORS, terrain, depthAt, glyph, mark, MARK, profileSvg, GLYPHS, setRounds, flame, FLAME, flameLevel, keepsStreak };
 })();

@@ -2563,8 +2563,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <canvas id="hero3d" aria-hidden="true"></canvas>
       ${bannerHtml()}
       <div class="home-hero arrive">
-        <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
-        <p class="pitch">A daily machine-learning word game. Name the <em class="rare">rarest</em> right answer you can.</p>
+        <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span><span class="ml">ML</span>ion</span></span></h1></div>
+        <p class="pitch">Name the <em class="rare">rarest</em> right answer you can to a machine learning question.</p>
         <div class="hero-cta">${cta}</div>
         ${xpChipHtml()}
       </div>
@@ -2577,6 +2577,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <div class="figure"><b>${s.gems}</b><span>Gems found</span></div>
         </div></section>` : ""}
         <p class="home-close"><span>One in a MLion</span></p>
+        <p class="home-credit">Krillion, but for machine learning. Made by <a href="https://discord.com/users/725381644424314883" target="_blank" rel="noopener" title="cowile on Discord">@cowile</a></p>
       </div>
     </section>`;
     // On a first visit index.html already drew this hero while the questions downloaded. Build the home

@@ -5,7 +5,7 @@
   <!-- What the page may load and talk to. tools/build.js writes the sha256 of each inline script into script-src;
        connect-src: the Supabase project, the live-room relay, and the reserved test host the e2e mocks answer.
        GitHub Pages can't send headers, so frame-ancestors (ignored in a meta tag) is done by the script below. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nfnGaNZKFJ22IQbJPPzgKnd4wHe6eqjSIphxlvEOYTo=' 'sha256-Xfukbjw8KGbfR5vtMADfFEujTQ4O8h3PEklQrSL2TOw=' 'sha256-64Ki0cnuiPL36PTwW2NKmUkNaxnfSIRTxhMRkRyq7hg=' 'sha256-JjhYEL7LZdWeUazJVtjwR90Nl/s5l8zg9EpEt62d3ZU='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' wss://mlion.lol wss://www.mlion.lol https://ozqnznvxxxnefeetidwq.supabase.co wss://public.cloud.shiftr.io https://mock.supabase.test; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-nfnGaNZKFJ22IQbJPPzgKnd4wHe6eqjSIphxlvEOYTo=' 'sha256-Xfukbjw8KGbfR5vtMADfFEujTQ4O8h3PEklQrSL2TOw=' 'sha256-64Ki0cnuiPL36PTwW2NKmUkNaxnfSIRTxhMRkRyq7hg=' 'sha256-hpGgbGptkn+3IiKjVaNO9/Xos4NT4wnXqpbfNBUjCEU='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' wss://mlion.lol wss://www.mlion.lol https://ozqnznvxxxnefeetidwq.supabase.co wss://public.cloud.shiftr.io https://mock.supabase.test; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
@@ -52,7 +52,7 @@
   <title>MLion · the daily descent</title>
   <meta name="description" content="A daily machine-learning word game. Seven prompts, 25 seconds each. Name the rarest right answer you can: common answers score a little, rare ones score a lot.">
   <!-- The link preview (Discord, Slack, X, iMessage). tools/build.js writes the site address (SITE_URL)
-       into og:url and the image URLs, with og.png's hash, so a new image is fetched again. -->
+       into og:url and the image URLs, with og.jpg's hash, so a new image is fetched again. -->
   <meta name="theme-color" content="#f2b53c">
   <!-- gold is the embed's side bar in Discord (crawlers run no script); the browser keeps the dark room -->
   <script>document.querySelector('meta[name="theme-color"]').content = "#0b0a08";</script>
@@ -61,14 +61,14 @@
   <meta property="og:url" content="https://mlion.lol/">
   <meta property="og:title" content="MLion, a daily word game for ML people">
   <meta property="og:description" content="Seven prompts a day. Common answers barely count.">
-  <meta property="og:image" content="https://mlion.lol/img/og.png?v=cemybd">
-  <meta property="og:image:type" content="image/png">
+  <meta property="og:image" content="https://mlion.lol/img/og.jpg?v=1dqk802">
+  <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="A ball rolling down a loss curve. Three right answers to “Name an activation function”: ReLU scores 10, GELU 30, and Snake rolls to the bottom for 100.">
+  <meta property="og:image:alt" content="Name the rarest right answer you can to a machine learning question. Three right answers to “Name an activation function”: ReLU scores 10, GELU 30, and Snake rolls to the bottom for 100.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://mlion.lol/img/og.png?v=cemybd">
-  <meta name="twitter:image:alt" content="A ball rolling down a loss curve. Three right answers to “Name an activation function”: ReLU scores 10, GELU 30, and Snake rolls to the bottom for 100.">
+  <meta name="twitter:image" content="https://mlion.lol/img/og.jpg?v=1dqk802">
+  <meta name="twitter:image:alt" content="Name the rarest right answer you can to a machine learning question. Three right answers to “Name an activation function”: ReLU scores 10, GELU 30, and Snake rolls to the bottom for 100.">
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -100,13 +100,13 @@
     })();
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geologica:wght,SHRP@300..800,0..100&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1f1edk3">
+  <link rel="stylesheet" href="css/style.css?v=1dxww1">
 </head>
 <body>
   <canvas id="landscape" aria-hidden="true"></canvas>
 
   <header class="topbar">
-    <button class="brand" id="brand" aria-label="MLion home"><svg class="mark" viewBox="-32 -32 64 64" aria-hidden="true" focusable="false"><path class="mk-curve" d="M-20.71 13.44C-20.71 -0.08 -17.59 -10.48 -11.35 -16.72C-7.19 -20.88 -1.99 -22.44 2.69 -22.44C11.53 -22.44 17.77 -15.16 16.21 -5.28C14.97 2.52 10.49 9.8 13.09 15.52C15.17 20.2 21.41 20.72 24.01 16.04" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/><circle class="mk-ball" cx="-20.71" cy="19.16" r="6.1" fill="currentColor"/></svg><span>MLion</span></button>
+    <button class="brand" id="brand" aria-label="MLion home"><svg class="mark" viewBox="-32 -32 64 64" aria-hidden="true" focusable="false"><path class="mk-curve" d="M-20.71 13.44C-20.71 -0.08 -17.59 -10.48 -11.35 -16.72C-7.19 -20.88 -1.99 -22.44 2.69 -22.44C11.53 -22.44 17.77 -15.16 16.21 -5.28C14.97 2.52 10.49 9.8 13.09 15.52C15.17 20.2 21.41 20.72 24.01 16.04" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/><circle class="mk-ball" cx="-20.71" cy="19.16" r="6.1" fill="currentColor"/></svg><span><span class="ml">ML</span>ion</span></button>
     <div class="topbar-mid" id="topbar-mid"></div>
     <button class="icon-btn chat-btn" id="chat-btn" aria-label="Room chat" aria-expanded="false" aria-controls="chat" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5a8 8 0 0 1-11.8 7L3.5 20l1.5-4.9a8 8 0 1 1 15.5-3.6z"/></svg>
@@ -134,8 +134,8 @@
       document.body.dataset.view = "home";
       document.getElementById("app").innerHTML = '<section class="screen pre-home"><i hidden></i>' +
         '<div class="home-hero' + (calm ? "" : " arrive") + '"><div class="brandmark">' + mark +
-        '<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>' +
-        '<p class="pitch">A daily machine-learning word game. Name the <em class="rare">rarest</em> right answer you can.</p>' +
+        '<h1 class="wordmark" aria-label="MLion"><span class="line"><span><span class="ml">ML</span>ion</span></span></h1></div>' +
+        '<p class="pitch">Name the <em class="rare">rarest</em> right answer you can to a machine learning question.</p>' +
         '<div class="hero-cta"><a class="btn primary big" href="#daily">Play today\'s daily</a><a class="btn big" href="#live">Play with friends</a></div>' +
         '</div></section>';
     })();
@@ -178,10 +178,10 @@
   <noscript><p style="position:relative;z-index:2;text-align:center;padding:40px">MLion needs JavaScript to run.</p></noscript>
   <script src="js/engine.js?v=1eqf29n"></script>
   <script src="js/data.js?v=18c4ws5"></script>
-  <script src="js/landscape.js?v=1czbfcr"></script>
+  <script src="js/landscape.js?v=qe5sro"></script>
   <script src="js/hero3d.js?v=1rjyu6z"></script>
-  <script src="js/sharecard.js?v=m2cl3m"></script>
+  <script src="js/sharecard.js?v=1dbmvj5"></script>
   <meta name="mlion:explain" content="js/explain.js?v=dkyo7q">
-  <script src="js/app.js?v=1exb0jx"></script>
+  <script src="js/app.js?v=af7a6m"></script>
 </body>
 </html>

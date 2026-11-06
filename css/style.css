@@ -210,6 +210,8 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
   font-style: normal; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--gold);
   text-decoration: underline; text-decoration-thickness: 0.09em; text-underline-offset: 0.18em; text-decoration-skip-ink: auto;
 }
+/* "ML" in the name, in the mark's gold: it says machine learning (user, 2026-11-07) */
+.wordmark .ml, .brand .ml { color: var(--gold); }
 .hero-cta { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; }
 .countdown { color: var(--muted); font-size: var(--s1); }
 .countdown b { color: var(--ink); font-weight: 400; }
@@ -267,6 +269,10 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
 .modes a:not(.friend) { flex-direction: column; align-items: flex-start; gap: 2px; } /* title, then its line: rows with and without the button line up */
 @media (hover: hover) and (pointer: fine) { .modes a:hover { background: var(--surface); } }
 .home-close { margin: 0; grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: var(--s1); padding-top: 24px; }
+/* who made it, small, for the curious (user, 2026-11-07) */
+.home-credit { margin: -56px 0 0; grid-column: 1 / -1; color: var(--muted); font-size: 13px; opacity: 0.75; } /* right under the line above: the grid's 64px gap, less 8 */
+.home-credit a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.home-credit a:hover, .home-credit a:focus-visible { color: var(--ink); }
 
 /* ------------------------------------------------------------------ play */
 .play { display: grid; }

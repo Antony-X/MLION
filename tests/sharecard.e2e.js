@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /* The share card (js/sharecard.js) end to end, with the system share sheet and the clipboard mocked:
- *   desktop  results -> Share opens the sheet, the preview is a real 1200x630 PNG under 300 KB,
+ *   desktop  results -> Share opens the sheet, the preview is a real 1200x630 PNG under 1.5 MB,
  *            Copy image writes an image/png ClipboardItem, Copy text keeps the text grid, Story
  *            redraws at 1080x1920 and is remembered, Save image downloads mlion-12-story.png;
  *            a challenge result gets its own card (no text grid), the Daily Quiz gets the quiz card.
  *   phone    Share image hands navigator.share a File (image/png, real PNG); Share text shares the
  *            grid; a refused share falls back to a download, a cancelled one does nothing.
- *   link     the link-preview tags (og:*, twitter:card, theme-color) and img/og.png agree; the page
+ *   link     the link-preview tags (og:*, twitter:card, theme-color) and img/og.jpg agree; the page
  *            itself turns theme-color back to the dark room; a #fragment never reaches the server.
  *   node tests/sharecard.e2e.js           (Google Fonts blocked; the card falls back to the system sans)
  *   node tests/sharecard.e2e.js --fonts   (loads Geologica from Google Fonts)
@@ -38,6 +38,10 @@ const server = http.createServer((req, res) => {
 });
 const check = (cond, msg) => { if (!cond) throw new Error("FAIL: " + msg); console.log("  ✓ " + msg); };
 const KB300 = 300 * 1024;
+// The cards are drawn by the play stage since 2026-11-07 (its sky, ridges and light), and a PNG of that is larger:
+// about 0.6 MB wide and 1.4 MB story. They stay PNG, the one image type a page can put on the clipboard; a chat
+// app takes far more than this (Discord 10 MB) and a phone's share sheet any size. These caps catch a runaway.
+const CARD_MAX = 1.5 * 1024 * 1024, STORY_MAX = 3 * 1024 * 1024;
 
 // ---- finished runs, built from the real prompts and quiz bank (the shapes app.js saves)
 const PROMPT = new Map(DATA.prompts.map((p) => [p.id, p]));
@@ -115,11 +119,22 @@ function pageHelpers(records) {
     const meta = (k) => { const m = html.match(new RegExp(`<meta (?:property|name)="${k}" content="([^"]*)"`)); return m ? m[1] : null; };
     const site = meta("og:url");
     check(/^https:\/\/[^/]+\/(.*\/)?$/.test(site), `og:url is the site's absolute address (${site})`);
-    const og = fs.readFileSync(path.join(ROOT, "img", "og.png"));
+    const og = fs.readFileSync(path.join(ROOT, "img", "og.jpg"));
     const ogHash = E.hashString(og.toString("base64")).toString(36);
-    check(meta("og:image") === `${site}img/og.png?v=${ogHash}` && meta("twitter:image") === meta("og:image"), "og:image and twitter:image point at img/og.png under og:url, stamped with its hash");
-    check(og.readUInt32BE(16) === +meta("og:image:width") && og.readUInt32BE(20) === +meta("og:image:height") && +meta("og:image:width") === 1200 && +meta("og:image:height") === 630, "og.png is 1200x630, as its tags say");
-    check(og.length < KB300, `og.png is under 300 KB (${(og.length / 1024).toFixed(0)} KB)`);
+    check(meta("og:image") === `${site}img/og.jpg?v=${ogHash}` && meta("twitter:image") === meta("og:image"), "og:image and twitter:image point at img/og.jpg under og:url, stamped with its hash");
+    const jpegSize = (b) => { // the frame header (SOF0..SOF2) holds the height, then the width
+      for (let i = 2; i + 9 < b.length;) {
+        if (b[i] !== 0xff) return null;
+        const m = b[i + 1], len = b.readUInt16BE(i + 2);
+        if (m >= 0xc0 && m <= 0xc2) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) };
+        i += 2 + len;
+      }
+      return null;
+    };
+    const ogDim = jpegSize(og) || {};
+    check(og[0] === 0xff && og[1] === 0xd8 && meta("og:image:type") === "image/jpeg", "og.jpg is a JPEG, as og:image:type says");
+    check(ogDim.w === +meta("og:image:width") && ogDim.h === +meta("og:image:height") && +meta("og:image:width") === 1200 && +meta("og:image:height") === 630, `og.jpg is 1200x630, as its tags say (${ogDim.w}x${ogDim.h})`);
+    check(og.length < KB300, `og.jpg is under 300 KB, as some chat apps need for a preview (${(og.length / 1024).toFixed(0)} KB)`);
     const words = (t) => t.trim().split(/\s+/).length;
     check(words(meta("og:title")) < 10 && words(meta("og:description")) < 10, `title and description stay under 10 words ("${meta("og:title")}" / "${meta("og:description")}")`);
     check(meta("og:type") === "website" && meta("og:site_name") === "MLion" && meta("twitter:card") === "summary_large_image" && !!meta("og:image:alt"), "og:type, og:site_name, twitter:card and the image's alt text are set");
@@ -143,7 +158,7 @@ function pageHelpers(records) {
     await page.waitForSelector(".sc-sheet", { timeout: 4000 });
     let img = await preview(page, 630);
     check(img.w === 1200 && img.h === 630 && img.nw === 1200 && img.nh === 630, `the preview is the wide card at full size (${img.nw}x${img.nh})`);
-    check(img.bytes > 20 * 1024 && img.bytes < KB300, `the wide PNG is under 300 KB (${(img.bytes / 1024).toFixed(0)} KB)`);
+    check(img.bytes > 20 * 1024 && img.bytes < CARD_MAX, `the wide PNG is under 1.5 MB (${(img.bytes / 1024).toFixed(0)} KB)`);
     check(/^MLion #12: \d+ of 700\./.test(img.alt) && !/loss/i.test(img.alt) && /Rarest answer: .+ \(One in a MLion\)/.test(img.alt), `the preview has alt text (${img.alt})`);
     check(!(await page.$("#card-share")) && !!(await page.$("#card-copy:not([disabled])")), "desktop offers Copy image, not the phone share sheet");
     check((await page.textContent("#card-text")).trim() === "Copy text" && !!(await page.$("#card-save")), "Copy text and Save image are there too");
@@ -162,7 +177,7 @@ function pageHelpers(records) {
     await page.click('.sc-sheet [data-fmt="story"]');
     img = await preview(page, 1920);
     check(img.w === 1080 && img.nh === 1920, "Story redraws at 1080x1920");
-    check(img.bytes < KB300, `the story PNG is under 300 KB (${(img.bytes / 1024).toFixed(0)} KB)`);
+    check(img.bytes < STORY_MAX, `the story PNG is under 3 MB (${(img.bytes / 1024).toFixed(0)} KB)`);
     check(await page.evaluate(() => localStorage.getItem("mlion:cardFormat")) === "story", "the chosen shape is remembered");
     await shot(page, { path: path.join(OUT, "61-share-sheet-desktop-story.png") });
     const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 4000 }), page.click("#card-save")]);
@@ -226,7 +241,7 @@ function pageHelpers(records) {
     let s = (await ph.evaluate(() => window.__shared))[0];
     check(s.files && s.files.length === 1 && !s.text, "Share image passes exactly one file and no text");
     const f = s.files[0];
-    check(f.name === "mlion-12.png" && f.type === "image/png" && f.png && f.w === 1200 && f.h === 630 && f.size < KB300, `the file is the card as a PNG (${f.name}, ${(f.size / 1024).toFixed(0)} KB)`);
+    check(f.name === "mlion-12.png" && f.type === "image/png" && f.png && f.w === 1200 && f.h === 630 && f.size < CARD_MAX, `the file is the card as a PNG (${f.name}, ${(f.size / 1024).toFixed(0)} KB)`);
 
     await ph.tap("#card-text");
     await ph.waitForFunction(() => window.__shared.length === 2, null, { timeout: 4000 });
