@@ -740,6 +740,81 @@
     return Math.max(0, Math.round(s));
   }
 
+  // -------------------------------------------------------------- levels
+  // Experience (XP) and player levels (LEVELS.md has the design and the reasons). XP is a record of how much
+  // someone has played, never a verdict on how well: the daily's score and its bands already say that. XP only
+  // adds up, so a level never goes down, and nothing in the game is locked behind one.
+  const XP = Object.freeze({
+    // An accepted answer. Rarer tiers earn more, but a common answer still earns, so beginners climb too.
+    tier: Object.freeze({ baseline: 2, overfit: 2, indist: 3, outlier: 5, longtail: 7, mlion: 10 }),
+    // A Sprint answer: about half as much, because a sprint names many answers a minute.
+    sprint: Object.freeze({ baseline: 1, overfit: 1, indist: 2, outlier: 3, longtail: 4, mlion: 5 }),
+    // A right quiz answer, by the question's level (questions made from a prompt count as medium).
+    quiz: Object.freeze({ easy: 2, medium: 3, hard: 4 }),
+    daily: 20, // finishing the daily or the Daily Quiz; each is played once a day, so this can't be farmed
+    live: 5, // finishing a live match: playing with friends is the game's favourite way to play
+    // Everything except the two dailies is practice. A day's practice earns the full rate for its first `fresh` XP,
+    // then each XP counts a little less, so one day of practice never adds more than fresh + tail. Spamming
+    // Unlimited, replaying one sprint or tapping through quizzes stops paying long before it feels stingy.
+    fresh: 60,
+    tail: 100,
+    steady: 400, // XP a level once the early, quick levels are behind you (level 20 on)
+  });
+  const xpTier = (t) => XP.tier[t] || 0;
+  const xpSprint = (t) => XP.sprint[t] || 0;
+  const xpQuiz = (lvl) => XP.quiz[lvl] || XP.quiz.medium;
+  /** What `raw` XP of practice in one day adds up to: the full rate up to XP.fresh, then a curve that flattens out. */
+  function practiceXp(raw) {
+    const r = Math.max(0, Number(raw) || 0);
+    return Math.round(r <= XP.fresh ? r : XP.fresh + XP.tail * (1 - Math.exp(-(r - XP.fresh) / XP.tail)));
+  }
+  /** XP from `level` to the next one: 30, 50, 70, ..., 20 more each time, then a steady XP.steady from level 20. */
+  const levelCost = (level) => Math.min(XP.steady, 10 + 20 * Math.max(1, Math.floor(level) || 1));
+  /** Where `xp` puts a player: the level, the XP it started at (floor), the XP it takes (need), how far in, and how much is left. */
+  function levelFor(xp) {
+    const total = Math.max(0, Math.min(1e7, Math.floor(Number(xp) || 0)));
+    let level = 1, floor = 0;
+    // the rising early levels one at a time (19 of them), then the steady ones in one division
+    while (levelCost(level) < XP.steady && total >= floor + levelCost(level)) { floor += levelCost(level); level++; }
+    if (levelCost(level) >= XP.steady) { const k = Math.floor((total - floor) / XP.steady); level += k; floor += k * XP.steady; }
+    const need = levelCost(level);
+    return { level, xp: total, floor, need, into: total - floor, left: floor + need - total };
+  }
+  /** The total XP at which `level` begins. */
+  function levelStart(level) { let xp = 0; for (let l = 1; l < Math.floor(level); l++) xp += levelCost(l); return xp; }
+  /** The badge colour for a level, along the tier ramp: grey at the surface, warming to gold far down. Gold is the
+   *  gem's colour, so it waits until level 100 (about a year of both dailies a day). */
+  function levelTier(level) { return level >= 100 ? "mlion" : level >= 50 ? "longtail" : level >= 25 ? "outlier" : level >= 10 ? "indist" : level >= 5 ? "overfit" : "baseline"; }
+  /** What one finished run earns before the day's practice curve: { day, daily, raw }, or null when it isn't a run.
+   *  `lvlOf(promptId)` tells a quiz question's level where the caller knows it. Misses and skips earn nothing, so
+   *  junk typed at the box or a run of skips is worth zero; finishing a daily is worth XP.daily even on a bad day. */
+  function recordXp(rec, lvlOf) {
+    if (!rec || typeof rec !== "object" || !Array.isArray(rec.results)) return null;
+    const quiz = rec.mode === "quiz" || rec.mode === "vq" || rec.mode === "dquiz" || rec.fmt === "quiz";
+    let raw = 0;
+    for (const r of rec.results) {
+      if (!r || typeof r !== "object" || !r.tier) continue;
+      raw += quiz ? xpQuiz(lvlOf ? lvlOf(r.promptId) : null) : xpTier(r.tier);
+    }
+    const daily = (rec.mode === "daily" || rec.mode === "dquiz") && isDay(rec.date);
+    if (daily) raw += XP.daily;
+    const done = Number.isFinite(rec.completedAt) ? localDateString(new Date(rec.completedAt)) : "";
+    return { day: daily ? rec.date : isDay(done) ? done : isDay(rec.date) ? rec.date : "", daily, raw };
+  }
+  /** Total XP from entries ({ day, daily, raw }): the dailies in full, and each day's practice through practiceXp. */
+  function xpTotal(entries) {
+    let total = 0;
+    const practice = new Map();
+    for (const e of entries || []) {
+      const raw = Number(e && e.raw);
+      if (!(raw > 0)) continue;
+      if (e.daily) total += Math.min(raw, 200); // a daily is worth 90 at most; stored junk can't be worth more
+      else practice.set(e.day || "", (practice.get(e.day || "") || 0) + Math.min(raw, 5000));
+    }
+    for (const raw of practice.values()) total += practiceXp(raw);
+    return total;
+  }
+
   // -------------------------------------------------------------- share
   // ------------------------------------------------------------------ public names
   // Names on the leaderboard can't be swear words or slurs (English, Spanish/French, Russian in both
@@ -845,6 +920,7 @@
     QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, quizPoints, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
+    XP, xpTier, xpSprint, xpQuiz, practiceXp, levelCost, levelFor, levelStart, levelTier, recordXp, xpTotal,
     nameOk, nameNorm, nameFold, NAME_PARTS_SRC, NAME_WORDS_SRC, NAME_RESERVED_SRC, NAME_BASE_FROM, NAME_BASE_TO,
     NAME_FOLD_FROM, NAME_FOLD_TO, NAME_MARKS, NAME_BAD_CHARS_SRC, NAME_OTHER_SRC,
   };

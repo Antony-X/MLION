@@ -324,6 +324,14 @@
         voice(370, 0.6, { type: "sawtooth", vol: 0.025, slide: 0.5, bright: 1400, wet: 0.35, delay: 0.03 });
       },
       chat() { bell(1318.5, 0.35, { vol: 0.025 }); bell(1975.5, 0.45, { vol: 0.02, delay: 0.08 }); },
+      /** A new level (results screens): four bells climbing a major arpeggio, then a soft held chord under a shimmer.
+       *  Brighter than a streak and gentler than the gem's fanfare, so it reads as its own moment. */
+      levelUp() {
+        buzz([18, 50, 18, 50, 70]);
+        [0, 4, 7, 12].forEach((s, i) => bell(st(659.25, s), 0.42 + 0.1 * i, { vol: 0.042, delay: i * 0.085 }));
+        [0, 7, 12, 16].forEach((s) => voice(st(329.63, s), 1.2, { type: "triangle", vol: 0.015, bright: 2600, attack: 0.05, wet: 0.6, delay: 0.3 }));
+        noise(0.8, { from: 4500, to: 10000, vol: 0.013, wet: 0.6, delay: 0.3 });
+      },
       tier(t) {
         const s = TIER_SOUND[t] || TIER_SOUND.baseline;
         buzz(t === "mlion" ? [20, 60, 20, 60, 90] : 18);
@@ -950,7 +958,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         // live on it, and a fresh copy would let a stale timer free a seat its owner came back to.
         const old = LIVE.players.get(p.id);
         const kept = !old && LIVE.spRec && LIVE.spRec.get(p.id); // a sprint match this page rebuilt after a takeover
-        next.set(p.id, Object.assign(old || { ans: kept ? kept.ans : {}, sp: kept ? kept.sp : {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, team: validTeam(p.team, 4) ? p.team : undefined }));
+        next.set(p.id, Object.assign(old || { ans: kept ? kept.ans : {}, sp: kept ? kept.sp : {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, team: validTeam(p.team, 4) ? p.team : undefined, lvl: cleanLvl(p.lvl) || undefined }));
         if (!before.has(p.id) && p.id !== LIVE.myId && before.size) {
           LIVE.flash = `${cleanName(p.name) || "Someone"} joined`;
           toast(LIVE.flash); Sound.tier("mlion");
@@ -1116,7 +1124,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function lobbyMsg() {
     return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, teams: teamsOn(), mteams: LIVE.mteams || 0, ...(LIVE.mteams ? { mt: LIVE.mteam } : {}),
-      players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, ...(teamsOn() && validTeam(p.team, teamsOn()) ? { team: p.team } : {}) })) };
+      players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, ...(teamsOn() && validTeam(p.team, teamsOn()) ? { team: p.team } : {}), ...(cleanLvl(p.lvl) ? { lvl: p.lvl } : {}) })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
@@ -1129,6 +1137,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (m.t === "hello" && LIVE.players.has(conn.peer)) { // came back within the grace period
       const pl = LIVE.players.get(conn.peer);
       clearTimeout(pl.awayTimer); pl.awayTimer = 0; pl.away = false;
+      if (cleanLvl(m.lvl)) pl.lvl = m.lvl;
       LIVE.conns.set(conn.peer, conn);
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "resume", seed: LIVE.seed, n: LIVE.n, ...(liveSprint() ? { fmt: "sprint", ids: LIVE.ids, i: SPR ? SPR.i : 0, revealed: LIVE.revealed } : {}) }); } catch { /* ignore */ }
@@ -1140,13 +1149,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const taken = new Set(playerList().map((p) => p.name));
       for (let k = 2; taken.has(name); k++) name = `${cleanName(m.name) || "Player"} ${k}`;
       LIVE.conns.set(conn.peer, conn);
-      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: teamsOn() ? smallestTeam(conn.peer) : undefined });
+      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: teamsOn() ? smallestTeam(conn.peer) : undefined, lvl: cleanLvl(m.lvl) || undefined });
       LIVE.knock = null; // an open room's seat is taken: the next knock hears "full"
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
     } else if (m.t === "leave" && LIVE.players.has(conn.peer)) { // tapped Leave: the seat goes now, not after the grace period
       hostRemove(conn.peer);
     } else if (m.t === "ready" && LIVE.players.has(conn.peer)) {
+      if (cleanLvl(m.lvl)) LIVE.players.get(conn.peer).lvl = m.lvl; // a level gained in the last match shows for the rematch
       hostReady(conn.peer, !!m.v);
     } else if (m.t === "team" && LIVE.players.has(conn.peer)) {
       hostTeam(conn.peer, m.v);
@@ -1718,7 +1728,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
         Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)), teams: !isPublic && TEAM_COUNTS.includes(LS.get("liveTeams", 0)) ? LS.get("liveTeams", 0) : 0 });
-        LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now(), team: LIVE.teams ? 0 : undefined });
+        LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now(), team: LIVE.teams ? 0 : undefined, lvl: myLevel() });
         if (LIVE.fmt === "sprint") liveSetFmt("sprint", true);
         becomeHost();
         go(liveHash());
@@ -1741,7 +1751,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const id = keepId || "g" + rid(8);
     const js = joinState = { code, name, client, id, secret, key, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
     const up = `${roomTopic(code)}/up`, down = `${roomTopic(code)}/down`, mine = `${roomTopic(code)}/to/${id}`;
-    const hello = () => sendSealed(client, key, id, up, { t: "hello", name, v: 3 });
+    const hello = () => sendSealed(client, key, id, up, { t: "hello", name, v: 3, lvl: myLevel() }); // lvl: shown in the lobby; old hosts ignore it
     client.on("connect", () => {
       client.subscribe([down, mine]);
       if (LIVE.isHost && LIVE.client === client) { client.subscribe([up, ...(LIVE.isPublic ? [knockTopic(code)] : [])]); broadcast(lobbyMsg()); return; }
@@ -1873,7 +1883,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function avatar(name) { return `<span class="lv-av" aria-hidden="true">${esc((name || "?").slice(0, 1).toUpperCase())}</span>`; }
   function sendReady(v) {
-    if (LIVE.isHost) hostReady(LIVE.myId, v); else guestSend({ t: "ready", v });
+    if (LIVE.isHost) { const me = LIVE.players.get(LIVE.myId); if (me) me.lvl = myLevel(); hostReady(LIVE.myId, v); } else guestSend({ t: "ready", v, lvl: myLevel() });
   }
   function readyBlock(label) {
     const me = LIVE.players.get(LIVE.myId);
@@ -1948,7 +1958,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
       <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#live" id="live-leave-lobby">Leave</a></div>
       <ul class="lv-players${tk ? " teamed" : ""}" aria-live="polite">${(tk ? Array.from({ length: tk }, (_, t) => [t, ps.filter((p) => p.team === t)]).concat([[-1, ps.filter((p) => !validTeam(p.team, tk))]]) : [[-1, ps]]).map(([t, list]) =>
-        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}`).join("")}
+        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${cleanLvl(p.lvl) ? `Level ${p.lvl} · ` : ""}${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${teamPicker()}
       ${LIVE.isHost ? `<div class="vs-form">
@@ -2189,6 +2199,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const me = LIVE.players.get(LIVE.myId);
     const openKeys = new Set($$("details.key[open]", app).map((d) => d.dataset.pid)); // redraws (Ready taps) keep what you opened
     const rightOf = (i) => (quiz && LIVE.quiz[i] ? LIVE.quiz[i].options[LIVE.quiz[i].correct] : null);
+    const xg = xpLiveMatch(); // this match's XP, once (section "levels")
     const recap = ids.length ? `
       <section class="lv-recap">
         <h2 class="block-title">Answers</h2>
@@ -2205,6 +2216,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </section>` : "";
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>${teams.length ? (teamWin.length > 1 ? "It's a tie" : `Team ${teamWin[0].name} wins`) : winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${teams.length ? `${teams.map((r) => r.members.length).join(" v ")} · ` : ""}${sprint ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"}` : `${LIVE.n} questions`}${quiz ? " · Quiz" : ""} · Room ${esc(LIVE.code)}${teams.length ? "" : timeNote}</p></div>
+      ${xg ? `<div class="xp-live">${xpRowHtml(xg)}</div>` : ""}
       ${teams.length ? `<ol class="lv-podium lv-tpodium">${teams.map((r, k) => `<li class="tm-${r.t}${k === 0 && teamWin.length === 1 ? " first" : ""}${r.mine ? " me" : ""}">
         <span class="rk">${k + 1}</span>${teamDot(r.t)}<span class="nm"><b>${r.name}</b><span class="nm-t">${esc(r.members.map((p) => p.name).join(", "))}${r.mult !== 1 ? ` · ${r.raw} ×${+r.mult.toFixed(2)}` : ""}</span></span><em>${r.total}</em></li>`).join("")}</ol>
       ${scaled.length ? `<p class="lv-note">Uneven teams: a smaller team's points are scaled up to the biggest team's size.</p>` : ""}
@@ -2218,6 +2230,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${recap}
     </section>`;
     wireAnswerKeys(app);
+    if (xg && xg.play) xpPlay($("#xp-row"), xg);
     $("#live-leave").addEventListener("click", () => leaveLive(false));
     const cs = $("#live-settings");
     if (cs) cs.addEventListener("click", hostToLobby);
@@ -2531,6 +2544,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
         <p class="pitch">A daily machine-learning word game. Name the rarest right answer you can.</p>
         <div class="hero-cta">${cta}</div>
+        ${xpChipHtml()}
       </div>
       <section class="depths-sec"><h2>How answers score</h2>${depthList(true)}</section>
       <div class="home-rest">
@@ -3535,6 +3549,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       toast("You finished this in another tab. That result counts.");
       return go(`results-${slugFor(rec.key)}`);
     }
+    xpStamp(rec); // what the run earned toward the next level (section "levels")
     saveRecord(rec);
     LS.del("run:" + RUN.key);
     stopRun();
@@ -4266,6 +4281,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
             : isQ ? `<p class="band">${hits} of ${n} right</p>` : band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
           ${isQ ? qmarksRow(rec.results.map((r) => r.score > 0), "grid-tiers") : tiersRow(rec.tiers, "grid-tiers")}
           <p class="tally-line">${isQ ? `${hits} of ${n} right · ${fmtSecs(rec.tenths || 0)}` : `${accepted} of ${n} answers accepted`}</p>
+          ${xpRunRow(rec)}
           <div class="btn-row">
             ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send my score"}</button>
               <a class="btn big" href="#challenge">New challenge</a>${window.MLION_CARD ? `<button class="btn big" id="share">Share image</button>` : ""}` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
@@ -4304,6 +4320,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
     </section>`;
     wireAnswerKeys(app);
+    if (XPM.fresh && XPM.fresh.key === rec.key) { xpPlay($("#xp-row"), { ...XPM.fresh, play: true }); XPM.fresh = null; } // once: a revisit shows it still
     const bbox = $("#board-box");
     if (bbox) fillResultsBoard(bbox, rec);
     const sb = $("#share");
@@ -4663,6 +4680,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const mine = { best: best ? S.pts : prev.best, n: best ? S.found.length : prev.n, plays: (prev ? prev.plays : 0) + 1, at: Date.now() };
     sprints = Object.assign(LS.get("sprints", {}) || {}, { [S.p.id]: mine }); // keep what another tab saved
     LS.set("sprints", sprints);
+    const xpRaw = S.found.reduce((t, a) => t + E.xpSprint(a.t), 0); // a sprint leaves no record, so its XP is logged (section "levels")
+    const xg = xpAdd(`sp:${S.p.id}:${Date.now().toString(36)}`, xpRaw);
+    S.xp = { before: xg.before, after: xg.after, raw: xpRaw, daily: false, play: xg.added };
     if (S.found.length) Sound.tier(S.found.some((a) => a.t === "mlion") ? "mlion" : "outlier"); else Sound.miss();
     renderSprintDone(S, prev, best);
   }
@@ -4687,6 +4707,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div class="figures"><div class="figure"><b>${n}</b><span>${n === 1 ? "Answer" : "Answers"}</span></div><div class="figure"><b>${S.pts}</b><span>Points</span></div><div class="figure"><b>${SPRINT_SECS + S.bonus / 1000}</b><span>Seconds</span></div></div>
       <p class="sp-meta">${prev ? (best ? `New best on this prompt (was ${prev.best})` : `Your best here: ${prev.best} points`) : `${fmt(p.answers.length)} accepted answers`}</p>
       ${n ? `<div class="tier-counts">${E.TIERS_BY_SCORE.filter((t) => counts[t.id]).map((t) => `<span class="t-${t.id}" title="${esc(t.name)}">${G(t.id)}${counts[t.id]}</span>`).join("")}</div>` : ""}
+      ${S.xp ? xpRowHtml(S.xp) : ""}
       <div class="btn-row"><button class="btn primary big" id="sp-again" type="button">Play again</button><button class="btn big" id="sp-next" type="button">Another prompt</button>${n ? `<button class="btn big" id="sp-share" type="button">Share</button>` : ""}</div>
       ${n ? `<section><h2 class="block-title">You named</h2><ol class="sp-found">${S.found.map((a) => `<li class="t-${a.t}">${G(a.t)}<span>${esc(a.a)}</span><b>+${T[a.t].score}</b></li>`).join("")}</ol></section>` : ""}
       ${missed.length ? `<section><h2 class="block-title">Common ones you missed</h2><ul class="sp-missed">${missed.map((a) => `<li class="t-${a.t}">${G(a.t)}<span>${esc(a.a)}</span></li>`).join("")}</ul></section>` : ""}
@@ -4694,6 +4715,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${answerKey(p, null, false, true)}
     </div>`;
     wireAnswerKeys(app);
+    if (S.xp) xpPlay($("#xp-row"), S.xp);
     $("#sp-again").addEventListener("click", () => renderSprint(vs ? `${p.id}~${vs.pts}~${vs.n}~${encName(vs.name)}` : p.id));
     $("#sp-next").addEventListener("click", () => { const q = sprintPick(p.id); if (q) location.replace("#sprint-" + q.id); });
     const sb = $("#sp-share");
@@ -5225,12 +5247,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const figs = [["Played", s.played], ["Average", s.avg || "—"], ["Best", s.best || "—"], ["Streak", s.cur], ["Max streak", s.max], ["Gems", s.gems]];
     if (!s.played && !s.allRuns) {
       app.innerHTML = `<section class="screen narrow"><div class="page-head"><h1>Stats</h1><p>Your streak, best score and tier counts start with your first daily. They're saved in this browser only.</p></div>
-        <div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div>${quizBlock}${sprintBlock}</section>`;
+        ${xpBlockHtml()}<div class="btn-row"><a class="btn primary big" href="#daily">Play today's daily</a></div>${quizBlock}${sprintBlock}${xpNow() > 0 ? xpHowHtml() : ""}</section>`;
       return;
     }
     app.innerHTML = `<section class="screen split">
       <div class="side">
         <div class="page-head"><h1>Stats</h1><p>Your daily results, saved in this browser only.</p></div>
+        ${xpBlockHtml()}
         <div class="stat-grid">${figs.map(([l, v]) => `<div class="figure"><b>${v}</b><span>${l}</span></div>`).join("")}</div>
       </div>
       <div class="main">
@@ -5240,6 +5263,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <div class="bar-row t-${t}"><span class="lab">${G(t === "miss" ? null : t)}${t === "miss" ? "Miss" : esc(T[t].name)}</span><span class="tr"><i style="width:${(100 * s.tierCounts[t] / tierMax).toFixed(0)}%"></i></span><span class="v">${s.tierCounts[t]}</span></div>`).join("")}</div></section>
         ${quizBlock}
         ${sprintBlock}
+        ${xpHowHtml()}
       </div>
     </section>`;
   }
@@ -5283,6 +5307,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <dd>Each prompt has one, picked by hand because it's fun to find: a real answer that a few strong players will get.</dd>
         <dt>My answer is real but wasn't accepted.</dt>
         <dd>Then the set is missing it. Tap <b>Suggest it</b> next to the miss and it goes to a review queue; approved answers join the key in a later update. You can also <a href="${REPO_URL}/issues" target="_blank" rel="noopener">open an issue</a> with the prompt and your answer.</dd>
+        <dt>What are levels?</dt>
+        <dd>Every answer you get right earns XP, rarer ones the most, and finishing the daily or the daily quiz adds a bonus. XP adds up to your level, which you see on your results and in Stats. Practice XP refills every day, so a few games a day count the most. Levels never go down, and nothing is locked behind them.</dd>
         <dt>When does it reset?</dt>
         <dd>At midnight, your local time. Everyone gets the same seven prompts.</dd>
         <dt>Is anything tracked?</dt>
@@ -5331,7 +5357,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       toast(v ? "Name saved" : "Name cleared");
     });
     $("#exp").addEventListener("click", async () => {
-      const blob = JSON.stringify({ v: 1, records, seen: [...seen], practice: practiceBest, settings, sprints });
+      const blob = JSON.stringify({ v: 1, records, seen: [...seen], practice: practiceBest, settings, sprints, xplog: xpLog() });
       toast((await copyText(blob)) ? "Progress copied. Paste it into Import in another browser" : "Couldn't copy. Your browser blocked it");
     });
     $("#imp").addEventListener("click", () => {
@@ -5353,6 +5379,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
             if (PROMPTS.has(pid) && r && typeof r === "object" && Number.isFinite(r.best) && (!sprints[pid] || sprints[pid].best < r.best)) sprints[pid] = r;
           }
           LS.set("sprints", sprints);
+          const xl = lsObj("xplog"); // sprint and live XP (section "levels"): entries this browser lacks join it
+          for (const [id, e] of Object.entries(d.xplog && typeof d.xplog === "object" ? d.xplog : {})) {
+            if (!xl[id] && /^[\w:.-]{1,80}$/.test(id) && e && E.isDay(e.d) && Number.isFinite(e.r) && e.r > 0) xl[id] = { d: e.d, r: Math.min(Math.round(e.r), 5000) };
+          }
+          LS.set("xplog", xl);
           closeModal(); toast(`Imported ${n} run${n === 1 ? "" : "s"}`);
         } catch { toast("That isn't MLion progress. Paste the text from Export"); }
       });
@@ -5797,6 +5828,218 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       }));
     });
   }
+
+  // ============================================================== levels
+  // Player levels (LEVELS.md). XP is worked out from what this browser already holds, each time it is shown: every
+  // finished run in `records`, plus a small log (mlion:xplog) for play that leaves no record, which is sprints and
+  // live matches. So a player who was here before levels starts where their history puts them, Export and Import
+  // carry it, and Reset progress clears it with everything else. The rules and the curve live in the engine
+  // (E.recordXp, E.xpTotal, E.levelFor), where tests/levels.e2e.js checks them without a browser.
+  const lvlOf = (pid) => { const p = PROMPTS.get(pid); return p && p.lvl; };
+  const XPLOG_MAX = 400; // log entries kept one by one; older ones fold into one entry a day, which adds up the same
+  const XPM = { fresh: null, podium: null }; // the run whose results play the XP moment; the live match last scored
+  /** The log, trusting only well-formed entries: a damaged or hand-edited key must never stop the game. */
+  function xpLog() {
+    const out = {};
+    for (const [id, e] of Object.entries(lsObj("xplog"))) if (e && E.isDay(e.d) && Number.isFinite(e.r) && e.r > 0) out[id] = { d: e.d, r: Math.min(e.r, 5000) };
+    return out;
+  }
+  function xpEntries() {
+    const out = [];
+    for (const rec of Object.values(records)) { const e = E.recordXp(rec, lvlOf); if (e) out.push(e); }
+    for (const e of Object.values(xpLog())) out.push({ day: e.d, daily: false, raw: e.r });
+    return out;
+  }
+  /** This player's XP right now. */
+  const xpNow = () => E.xpTotal(xpEntries());
+  const myLevel = () => E.levelFor(xpNow()).level;
+  // Sprints from before levels left only a best per prompt (mlion:sprints). The first time this runs in a browser
+  // they become one log entry, on the day of the latest: the best run's answers at a typical sprint rate, and a
+  // few XP for every other play. From then on each sprint logs what it earned.
+  try {
+    if (LS.get("xplog", null) === null) {
+      let raw = 0, at = 0;
+      for (const r of Object.values(lsObj("sprints"))) {
+        if (!r || typeof r !== "object") continue;
+        raw += 2 * Math.max(0, Math.min(200, Math.round(+r.n) || 0)) + 6 * Math.max(0, Math.min(500, (Math.round(+r.plays) || 1) - 1));
+        if (Number.isFinite(+r.at)) at = Math.max(at, +r.at);
+      }
+      const d = at > 0 ? E.localDateString(new Date(at)) : today();
+      LS.set("xplog", raw > 0 && E.isDay(d) ? { "sprints-before-levels": { d, r: raw } } : {});
+    }
+  } catch { /* storage unavailable: levels just start from the records */ }
+  /** Logs play that leaves no record (a sprint, a live match) once per id, and says what it moved: { before, after, added }. */
+  function xpAdd(id, raw) {
+    const before = xpNow(), r = Math.round(raw);
+    const log = lsObj("xplog"); // re-read: another tab may have logged meanwhile
+    if (!(r > 0) || log[id]) return { before, after: before, added: false };
+    log[id] = { d: today(), r };
+    const single = Object.keys(log).filter((k) => !k.startsWith("day:"));
+    if (single.length > XPLOG_MAX) { // fold the oldest (never today's) into one entry a day: a day's practice adds up the same
+      const old = single.filter((k) => log[k] && log[k].d !== today()).sort((a, b) => String(log[a].d).localeCompare(String(log[b].d))).slice(0, single.length - XPLOG_MAX / 2);
+      for (const k of old) {
+        const e = log[k]; delete log[k];
+        if (e && E.isDay(e.d) && e.r > 0) log[`day:${e.d}`] = { d: e.d, r: ((log[`day:${e.d}`] || {}).r || 0) + e.r };
+      }
+    }
+    if (!LS.set("xplog", log)) return { before, after: before, added: false };
+    return { before, after: xpNow(), added: true };
+  }
+  /** finalize(): what this run is worth, kept on the record (its results show it later), and the moment to play now. */
+  function xpStamp(rec) {
+    const before = xpNow(), e = E.recordXp(rec, lvlOf);
+    const after = e ? E.xpTotal(xpEntries().concat(e)) : before;
+    rec.xp = after - before;
+    XPM.fresh = { key: rec.key, before, after, raw: e ? e.raw : 0, daily: !!(e && e.daily) };
+  }
+  /** A finished live match: the answers this player got right, plus a little for playing with friends. Once a match. */
+  function xpLiveMatch() {
+    if (!LIVE.seed) return null;
+    if (XPM.podium && XPM.podium.seed === LIVE.seed) return XPM.podium.g; // a redraw (a Ready tap): no second moment
+    const me = LIVE.players.get(LIVE.myId) || (LIVE.gone && LIVE.gone.get(LIVE.myId));
+    if (!me || me.late) return null;
+    const sprint = liveSprint(), quiz = liveQuiz();
+    let raw = E.XP.live;
+    for (const [i, a] of Object.entries(me.ans || {})) {
+      if (!a || +i >= LIVE.n) continue;
+      const p = PROMPTS.get((LIVE.ids || [])[+i]);
+      if (sprint) { if (p && Array.isArray(a.list)) for (const x of a.list) raw += E.xpSprint(p.answers[x] && p.answers[x].t); }
+      else if (quiz) { if (a.ok) raw += E.xpQuiz(p && p.lvl); }
+      else raw += E.xpTier(a.tier);
+    }
+    const r = xpAdd(`live:${LIVE.seed}`, raw);
+    XPM.podium = { seed: LIVE.seed, g: { before: r.before, after: r.after, raw, daily: false } };
+    return r.added ? { ...XPM.podium.g, play: true } : null;
+  }
+
+  const xpPct = (info) => (info.need ? Math.max(0, Math.min(100, (100 * info.into) / info.need)) : 0);
+  const xpLeft = (info) => `${fmt(info.left)} XP to Level ${info.level + 1}`;
+  /** The badge: a ring that fills toward the next level, with the level inside. */
+  function xpRing(info) {
+    const p = xpPct(info);
+    return `<span class="xp-ring xl-${E.levelTier(info.level)}" aria-hidden="true"><svg viewBox="0 0 40 40" focusable="false"><circle class="xp-trk" cx="20" cy="20" r="17"/><circle class="xp-arc" cx="20" cy="20" r="17" pathLength="100" stroke-dasharray="${p.toFixed(1)} 100"${p < 0.5 ? ' style="opacity:0"' : ""}/></svg><b>${info.level}</b></span>`;
+  }
+  const XP_HELLO = "Every answer you get right earns XP, rarer ones the most. Levels never go down.";
+  // Said as a pool that refills, not as a penalty: WoW's designers found players hated "tired" XP and loved "rested"
+  // XP, though the two were the same rule (LEVELS.md).
+  const XP_REFILL = "You've earned most of today's practice XP. It refills tomorrow.";
+  /** The XP line under a finished game. g = { before, after, raw, daily, play }. With play it starts at `before` and
+   *  xpPlay() runs the moment; without, it shows where things stand now. Nothing shows when the game earned nothing. */
+  function xpRowHtml(g) {
+    const gain = g.after - g.before;
+    if (!(gain > 0) && !(g.play && g.raw > 0)) return ""; // a game that earned nothing shows nothing, unless practice ran dry today (it says why)
+    const from = E.levelFor(g.play ? g.before : g.after);
+    const notes = [];
+    if (g.play && !LS.get("xpHello", false)) notes.push(XP_HELLO);
+    // practice has slowed down for today: say so, but not over a point lost to rounding
+    if (g.play && !g.daily && g.raw > 0 && gain < 0.6 * g.raw && (gain <= 0 || g.raw - gain >= 2)) notes.push(XP_REFILL);
+    return `<div class="xp-row" id="xp-row">
+        ${xpRing(from)}
+        <div class="xp-body">
+          <p class="xp-top"><span class="xp-lv">Level <b>${from.level}</b></span><span class="xp-up" hidden>Level up</span><span class="xp-gain">+<b>${g.play ? 0 : fmt(gain)}</b> XP</span></p>
+          <span class="xp-bar"><i style="width:${xpPct(from).toFixed(1)}%"></i></span>
+          <p class="xp-sub">${xpLeft(from)}</p>
+        </div>
+        <span class="sr" aria-live="polite"></span>
+      </div>${notes.map((t) => `<p class="xp-note">${esc(t)}</p>`).join("")}`;
+  }
+  /** What a finished run's results show: the moment if it just finished here, else where things stand now. */
+  function xpRunRow(rec) {
+    if (!rec || !Number.isFinite(rec.xp)) return "";
+    const f = XPM.fresh;
+    if (f && f.key === rec.key) return xpRowHtml({ ...f, play: true });
+    if (!(rec.xp > 0)) return "";
+    const now = xpNow();
+    return xpRowHtml({ before: now - rec.xp, after: now });
+  }
+  /** The XP moment: the gain counts up while the bar fills. Crossing a level holds the full bar for a beat (a
+   *  hit-stop, as the stage does for a rare landing), pops the ring, rings the level-up bells and buzzes, then the
+   *  next bar starts. Reduce motion shows the end at once; the bells still ring if sound is on. */
+  function xpPlay(row, g) {
+    if (!row || !g || !g.play) return;
+    LS.set("xpHello", true);
+    const q = (s) => row.querySelector(s);
+    const ring = q(".xp-ring"), arc = q(".xp-arc"), num = q(".xp-ring b"), lv = q(".xp-lv b"), bar = q(".xp-bar i"), sub = q(".xp-sub"), gainEl = q(".xp-gain b"), tag = q(".xp-up"), sr = q(".sr");
+    const end = E.levelFor(g.after), start = E.levelFor(g.before);
+    /** Draws `xp`; `hold` keeps that level on screen with a full bar (the beat before it ticks over). */
+    function draw(xp, hold) {
+      let info = E.levelFor(xp);
+      if (hold && info.level > hold) info = { level: hold, into: 1, need: 1, left: 0 };
+      const p = xpPct(info);
+      arc.setAttribute("stroke-dasharray", `${p.toFixed(2)} 100`);
+      arc.style.opacity = p < 0.5 ? "0" : "";
+      ring.classList.remove(...[...ring.classList].filter((c) => c.startsWith("xl-")));
+      ring.classList.add(`xl-${E.levelTier(info.level)}`);
+      num.textContent = lv.textContent = info.level;
+      bar.style.width = `${p.toFixed(2)}%`;
+      sub.textContent = xpLeft(info);
+      gainEl.textContent = fmt(Math.round(Math.min(xp, g.after) - g.before));
+    }
+    function pop() {
+      for (const el of [ring, tag]) { el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+      tag.hidden = false;
+      row.classList.add("up");
+      Sound.levelUp();
+    }
+    const done = () => { draw(g.after); if (end.level > start.level) { tag.hidden = false; row.classList.add("up"); sr.textContent = `Level up. You're Level ${end.level}.`; } };
+    if (settings.reducedMotion) { done(); if (end.level > start.level) Sound.levelUp(); return; }
+    // where levels begin on the way; a big jump (an import) shows the first and the last, not every one
+    let stops = [];
+    for (let l = start.level + 1; l <= end.level; l++) stops.push(E.levelStart(l));
+    if (stops.length > 2) stops = [stops[0], stops[stops.length - 1]];
+    const span = (a, b) => 260 + 700 * Math.min(1, (b - a) / E.levelCost(E.levelFor(a).level)); // ms: about a second for a whole bar
+    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+    const tween = (a, b, hold) => new Promise((res) => {
+      const t0 = performance.now(), ms = span(a, b);
+      const step = (t) => {
+        if (!row.isConnected) return res(false);
+        const k = Math.min(1, (t - t0) / ms);
+        draw(a + (b - a) * (1 - Math.pow(1 - k, 3)), hold);
+        if (k < 1) requestAnimationFrame(step); else res(true);
+      };
+      requestAnimationFrame(step);
+    });
+    row.classList.add("xp-anim");
+    (async () => {
+      await wait(450); // the eye lands on the score first
+      let x = g.before;
+      for (const s of stops) {
+        if (!(await tween(x, s, E.levelFor(x).level))) return;
+        await wait(140); // the full bar holds for a beat before it ticks over
+        if (!row.isConnected) return;
+        x = s; draw(x); pop();
+        await wait(380);
+      }
+      if (x < g.after && !(await tween(x, g.after))) return;
+      done();
+      row.classList.remove("xp-anim");
+    })();
+  }
+  /** Home, for a returning player: the level and what's left to the next, linking to Stats. Only when this browser has
+   *  finished runs, so the first-visit hero that index.html draws early (with no level in it) stays exactly the same. */
+  function xpChipHtml() {
+    if (!Object.keys(records).length) return "";
+    const info = E.levelFor(xpNow());
+    if (!info.xp) return "";
+    return `<a class="xp-chip" href="#stats" aria-label="Level ${info.level}. ${xpLeft(info)}. Open stats">${xpRing(info)}<span class="xp-chip-l">Level ${info.level}</span><span class="xp-chip-to">${xpLeft(info)}</span></a>`;
+  }
+  /** Stats: the level, all the XP so far, and the way to the next level. */
+  function xpBlockHtml() {
+    const info = E.levelFor(xpNow());
+    if (!info.xp) return "";
+    return `<div class="xp-block" id="xp-block">${xpRing(info)}<div class="xp-body"><p class="xp-lv">Level <b>${info.level}</b></p><span class="xp-bar"><i style="width:${xpPct(info).toFixed(1)}%"></i></span><p class="xp-sub">${fmt(info.xp)} XP in all · ${xpLeft(info)}</p></div></div>`;
+  }
+  /** How XP is earned, in plain words (Stats). */
+  function xpHowHtml() {
+    const X = E.XP;
+    return `<section class="xp-how"><h2 class="block-title">Levels</h2><ul>
+      <li>Every answer you get right earns XP: ${X.tier.baseline} for a common one up to ${X.tier.mlion} for a gem. A right quiz answer earns ${X.quiz.easy} to ${X.quiz.hard}, more for harder questions.</li>
+      <li>Finishing the daily or the daily quiz adds ${X.daily} XP, even on a bad day.</li>
+      <li>Unlimited, quizzes, sprints, challenges and live matches count too. Each day has a fresh pool of practice XP: your first games earn it in full, then it slows down, and it refills the next day. The dailies always count in full.</li>
+      <li>Levels never go down, and nothing is locked behind them.</li>
+    </ul></section>`;
+  }
+  const cleanLvl = (x) => (Number.isInteger(x) && x >= 1 && x <= 9999 ? x : 0); // a level another page sent: shown, never trusted for more
 
   // ======================================================= drawer/modal
   function openDrawer() {
