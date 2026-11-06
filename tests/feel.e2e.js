@@ -4,6 +4,7 @@
  *      landing doesn't stop; Reduce motion has none
  *   B. Sprint's coin ladder: each counted answer one note higher, a wrong answer starts the climb again
  *   C. a wrong answer is the soft reject sound; switches, sliders and choice buttons click; hover is silent
+ *   D. sound comes back after leaving the page: the context is let go when the page hides and rebuilt on the next tap
  * Sounds are read from window.MLION_SOUNDS (test builds log every Sound call, even with sound off). */
 "use strict";
 const { chromium } = require("playwright");
@@ -126,6 +127,36 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     await p.click('.lv-fmt[data-f="quiz"]');
     await p.waitForTimeout(150);
     check(!(await sounds(p)).some((s) => s[0] === "step"), "tapping the one already chosen doesn't");
+    await ctx.close();
+  }
+
+  // ---- D. sound comes back after leaving the page (user, 2026-11-06: silent after coming back mid-game)
+  console.log("D. sound after leaving the page");
+  {
+    const { ctx, p } = await fresh({ sound: true, haptics: false });
+    await p.goto(base + "#prefs"); await p.waitForSelector('input[role="switch"]');
+    const state = () => p.evaluate(() => { const c = window.MLION_AUDIO(); return c ? c.state : "none"; });
+    await p.mouse.click(5, 5);
+    await p.waitForFunction(() => window.MLION_AUDIO() && window.MLION_AUDIO().state === "running", null, { timeout: 3000 });
+    check(true, "a tap starts the sound");
+    const setVisible = (v) => p.evaluate((v) => {
+      Object.defineProperty(document, "visibilityState", { value: v ? "visible" : "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }, v);
+    await p.evaluate(() => { window.OLD_AUDIO = window.MLION_AUDIO(); });
+    await setVisible(false);
+    await p.waitForTimeout(100);
+    check((await state()) === "none" && (await p.evaluate(() => window.OLD_AUDIO.state)) === "closed", "leaving the page lets the sound go");
+    await setVisible(true);
+    await p.mouse.click(5, 5);
+    await p.waitForFunction(() => window.MLION_AUDIO() && window.MLION_AUDIO().state === "running", null, { timeout: 3000 });
+    check(await p.evaluate(() => window.MLION_AUDIO() !== window.OLD_AUDIO), "coming back, the next tap builds it fresh and it plays");
+    // a browser that suspends the sound on its own: any later tap or key wakes it (not just the first one)
+    await p.evaluate(() => window.MLION_AUDIO().suspend());
+    await p.waitForFunction(() => window.MLION_AUDIO().state === "suspended");
+    await p.keyboard.press("Shift");
+    await p.waitForFunction(() => window.MLION_AUDIO().state === "running", null, { timeout: 3000 });
+    check(true, "a suspended sound wakes on the next key");
     await ctx.close();
   }
 

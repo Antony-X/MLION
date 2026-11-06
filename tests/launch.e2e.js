@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /* Pre-launch fixes, end to end (no network: every Supabase call goes to a stand-in):
+ *   - every date's daily is fixed: day 1 before launch, day n from launch day (data/daily.json)
  *   - launch day: a first visit gets the launch set even when the config arrives late; a config that changes
- *     today's daily mid-run switches to the real set; a daily finished from the old set is put aside
+ *     today's daily mid-run switches to the real set; a daily finished from the old set is put aside, and
+ *     launching on the day keeps today's game (before launch and launch day both play day 1)
  *   - a broken #link falls back to home with a note
  *   - two tabs: the second can't overwrite what the first saved, and stops a daily the first finished
  *   - Supabase down or paused: the game plays, the board says it can't be reached, and nobody is logged out
@@ -14,14 +16,15 @@ function check(c, m) { if (!c) throw new Error("FAIL: " + m); console.log("  ✓
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 global.window = {}; require(path.join(ROOT, "js/data.js")); require(path.join(ROOT, "js/explain.js"));
 const D = window.MLION_DATA;
-const POOL = new Set(D.daily.pool);
-const LAUNCH_DAY1 = D.daily.launch[0].filter((id) => POOL.has(id)); // what launch day 1 deals (app.js LAUNCH_DAYS)
+const DAY = D.daily.launch.concat(D.daily.later); // the fixed schedule (app.js SCHEDULE)
+const LAUNCH_DAY1 = DAY[0], DAY3 = DAY[2];
 const T = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".json": "application/json", ".webmanifest": "application/manifest+json" };
 const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split("?")[0]); const f = path.join(ROOT, u === "/" ? "index.html" : u); if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { "Content-Type": T[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(r); });
 
 const pad = (n) => String(n).padStart(2, "0");
 const localDay = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const TODAY = localDay();
+const TWO_DAYS_AGO = localDay(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 2)); // a launch that makes today day 3
 
 // A stand-in project that only knows app_config (the launch day): it answers after `cfg.delay` ms.
 const CFG_URL = "https://mock.supabase.test";
@@ -61,6 +64,17 @@ async function cfgRoute(route) {
   const runIds = (p, key = `daily:${TODAY}`) => p.evaluate((k) => (JSON.parse(localStorage.getItem("mlion:run:" + k) || "null") || {}).promptIds || null, key);
   const toastText = (p) => p.evaluate(() => document.querySelector("#toast").textContent);
 
+  // ---- before launch: every day is day 1, the hand-picked set, whatever the date
+  {
+    cfg.launch = null; cfg.delay = 0;
+    const ctx = await fresh(CFG_URL); await ctx.route(`${CFG_URL}/**`, cfgRoute);
+    const p = watch(await ctx.newPage());
+    await p.goto(base + "#daily");
+    await p.waitForSelector("#answer", { timeout: 10000 });
+    check(JSON.stringify(await runIds(p)) === JSON.stringify(LAUNCH_DAY1), "before launch, today's daily is day 1 of the fixed schedule");
+    await ctx.close();
+  }
+
   // ---- launch day, first visit: the config arrives 0.8 s late; the daily still opens on launch day 1
   {
     cfg.launch = TODAY; cfg.delay = 800;
@@ -73,17 +87,18 @@ async function cfgRoute(route) {
     await ctx.close();
   }
 
-  // ---- the config comes after the 2 s wait: the pre-launch set opens, then switches to the real one mid-run
+  // ---- the config comes after the 2 s wait: the pre-launch set (day 1) opens, then switches to the real one
+  // mid-run (a launch two days ago makes today day 3)
   {
-    cfg.launch = TODAY; cfg.delay = 3500;
+    cfg.launch = TWO_DAYS_AGO; cfg.delay = 3500;
     const ctx = await fresh(CFG_URL); await ctx.route(`${CFG_URL}/**`, cfgRoute);
     const p = watch(await ctx.newPage());
     await p.goto(base + "#daily");
     await p.waitForSelector("#answer", { timeout: 10000 });
     const before = await runIds(p);
-    check(before && JSON.stringify(before) !== JSON.stringify(LAUNCH_DAY1), "with the config 3.5 s late, the daily doesn't wait for ever (pre-launch set)");
-    await p.waitForFunction((want) => JSON.stringify((JSON.parse(localStorage.getItem(`mlion:run:daily:${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`) || "null") || {}).promptIds) === want, JSON.stringify(LAUNCH_DAY1), { timeout: 10000 });
-    check(/questions just changed/.test(await toastText(p)), "when the launch day arrives mid-run, the run switches to launch day 1 and says so");
+    check(JSON.stringify(before) === JSON.stringify(LAUNCH_DAY1), "with the config 3.5 s late, the daily doesn't wait for ever (the pre-launch set, day 1)");
+    await p.waitForFunction((want) => JSON.stringify((JSON.parse(localStorage.getItem(`mlion:run:daily:${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`) || "null") || {}).promptIds) === want, JSON.stringify(DAY3), { timeout: 10000 });
+    check(/questions just changed/.test(await toastText(p)), "when the launch day arrives mid-run, the run switches to the day's set (day 3) and says so");
     await p.waitForSelector("#answer");
     check(true, "and today's real daily is playable");
     await ctx.close();
@@ -103,12 +118,19 @@ async function cfgRoute(route) {
       localStorage.removeItem(`mlion:run:daily:${day}`);
     }, { day: TODAY, ids });
     await p.goto("about:blank");
-    cfg.launch = TODAY;
+    cfg.launch = TODAY; // launching today: today is day 1, the set already played, so nothing moves
+    await p.goto(base + `#results-daily-${TODAY}`);
+    await p.waitForFunction(() => window.MLION_ENGINE && window.MLION_ENGINE.LAUNCH, null, { timeout: 10000 });
+    await p.waitForTimeout(400);
+    check(await p.evaluate((day) => { const r = JSON.parse(localStorage.getItem("mlion:records") || "{}"); return !!r[`daily:${day}`] && !r[`stale:daily:${day}`]; }, TODAY),
+      "launching on the day keeps a daily played that morning: before launch and launch day both play day 1");
+    await p.goto("about:blank");
+    cfg.launch = TWO_DAYS_AGO;
     await p.goto(base + `#results-daily-${TODAY}`);
     await p.waitForFunction((day) => { const r = JSON.parse(localStorage.getItem("mlion:records") || "{}"); return !r[`daily:${day}`] && !!r[`stale:daily:${day}`]; }, TODAY, { timeout: 10000 });
     check(true, "a pre-launch daily finished today is put aside once the launch day arrives");
     await p.waitForSelector("#answer", { timeout: 10000 });
-    check(JSON.stringify(await runIds(p)) === JSON.stringify(LAUNCH_DAY1) && /questions just changed/.test(await toastText(p)), "its results page hands over to today's real daily");
+    check(JSON.stringify(await runIds(p)) === JSON.stringify(DAY3) && /questions just changed/.test(await toastText(p)), "its results page hands over to today's real daily");
     await ctx.close();
   }
 

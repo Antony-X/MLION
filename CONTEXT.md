@@ -15,8 +15,9 @@ name, art, look, tier names, mascots or copy.
 
 The player gets prompts like "Name an activation function (e.g. ReLU)" and has 25 seconds to
 type any valid answer. Rarer accepted answers score more. The visual metaphor is gradient
-descent: an optimizer ball rolls down a loss landscape, the loss starts at 7.00 and falls by
-points ÷ 100.
+descent: an optimizer ball rolls down a loss landscape. Players only see the score: a separate "loss"
+number (7.00 falling by points ÷ 100) was shown in the HUD, results and share text until 2026-11-06, when
+the user dropped it ("we have both loss and score that might confuse people").
 
 - **Repo:** https://github.com/Antony-X/MLION
 - **Branch:** `claude/mlion-game`. It's the only branch on the remote and the default branch.
@@ -112,15 +113,17 @@ safety classifier, and was deliberately not used. All MLion answers were written
 - **Timing:** same as Krillion (3 s preview, 25 s answer).
 - **Launch and numbering:** `LAUNCH_DATE` in js/engine.js is `null` until the user says the game has
   launched (they asked for this on 2026-11-05: "do day 1 until I officially tell you I launched").
-  Until then every day is MLion #1 and Daily Quiz #1, dealt from the pre-launch set (below). On
-  launch day it becomes `"YYYY-MM-DD"` (steps: "Launch-day steps" below): that day becomes #1 and the
-  hand-picked launch week starts. The day resets at **local** midnight, Wordle-style, not New York time.
+  Until then every day is MLion #1 and Daily Quiz #1 and plays **day 1** of the fixed schedule (below);
+  the user, 2026-11-06: "before we launch make it still day 1 but dont update". On launch day it becomes
+  `"YYYY-MM-DD"` (steps: "Launch-day steps" below): that day is day 1, the next day 2, and so on. The day resets at **local** midnight, Wordle-style, not New York time.
   - The launch day the game uses (`E.LAUNCH`) is, in order: a test's `window.MLION_LAUNCH`; else the
     admin panel's `app_config.launch` **if it is a real YYYY-MM-DD date**; else `LAUNCH_DATE`. So the
     database can move the date, but a null or junk value from it never clears the date in the code
     (`E.setLaunch`, engine test "launch day").
   - Why it's in the code (pre-launch audit B1): the config row arrives after the first screen, so a first
-    visit used to play the pre-launch set as "MLion #1" and could post it to the launch board.
+    visit used to play the pre-launch set as "MLion #1" and could post it to the launch board. (Since
+    2026-11-06 the pre-launch set IS day 1, so launching on the day changes nothing for a daily played
+    that morning; a launch date in the past still switches today's set.)
   - Belt and braces in app.js: a browser with no cached config waits up to 2 s for it before dealing
     `#daily` / `#daily-quiz` (`withConfig`). If a config that moves the launch day arrives mid-run, the run
     from the old set is dropped and today's real one opens with a toast; a daily or quiz already finished
@@ -148,14 +151,20 @@ a future `LAUNCH_DATE` changes nothing until D (days before it are still pre-lau
 - **The dailies' questions** come from `data/daily.json` (bundled as `DATA.daily`; the build
   validates it). `pool`: 71 hand-picked core prompts a typical IOAI contestant can answer at once
   (the user, 2026-11-05: "like name an optimizer"; RAG, PEFT, quantization formats, special tokens,
-  pandas and sklearn utilities are out). The daily and the Daily Quiz deal only from it (`DAILY`
-  view in app.js); Unlimited, Quiz and live rooms keep the whole core set. A new prompt joins the
-  daily only when added to `pool`. `dailyIds(date)`:
-  - before launch: `runFor(DAILY, "prelaunch-v2", days since 2026-11-05 + 1)`, the whole pool;
-  - launch days 1 to 7: `launch` in daily.json (49 pool prompts, easiest first);
-  - after that: `runFor(asOf(DAILY, date), "daily-v4", n - 7, …, LAUNCH_IDS)`, a flat shuffle whose
-    first pass deals the 16 pool prompts the week didn't use, so week 2 doesn't repeat week 1.
-- **Share text:** `MLion #N 🦁\n<score>/<max> · loss <x.xx>\n\n<grid>`.
+  pandas and sklearn utilities are out). Unlimited, Quiz and live rooms keep the whole core set.
+  - **Every date's set is fixed in the file** (user, 2026-11-06: "make sure they are set default for each
+    day"). Before, the pre-launch daily was a seeded shuffle of the pool, so each prompt added to the pool
+    reshuffled every day and the questions changed with updates. Now `dailyIds(date)` plays schedule day
+    `dealDay(date)` (1 before launch, else the day number): `launch` (days 1-7, hand-picked, easiest
+    first), then `later` (days 8-120, dealt once by `tools/freeze-days.js`: every pool prompt once before
+    any repeats, none twice within five days, the first pass the 22 pool prompts the week didn't use).
+    Past the frozen days it falls back to `runFor(asOf(DAILY, date), "daily-v4", …)`; append days first:
+    `node tools/freeze-days.js --days 240` (it only appends, never rewrites a day). A new pool prompt
+    reaches the daily only when a future day lists it (edit by hand, or it comes in appended days).
+  - The Daily Quiz the same way: `quiz` (days 1-21, hand-picked) then `quizLater` (to day 120, two easy,
+    two medium, three hard per day), each played as `quizFor(DAILY, "dquiz-v3:<n>", 7, {promptIds})`.
+  - The build checks every frozen day: seven known prompts or live bank questions, none twice in a day.
+- **Share text:** `MLion #N 🦁\n<score>/<max>\n\n<grid>` (no loss since 2026-11-06).
 
 ### Prompt display
 
@@ -578,7 +587,7 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 - A right answer carries the neutral tier `indist` (`QUIZ_TIER`) only so the descent and profile chart
   colour it; it means nothing about rarity. The record keeps `quiz` (the questions), `picks`
   (one digit per question, 0 none, 1 to 4), `tenths` (total answer time) and per-result `picked`, `ms`.
-- Share text: `MLion Quiz #N 🦁\n<score>/700 · loss x.xx[ · N s]\n\n🟩⬛…`.
+- Share text: `MLion Quiz #N 🦁\n<score>/700[ · N s]\n\n🟩⬛…`.
 - Results reuse `renderResults` (score, descent chart, answers, answer keys) with quiz branches. Quiz and
   `vq` records are excluded from `statsSummary`, so the daily stats and tier counts stay clean.
 
@@ -593,10 +602,9 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
 
 ### Daily Quiz (added overnight 2026-11-05)
 
-- (Updated 2026-11-05: all seven are bank questions. Before launch `E.dailyQuiz(DAILY, preDay,
-  "dquiz-pre2")` deals the bank; from launch, days 1..21 play the hand-picked days in data/daily.json
-  `quiz` (easy first), then `E.dailyQuiz(DAILY, n - 21, "dquiz-v3")`. The rest of this section is the
-  first version.)
+- (Updated 2026-11-06: all seven are bank questions, and every date's set is fixed in data/daily.json:
+  day 1 before launch, then the hand-picked `quiz` days 1..21, then the frozen `quizLater`; see "The
+  dailies' questions" in §3. The rest of this section is the first version.)
 - One shared seven-question quiz a day: five prompt questions and two reasoning MCQs, on the fixed
   25 s clock (reasoning questions get 2.4x). `E.dailyQuiz(data, dayNumber)` deals the prompts like
   the daily (`runFor(data, "dquiz-v1", n)`) and the reasoning questions from their own stream
@@ -1530,7 +1538,7 @@ is the lit exhibit.
   - keep the safe-area gutters (`max(16px, env(safe-area-inset-*))`), the sticky header at
     `env(safe-area-inset-top)`, and `[hidden]{display:none!important}`.
 - Element ids used by tests and logic: `#answer #step #veil #timer-num #status #chips .chip
-  #next #begin #card #dots #descent #hud-loss #hud-score .feedback.<tier> #share .score-big
+  #next #begin #card #dots #descent #hud-count (endless only) #hud-score .feedback.<tier> #share .score-big
   details.key .search .stat-grid .wordmark #how-go .modal #live-ready #live-name #live-go
   .lv-code .lv-players #live-rivals #rooms-list #vs-name #vs-go #send-vs .duel-head #chat-btn
   #chat-badge #chat #chat-log #chat-input #chat-note #chat-peek #card-img #card-text #card-copy
@@ -1679,6 +1687,15 @@ Added:
 Left out on purpose: a chime per screen (a web game is navigated far more than a console menu), sound on
 the music's beat (there is no music), slow motion or zoom beyond the Legendary flood, and a constant
 low-time alarm (the last five seconds already tick and the heartbeat speeds up).
+
+### Sound after leaving the page (2026-11-06)
+The user lost all sound after switching away mid-game and coming back. Phones suspend the AudioContext when
+the page hides; an iPhone marks it "interrupted" (not "suspended", which was all `ac()` resumed), lets only a
+tap resume it, and sometimes stays silent even then; and the only tap listener ran once per page load. Now
+(`Sound` in app.js): the context is closed when the page hides and rebuilt by the next sound or tap; every
+pointerdown, touchend or keydown wakes a context that isn't running; `ac()` resumes any state but "running".
+tests/feel.e2e.js section D covers it (`window.MLION_AUDIO` in test builds). Real iPhone behaviour can't be
+reproduced in headless Chromium; the test checks the mechanism.
 
 ### Background music: removed (2026-11-06)
 A generative background score (`js/music.js`, Settings → Music) shipped on 2026-11-05 and was removed

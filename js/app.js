@@ -30,19 +30,22 @@
   // can answer at once; the rest of the core set stays in Unlimited, Quiz and live rooms.
   const POOL = new Set(((DATA.daily && DATA.daily.pool) || CORE.prompts.map((p) => p.id)).filter((id) => PROMPTS.has(id)));
   const DAILY = { version: `${CORE.version}:daily`, packs: CORE.packs, prompts: CORE.prompts.filter((p) => POOL.has(p.id)), reasoning: CORE.reasoning };
-  // Launch week: the first seven days after launch, hand-picked, in order.
-  const LAUNCH_DAYS = ((DATA.daily && DATA.daily.launch) || []).map((ids) => ids.filter((id) => POOL.has(id)));
-  const LAUNCH_IDS = new Set(LAUNCH_DAYS.flat());
-  // Before launch: the whole pool, fresh each day (the deal counts days from PRE_FROM).
-  const PRE_FROM = "2026-11-05";
+  // Every date's daily is fixed in data/daily.json: the hand-picked launch week (`launch`), then `later`, days dealt
+  // once by tools/freeze-days.js and left alone. A dealt shuffle used to reshuffle whenever a prompt joined the pool,
+  // so a day's questions changed with updates (user, 2026-11-06: "make sure they are set default for each day").
+  // Before launch every day plays day 1; from launch day, day n plays day n.
+  const keepKnown = (days) => (days || []).map((ids) => ids.filter((id) => PROMPTS.has(id)));
+  const SCHEDULE = keepKnown([].concat((DATA.daily && DATA.daily.launch) || [], (DATA.daily && DATA.daily.later) || []));
+  const SCHEDULED = new Set(SCHEDULE.flat());
   const preLaunch = (date) => !E.LAUNCH || date < E.LAUNCH;
-  const preDay = (date) => Math.max(1, E.daysBetween(PRE_FROM, date) + 1);
+  /** Which day of the schedule a date plays: 1 until launch, then the day number. */
+  const dealDay = (date) => (preLaunch(date) ? 1 : Math.max(1, E.dayNumberFor(date)));
   function dailyIds(date) {
-    if (preLaunch(date)) return E.runFor(DAILY, "prelaunch-v2", preDay(date), null, true);
-    const n = E.dayNumberFor(date);
-    if (n <= LAUNCH_DAYS.length) return LAUNCH_DAYS[n - 1];
-    // after the launch week, the usual shuffle; its first pass deals the pool prompts the week didn't use
-    return E.runFor(asOf(DAILY, date), "daily-v4", n - LAUNCH_DAYS.length, null, true, LAUNCH_IDS);
+    const n = dealDay(date);
+    if (n <= SCHEDULE.length) return SCHEDULE[n - 1];
+    // past the frozen days (append more with tools/freeze-days.js before then): a shuffle that starts with the
+    // pool prompts the schedule never used
+    return E.runFor(asOf(DAILY, date), "daily-v4", n - SCHEDULE.length, null, true, SCHEDULED);
   }
   /** MLion #n for a date: #1 every day until launch, then counted from launch day. */
   const dayNo = (date) => Math.max(1, E.dayNumberFor(date));
@@ -202,9 +205,22 @@
         noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
         const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
       }
-      if (ctx.state === "suspended") ctx.resume();
+      if (ctx.state !== "running") ctx.resume().catch(() => { /* not allowed yet: the next tap wakes it */ });
       return ctx;
     }
+    // Sound after leaving the page (user, 2026-11-06: no sound after coming back mid-game). Phones suspend the
+    // context when the page hides; an iPhone marks it "interrupted", only a tap may resume it, and it sometimes stays
+    // silent even then. So the context is let go when the page hides and built fresh for the next sound, and every
+    // tap or key wakes one the browser started suspended (this used to happen on the first tap only).
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "hidden" || !ctx) return;
+      const old = ctx;
+      ctx = bus = room = noiseBuf = null;
+      old.close().catch(() => { /* already closed */ });
+    });
+    const wake = () => { if (ctx ? ctx.state !== "running" : document.visibilityState === "visible") ac(); };
+    for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, wake, { capture: true, passive: true });
+    if (window.MLION_TEST) window.MLION_AUDIO = () => ctx; // tests/feel.e2e.js
     const at = (c, o) => c.currentTime + 0.005 + (o.delay || 0);
     function out(c, node, wet) { node.connect(bus); if (wet) { const s = c.createGain(); s.gain.value = wet; node.connect(s).connect(room); } }
     function env(c, g, t0, vol, attack, dur) {
@@ -364,7 +380,6 @@
     window.MLION_SOUNDS = [];
     for (const k of Object.keys(Sound)) { const f = Sound[k]; Sound[k] = (...a) => { window.MLION_SOUNDS.push([k, ...a]); return f(...a); }; }
   }
-  document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
   // Every switch and slider answers with a click (Sound.toggle, Sound.step), wherever it is; choice buttons too.
   // Hovering stays silent. A switch that turns sound off is quiet, since sound is already off when this runs.
   document.addEventListener("change", (e) => {
@@ -512,16 +527,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function nextQuiz() { let n = 1; while (records[`quiz:${n}`]) n++; return n; }
   // The daily quiz: everyone's same seven questions, on the fixed 25 s clock so the board compares.
-  // Numbered like the daily (#1 until launch). From launch, days 1..QUIZ_DAYS.length play the
-  // hand-picked days in data/daily.json `quiz`; later days deal from the whole bank.
+  // Numbered like the daily (#1 until launch), and fixed per date the same way: day 1 until launch, then the
+  // hand-picked days in data/daily.json `quiz`, then the frozen `quizLater`; past them, a deal from the whole bank.
   const QUIZ_BANK = E.quizBank(DATA);
-  const QUIZ_DAYS = ((DATA.daily && DATA.daily.quiz) || []).filter((ids) => ids.every((id) => PROMPTS.has(id)));
+  const QUIZ_DAYS = keepKnown([].concat((DATA.daily && DATA.daily.quiz) || [], (DATA.daily && DATA.daily.quizLater) || []));
   const dquizNumber = dayNo;
   function dquizSpec(date) {
     const num = dquizNumber(date);
-    const n = E.dayNumberFor(date);
-    const quiz = preLaunch(date) ? E.dailyQuiz(DAILY, preDay(date), "dquiz-pre2")
-      : n <= QUIZ_DAYS.length ? E.quizFor(DAILY, `dquiz-v3:${n}`, E.QUIZ_ROUNDS, { promptIds: QUIZ_DAYS[n - 1] })
+    const n = dealDay(date);
+    const quiz = n <= QUIZ_DAYS.length ? E.quizFor(DAILY, `dquiz-v3:${n}`, E.QUIZ_ROUNDS, { promptIds: QUIZ_DAYS[n - 1] })
       : E.dailyQuiz(DAILY, n - QUIZ_DAYS.length, "dquiz-v3");
     return { key: `dquiz:${date}`, mode: "dquiz", fmt: "quiz", number: num, date, label: `Daily Quiz #${num}`, promptIds: quiz.map((q) => q.promptId), quiz, secs: DEFAULT_SECS };
   }
@@ -2701,7 +2715,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     app.innerHTML = `<section class="screen play${RUN.fmt === "quiz" ? " quiz" : ""}">
       <div class="stage" id="stage">
         <canvas id="descent" aria-hidden="true"></canvas>
-        <div class="hud"><span>${RUN.endless ? "Answered" : "Loss"}</span><b id="hud-loss">${RUN.endless ? RUN.results.length : "7.00"}</b></div>
+        ${RUN.endless ? `<div class="hud"><span>Answered</span><b id="hud-count">${RUN.results.length}</b></div>` : ""}
         <div class="hud hud-r"><span>Score</span><b id="hud-score">0</b></div>
         <div class="streak-wrap" aria-live="polite"><div class="streak" id="streak" hidden></div><span class="sk-quick" id="sk-quick" hidden>Quick</span></div>
         <div class="jackpot" id="jackpot" aria-hidden="true"></div>
@@ -2719,8 +2733,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (!RUN) return;
         const [lo, hi] = hudRange;
         const pts = Math.min(hi, Math.max(lo, Math.round(x / 10)));
-        const l = $("#hud-loss"), sc = $("#hud-score");
-        if (l) l.textContent = RUN.endless ? RUN.results.length : ((RUN.promptIds.length * 100 - pts) / 100).toFixed(2);
+        const sc = $("#hud-score");
         if (sc) sc.textContent = pts;
       },
       onFlood: (on) => { const st = $("#stage"); if (st) st.classList.toggle("flood", on); },
@@ -2739,7 +2752,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const done = RUN.results.slice(-6).map((r) => (r.tier ? `<i class="done t-${r.tier}" title="${esc(T[r.tier].name)}"></i>` : `<i class="miss" title="Miss"></i>`)).join("");
       $("#dots").innerHTML = done + (RUN.phase === "feedback" ? "" : `<i class="cur"></i>`);
       $("#play-meta").innerHTML = `Prompt <b>${RUN.round + 1}</b><button class="btn stop-run" id="stop-run" type="button">Stop</button>`;
-      const c = $("#hud-loss"); if (c) c.textContent = RUN.results.length; // a miss doesn't roll the ball, so count here
+      const c = $("#hud-count"); if (c) c.textContent = RUN.results.length; // a miss doesn't roll the ball, so count here
       return;
     }
     $("#dots").innerHTML = RUN.promptIds.map((_, i) => {
@@ -2752,9 +2765,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function setHud(score) {
     hudRange = [score, score];
-    const n = RUN.promptIds.length;
     $("#hud-score").textContent = score;
-    $("#hud-loss").textContent = RUN.endless ? RUN.results.length : ((n * 100 - score) / 100).toFixed(2);
+    const c = $("#hud-count"); if (c) c.textContent = RUN.results.length;
   }
   /** The boxes drawn over the stage, in canvas coordinates: the camera keeps the path out of them. */
   function stageBoxes() {
@@ -4253,7 +4265,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
             : isVs && rec.opp ? (() => { const me = rec.score, them = tierPoints(rec.opp.tiers); return `<p class="band ${me >= them ? "t-mlion" : ""}">${me === them ? "Draw" : me > them ? "You win" : `${esc(rec.opp.name)} wins`} · ${me} vs ${them}</p>`; })()
             : isQ ? `<p class="band">${hits} of ${n} right</p>` : band ? `<p class="band t-${band.tier}">${esc(band.name)}</p>` : ""}
           ${isQ ? qmarksRow(rec.results.map((r) => r.score > 0), "grid-tiers") : tiersRow(rec.tiers, "grid-tiers")}
-          <p class="loss-line">Loss ${((max - rec.score) / 100).toFixed(2)} · ${isQ ? `${hits} of ${n} right · ${fmtSecs(rec.tenths || 0)}` : `${accepted} of ${n} answers accepted`}</p>
+          <p class="tally-line">${isQ ? `${hits} of ${n} right · ${fmtSecs(rec.tenths || 0)}` : `${accepted} of ${n} answers accepted`}</p>
           <div class="btn-row">
             ${isVs ? `<button class="btn primary big" id="send-vs">${rec.opp ? "Send result back" : "Send my score"}</button>
               <a class="btn big" href="#challenge">New challenge</a>${window.MLION_CARD ? `<button class="btn big" id="share">Share image</button>` : ""}` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
@@ -4265,7 +4277,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       </div>
       <div class="main">
         ${rec.mode === "vq" && rec.opp ? quizDuelBoard(quiz, meQ, rec.opp) : isVs && rec.opp ? duelBoard(rec.promptIds, { name: rec.name || "You", tiers: rec.tiers, you: true }, rec.opp) : ""}
-        ${n > 1 ? `<figure class="profile-wrap">${V.profileSvg(rec.results, `Your descent: loss ${((max - rec.score) / 100).toFixed(2)}`)}</figure>` : ""}
+        ${n > 1 ? `<figure class="profile-wrap">${V.profileSvg(rec.results, `Your descent: ${rec.score} points`)}</figure>` : ""}
         <section>
           <h2 class="block-title">Your answers</h2>
           <ul class="run-list">${isQ ? rec.results.map((r, i) => {
@@ -5243,7 +5255,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <p>Each prompt asks you to name something from machine learning, like “Name an optimizer”. Type any answer that fits. If it isn't accepted, try another until time runs out. Close spellings get a “did you mean”.</p>
       <p>The fewer people who'd think of your answer, the more it scores:</p>
       ${depthList(true)}
-      <p class="muted">Your score is a ball rolling down a hill. The loss starts at 7.00 and drops by 1.00 for every 100 points. A perfect day is 700 points, loss 0.00.</p>
+      <p class="muted">Your score is a ball rolling down a hill: every answer rolls it further down, rarer answers further. A perfect day is 700 points.</p>
     </div>`;
   }
   function renderHow() {

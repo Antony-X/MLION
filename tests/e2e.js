@@ -133,7 +133,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   await page.waitForFunction(() => /Text copied/.test(document.querySelector("#toast").textContent), null, { timeout: 4000 });
   // the Windows clipboard turns \n into \r\n; normalise so the check is platform-independent
   const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
-  check(/^MLion #\d+ 🦁\n300\/700 · loss 4\.00\n\n🦜🦁🐑🦄☄️⬛📊/.test(clip), "share text format");
+  check(/^MLion #\d+ 🦁\n300\/700\n\n🦜🦁🐑🦄☄️⬛📊/.test(clip) && !/loss/i.test(clip), "share text format: the score, no loss");
   console.log(clip.split("\n").map((l) => "    | " + l).join("\n"));
   await page.click("#mclose");
 

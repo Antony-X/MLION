@@ -45,7 +45,7 @@
   const MAX_ANSWER_LENGTH = 120;
 
   const BANDS = [
-    { min: 0, tier: "baseline", name: "Underfit", range: "0–150", verdict: "Underfit. Plenty of loss left on the table." },
+    { min: 0, tier: "baseline", name: "Underfit", range: "0–150", verdict: "Underfit. Plenty left to learn." },
     { min: 151, tier: "indist", name: "Converging", range: "151–250", verdict: "Converging. Training with the herd." },
     { min: 251, tier: "outlier", name: "Generalizing", range: "251–350", verdict: "Generalizing. Past the saddle point. Nice." },
     { min: 351, tier: "longtail", name: "State of the Art", range: "351–449", verdict: "State of the art. Reviewer 2 is nervous." },
@@ -55,8 +55,6 @@
     for (let i = BANDS.length - 1; i >= 0; i--) if (score >= BANDS[i].min) return BANDS[i];
     return BANDS[0];
   }
-  /** Loss shown to players: starts at 7.00 and falls by points/100. */
-  function lossFor(score) { return (MAX_SCORE - score) / 100; }
 
   // ---------------------------------------------------------- normalizing
   const GREEK = {
@@ -833,14 +831,13 @@
       mode === "unlimited" ? `MLion ∞ #${number}` :
       mode === "quiz" ? `MLion Quiz #${number}` :
       mode === "dquiz" ? `MLion Daily Quiz #${number}` : `MLion · ${label || mode} #${number}`;
-    const loss = (tiers.length * 100 - score) / 100;
     const clock = secs && secs * 1000 !== ANSWER_MS ? ` · ${secs} s` : ""; // a different clock isn't the same game
-    return `${tag} 🦁\n${score}/${tiers.length * 100} · loss ${loss.toFixed(2)}${clock}\n\n${grid}`;
+    return `${tag} 🦁\n${score}/${tiers.length * 100}${clock}\n\n${grid}`;
   }
 
   const api = {
     TIERS, TIER_IDS, TIERS_BY_SCORE, MISS_EMOJI, ROUNDS, MAX_SCORE, PREVIEW_MS, ANSWER_MS,
-    MAX_ANSWER_LENGTH, BANDS, bandFor, lossFor,
+    MAX_ANSWER_LENGTH, BANDS, bandFor,
     tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
     LAUNCH_DATE, isDay, setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,

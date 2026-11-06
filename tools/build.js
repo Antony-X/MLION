@@ -216,8 +216,18 @@ delete daily._comment;
       qseen.add(id);
     }
   });
+  // the frozen days after them (tools/freeze-days.js): whole days of known prompts, none twice in a day
+  const frozen = (list, at, size, known, what) => (list || []).forEach((day, i) => {
+    const n = at + i + 1;
+    if (!Array.isArray(day) || day.length !== size) errs.push(`${what} day ${n}: needs ${size}`);
+    else if (new Set(day).size !== size) errs.push(`${what} day ${n}: lists one twice`);
+    for (const id of day || []) if (!known.has(id)) errs.push(`${what} day ${n}: ${id} is unknown or retired`);
+  });
+  frozen(daily.later, daily.launch.length, E.ROUNDS, coreIds, "daily");
+  frozen(daily.quizLater, (daily.quiz || []).length, E.QUIZ_ROUNDS, bank, "quiz");
   if (errs.length) { errs.forEach((e) => console.error(`✗ daily.json: ${e}`)); process.exit(1); }
-  console.log(`daily pool: ${pool.size} prompts; launch week: ${daily.launch.length} days, ${seen.size} prompts; quiz days: ${(daily.quiz || []).length}`);
+  console.log(`daily pool: ${pool.size} prompts; daily days fixed: ${daily.launch.length + (daily.later || []).length} ` +
+    `(launch week ${daily.launch.length}); Daily Quiz days fixed: ${(daily.quiz || []).length + (daily.quizLater || []).length}`);
 }
 // The answers' explanations (a third of the data) go in js/explain.js, which the page loads after the game is
 // up: nothing needs them until a player has answered. Each prompt's list is aligned with its answers (0 = none).

@@ -148,7 +148,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.waitForFunction(() => /Text copied/.test(document.querySelector("#toast").textContent), null, { timeout: 4000 });
   const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   const grid = expectHits.map((h) => (h ? "🟩" : "⬛")).join("");
-  check(clip.startsWith(`MLion Quiz #1 🦁\n${hits * 100}/700 · loss ${((700 - hits * 100) / 100).toFixed(2)} · 10 s\n\n${grid}`), "share text has the usual shape with a quiz grid");
+  check(clip.startsWith(`MLion Quiz #1 🦁\n${hits * 100}/700 · 10 s\n\n${grid}`), "share text has the usual shape with a quiz grid");
   console.log(clip.split("\n").map((l) => "    | " + l).join("\n"));
   await page.click("#mclose");
 
@@ -265,10 +265,10 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   {
     const dq = await phone("dq");
     const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    // before launch: Daily Quiz #1 every day, dealt from the daily's hand-picked pool
+    // before launch: Daily Quiz #1 every day, and it plays the fixed day 1 (data/daily.json `quiz`)
     const pool = new Set(DATA.daily.pool);
     const DAILY = { ...CORE, version: `${CORE.version}:daily`, prompts: CORE.prompts.filter((p) => pool.has(p.id)) };
-    const want = E.dailyQuiz(DAILY, Math.max(1, E.daysBetween("2026-11-05", day) + 1), "dquiz-pre2");
+    const want = E.quizFor(DAILY, "dquiz-v3:1", E.QUIZ_ROUNDS, { promptIds: DATA.daily.quiz[0] });
     const bank = new Set(E.quizBank(DATA).map((r) => r.id));
     check(want.length === 7 && want.every((q) => q.reasoning && bank.has(q.promptId)), "the engine deals today's quiz: seven hand-written bank questions");
     await dq.page.goto(base + "#quiz");
@@ -285,7 +285,7 @@ const hexName = (s) => Buffer.from(s).toString("hex");
     }
     await dq.page.waitForSelector(".grid-tiers");
     check(dq.page.url().endsWith(`#results-dquiz-${day}`) && (await dq.page.textContent("#app")).includes("Next daily quiz in"), "the results count down to the next daily quiz");
-    check((await dq.page.textContent(".loss-line")).includes("4 of 7 right"), "four of seven right");
+    check((await dq.page.textContent(".tally-line")).includes("4 of 7 right"), "four of seven right");
     await dq.page.goto(base + "#daily-quiz");
     await dq.page.waitForFunction((t) => location.hash === `#results-dquiz-${t}`, day, { timeout: 5000 });
     check(true, "one go a day: opening it again shows your result");

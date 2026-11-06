@@ -282,7 +282,7 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
 
   // the share text keeps the usual shape with a quiz grid
   const sh = E.shareText({ mode: "quiz", number: 3, score: 500, tiers: ["indist", "miss", "indist", "indist", "indist", "indist", "miss"] });
-  assert.strictEqual(sh, "MLion Quiz #3 🦁\n500/700 · loss 2.00\n\n🟩⬛🟩🟩🟩🟩⬛"); ok("quiz: share text");
+  assert.strictEqual(sh, "MLion Quiz #3 🦁\n500/700\n\n🟩⬛🟩🟩🟩🟩⬛"); ok("quiz: share text");
 }
 
 // --- dates

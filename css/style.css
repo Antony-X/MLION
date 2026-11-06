@@ -533,7 +533,7 @@ html.kb .round { gap: 14px; }
 .score-big small { font-size: 0.24em; letter-spacing: -0.01em; color: var(--muted); margin-left: 0.1em; }
 .band { font-size: var(--s3); letter-spacing: -0.015em; }
 .band.t-mlion { color: var(--gold); }
-.loss-line { color: var(--muted); font-size: var(--s1); }
+.tally-line { color: var(--muted); font-size: var(--s1); }
 .grid-tiers { font-size: 32px; margin-top: 10px; flex-wrap: wrap; row-gap: 0.3em; } /* an endless session can be long */
 .score-hero .btn-row { margin-top: 18px; }
 .profile { display: block; width: 100%; height: auto; margin: 0; }

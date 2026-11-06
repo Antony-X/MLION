@@ -157,7 +157,7 @@ function pageHelpers(records) {
     await page.click("#card-text");
     await toast(page, /Text copied/);
     const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
-    check(clip.startsWith(`MLion #12 🦁\n${daily.score}/700 · loss ${((700 - daily.score) / 100).toFixed(2)}\n\n`), "Copy text keeps the text grid");
+    check(clip.startsWith(`MLion #12 🦁\n${daily.score}/700\n\n`), "Copy text keeps the text grid");
 
     await page.click('.sc-sheet [data-fmt="story"]');
     img = await preview(page, 1920);

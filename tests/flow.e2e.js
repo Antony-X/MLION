@@ -79,11 +79,11 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
     await p.click("#next");
     await p.waitForSelector("#answer");
   }
-  check((await p.textContent("#hud-loss")).trim() === "9", "nine answered");
+  check((await p.textContent("#hud-count")).trim() === "9", "nine answered");
   await p.screenshot({ path: path.join(OUT, "71-unlimited-feedback.png") });
   await p.click("#stop-here");
   await p.waitForSelector(".score-hero", { timeout: 8000 });
-  check(p.url().endsWith("#results-unlimited-1") && (await p.textContent(".loss-line")).includes("of 9"), "Stop ends the session on its results (9 prompts)");
+  check(p.url().endsWith("#results-unlimited-1") && (await p.textContent(".tally-line")).includes("of 9"), "Stop ends the session on its results (9 prompts)");
   await p.screenshot({ path: path.join(OUT, "72-unlimited-results.png"), fullPage: true });
   check((await p.textContent('a.btn[href="#unlimited-play"]')).trim() === "Keep going", "the results offer Keep going");
 
@@ -103,10 +103,10 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
   // Stop in the middle of a question drops that prompt; a reload resumes the session first
   await p.click("#next"); await p.waitForSelector("#answer");
   await p.reload(); await p.waitForSelector("#answer");
-  check((await p.textContent("#hud-loss")).trim() === "3", "a reload resumes the session where it was");
+  check((await p.textContent("#hud-count")).trim() === "3", "a reload resumes the session where it was");
   await p.click("#stop-run");
   await p.waitForSelector(".score-hero", { timeout: 8000 });
-  check(p.url().endsWith("#results-unlimited-2") && (await p.textContent(".loss-line")).includes("of 3"), "Stop mid-question keeps the three answered, drops the open one");
+  check(p.url().endsWith("#results-unlimited-2") && (await p.textContent(".tally-line")).includes("of 3"), "Stop mid-question keeps the three answered, drops the open one");
 
   // the Unlimited page lists sessions
   await p.goto(base + "#unlimited");
