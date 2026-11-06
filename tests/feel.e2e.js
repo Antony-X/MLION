@@ -330,6 +330,15 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     await p.keyboard.press("Shift");
     await p.waitForFunction(() => window.MLION_AUDIO().state === "running", null, { timeout: 3000 });
     check(true, "a suspended sound wakes on the next key");
+    // an iPhone can leave it "interrupted" with the page still open, and resuming may never work: the next tap replaces it
+    await p.evaluate(() => {
+      const c = window.MLION_AUDIO(); window.STUCK = c;
+      Object.defineProperty(c, "state", { get: () => "interrupted", configurable: true });
+      c.resume = () => new Promise(() => { /* never resumes */ });
+    });
+    await p.mouse.click(5, 5);
+    await p.waitForFunction(() => window.MLION_AUDIO() && window.MLION_AUDIO() !== window.STUCK && window.MLION_AUDIO().state === "running", null, { timeout: 3000 });
+    check(true, "a stuck (interrupted) sound is replaced on the next tap and plays");
     await ctx.close();
   }
 

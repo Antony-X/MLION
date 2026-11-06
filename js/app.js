@@ -218,7 +218,18 @@
       ctx = bus = room = noiseBuf = null;
       old.close().catch(() => { /* already closed */ });
     });
-    const wake = () => { if (ctx ? ctx.state !== "running" : document.visibilityState === "visible") ac(); };
+    // The phone can also stop the sound while the page stays open (an iPhone marks it "interrupted": a call, Siri,
+    // an alarm, muting and unmuting; user, 2026-11-06: silent after muting and unmuting the phone), and resuming it
+    // may never work. So a tap doesn't just try to resume a stopped context: it lets it go and builds a fresh one,
+    // which a tap is allowed to start.
+    const wake = () => {
+      if (ctx && ctx.state !== "running") {
+        const old = ctx;
+        ctx = bus = room = noiseBuf = null;
+        old.close().catch(() => { /* already closed */ });
+      }
+      if (!ctx && document.visibilityState === "visible") ac();
+    };
     for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, wake, { capture: true, passive: true });
     if (window.MLION_TEST) window.MLION_AUDIO = () => ctx; // tests/feel.e2e.js
     const at = (c, o) => c.currentTime + 0.005 + (o.delay || 0);
