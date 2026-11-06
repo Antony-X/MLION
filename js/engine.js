@@ -103,8 +103,9 @@
   function strippedKey(s, strip) { return joinKey(without(dropArticle(tokens(s)), strip)); }
   function softKey(s, strip) { return joinKey(without(without(dropArticle(tokens(s)), strip), SOFT_FILLER)); }
   /** Initials of a multi-word name: "long short-term memory" -> lstm, "mixture of experts" -> moe. */
-  function acronyms(s) {
-    const tk = dropArticle(tokens(s));
+  function acronyms(s) { return acronymsOf(dropArticle(tokens(s))); }
+  /** acronyms() from a name's tokens, its leading article already dropped. */
+  function acronymsOf(tk) {
     const out = new Set();
     if (tk.length < 2) return out;
     for (const list of [tk.filter((w) => !STOP.has(w)), tk]) {
@@ -179,6 +180,12 @@
 
   /** Build the lookup index for one prompt. Returns {index, errors}. */
   function buildIndex(prompt) {
+    const it = indexSteps(prompt);
+    for (;;) { const r = it.next(); if (r.done) return r.value; }
+  }
+  /** buildIndex a little at a time: a generator that pauses every few names, so the app can build a prompt's index
+   *  in idle moments without holding up a frame (prepareSteps). It returns what buildIndex returns. */
+  function* indexSteps(prompt) {
     const strip = new Set((prompt.strip || []).map((w) => fullKey(w)).filter(Boolean));
     const exact = new Map(); // key -> answer idx
     const errors = [];
@@ -193,39 +200,62 @@
     }
     const softPairs = [], acPairs = [], words = [];
     const keyWords = new Map(); // key -> the words it was made from (for the per-word typo guard)
-    answers.forEach((ans, idx) => {
+    let made = 0;
+    for (let idx = 0; idx < answers.length; idx++) {
+      const ans = answers[idx];
       for (const n of [ans.a].concat(ans.aka || [])) {
-        claim(fullKey(n), idx, `"${n}"`);
-        claim(strippedKey(n, strip), idx, `"${n}" stripped`);
-        if (!keyWords.has(fullKey(n))) keyWords.set(fullKey(n), contentWords(n, null));
-        if (!keyWords.has(strippedKey(n, strip))) keyWords.set(strippedKey(n, strip), contentWords(n, strip));
-        softPairs.push([softKey(n, strip), idx]);
-        for (const ac of acronyms(n)) acPairs.push([ac, idx]);
+        // Every key comes from the same tokens, split once per name: the same as fullKey(n), strippedKey(n, strip),
+        // softKey(n, strip), contentWords(n, strip / null) and acronyms(n), which split it ten times over and made
+        // building a prompt's index the stall when a first answer was sent (2026-11-06).
+        const tk = tokens(n), base = dropArticle(tk), full = joinKey(tk);
+        const soft = without(without(base, strip), SOFT_FILLER);
+        const stripped = joinKey(without(base, strip));
+        const wordsStrip = soft.filter((w) => !STOP.has(w)), wordsAll = without(base, SOFT_FILLER).filter((w) => !STOP.has(w));
+        claim(full, idx, `"${n}"`);
+        claim(stripped, idx, `"${n}" stripped`);
+        if (!keyWords.has(full)) keyWords.set(full, wordsAll);
+        if (!keyWords.has(stripped)) keyWords.set(stripped, wordsStrip);
+        softPairs.push([joinKey(soft), idx]);
+        for (const ac of acronymsOf(base)) acPairs.push([ac, idx]);
         const seen = new Set();
-        for (const w of [contentWords(n, strip), contentWords(n, null)]) {
+        for (const w of [wordsStrip, wordsAll]) {
           if (w.length >= 2 && !seen.has(w.join(" "))) { seen.add(w.join(" ")); words.push({ idx, w }); }
         }
+        if (++made % 24 === 0) yield;
       }
-    });
+    }
+    yield;
     const keys = [...exact.keys()];
     // Plural-tolerant, filler-tolerant and acronym layers: only unambiguous keys survive.
     const loose = softMap(keys.map((k) => [singular(k), exact.get(k)]));
+    yield;
     const soft = softMap(softPairs);
+    yield;
     const acro = softMap(acPairs.filter(([k]) => !exact.has(k)));
+    yield;
     // Word order: "Knuth Donald", "Hastings Metropolis". Only names of two to four words, and only
     // when no other answer has the same words.
     const bag = softMap(words.filter(({ w }) => w.length <= 4).map(({ idx, w }) => [bagKey(w), idx]));
+    yield;
     // Character-trigram TF-IDF vectors: a small "embedding" for near-miss suggestions.
-    const df = new Map();
-    const grams = keys.map((k) => { const g = trigrams(k); for (const t of g.keys()) df.set(t, (df.get(t) || 0) + 1); return g; });
+    const df = new Map(), grams = [];
+    for (let i = 0; i < keys.length; i++) {
+      const g = trigrams(keys[i]);
+      for (const t of g.keys()) df.set(t, (df.get(t) || 0) + 1);
+      grams.push(g);
+      if (i % 96 === 95) yield;
+    }
     const N = keys.length || 1;
-    const idf = (t) => Math.log(1 + N / (df.get(t) || 0.5));
-    const vecs = grams.map((g) => {
+    const idfs = new Map(); // each trigram's weight, worked out once
+    const idf = (t) => { let v = idfs.get(t); if (v === undefined) idfs.set(t, (v = Math.log(1 + N / (df.get(t) || 0.5)))); return v; };
+    const vecs = [];
+    for (let i = 0; i < grams.length; i++) {
       let norm = 0;
       const w = new Map();
-      for (const [t, c] of g) { const v = c * idf(t); w.set(t, v); norm += v * v; }
-      return { w, norm: Math.sqrt(norm) || 1 };
-    });
+      for (const [t, c] of grams[i]) { const v = c * idf(t); w.set(t, v); norm += v * v; }
+      vecs.push({ w, norm: Math.sqrt(norm) || 1 });
+      if (i % 96 === 95) yield;
+    }
     return { index: { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words, keyWords }, errors };
   }
 
@@ -265,8 +295,24 @@
     if ((m.kind === "correction" || m.kind === "suggest") && LEXICON && LEXICON.has(fullKey(raw))) return { kind: "none", via: "known-elsewhere" };
     return m;
   }
+  /** Build a prompt's answer index ahead of time (the app does it while the player reads), so Enter doesn't wait for it. */
+  function prepare(prompt) {
+    if (prompt && !prompt._index) prompt._index = buildIndex(prompt).index;
+  }
+  /** The same, a small step at a time, for idle moments: each call of the returned function takes one step (well
+   *  under a millisecond on a phone) and returns true once prompt._index is ready. */
+  function prepareSteps(prompt) {
+    if (!prompt || prompt._index) return () => true;
+    const it = indexSteps(prompt);
+    return () => {
+      if (prompt._index) return true; // a submit built it in the meantime
+      const r = it.next();
+      if (r.done) { prompt._index = r.value.index; return true; }
+      return false;
+    };
+  }
   function matchRaw(prompt, raw) {
-    if (!prompt._index) prompt._index = buildIndex(prompt).index;
+    prepare(prompt);
     const { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words, keyWords } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
     const kf = fullKey(text);
@@ -913,7 +959,7 @@
   const api = {
     TIERS, TIER_IDS, TIERS_BY_SCORE, MISS_EMOJI, ROUNDS, MAX_SCORE, PREVIEW_MS, ANSWER_MS,
     MAX_ANSWER_LENGTH, BANDS, bandFor,
-    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, matchAnswer, setLexicon, whereElse,
+    tokens, fullKey, strippedKey, softKey, acronyms, singular, editDistance, buildIndex, prepare, prepareSteps, matchAnswer, setLexicon, whereElse,
     mulberry32, hashString, shuffled,
     LAUNCH_DATE, isDay, setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,

@@ -60,6 +60,17 @@
   const app = document.getElementById("app");
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  /** Text written only when it changed: the same text written again still replaces the node and costs a layout. */
+  const setText = (el, s) => { s = String(s); if (el && el.textContent !== s) el.textContent = s; };
+  /** Builds a prompt's answer index while the player reads, so pressing Enter doesn't wait for it (that was a stall
+   *  of 40 to 80 ms on a phone): in small steps, each in the idle time between frames, so no frame waits either.
+   *  (Safari has no requestIdleCallback: a few ms every 40 ms there.) */
+  const idleSlice = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 1000 }) : (f) => setTimeout(() => f({ timeRemaining: () => 3 }), 40);
+  const warm = (p) => {
+    const step = E.prepareSteps(p);
+    const go = (deadline) => { while (!step()) if (deadline.timeRemaining() < 1) { idleSlice(go); return; } };
+    idleSlice(go);
+  };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (n) => Number(n).toLocaleString("en-US");
 
@@ -2758,8 +2769,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         if (!RUN) return;
         const [lo, hi] = hudRange;
         const pts = Math.min(hi, Math.max(lo, Math.round(x / 10)));
-        const sc = $("#hud-score");
-        if (sc) sc.textContent = pts;
+        setText($("#hud-score"), pts);
       },
       onFlood: (on) => { const st = $("#stage"); if (st) st.classList.toggle("flood", on); },
       avoid: stageBoxes,
@@ -3091,6 +3101,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     wireHint(false);
     lastTick = -1;
     tickLoop();
+    warm(p);
   }
   // ---- room rules in a round (live only)
   const ruled = () => RUN && RUN.mode === "live" && RUN.rules;
@@ -3180,9 +3191,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         RUN.phase = "preview";
         input.disabled = true; $("#step").disabled = true;
         veil.classList.remove("hidden");
-        $("#veil-n").textContent = Math.ceil((RUN.previewEndsAt - now) / 1000);
-        $("#timer-label").textContent = "Starts in";
-        $("#timer-num").textContent = (answerMs() / 1000).toFixed(1);
+        setText($("#veil-n"), Math.ceil((RUN.previewEndsAt - now) / 1000));
+        setText($("#timer-label"), "Starts in");
+        setText($("#timer-num"), (answerMs() / 1000).toFixed(1));
         $("#timer-fill").style.transform = "scaleX(1)";
       } else {
         if (RUN.phase === "preview" || input.disabled) {
@@ -3190,11 +3201,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           input.disabled = false; $("#step").disabled = false;
           veil.classList.add("hidden");
           if (!chatTyping()) input.focus({ preventScroll: true }); // never yank someone out of a chat message
-          $("#timer-label").textContent = "Time left";
+          setText($("#timer-label"), "Time left");
         }
         const left = Math.max(0, RUN.answerEndsAt - now);
-        if (ruled()) $("#timer-label").textContent = timeLeftLabel(left);
-        $("#timer-num").textContent = (left / 1000).toFixed(1);
+        if (ruled()) setText($("#timer-label"), timeLeftLabel(left));
+        setText($("#timer-num"), (left / 1000).toFixed(1));
         $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
         const low = left <= 5000;
         $("#timer").classList.toggle("low", low);
@@ -3217,9 +3228,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (now < RUN.previewEndsAt) {
       RUN.phase = "preview";
       veil.classList.remove("hidden");
-      $("#veil-n").textContent = Math.ceil((RUN.previewEndsAt - now) / 1000);
-      $("#timer-label").textContent = "Starts in";
-      $("#timer-num").textContent = (answerMs() / 1000).toFixed(1);
+      setText($("#veil-n"), Math.ceil((RUN.previewEndsAt - now) / 1000));
+      setText($("#timer-label"), "Starts in");
+      setText($("#timer-num"), (answerMs() / 1000).toFixed(1));
       $("#timer-fill").style.transform = "scaleX(1)";
     } else {
       if (RUN.phase === "preview" || mcq.classList.contains("locked")) {
@@ -3227,11 +3238,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         mcq.classList.remove("locked");
         $$(".mcq-opt:not(.cut)", mcq).forEach((b) => { b.disabled = false; });
         veil.classList.add("hidden");
-        $("#timer-label").textContent = "Time left";
+        setText($("#timer-label"), "Time left");
       }
       const left = Math.max(0, RUN.answerEndsAt - now);
-      if (ruled()) $("#timer-label").textContent = timeLeftLabel(left);
-      $("#timer-num").textContent = (left / 1000).toFixed(1);
+      if (ruled()) setText($("#timer-label"), timeLeftLabel(left));
+      setText($("#timer-num"), (left / 1000).toFixed(1));
       $("#timer-fill").style.transform = `scaleX(${left / answerMs()})`;
       const low = left <= 5000;
       $("#timer").classList.toggle("low", low);
@@ -4603,6 +4614,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const input = $("#sp-answer"), total = SPRINT_SECS * 1000;
     const S = SPRINT = { p, vs, t0: performance.now(), found: [], got: new Set(), pts: 0, bonus: 0, done: false, lastTick: SPRINT_SECS };
     input.focus();
+    warm(p);
     every(100, () => {
       if (S !== SPRINT || S.done) return;
       const left = Math.max(0, total + S.bonus - (performance.now() - S.t0));
@@ -4907,6 +4919,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     S.phase = "preview";
     S.previewEndsAt = Date.now() + E.PREVIEW_MS;
     S.endsAt = S.previewEndsAt + spMs();
+    warm(S.p);
     if (CHAT.open && !(chatTyping() && $("#chat-input").value)) setChatOpen(false); // a new prompt: fold the chat away unless they're mid-message
     drawSprint();
     S.loop = setInterval(() => spTick(S), 100);

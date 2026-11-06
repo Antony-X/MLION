@@ -455,6 +455,20 @@
   const COIN_G = 0.0019; // px per ms², the coins' gravity
   const TENSE_RED = rgb("#e8412f"); // a deeper cousin of the house's negative red
   const SMOKE = "#8c857b";
+  // Chrome, Edge and the other Chromium browsers (the only ones with userAgentData; every browser on an iPhone is Safari's engine)
+  const CHROMIUM = !!navigator.userAgentData;
+  /** Is there a real GPU (window.MLION_GPU)? The home page's 3D hero says so for free (hero3d.js, noteGpu). Without
+   *  it, ask WebGPU once, in idle time: it answers without stalling a frame, null when Chrome draws on the CPU. Until
+   *  an answer comes (or with no WebGPU to ask) the stage assumes a GPU, as nearly every device has one. */
+  let gpuAsked = false;
+  function askGpu() {
+    if (gpuAsked || !CHROMIUM || window.MLION_GPU !== undefined || !navigator.gpu || !window.isSecureContext) return;
+    gpuAsked = true;
+    const ask = () => navigator.gpu.requestAdapter().then((a) => {
+      if (window.MLION_GPU === undefined) window.MLION_GPU = !!a && !(a.isFallbackAdapter || (a.info && a.info.isFallbackAdapter));
+    }, () => {});
+    (window.requestIdleCallback || ((f) => setTimeout(f, 500)))(ask, { timeout: 3000 });
+  }
   const glows = new Map();
   /** A soft round glow in one colour, painted once and then only scaled: a phone draws a cached
    * image far more cheaply than a new gradient (or a shadow blur) every frame. */
@@ -475,6 +489,59 @@
     const ctx = canvas.getContext("2d");
     const world = document.createElement("canvas"); // the landscape: redrawn only when the camera or the path changes
     const wctx = world.getContext("2d");
+    // Smooth light (the sky and its glow, low time's fog and red edges) is drawn at an eighth of the
+    // stage's resolution and scaled up: gradients that smooth look the same, and filling the whole stage with them pixel
+    // by pixel was most of a frame's cost on a computer without a GPU (measured part by part, 2026-11-06).
+    const LOWRES = 8;
+    const lowres = () => { const cv = document.createElement("canvas"); return { cv, c: cv.getContext("2d") }; };
+    const skyLo = lowres(), fogLo = lowres();
+    /** A low-resolution layer ready to draw on in css px; cleared first when `clear`. */
+    function loBegin(lo, clear) {
+      lo.c.setTransform(1, 0, 0, 1, 0, 0);
+      if (clear) lo.c.clearRect(0, 0, lo.cv.width, lo.cv.height);
+      lo.c.setTransform(st.dpr / LOWRES, 0, 0, st.dpr / LOWRES, 0, 0);
+      return lo.c;
+    }
+    /** Fill a low-resolution layer to its edges (a little past the stage, so the scaling up has the colour beyond). */
+    const loFill = (c2) => c2.fillRect(-2 * LOWRES, -2 * LOWRES, st.w + 4 * LOWRES, st.h + 4 * LOWRES);
+    /** Draw a low-resolution layer over c (in css px), scaled up smoothly. */
+    const loDraw = (c, lo) => c.drawImage(lo.cv, 0, 0, (lo.cv.width * LOWRES) / st.dpr, (lo.cv.height * LOWRES) / st.dpr);
+    // A long thin line (a ridge's rim and contours, the strata, the path) has a box as wide as the stage, and Chrome
+    // on a GPU draws such a line on the CPU, box and all, then uploads it, every frame: most of a frame's cost on a
+    // 2x screen (measured 2026-11-06). In pieces, each clipped to its own band of whole device pixels, every box is
+    // small, and the pieces meet with no seam: each pixel is drawn by one piece, as by the whole line. Elsewhere the
+    // pieces only add work, so the line is drawn whole: without a real GPU (window.MLION_GPU, see askGpu), and in
+    // other browsers (Safari draws lines straight into the canvas's memory, nothing to upload).
+    const PIECE = 25000; // device px², the most a piece's box may cover (smaller and larger were both slower)
+    askGpu();
+    /** The bands to stroke the polyline (X, Y) in, with a line lw css px wide: [first point, last point, band start,
+     *  band end], or null to stroke it whole. Each piece runs two points past its band, so its joins there are whole. */
+    function bandsOf(X, Y, lw) {
+      // a line one device pixel wide or less is a hairline, which the GPU draws itself
+      if (!CHROMIUM || window.MLION_GPU === false || lw * st.dpr <= 1) return null;
+      const d = st.dpr, m = lw + 2, n = X.length, out = [];
+      let i0 = 0, lo = Infinity, hi = -Infinity, xa = -1e5;
+      for (let i = 0; i < n; i++) {
+        const nlo = Math.min(lo, Y[i]), nhi = Math.max(hi, Y[i]);
+        if (i > i0 + 1 && (X[i] - X[i0]) * d * (nhi - nlo + 2 * m) * d > PIECE) {
+          const xb = Math.round(X[i - 1] * d) / d;
+          out.push([Math.max(0, i0 - 2), Math.min(n - 1, i + 1), xa, xb]);
+          xa = xb; i0 = i - 1; lo = Math.min(Y[i - 1], Y[i]); hi = Math.max(Y[i - 1], Y[i]);
+        } else { lo = nlo; hi = nhi; }
+      }
+      out.push([Math.max(0, i0 - 2), n - 1, xa, 1e5]);
+      return out.length > 1 ? out : null;
+    }
+    /** Stroke a polyline in the current style: `whole` (its Path2D) when bands is null, else piece by piece. */
+    function strokeLine(c, whole, X, Y, bands) {
+      if (!bands) { c.stroke(whole); return; }
+      for (const [i0, i1, xa, xb] of bands) {
+        const piece = new Path2D();
+        piece.moveTo(X[i0], Y[i0]);
+        for (let i = i0 + 1; i <= i1; i++) piece.lineTo(X[i], Y[i]);
+        c.save(); c.beginPath(); c.rect(xa, -1e5, xb - xa, 2e5); c.clip(); c.stroke(piece); c.restore();
+      }
+    }
     const AX = 0.38;
     const st = {
       w: 0, h: 0, dpr: 1, view: 1000, R: 10,
@@ -564,6 +631,7 @@
       st.w = Math.max(10, r.width); st.h = Math.max(10, r.height);
       canvas.width = world.width = Math.floor(st.w * st.dpr);
       canvas.height = world.height = Math.floor(st.h * st.dpr);
+      for (const lo of [skyLo, fogLo]) { lo.cv.width = Math.ceil(canvas.width / LOWRES) + 1; lo.cv.height = Math.ceil(canvas.height / LOWRES) + 1; }
       st.view = st.w < 560 ? 820 : st.w < 1000 ? 1100 : 1500;
       st.R = st.w < 560 ? 10.5 : 13;
       st.sig = ""; st.framed = false;
@@ -603,6 +671,7 @@
       st.t = now;
       const a = st.anim, prevX = st.x, pcx = st.camX, pcy = st.camY;
       if (a) {
+        if (a.start == null) a.start = now; // its clock starts on its first frame (roll())
         a.t = calm ? 1 : clamp((now - a.start) / a.dur, 0, 1);
         if (a.tier === "miss") st.x = a.from; // no gradient, no step
         else if (a.tier === "overfit") { // overshoot the target, then oscillate back: textbook overfitting
@@ -907,14 +976,16 @@
       const [bx, by] = onPath(st.x);
       const G = glowAt(bx, by, L);
 
-      // sky, and the minimum's light low on the horizon, where the descent is going
-      const sky = c.createLinearGradient(0, 0, 0, Math.max(40, st.by));
+      // sky, and the minimum's light low on the horizon, where the descent is going (drawn small and scaled up)
+      const sc = loBegin(skyLo);
+      const sky = sc.createLinearGradient(0, 0, 0, Math.max(40, st.by));
       sky.addColorStop(0, css(L.skyTop)); sky.addColorStop(1, css(L.skyLow));
-      c.fillStyle = sky; c.fillRect(0, 0, w, h);
+      sc.fillStyle = sky; loFill(sc);
       const r0 = Math.hypot(w, h) * (0.55 + 0.4 * L.d);
-      let g = c.createRadialGradient(G[0], G[1], 0, G[0], G[1], r0);
+      let g = sc.createRadialGradient(G[0], G[1], 0, G[0], G[1], r0);
       g.addColorStop(0, css(L.rim, L.glow)); g.addColorStop(0.45, css(L.rim, L.glow * 0.35)); g.addColorStop(1, css(L.rim, 0));
-      c.fillStyle = g; c.fillRect(0, 0, w, h);
+      sc.fillStyle = g; loFill(sc);
+      loDraw(c, skyLo);
 
       // ridges behind, far to near: each one mistier than the one in front, its rim lit, its
       // contours stepping down into it
@@ -931,31 +1002,44 @@
         return lim;
       };
       c.lineJoin = "round"; c.lineCap = "round";
-      RANGES.forEach((Rg, i) => {
+      // Each range is filled down to just under the one in front of it (the nearest, to just under the ground): what
+      // lies lower is covered anyway. Filled to the stage's bottom, the four of them painted most of it four times over
+      // (2026-11-06). The 3 px under the next line keep its soft edge over this range's colour, as before.
+      const xs = [];
+      for (let px = -stepPx; px <= w + stepPx; px += stepPx) xs.push(px);
+      const ranges = RANGES.map((Rg, i) => {
         const near = (i + 1) / RANGES.length;
         const base = st.topY + band * (Rg.base - 0.16 * L.d * near);
         const amp = band * Rg.amp * (0.8 + 0.45 * L.d);
-        const line = new Path2D();
         let top = Infinity;
-        for (let px = -stepPx; px <= w + stepPx; px += stepPx) {
+        const ys = xs.map((px) => {
           const off = (px - w * AX) / s;
           const y = Math.max(floorAt(px), base - amp * ridge(off + st.camX * Rg.p, st.camX + off / Rg.p, Rg.seed));
-          if (px < 0) line.moveTo(px, y); else line.lineTo(px, y);
           if (y < top) top = y;
-        }
+          return y;
+        });
+        return { near, base, top, ys };
+      });
+      const groundYs = xs.map((px) => groundY(px));
+      ranges.forEach(({ near, base, top, ys }, i) => {
+        const line = new Path2D();
+        xs.forEach((px, j) => (j ? line.lineTo(px, ys[j]) : line.moveTo(px, ys[j])));
+        const under = i + 1 < ranges.length ? ranges[i + 1].ys : groundYs;
         const body = mixC(L.fog, L.range, 0.3 + 0.7 * near);
         const fill = new Path2D(line);
-        fill.lineTo(w + stepPx, h + 2); fill.lineTo(-stepPx, h + 2); fill.closePath();
+        for (let j = xs.length - 1; j >= 0; j--) fill.lineTo(xs[j], Math.min(h + 2, Math.max(ys[j], under[j] + 3)));
+        fill.closePath();
         const fg = c.createLinearGradient(0, top, 0, base + band * 0.3);
         fg.addColorStop(0, css(body)); fg.addColorStop(1, css(mixC(body, L.fog, L.haze)));
         c.fillStyle = fg; c.fill(fill);
         const rim = mixC(L.fog, L.rim, 0.25 + 0.45 * near);
         c.lineWidth = 1;
-        c.strokeStyle = css(rim, 0.45 + 0.4 * near); c.stroke(line);
+        const bands = bandsOf(xs, ys, 1);
+        c.strokeStyle = css(rim, 0.45 + 0.4 * near); strokeLine(c, line, xs, ys, bands);
         const gap = 5 + 5 * near;
         for (let k = 1; k <= 2; k++) {
           c.save(); c.translate(0, gap * k);
-          c.strokeStyle = css(rim, (0.2 - 0.06 * k) * (0.5 + near)); c.stroke(line);
+          c.strokeStyle = css(rim, (0.2 - 0.06 * k) * (0.5 + near)); strokeLine(c, line, xs, ys, bands);
           c.restore();
         }
       });
@@ -963,10 +1047,11 @@
       // the path's own slice: the ground below it, strata pressed into the ground
       const x0 = st.camX - (w * AX) / s - 40, x1 = st.camX + (w * (1 - AX)) / s + 40;
       const stepX = (w < 560 ? 4 : 5) / s;
-      const path = new Path2D();
+      const path = new Path2D(), PX = [], PY = [];
       let pmin = Infinity;
       for (let x = x0, f = true; x <= x1; x += stepX) {
         const [px, py] = onPath(x);
+        PX.push(px); PY.push(py);
         if (f) { path.moveTo(px, py); f = false; } else path.lineTo(px, py);
         if (py < pmin) pmin = py;
       }
@@ -977,19 +1062,25 @@
       c.fillStyle = gg; c.fill(ground);
       const gap = clamp(st.h * 0.045, 6, 14);
       c.lineWidth = 1;
+      const strataBands = bandsOf(PX, PY, 1);
       for (let j = 1; j <= 5; j++) {
         c.save(); c.translate(0, gap * j * (1 + j * 0.12));
-        c.strokeStyle = css(L.strata, 0.78 - j * 0.12); c.stroke(path);
+        c.strokeStyle = css(L.strata, 0.78 - j * 0.12); strokeLine(c, path, PX, PY, strataBands);
         c.restore();
       }
       // near the bottom the basin's own light falls on everything
+      // (only over the square round its circle: past r1 it adds nothing. Drawn small and scaled up it cost more
+      // without a GPU, as the scaling outweighs the gradient, 2026-11-06)
       if (L.glow > 0.08) {
-        c.globalCompositeOperation = "lighter";
         const r1 = Math.hypot(w, h) * 0.4;
-        g = c.createRadialGradient(G[0], G[1], 0, G[0], G[1], r1);
-        g.addColorStop(0, css(GOLD, L.glow * 0.32)); g.addColorStop(1, css(GOLD, 0));
-        c.fillStyle = g; c.fillRect(0, 0, w, h);
-        c.globalCompositeOperation = "source-over";
+        const gx0 = Math.max(0, G[0] - r1), gy0 = Math.max(0, G[1] - r1), gx1 = Math.min(w, G[0] + r1), gy1 = Math.min(h, G[1] + r1);
+        if (gx1 > gx0 && gy1 > gy0) {
+          g = c.createRadialGradient(G[0], G[1], 0, G[0], G[1], r1);
+          g.addColorStop(0, css(GOLD, L.glow * 0.32)); g.addColorStop(1, css(GOLD, 0));
+          c.globalCompositeOperation = "lighter";
+          c.fillStyle = g; c.fillRect(gx0, gy0, gx1 - gx0, gy1 - gy0);
+          c.globalCompositeOperation = "source-over";
+        }
       }
 
       // score marks every 100 points, set into the ground (the gold one at the bottom is a perfect run); they fade
@@ -1021,7 +1112,7 @@
       // runs on under it and cools into the grey one just past it, so the two read as one line with no stub poking
       // out (the user's pick of five, 2026-11-06)
       const Rw = st.R / s;
-      c.strokeStyle = css(L.path, 0.9); c.lineWidth = 2; c.stroke(path);
+      c.strokeStyle = css(L.path, 0.9); c.lineWidth = 2; strokeLine(c, path, PX, PY, bandsOf(PX, PY, 2));
       const segs = st.segs.slice();
       if (st.anim && st.anim.tier !== "miss") segs.push({ x0: st.anim.from, x1: Math.max(st.anim.from, st.x), tier: st.anim.tier });
       const run = (a, b) => { // always from a to b, however short
@@ -1176,6 +1267,78 @@
       sky.lineTo(last[0], -st.h); sky.lineTo(first[0], -st.h); sky.closePath();
       return sky;
     }
+    /** The gem's flood round the ball at (cx, cy) this frame: the farthest corner's distance plus a margin (diag), how
+     *  far it has closed (sh, 0 to 1), its radius, the gold's strength on the ground and how far it has gone. */
+    function floodShape(f, cx, cy) {
+      const { w, h, R } = st;
+      const diag = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) + 8;
+      const sh = clamp((f.t - f.grow - f.hold) / f.shrink, 0, 1);
+      let r;
+      if (f.t < f.grow) r = lerp(R, diag, ease.expo(f.t / f.grow));
+      else if (f.t < f.grow + f.hold) r = diag;
+      else r = lerp(diag, R, ease.inOut(sh));
+      // closing, the gold drains off the ground first, then fades out over its last 150 ms (see drawLive)
+      return { diag, sh, r, groundA: 1 - smooth(0, 0.45, sh), gone: smooth(1 - 150 / f.shrink, 1, sh) };
+    }
+    /** True while the gem's solid gold covers every pixel of the stage: nothing under it needs drawing then. */
+    function floodCovers(P) {
+      const f = st.flood;
+      if (!f || st.fading || st.shake) return false;
+      const F = floodShape(f, P.S.cx, P.S.cy);
+      return F.sh === 0 && F.r >= F.diag - 4;
+    }
+
+    // Low time drains the colour out of the stage: a 'saturation' blend of grey over the whole of it, every frame. That
+    // was the costliest thing on a computer without a GPU (about 3 ms a frame, 2026-11-06), so it is done the quick way
+    // whenever it can be: the world, which holds still while the clock runs down, is drained once into a grey copy
+    // (grayWorld), and each frame that copy is laid over it, which is the same blend. The ball and its fire are drawn on
+    // top of the world, so a box round them is still blended as before, and the specks of dust outside the box take
+    // the drained colour themselves (the blend is linear, so that is the same too).
+    let gray = null;
+    function grayWorld() {
+      if (!gray) gray = document.createElement("canvas");
+      if (gray.width !== world.width || gray.height !== world.height) { gray.width = world.width; gray.height = world.height; }
+      const g = gray.getContext("2d");
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalCompositeOperation = "copy"; g.drawImage(world, 0, 0);
+      g.globalCompositeOperation = "saturation"; g.fillStyle = "#808080"; g.fillRect(0, 0, gray.width, gray.height);
+      g.globalCompositeOperation = "source-over";
+      st.grayFor = st.sig;
+    }
+    /** The colour col drained by a (0 to 1) as the blend drains it: towards the grey of the same luminosity. */
+    const drain = (col, a) => { const l = 0.3 * col[0] + 0.59 * col[1] + 0.11 * col[2]; return col.map((v) => v + (l - v) * a); };
+    const inBox = (b, x, y, r) => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h;
+    /** The box round the ball that low time still blends (css px, on whole device pixels; dx, dy, dw, dh: the same in
+     *  device px), or null when the whole stage must be blended: no low time, the world was just redrawn (no grey copy
+     *  of it yet), or some other effect is on the stage. */
+    function lowTimeBox(P, fresh) {
+      if (st.tense < 0.003 || fresh || st.shake || st.fading || st.flood || st.ripples.length || st.texts.length || st.sparks.length ||
+        st.dust.length || st.coins.length || st.impact || st.dim || st.wash || st.flash || st.wake > 0) return null;
+      if (st.grayFor !== st.sig) grayWorld();
+      const R = st.R, { S, F } = P;
+      let r = R * 2.4; // the glow round the ball reaches 2.3 R
+      if (F) r = Math.max(r, Math.hypot(1.1 * F.H, F.lean) + 2 * R);
+      let x0 = S.cx - r, x1 = S.cx + r, y0 = S.cy - r, y1 = S.cy + r;
+      for (const b of st.fx.bits) { // what the fire sheds: embers, wisps (stretched up to 2.7 times) and smoke
+        if (b.life < 0) continue;
+        const [sx, sy] = toScreen(b.wx, b.wy), x = sx + b.ox, y = sy + b.oy;
+        const e = (b.kind === "ember" ? 1.8 : b.kind === "wisp" ? 3.6 : 2.9) * b.size + 2;
+        x0 = Math.min(x0, x - e); x1 = Math.max(x1, x + e); y0 = Math.min(y0, y - e); y1 = Math.max(y1, y + e);
+      }
+      // a speck half in the box would be drained twice there: take it in whole
+      const ember = 1 + 0.4 * acts(depthAt(st.camX)).basin;
+      for (let pass = 0; pass < 2; pass++) {
+        const b = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+        for (const m of st.motes) {
+          const mr = (0.6 + 1.3 * m.f) * ember * 0.565 + 1;
+          if (inBox(b, m.x, m.y, mr)) { x0 = Math.min(x0, m.x - mr); x1 = Math.max(x1, m.x + mr); y0 = Math.min(y0, m.y - mr); y1 = Math.max(y1, m.y + mr); }
+        }
+      }
+      const d = st.dpr, W = canvas.width, H = canvas.height;
+      const dx = clamp(Math.floor(x0 * d), 0, W), dy = clamp(Math.floor(y0 * d), 0, H);
+      const dw = clamp(Math.ceil(x1 * d), 0, W) - dx, dh = clamp(Math.ceil(y1 * d), 0, H) - dy;
+      return { x: dx / d, y: dy / d, w: dw / d, h: dh / d, dx, dy, dw, dh };
+    }
     /** The ball's surface: faintly uneven gold, soft lighter and darker patches and a few thin veins, so you can
      *  see it turn as it rolls (a perfectly even ball looks the same at every turn). It is a mid-grey texture laid
      *  over the ball in soft-light, where mid grey changes nothing, turned by how far the ball has rolled. Made
@@ -1309,206 +1472,219 @@
       return p;
     }
 
-    function drawLive(c, L) {
+    /** The live layer over the world: the ball, its fire and every effect. P: the ball's pose this frame. o.cover: the
+     *  gem's gold covers the whole stage, so only what is drawn over it is drawn; o.fresh: the world was redrawn. */
+    function drawLive(c, L, P, o) {
       const { w, h, R } = st;
       const calm = still();
       const lv = flameLevel(st.streak);
       const tint = st.tintNow || tintFor();
-      const P = pose(lv);
       const fxA = st.fading ? 1 - st.fading.t / st.fading.max : 1; // a new prompt fading the landing's effects out
-      const sky = skyAbove();
+      const sky = o.cover ? null : skyAbove();
+      const cx = P.S.cx, cy = P.S.cy, bg = rgb(COL.bg);
+      let g;
 
-      // dust and embers in the air: round specks (squares read as pixels)
-      const ember = L.A.basin;
-      for (const m of st.motes) {
-        const flick = calm ? 0.8 : 0.6 + 0.4 * Math.sin(st.t * 0.002 * m.sp * (1 + 2 * ember) + m.ph);
-        c.fillStyle = css(L.mote, (0.14 + 0.36 * m.f) * flick * (0.7 + 0.5 * ember));
-        const r = (0.6 + 1.3 * m.f) * (1 + 0.4 * ember);
-        c.beginPath(); c.arc(m.x, m.y, r * 0.565, 0, Math.PI * 2); c.fill(); // the same area as the r-wide square
-      }
+      if (!o.cover) {
+        // low time, the quick way (lowTimeBox): the world's grey copy over all of the stage but a box round the ball
+        const box = lowTimeBox(P, o.fresh);
+        if (box) { // laid on round the box, above, below and to either side, in whole device pixels so they meet exactly
+          // (not through a stage-sized clip with the box cut out: a GPU drew that clip on the CPU, 2026-11-06)
+          const W = canvas.width, H = canvas.height, { dx, dy, dw, dh } = box;
+          const part = (x, y, pw, ph) => { if (pw > 0 && ph > 0) c.drawImage(gray, x, y, pw, ph, x, y, pw, ph); };
+          c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+          c.globalAlpha = Math.min(1, 0.85 * st.tense);
+          part(0, 0, W, dy); part(0, dy + dh, W, H - dy - dh); part(0, dy, dx, dh); part(dx + dw, dy, W - dx - dw, dh);
+          c.restore();
+        }
 
-      // a landing sends light running out along the path both ways, one pulse each way per ring, brightest at its
-      // head. (They were rings lying along the slope, which read as orbits cutting through the ground and the sky;
-      // reviewer, 2026-11-06.)
-      if (st.ripples.length) {
-        c.save(); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
-        for (const r of st.ripples) {
-          const t = 1 - r.life / r.max, col = rgb(r.color);
-          for (let n = 0; n < r.rings; n++) {
-            const tt = clamp(t * 1.25 - n * 0.14, 0, 1);
-            if (tt <= 0 || tt >= 1) continue;
-            const head = R * 0.8 + ease.out(tt) * r.size * 1.5 * (1 - n * 0.12), len = Math.min(head, 10 + 26 * (1 - tt));
-            const a = 0.9 * Math.pow(1 - tt, 1.3) * fxA;
-            for (const dir of [-1, 1]) {
-              const xa = along(r.x, dir, head - len), xb = along(r.x, dir, head), path = stretch(xa, xb, len);
-              const [ax2, ay2] = onPath(xa), [bx2, by2] = onPath(xb);
-              for (const [lw, k] of [[9, 0.22], [3.5, 1]]) {
-                const g = c.createLinearGradient(ax2, ay2, bx2, by2);
-                g.addColorStop(0, css(col, 0)); g.addColorStop(1, css(col, a * k));
-                c.strokeStyle = g; c.lineWidth = lw; c.stroke(path);
+        // dust and embers in the air: round specks (squares read as pixels)
+        const ember = L.A.basin, drained = box ? drain(L.mote, Math.min(1, 0.85 * st.tense)) : null;
+        for (const m of st.motes) {
+          const flick = calm ? 0.8 : 0.6 + 0.4 * Math.sin(st.t * 0.002 * m.sp * (1 + 2 * ember) + m.ph);
+          const r = (0.6 + 1.3 * m.f) * (1 + 0.4 * ember);
+          c.fillStyle = css(box && !inBox(box, m.x, m.y, r * 0.565 + 1) ? drained : L.mote, (0.14 + 0.36 * m.f) * flick * (0.7 + 0.5 * ember));
+          c.beginPath(); c.arc(m.x, m.y, r * 0.565, 0, Math.PI * 2); c.fill(); // the same area as the r-wide square
+        }
+
+        // a landing sends light running out along the path both ways, one pulse each way per ring, brightest at its
+        // head. (They were rings lying along the slope, which read as orbits cutting through the ground and the sky;
+        // reviewer, 2026-11-06.)
+        if (st.ripples.length) {
+          c.save(); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
+          for (const r of st.ripples) {
+            const t = 1 - r.life / r.max, col = rgb(r.color);
+            for (let n = 0; n < r.rings; n++) {
+              const tt = clamp(t * 1.25 - n * 0.14, 0, 1);
+              if (tt <= 0 || tt >= 1) continue;
+              const head = R * 0.8 + ease.out(tt) * r.size * 1.5 * (1 - n * 0.12), len = Math.min(head, 10 + 26 * (1 - tt));
+              const a = 0.9 * Math.pow(1 - tt, 1.3) * fxA;
+              for (const dir of [-1, 1]) {
+                const xa = along(r.x, dir, head - len), xb = along(r.x, dir, head), path = stretch(xa, xb, len);
+                const [ax2, ay2] = onPath(xa), [bx2, by2] = onPath(xb);
+                for (const [lw, k] of [[9, 0.22], [3.5, 1]]) {
+                  const g = c.createLinearGradient(ax2, ay2, bx2, by2);
+                  g.addColorStop(0, css(col, 0)); g.addColorStop(1, css(col, a * k));
+                  c.strokeStyle = g; c.lineWidth = lw; c.stroke(path);
+                }
               }
             }
           }
+          c.restore();
         }
-        c.restore();
-      }
 
-      // the wake: the light the ball leaves in the air as it rolls, a soft streak along the way its centre came,
-      // widening and brightening towards the ball. It shows with speed, and stops at the ground like everything
-      // else. (Three hard ribbons at the centre's height before, which kinked in the valleys and, slow, closed to a
-      // beak; reviewer, 2026-11-06.)
-      if (st.wake > 0 && st.trail.length > 1) {
-        const raw = st.trail.map((p) => { const S = seat(p.x); return [S.cx, S.cy]; });
-        raw.push([P.S.cx, P.S.cy]);
-        const gap = 2.5, pts = [raw[0]]; // even steps along it
-        let carry = 0;
-        for (let i = 1; i < raw.length; i++) {
-          const [ax2, ay2] = raw[i - 1], [bx2, by2] = raw[i], d = Math.hypot(bx2 - ax2, by2 - ay2);
-          let at = gap - carry;
-          for (; at <= d; at += gap) pts.push([ax2 + ((bx2 - ax2) * at) / d, ay2 + ((by2 - ay2) * at) / d]);
-          carry = d - (at - gap);
-        }
-        const n = pts.length;
-        if (n > 4) {
-          // on fire it burns in the fire's colours, deep outside and white-hot down the middle
-          const [o, , wh] = lv >= 3 && st.fx.cols ? st.fx.cols : [tint, tint, mixC(tint, [255, 255, 255], 0.55)];
-          const so = glowSprite(hexOf(o)), si = glowSprite(hexOf(wh));
-          c.save(); c.clip(sky); c.globalCompositeOperation = "lighter";
-          for (let i = 0; i < n; i++) {
-            const u = i / (n - 1), [x, y] = pts[i];
-            // each stamp's share, so that the streak's centre line comes to the target brightness (0.64: the
-            // sprite's profile summed across its width)
-            let r = R * (0.5 + 0.8 * u);
-            c.globalAlpha = clamp((0.42 * st.wake * Math.pow(u, 1.5) * gap) / (0.64 * r), 0, 1);
-            c.drawImage(so, x - r, y - r, 2 * r, 2 * r);
-            r *= 0.45;
-            c.globalAlpha = clamp((0.34 * st.wake * u * u * gap) / (0.64 * r), 0, 1);
-            c.drawImage(si, x - r, y - r, 2 * r, 2 * r);
+        // the wake: the light the ball leaves in the air as it rolls, a soft streak along the way its centre came,
+        // widening and brightening towards the ball. It shows with speed, and stops at the ground like everything
+        // else. (Three hard ribbons at the centre's height before, which kinked in the valleys and, slow, closed to a
+        // beak; reviewer, 2026-11-06.)
+        if (st.wake > 0 && st.trail.length > 1) {
+          const raw = st.trail.map((p) => { const S = seat(p.x); return [S.cx, S.cy]; });
+          raw.push([P.S.cx, P.S.cy]);
+          const gap = 2.5, pts = [raw[0]]; // even steps along it
+          let carry = 0;
+          for (let i = 1; i < raw.length; i++) {
+            const [ax2, ay2] = raw[i - 1], [bx2, by2] = raw[i], d = Math.hypot(bx2 - ax2, by2 - ay2);
+            let at = gap - carry;
+            for (; at <= d; at += gap) pts.push([ax2 + ((bx2 - ax2) * at) / d, ay2 + ((by2 - ay2) * at) / d]);
+            carry = d - (at - gap);
           }
+          const n = pts.length;
+          if (n > 4) {
+            // on fire it burns in the fire's colours, deep outside and white-hot down the middle
+            const [o, , wh] = lv >= 3 && st.fx.cols ? st.fx.cols : [tint, tint, mixC(tint, [255, 255, 255], 0.55)];
+            const so = glowSprite(hexOf(o)), si = glowSprite(hexOf(wh));
+            c.save(); c.clip(sky); c.globalCompositeOperation = "lighter";
+            for (let i = 0; i < n; i++) {
+              const u = i / (n - 1), [x, y] = pts[i];
+              // each stamp's share, so that the streak's centre line comes to the target brightness (0.64: the
+              // sprite's profile summed across its width)
+              let r = R * (0.5 + 0.8 * u);
+              c.globalAlpha = clamp((0.42 * st.wake * Math.pow(u, 1.5) * gap) / (0.64 * r), 0, 1);
+              c.drawImage(so, x - r, y - r, 2 * r, 2 * r);
+              r *= 0.45;
+              c.globalAlpha = clamp((0.34 * st.wake * u * u * gap) / (0.64 * r), 0, 1);
+              c.drawImage(si, x - r, y - r, 2 * r, 2 * r);
+            }
+            c.restore();
+          }
+        }
+
+        // landing dust: soft puffs along the ground, thinning as they spread
+        if (st.dust.length) {
+          c.save(); c.clip(sky);
+          const dc = glowSprite(hexOf(mixC(L.mote, [150, 140, 125], 0.35)));
+          for (const p of st.dust) {
+            const [sx, sy] = toScreen(p.wx, p.wy), k = p.life / p.max, r = p.size * (1 + 1.8 * ease.out(k));
+            c.globalAlpha = 0.3 * Math.pow(1 - k, 1.5) * Math.min(1, p.life / 50) * fxA;
+            c.drawImage(dc, sx + p.ox - r, sy + p.oy - r, 2 * r, 2 * r);
+          }
+          c.restore();
+        }
+
+        // sparks
+        if (st.sparks.length) {
+          c.save(); c.clip(sky); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
+          for (const p of st.sparks) {
+            const [sx, sy] = toScreen(p.wx, p.wy);
+            const x = sx + p.ox, y = sy + p.oy, k = 1 - p.life / p.max;
+            c.strokeStyle = css(p.col, k * fxA); c.lineWidth = p.size;
+            c.beginPath(); c.moveTo(x, y); c.lineTo(x - p.vx * 16, y - p.vy * 16); c.stroke();
+          }
+          c.restore();
+        }
+
+        drawBall(c, L, P, tint, sky);
+        if (st.impact) { // the hit-stop: a white flash where the ball meets the ground, fading as it holds
+          const im = st.impact, a = Math.pow(1 - im.t / im.max, 1.6), rr = R * (1.5 + 0.9 * im.k);
+          c.save(); c.clip(sky); c.globalCompositeOperation = "lighter";
+          c.translate(P.S.px, P.S.py); c.rotate(P.S.th); c.scale(1, 0.45);
+          const g = c.createRadialGradient(0, 0, 0, 0, 0, rr);
+          g.addColorStop(0, `rgba(255,255,255,${(0.95 * a).toFixed(3)})`); g.addColorStop(0.35, `rgba(255,248,230,${(0.42 * a).toFixed(3)})`); g.addColorStop(1, "rgba(255,248,230,0)");
+          c.fillStyle = g; c.fillRect(-rr, -rr, rr * 2, rr * 2);
+          c.restore();
+        }
+        drawBits(c);
+
+        // what the landing took off the loss, rising beside the ball on the open (downhill) side, clear
+        // of the ball, its flames and every box at the top
+        for (const t of st.texts) {
+          const [px, py] = onPath(t.x);
+          const k = t.life / t.max, inA = smooth(0, 120, t.max - t.life); // it grows and fades in over 120 ms
+          c.font = `600 ${t.size}px Geologica, system-ui, sans-serif`;
+          c.textAlign = "left";
+          const tw = c.measureText(t.text).width;
+          let tx = px + R * 1.7;
+          // on fire, clear of the flames: right of their widest point and of their tip (the tongue on the front
+          // shoulder reached over it)
+          const F = P.F;
+          if (F && F.alpha > 0.05) tx = Math.max(tx, F.cx + R * 1.5 + 4, F.tipX + R * 0.6 + 4);
+          tx = Math.min(tx, w - tw - 8);
+          let y = py - R * 1.4 - (1 - k) * 16;
+          for (const r of st.rects) if (tx + tw > r.x - 6 && tx < r.x + r.w + 6 && r.y + r.h / 2 < h / 2) y = Math.max(y, r.y + r.h + t.size + 4);
+          c.save();
+          c.globalAlpha = Math.min(1, k * 2.5) * inA * fxA;
+          c.fillStyle = t.color;
+          const sc = lerp(0.8, 1, ease.out(inA));
+          c.translate(tx, y); c.scale(sc, sc);
+          c.fillText(t.text, 0, 0);
+          c.restore();
+        }
+        c.globalAlpha = 1;
+
+        if (st.dim) { // a miss: the room goes dark for a moment
+          c.fillStyle = css(L.skyTop, 0.38 * (1 - st.dim.t / st.dim.max) * fxA);
+          c.fillRect(0, 0, w, h);
+        }
+        if (st.wash) { // a jackpot: the whole stage flashes in the tier's colour
+          const k = st.wash.t / st.wash.max;
+          c.save(); c.globalCompositeOperation = "lighter";
+          c.fillStyle = css(st.wash.col, st.wash.a * (k < 0.08 ? k / 0.08 : Math.pow(1 - (k - 0.08) / 0.92, 2)) * fxA);
+          c.fillRect(0, 0, w, h);
+          c.restore();
+        }
+        if (st.flash) { // a rare landing lights the stage from the ball
+          const k = st.flash.t / st.flash.max;
+          const rr = R * (2.5 + 7 * ease.out(k));
+          c.save(); c.globalCompositeOperation = "lighter";
+          const g = c.createRadialGradient(cx, cy, 0, cx, cy, rr);
+          g.addColorStop(0, css(st.flash.col, 0.6 * (1 - k) * fxA)); g.addColorStop(0.4, css(st.flash.col, 0.22 * (1 - k) * fxA)); g.addColorStop(1, css(st.flash.col, 0));
+          c.fillStyle = g; c.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+          c.restore();
+        }
+
+        drawTension(c, L, cx, cy, box); // low time, under the edge fades so it melts into the page like the rest
+
+        // a faint shade behind every number on the stage (the dust and the glow pass behind it)
+        for (const r of st.rects) {
+          const mx = r.x + r.w / 2, my = r.y + r.h / 2;
+          c.save();
+          c.translate(mx, my); c.scale(r.w * 0.72 + 18, r.h * 0.72 + 12);
+          g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+          g.addColorStop(0, css(bg, 0.5)); g.addColorStop(0.6, css(bg, 0.32)); g.addColorStop(1, css(bg, 0));
+          c.fillStyle = g; c.fillRect(-1, -1, 2, 2);
           c.restore();
         }
       }
 
-      // landing dust: soft puffs along the ground, thinning as they spread
-      if (st.dust.length) {
-        c.save(); c.clip(sky);
-        const dc = glowSprite(hexOf(mixC(L.mote, [150, 140, 125], 0.35)));
-        for (const p of st.dust) {
-          const [sx, sy] = toScreen(p.wx, p.wy), k = p.life / p.max, r = p.size * (1 + 1.8 * ease.out(k));
-          c.globalAlpha = 0.3 * Math.pow(1 - k, 1.5) * Math.min(1, p.life / 50) * fxA;
-          c.drawImage(dc, sx + p.ox - r, sy + p.oy - r, 2 * r, 2 * r);
-        }
-        c.restore();
-      }
-
-      // sparks
-      if (st.sparks.length) {
-        c.save(); c.clip(sky); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
-        for (const p of st.sparks) {
-          const [sx, sy] = toScreen(p.wx, p.wy);
-          const x = sx + p.ox, y = sy + p.oy, k = 1 - p.life / p.max;
-          c.strokeStyle = css(p.col, k * fxA); c.lineWidth = p.size;
-          c.beginPath(); c.moveTo(x, y); c.lineTo(x - p.vx * 16, y - p.vy * 16); c.stroke();
-        }
-        c.restore();
-      }
-
-      const [cx, cy] = drawBall(c, L, P, tint, sky);
-      if (st.impact) { // the hit-stop: a white flash where the ball meets the ground, fading as it holds
-        const im = st.impact, a = Math.pow(1 - im.t / im.max, 1.6), rr = R * (1.5 + 0.9 * im.k);
-        c.save(); c.clip(sky); c.globalCompositeOperation = "lighter";
-        c.translate(P.S.px, P.S.py); c.rotate(P.S.th); c.scale(1, 0.45);
-        const g = c.createRadialGradient(0, 0, 0, 0, 0, rr);
-        g.addColorStop(0, `rgba(255,255,255,${(0.95 * a).toFixed(3)})`); g.addColorStop(0.35, `rgba(255,248,230,${(0.42 * a).toFixed(3)})`); g.addColorStop(1, "rgba(255,248,230,0)");
-        c.fillStyle = g; c.fillRect(-rr, -rr, rr * 2, rr * 2);
-        c.restore();
-      }
-      drawBits(c);
-
-      // what the landing took off the loss, rising beside the ball on the open (downhill) side, clear
-      // of the ball, its flames and every box at the top
-      for (const t of st.texts) {
-        const [px, py] = onPath(t.x);
-        const k = t.life / t.max, inA = smooth(0, 120, t.max - t.life); // it grows and fades in over 120 ms
-        c.font = `600 ${t.size}px Geologica, system-ui, sans-serif`;
-        c.textAlign = "left";
-        const tw = c.measureText(t.text).width;
-        let tx = px + R * 1.7;
-        // on fire, clear of the flames: right of their widest point and of their tip (the tongue on the front
-        // shoulder reached over it)
-        const F = P.F;
-        if (F && F.alpha > 0.05) tx = Math.max(tx, F.cx + R * 1.5 + 4, F.tipX + R * 0.6 + 4);
-        tx = Math.min(tx, w - tw - 8);
-        let y = py - R * 1.4 - (1 - k) * 16;
-        for (const r of st.rects) if (tx + tw > r.x - 6 && tx < r.x + r.w + 6 && r.y + r.h / 2 < h / 2) y = Math.max(y, r.y + r.h + t.size + 4);
-        c.save();
-        c.globalAlpha = Math.min(1, k * 2.5) * inA * fxA;
-        c.fillStyle = t.color;
-        const sc = lerp(0.8, 1, ease.out(inA));
-        c.translate(tx, y); c.scale(sc, sc);
-        c.fillText(t.text, 0, 0);
-        c.restore();
-      }
-      c.globalAlpha = 1;
-
-      if (st.dim) { // a miss: the room goes dark for a moment
-        c.fillStyle = css(L.skyTop, 0.38 * (1 - st.dim.t / st.dim.max) * fxA);
-        c.fillRect(0, 0, w, h);
-      }
-      if (st.wash) { // a jackpot: the whole stage flashes in the tier's colour
-        const k = st.wash.t / st.wash.max;
-        c.save(); c.globalCompositeOperation = "lighter";
-        c.fillStyle = css(st.wash.col, st.wash.a * (k < 0.08 ? k / 0.08 : Math.pow(1 - (k - 0.08) / 0.92, 2)) * fxA);
-        c.fillRect(0, 0, w, h);
-        c.restore();
-      }
-      if (st.flash) { // a rare landing lights the stage from the ball
-        const k = st.flash.t / st.flash.max;
-        const rr = R * (2.5 + 7 * ease.out(k));
-        c.save(); c.globalCompositeOperation = "lighter";
-        const g = c.createRadialGradient(cx, cy, 0, cx, cy, rr);
-        g.addColorStop(0, css(st.flash.col, 0.6 * (1 - k) * fxA)); g.addColorStop(0.4, css(st.flash.col, 0.22 * (1 - k) * fxA)); g.addColorStop(1, css(st.flash.col, 0));
-        c.fillStyle = g; c.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
-        c.restore();
-      }
-
-      drawTension(c, L, cx, cy); // low time, under the edge fades so it melts into the page like the rest
-
-      const bg = rgb(COL.bg);
-      let g;
-      // a faint shade behind every number on the stage (the dust and the glow pass behind it)
-      for (const r of st.rects) {
-        const mx = r.x + r.w / 2, my = r.y + r.h / 2;
-        c.save();
-        c.translate(mx, my); c.scale(r.w * 0.72 + 18, r.h * 0.72 + 12);
-        g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
-        g.addColorStop(0, css(bg, 0.5)); g.addColorStop(0.6, css(bg, 0.32)); g.addColorStop(1, css(bg, 0));
-        c.fillStyle = g; c.fillRect(-1, -1, 2, 2);
-        c.restore();
-      }
-
       // the gem: the ball opens into the whole stage, ringed like a basin's contours
       if (st.flood) {
-        const f = st.flood;
-        const diag = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) + 8;
-        const sh = clamp((f.t - f.grow - f.hold) / f.shrink, 0, 1); // how far it has closed
-        let r;
-        if (f.t < f.grow) r = lerp(R, diag, ease.expo(f.t / f.grow));
-        else if (f.t < f.grow + f.hold) r = diag;
-        else r = lerp(diag, R, ease.inOut(sh));
+        const f = st.flood, { diag, sh, r, groundA, gone } = floodShape(f, cx, cy);
         const bandW = w < 560 ? 22 : 30;
         const phase = (f.t * 0.05) % (bandW * 2);
+        // the rings, all in one shape: one at a time, each ring's box was most of the stage, and a GPU drew every
+        // one of those boxes on the CPU (2026-11-06)
+        const rings = new Path2D();
+        for (let rr = diag + bandW * 2 - phase; rr > R * 1.6; rr -= bandW * 2) {
+          const ri = Math.max(0, rr - bandW);
+          rings.moveTo(cx + rr, cy); rings.arc(cx, cy, rr, 0, Math.PI * 2);
+          rings.moveTo(cx + ri, cy); rings.arc(cx, cy, ri, 0, Math.PI * 2, true);
+        }
         const gold = () => {
           c.fillStyle = COL.gold; c.fillRect(0, 0, w, h);
-          c.fillStyle = COL.goldBand;
-          for (let rr = diag + bandW * 2 - phase; rr > R * 1.6; rr -= bandW * 2) {
-            c.beginPath(); c.arc(cx, cy, rr, 0, Math.PI * 2); c.arc(cx, cy, Math.max(0, rr - bandW), 0, Math.PI * 2, true); c.fill();
-          }
+          c.fillStyle = COL.goldBand; c.fill(rings);
         };
         // Closing, the gold drains off the ground first, then fades out over its last 150 ms, so it ends in the
         // ball. (It closed to a flat gold disc over the ball, dipping below the line, and then vanished; reviewer,
         // 2026-11-06.)
-        const groundA = 1 - smooth(0, 0.45, sh), gone = smooth(1 - 150 / f.shrink, 1, sh);
         c.save();
         c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip();
         if (groundA > 0) { c.globalAlpha = groundA * fxA; gold(); }
@@ -1580,23 +1756,28 @@
 
     /** Low time: the colour drains out of the world, fog closes in on the ball from the edges, and
      * the edges beat red with the heart. When the answer is in, a breath of warm light at the ball. */
-    function drawTension(c, L, bx, by) {
+    /** box: low time's quick way (lowTimeBox), where only that box is still blended here. */
+    function drawTension(c, L, bx, by, box) {
       const k = st.tense, ex = st.exhale;
       if (k < 0.003 && !ex) return;
       const { w, h, R } = st;
       if (k >= 0.003) {
         c.save();
         c.globalCompositeOperation = "saturation"; c.globalAlpha = Math.min(1, 0.85 * k);
-        c.fillStyle = "#808080"; c.fillRect(0, 0, w, h);
+        c.fillStyle = "#808080";
+        if (box) c.fillRect(box.x, box.y, box.w, box.h); else c.fillRect(0, 0, w, h);
         c.globalCompositeOperation = "source-over"; c.globalAlpha = 1;
+        // the fog closing in on the ball and the red at the edges: smooth, so drawn small and scaled up (LOWRES)
+        const fc = loBegin(fogLo, true);
         const diag = Math.hypot(w, h), fog = mixC(L.skyTop, [0, 0, 0], 0.4);
-        let g = c.createRadialGradient(bx, by, diag * lerp(0.3, 0.05, k), bx, by, diag * lerp(0.8, 0.42, k));
+        let g = fc.createRadialGradient(bx, by, diag * lerp(0.3, 0.05, k), bx, by, diag * lerp(0.8, 0.42, k));
         g.addColorStop(0, css(fog, 0)); g.addColorStop(0.55, css(fog, 0.55 * k)); g.addColorStop(1, css(fog, 0.94 * k));
-        c.fillStyle = g; c.fillRect(0, 0, w, h);
-        c.translate(w / 2, h / 2); c.scale(w / 2, h / 2); // an ellipse fitted to the stage
-        g = c.createRadialGradient(0, 0, 0.55, 0, 0, 1.45);
+        fc.fillStyle = g; loFill(fc);
+        fc.translate(w / 2, h / 2); fc.scale(w / 2, h / 2); // an ellipse fitted to the stage
+        g = fc.createRadialGradient(0, 0, 0.55, 0, 0, 1.45);
         g.addColorStop(0, css(TENSE_RED, 0)); g.addColorStop(1, css(TENSE_RED, k * (0.2 + 0.45 * st.beat)));
-        c.fillStyle = g; c.fillRect(-1, -1, 2, 2);
+        fc.fillStyle = g; fc.fillRect(-1.5, -1.5, 3, 3);
+        loDraw(c, fogLo);
         c.restore();
       }
       if (ex) {
@@ -1612,8 +1793,12 @@
     function paint() {
       if (!st.w) return;
       const L = lightAt(depthAt(st.camX));
+      const P = pose(flameLevel(st.streak));
+      const cover = floodCovers(P);
+      if (!st.tense && gray) { gray.width = gray.height = 0; gray = null; st.grayFor = null; } // low time is over
       const sig = [st.camX.toFixed(2), st.by.toFixed(2), st.sy.toFixed(4), st.zoom.toFixed(4), st.x.toFixed(1), st.segs.length, st.w, st.h, st.rects.map((r) => `${r.x | 0},${r.y | 0},${r.w | 0},${r.h | 0}`).join(";"), st.anim ? 1 : 0].join("|");
-      if (sig !== st.sig) { st.sig = sig; drawWorld(wctx, L); }
+      let fresh = false;
+      if (sig !== st.sig && !cover) { st.sig = sig; drawWorld(wctx, L); fresh = true; }
       const { dpr } = st, W = canvas.width, H = canvas.height;
       // The shake moves the whole picture, the world and the ball together, zoomed in by just enough that its edges
       // never come into view (it left 1 to 2 px strips of bare sky along them; reviewer, 2026-11-06). At rest the
@@ -1625,9 +1810,9 @@
         ox = ((1 - z) * W) / 2 + jx * dpr; oy = ((1 - z) * H) / 2 + jy * dpr;
       }
       ctx.setTransform(z, 0, 0, z, ox, oy);
-      ctx.drawImage(world, 0, 0);
+      if (!cover) ctx.drawImage(world, 0, 0);
       ctx.setTransform(dpr * z, 0, 0, dpr * z, ox, oy);
-      drawLive(ctx, L);
+      drawLive(ctx, L, P, { cover, fresh });
     }
     const busy = () => !!(st.hold > 0 || st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
       st.coins.length || st.wash || st.exhale || st.beat || st.fx.out || st.impact || st.afterHold || st.dust.length || st.wake || st.fading || (!still() && (st.tense || st.tenseTo)) ||
@@ -1644,8 +1829,10 @@
       }
       step(now, dt);
       const active = busy();
-      // while something moves, every frame; at rest only the dust drifts, about 30 times a second
-      if (active || now - lastPaint >= 32) { paint(); lastPaint = now; }
+      // while something moves, every frame, and while the ball burns (its flicker stuttered at 30 a second on a fast
+      // screen); at rest otherwise only the dust drifts, about 30 times a second
+      const lit = !still() && (flameLevel(st.streak) >= 3 || st.fx.bits.length > 0 || !!st.fx.out);
+      if (active || lit || now - lastPaint >= 32) { paint(); lastPaint = now; }
       if (st.onFrame && st.x !== st.reported) { st.reported = st.x; st.onFrame(st.x); }
       if (document.hidden) { last = 0; return; }
       if (active || (!still() && st.onScreen)) st.raf = requestAnimationFrame(frame);
@@ -1713,7 +1900,9 @@
         measure();
         if (st.fading) dropFx();
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
-        st.anim = { from: st.x, to: st.x + points * 10, tier: tier || "miss", start: performance.now(), dur: durationFor(tier || "miss"), t: 0, done };
+        // its clock starts on the first frame it moves (step()): the work round an answer (the page redrawn under the
+        // stage) used to eat into it, and a slow first frame jumped the ball ahead
+        st.anim = { from: st.x, to: st.x + points * 10, tier: tier || "miss", start: null, dur: durationFor(tier || "miss"), t: 0, done };
         kick();
       },
       /** Drop any landing effect still running (a new prompt is starting). */

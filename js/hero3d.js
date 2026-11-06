@@ -26,6 +26,17 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const smooth = (t) => t * t * (3 - 2 * t);
   const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  /** Tells the game's stage whether a real GPU draws the page (window.MLION_GPU): no WebGL, or WebGL drawn on the
+   *  CPU (SwiftShader and the like), means the browser draws canvases on the CPU too, and the stage draws its long
+   *  lines whole there (landscape.js, PIECE). Free here: this context is made anyway. */
+  function noteGpu(gl) {
+    if (!gl) { window.MLION_GPU = false; return; }
+    try {
+      const d = gl.getExtension("WEBGL_debug_renderer_info");
+      const name = String(gl.getParameter(d ? d.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || "");
+      window.MLION_GPU = !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+    } catch (e) { /* unknown: leave it */ }
+  }
 
   // heavy-ball momentum from rest on the far wall, v = 0.965 v - 0.001 grad L,
   // resampled by 3D arc length so progress is distance travelled
@@ -158,6 +169,7 @@ gl_FragColor=vec4(C.rgb*sh,C.a*a);}`;
     function init() {
       try {
         gl = canvas.getContext("webgl", { antialias: true, alpha: false, powerPreference: "low-power" });
+        noteGpu(gl);
         if (!gl || !gl.getExtension("OES_standard_derivatives")) throw 0;
         const hp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
         surf = program(SURF_VS, hp && hp.precision > 0 ? SURF_FS : SURF_FS.replace("highp", "mediump"));
