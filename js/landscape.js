@@ -484,8 +484,9 @@
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
-    /** How far the ball sinks into the path: enough to cover the lit line and its glow where it ends. */
-    const sink = () => Math.min(st.R * 0.38, 7);
+    /** How far the ball sinks into the path. Negative: it rests on top of the lit line (3.5 px wide) instead.
+     *  (It used to sink 38% of its radius, which read as the line running into the ball; user, 2026-11-06.) */
+    const sink = () => -2;
     /** The ball's centre when it stands at x: out along the slope's normal (not straight up), r from the path. */
     const ballAt = (x, r) => {
       const e = st.view / 400, [px, py] = onPath(x), [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e);
