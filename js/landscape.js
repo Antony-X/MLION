@@ -484,6 +484,7 @@
       flood: null, land: null, flash: null, dim: null, shiver: 0, coins: [], wash: null, hold: 0, holdAt: 0,
       impact: null, afterHold: null, dust: [], wake: 0, // the hit-stop's flash, the burst it holds back, landing dust, the wake's strength
       fading: null, // a new prompt fading the last landing's effects out (calm())
+      spin: 0, // how far the ball has turned, radians (it rolls: the distance over its radius)
       tense: 0, tenseTo: 0, beat: 0, exhale: null, // the last seconds of the clock
       // the ball's fire: how far the flames lean (px, a spring), how fast the ball moves through the air,
       // the flare at a landing, how far it has caught (0 to 1), embers, wisps and smoke, and the fire going out
@@ -616,6 +617,7 @@
         }
       }
       st.vel = dt > 0 ? (st.x - prevX) / dt : 0;
+      if (st.x !== prevX) { const [ax, ay] = onPath(prevX), [bx, by] = onPath(st.x); st.spin += (Math.sign(st.x - prevX) * Math.hypot(bx - ax, by - ay)) / st.R; }
       const sk = sinkFor(); // onto the bright line as it starts, over a few frames, not in one jump
       st.sinkK = calm ? sk : st.sinkK + (sk - st.sinkK) * (1 - Math.exp(-Math.max(0, dt) / 70));
       if (!calm && st.anim && Math.abs(st.x - prevX) > 0.01) st.trail.push({ x: st.x, t: now });
@@ -1173,6 +1175,39 @@
       sky.lineTo(last[0], -st.h); sky.lineTo(first[0], -st.h); sky.closePath();
       return sky;
     }
+    /** The ball's surface: faintly uneven gold, soft lighter and darker patches and a few thin veins, so you can
+     *  see it turn as it rolls (a perfectly even ball looks the same at every turn). It is a mid-grey texture laid
+     *  over the ball in soft-light, where mid grey changes nothing, turned by how far the ball has rolled. Made
+     *  once, the same every time. The user chose it, 2026-11-06, over a plain ball, a fleck, a seam, the lion
+     *  etched on it and a stronger, blotchier surface. */
+    let grainTex = null;
+    function grainTexture() {
+      if (grainTex) return grainTex;
+      const N = 128, cv = document.createElement("canvas");
+      cv.width = cv.height = N;
+      const g = cv.getContext("2d");
+      let seed = 11;
+      const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      g.fillStyle = "#808080"; g.fillRect(0, 0, N, N);
+      for (let i = 0; i < 18; i++) {
+        const x = rnd() * N, y = rnd() * N, r = N * (0.1 + 0.22 * rnd()), a = 0.3 + 0.4 * rnd(), col = i % 2 ? "0,0,0" : "255,255,255";
+        const gr = g.createRadialGradient(x, y, 0, x, y, r);
+        gr.addColorStop(0, `rgba(${col},${a.toFixed(3)})`); gr.addColorStop(1, `rgba(${col},0)`);
+        g.fillStyle = gr; g.fillRect(0, 0, N, N);
+      }
+      g.lineCap = "round";
+      for (let i = 0; i < 3; i++) {
+        g.strokeStyle = `rgba(0,0,0,${(0.22 + 0.15 * rnd()).toFixed(3)})`; g.lineWidth = N * (0.015 + 0.02 * rnd());
+        g.beginPath(); g.moveTo(rnd() * N, rnd() * N); g.bezierCurveTo(rnd() * N, rnd() * N, rnd() * N, rnd() * N, rnd() * N, rnd() * N); g.stroke();
+      }
+      return (grainTex = cv);
+    }
+    function ballSurface(c, R) {
+      c.save(); c.rotate(st.spin);
+      c.globalCompositeOperation = "soft-light"; c.globalAlpha *= 0.6;
+      c.drawImage(grainTexture(), -R, -R, 2 * R, 2 * R);
+      c.restore();
+    }
     function drawBall(c, L, P, tint, sky) {
       const R = st.R, d = L.d, { ax, ay, S, F } = P, { cx, cy, th } = S;
       const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
@@ -1201,6 +1236,7 @@
         c.fillStyle = g;
         c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
         c.save(); c.clip();
+        ballSurface(c, R); // under the rim light and the highlight, which stay put: the light doesn't turn
         g = c.createRadialGradient(R * 0.5, R * 0.8, 0, R * 0.5, R * 0.8, R * 1.15);
         g.addColorStop(0, css(tint, 0.2 + 0.6 * d)); g.addColorStop(1, css(tint, 0));
         c.globalCompositeOperation = "lighter"; c.fillStyle = g; c.fillRect(-R, -R, 2 * R, 2 * R);

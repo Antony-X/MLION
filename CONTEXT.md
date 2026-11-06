@@ -1506,8 +1506,10 @@ is the lit exhibit.
   - The shake moves the whole picture, zoomed in just enough that no edge shows (it left bare strips).
   - A new prompt (`calm()`) fades the landing's effects out over 150 ms (`st.fading`, `dropFx`) instead of
     cutting them; low time still lets go at once.
-  - Not done: a spinning mark on the ball (a plain glossy ball shows no spin, and a mark would change the
-    logo's ball).
+  - The ball turns as it rolls (`st.spin`: the distance rolled over its radius), shown by a faintly uneven gold
+    surface (`ballSurface`: a mid-grey patch-and-vein texture in soft-light, 60%). A perfectly even ball looks the
+    same at every turn. The user chose it from rolling side-by-sides of: plain, a fleck, a seam, the lion etched
+    on, this, and a stronger blotchier surface. The highlight and rim light stay put (the light doesn't turn).
 - **Low time** applies to the last 5 s of any answer clock. Classic and quiz call `tense(left,
   el)` from `tickLoop`/`quizTick`; both Sprint clocks call it too, with no stage there.
   - The stage's colour drains (a `saturation` fill), and dark fog closes in on the ball.
