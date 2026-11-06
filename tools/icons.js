@@ -65,70 +65,24 @@ function appIconHtml(size) {
 <rect x="-32" y="-32" width="64" height="64" fill="${COL.bg}"/>${markSvg(COL.gold, { k: 0.62, stroke: M.stroke * 1.08, ball: M.ball[2] * 1.04 })}</svg></body></html>`;
 }
 
-/** In the page: the link-preview image, 1200 x 630. What the game is, in one picture: the line from the home page,
- * then one prompt and three right answers on the real course (drawn by the play stage itself, as the share card
- * is): the common one barely leaves the rim, the rare one rolls down to the minimum. */
+/** In the page: the link-preview image, 1200 x 630. A picture more than words, and no spoilers (no prompt, no
+ * answers: the first day's prompts are the ones a new player meets): the name, one line saying what it is, and
+ * a run on the real course (drawn by the play stage, as the share card is) rolling all the way down, on fire. */
 async function drawOg() {
-  const K = window.MLION_CARD.kit, V = window.MLION_VISUALS, { COL, font, fit, glyph, lockup, descent } = K;
-  const W = 1200, H = 630, PAD = 64;
+  const K = window.MLION_CARD.kit, { COL, font, lockup, descent } = K;
+  const W = 1200, H = 630, PAD = 72;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const c = canvas.getContext("2d", { alpha: false });
   c.fillStyle = COL.bg; c.fillRect(0, 0, W, H);
 
-  // where each answer would take the ball (spaced to read at a glance, not to scale)
-  const stops = [
-    { x: 650, tier: "baseline", answer: "ReLU", pts: 10 },
-    { x: 2050, tier: "indist", answer: "GELU", pts: 30 },
-    { x: 7000, tier: "mlion", answer: "Snake", pts: 100 },
-  ];
-  const spec = { n: 7, steps: stops.map((s, i) => ({ tier: s.tier, pts: (s.x - (i ? stops[i - 1].x : 0)) / 10 })), duel: null };
-  const at = descent(c, spec, { x: 0, y: 300, w: W, h: 252 }, { lead: 0.06, tail: 0.12, k: 1.5, ball: 24, ridgeTop: 255, ridgeBand: 150, marks: false });
-  /** The slope's highest point (smallest y) under [x0, x1], to keep text clear of it. */
-  const top = (x0, x1) => { let m = Infinity; for (let x = x0; x <= x1; x += 6) m = Math.min(m, at.pathAt(x)); return m; };
+  // a run that gets rarer each time and so catches fire, down to the minimum (not a real day's scores)
+  const steps = [["baseline", 45], ["indist", 85], ["outlier", 120], ["longtail", 170], ["mlion", 280]].map(([tier, pts]) => ({ tier, pts }));
+  descent(c, { n: 7, steps, duel: null }, { x: 0, y: 250, w: W, h: 330 }, { lead: 0.05, tail: 0.1, k: 1.5, ball: 26, ridgeTop: 205, ridgeBand: 170, marks: false });
 
-  // the brand, then the line from the home page: RAREST in gold capitals, underlined, as there
-  lockup(c, PAD, 40, 44, "");
-  const size = 54;
-  c.textAlign = "left"; c.textBaseline = "alphabetic";
-  const words = [["Name the ", COL.ink, 500, -0.022], ["RAREST", COL.gold, 600, 0.03], [" answer you can", COL.ink, 500, -0.022]];
-  let x = PAD;
-  const y1 = 152, y2 = 220;
-  for (const [t, col, wt, tr] of words) {
-    font(c, size, wt, "normal", tr * size); c.fillStyle = col; c.fillText(t, x, y1);
-    const w = c.measureText(t).width;
-    if (t === "RAREST") { c.fillRect(x, y1 + size * 0.15, w - tr * size, size * 0.075); }
-    x += w;
-  }
-  font(c, size, 500, "normal", -0.022 * size); c.fillStyle = COL.ink;
-  c.fillText("to a machine learning question.", PAD, y2);
-
-  // the common answers, over where they landed
-  for (const s of stops.slice(0, 2)) {
-    const [px, py] = at.P(s.x);
-    const tx = px - 8, ty = py - 24;
-    font(c, 36, 500, "normal", -0.01 * 36); c.fillStyle = COL.ink; c.fillText(s.answer, tx, ty);
-    const w = c.measureText(s.answer).width;
-    font(c, 30, 600); c.fillStyle = V.TIER_COLORS[s.tier]; c.fillText(`+${s.pts}`, tx + w + 12, ty);
-  }
-
-  // the rare one, in the basin: right-aligned over the ball, lifted until it clears the slope
-  const b = at.me, rx = Math.min(W - 40, b.x + 40);
-  font(c, 31, 600);
-  const tierText = "One in a MLion  +100", tw = c.measureText(tierText).width + 46;
-  let base = b.y - 64;
-  while (base + 10 > top(rx - tw, rx) - 16) base -= 4;
-  c.textAlign = "right";
-  c.fillStyle = V.TIER_COLORS.mlion; c.fillText(tierText, rx, base);
-  glyph(c, "mlion", rx - tw, base - 31, 35);
-  font(c, 72, 500, "normal", -0.02 * 72); c.fillStyle = COL.ink;
-  c.fillText("Snake", rx, base - 46);
-  c.textAlign = "left";
-
-  // what it shows, in words
-  const cap = fit(c, "Three right answers to “Name an activation function”. The rarer the answer, the further the ball rolls.", 640, 2, [27, 25, 23], 400, "normal", -0.005);
-  c.fillStyle = COL.muted;
-  cap.lines.forEach((ln, i) => c.fillText(ln, PAD, H - 40 - (cap.lines.length - 1 - i) * cap.size * 1.32));
+  lockup(c, PAD, 58, 92, "");
+  font(c, 40, 500, "normal", -0.015 * 40); c.fillStyle = COL.ink; c.textAlign = "left"; c.textBaseline = "alphabetic";
+  c.fillText("Krillion, but for machine learning.", PAD, 216);
 
   // a JPEG: the stage's soft light makes a PNG of about 600 KB, and some chat apps (WhatsApp) skip a preview image
   // over about 300 KB; at 0.9 the text stays clean

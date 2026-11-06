@@ -1859,3 +1859,8 @@ gold in the wordmark and the top bar's brand (`.ml`); under "One in a MLion" a s
 "Krillion, but for machine learning. Made by @cowile", @cowile linking to the user's Discord profile. The user
 asked for the credit on the site, not in the images. tools/icons.js reads MARK by running landscape.js in a
 Node vm, so module-level code there must not touch `navigator` unguarded (CHROMIUM is guarded).
+
+Link preview redone the same day (user): no spoilers and almost no words. The first day's prompts include the
+activation-function one, so showing ReLU / GELU / Snake gave answers away. img/og.jpg is now the lockup,
+"Krillion, but for machine learning.", and a made-up run on the real course getting rarer each step and
+rolling to the minimum on fire (purple, a level-4 streak). Never put a real prompt or answer in it.
