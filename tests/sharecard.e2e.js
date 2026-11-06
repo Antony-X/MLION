@@ -9,7 +9,7 @@
  *   link     the link-preview tags (og:*, twitter:card, theme-color) and img/og.png agree; the page
  *            itself turns theme-color back to the dark room; a #fragment never reaches the server.
  *   node tests/sharecard.e2e.js           (Google Fonts blocked; the card falls back to the system sans)
- *   node tests/sharecard.e2e.js --fonts   (loads Archivo from Google Fonts)
+ *   node tests/sharecard.e2e.js --fonts   (loads Geologica from Google Fonts)
  * Screenshots land in tests/out/. */
 "use strict";
 const { chromium } = require("playwright");

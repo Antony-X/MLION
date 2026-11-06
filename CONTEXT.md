@@ -178,8 +178,8 @@ a future `LAUNCH_DATE` changes nothing until D (days before it are still pre-lau
 ## 4. File map
 
 ```
-index.html            app shell; drawer nav; Google Fonts (Archivo); scripts with ?v=<hash> cache-bust
-css/style.css         all styles (taste-skill redesign: dark room, gold accent, Archivo only)
+index.html            app shell; drawer nav; Google Fonts (Geologica); scripts with ?v=<hash> cache-bust
+css/style.css         all styles (taste-skill redesign: dark room, gold accent, Geologica only)
 js/engine.js          tiers, normalization, matching layers, scheduling, share text (UMD; used by Node tools too)
 js/data.js            GENERATED bundle: window.MLION_DATA = {version, stamp, packs, prompts, extras, reasoning, daily}, answers WITHOUT explanations
 js/explain.js         GENERATED: the answers' explanations (`q`), loaded by app.js after boot and merged in by data.js's MLION_MERGE_EXPLAIN (same `stamp` only)
@@ -196,7 +196,7 @@ data/display.json     per-prompt example / scope / offtopic overrides
 data/AUTHORING.md     authoring spec (schema, alias rules, tier calibration)
 tools/build.js        validate every prompt + write js/data.js + cache-bust index.html
 tools/build-single.js bundle everything into one HTML file (Artifact build)
-tools/icons.js        render img/ (favicon.svg, app icons, og.png link preview) from MARK; `og` = only og.png, `og mock` = plus mock Discord embeds in tests/out/og; needs Playwright + network for Archivo
+tools/icons.js        render img/ (favicon.svg, app icons, og.png link preview) from MARK; `og` = only og.png, `og mock` = plus mock Discord embeds in tests/out/og; needs Playwright + network for Geologica
 tools/probe.js        check candidate answers against a prompt (EXACT/CORRECT/SUGGEST/NONE)
 tools/pull_suggestions.js  pull approved answer suggestions into data/prompts/*.json (secret key at run time; see "Suggest this answer")
 supabase/*.sql        schema, daily_quiz, admin, names, quiz_speed, suggestions, rate_limits (each additive; run in the SQL editor)
@@ -227,7 +227,7 @@ npm run e2e        # node tests/e2e.js           (add --fixture to use clone dat
 npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint, live.takeover.e2e.js, live.security.e2e.js (the first seven start a local relay with wrangler dev)
 npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
 npm run e2e:launch # launch.e2e.js: launch-day race, broken links, two tabs, Supabase down, no CDN (no network)
-npm run e2e:card   # sharecard.e2e.js (the share card and sheet; no network, add --fonts to load Archivo)
+npm run e2e:card   # sharecard.e2e.js (the share card and sheet; no network, add --fonts to load Geologica)
 ```
 
 ### Artifact build
@@ -727,7 +727,7 @@ if `js/sharecard.js` is missing the old text share runs.
   "Copy image" (`ClipboardItem` with image/png) and "Save image" (download `mlion-12.png`,
   `mlion-12-story.png`). "Copy text" / "Share text" sends the old text grid. Challenge results get a
   "Share image" button beside "Send result back" and no text grid (the link is the text).
-- Drawing: Archivo is loaded through `document.fonts.load` for the exact weights and text (2.5 s
+- Drawing: Geologica is loaded through `document.fonts.load` for the exact weights and text (2.5 s
   timeout, then the system sans). Only vector paths (`MARK`, `GLYPHS`) and text are drawn, never
   images, so the canvas is never tainted. The terrain is `V.terrain` after `V.setRounds(n)`, smoothed.
   The hook text measures the slope and shrinks (down to 0.6x) rather than run into it.
@@ -1338,7 +1338,7 @@ plus its references) and redesign the site minimally, with almost no text and de
   - Ground `#0b0a08`, tone steps `#161411`, `#211e1a`, `#2c2823`.
   - Ink `#f2ede4`, muted `#a39b90`, gold `#f2b53c`, negative `#f0705c`.
   - Tier ramp from grey to gold.
-- Type: Archivo only. The width axis sets the name at 125%. Type scale tokens: `--s1` 14,
+- Type: Geologica only (since 2026-11-06; Archivo before, with its width axis setting the name at 125%). Its SHRP axis at 100 sets the name, headings, tier names and numbers; see the "type: Geologica" block at the end of css/style.css and its comment for why. Type scale tokens: `--s1` 14,
   `--s2` 17, `--s3` 24, `--s4` `clamp(28px, 1.6vw+18px, 42px)`, `--s5` `clamp(84px, 13vw, 220px)`.
 
 **The idea:** the optimizer's descent becomes the dark room's one lit exhibit. A gem turns the

@@ -6,7 +6,7 @@
  * Writes <name>-card.png and <name>-story.png for every sample run (default outDir:
  * tests/out/cards), prints each file's size, and with `thumbs` also screenshots each card at
  * chat sizes (550 px and 330 px wide on a Discord-grey page). Needs Playwright (chromium) and
- * a network connection for the Archivo font. */
+ * a network connection for the Geologica font. */
 "use strict";
 const path = require("path");
 const fs = require("fs");
@@ -21,8 +21,8 @@ const only = (args.find((a) => a.startsWith("only=")) || "").slice(5).split(",")
 fs.mkdirSync(OUT, { recursive: true });
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..600&display=swap" rel="stylesheet">
-<style>body{margin:0;background:#222;font-family:Archivo}</style></head><body>
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght,SHRP@300..800,0..100&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#222;font-family:Geologica}</style></head><body>
 <script src="js/engine.js"></script><script src="js/data.js"></script><script src="js/explain.js"></script><script src="js/landscape.js"></script><script src="js/sharecard.js"></script>
 </body></html>`;
 
@@ -117,7 +117,7 @@ function samples(only) {
       fs.writeFileSync(path.join(OUT, `${k}.png`), Buffer.from(v.b64, "base64"));
       console.log(`${k.padEnd(24)} ${v.w}x${v.h}  ${(v.size / 1024).toFixed(0).padStart(4)} KB  ${v.ms} ms`);
     }
-    console.log("Archivo loaded:", await page.evaluate(() => document.fonts.check('300 40px "Archivo"')));
+    console.log("Geologica loaded:", await page.evaluate(() => document.fonts.check('300 40px "Geologica"')));
     if (args.includes("thumbs")) {
       await page.setViewportSize({ width: 582, height: 512 });
       for (const k of Object.keys(out).filter((x) => x.endsWith("-card"))) {

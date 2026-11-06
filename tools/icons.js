@@ -12,7 +12,7 @@
  *
  * The preview image is drawn on a canvas with the share card's own pieces (js/sharecard.js `kit`:
  * the descent, tier glyphs, lockup), so it speaks the same visual language as a shared result.
- * Needs Playwright (chromium) and a network connection for the Archivo font. */
+ * Needs Playwright (chromium) and a network connection for the Geologica font. */
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -23,7 +23,7 @@ const ROOT = path.join(__dirname, "..");
 const IMG = path.join(ROOT, "img");
 const LANDSCAPE = path.join(ROOT, "js", "landscape.js");
 const COL = { bg: "#0b0a08", gold: "#f2b53c", goldDeep: "#b5770a", ink: "#f2ede4", muted: "#a39b90" };
-const FONT_CSS = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..600&display=swap";
+const FONT_CSS = "https://fonts.googleapis.com/css2?family=Geologica:wght,SHRP@300..800,0..100&display=swap";
 const args = process.argv.slice(2);
 const onlyOg = args.includes("og");
 const mock = args.includes("mock");
@@ -178,10 +178,10 @@ body { margin: 0; width: ${pageW}px; background: #313338; color: #dbdee1; font: 
     await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${FONT_CSS}"></head><body style="background:${COL.bg}"></body></html>`, { waitUntil: "networkidle" });
     for (const f of ["engine.js", "landscape.js", "sharecard.js"]) await page.addScriptTag({ path: path.join(ROOT, "js", f) });
     const fontOk = await page.evaluate(async () => {
-      await Promise.all(["300", "400", "500"].map((w) => document.fonts.load(`${w} 40px Archivo`, "MLion Name the rarest right answer you can. ReLU GELU Snake One in a MLion +100 “”")));
-      return document.fonts.check('500 40px "Archivo"');
+      await Promise.all(["300", "400", "500"].map((w) => document.fonts.load(`${w} 40px Geologica`, "MLion Name the rarest right answer you can. ReLU GELU Snake One in a MLion +100 “”")));
+      return document.fonts.check('500 40px "Geologica"');
     });
-    if (!fontOk) throw new Error("Archivo did not load; the preview image needs it (check the network)");
+    if (!fontOk) throw new Error("Geologica did not load; the preview image needs it (check the network)");
     const b64 = await page.evaluate(`(${drawOg.toString()})()`);
     fs.mkdirSync(OG_DIR, { recursive: true });
     const ogPath = path.join(OG_DIR, "og.png");

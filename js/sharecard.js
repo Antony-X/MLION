@@ -27,7 +27,7 @@
   // the stage's light, from the rim (cold) to the basin (gold): js/landscape.js PAL, ends only
   const COLD = { path: "#737a82", strata: "#2b3035", rim: "#8a949e" };
   const WARM = { path: "#d89c34", strata: "#714b12", rim: "#f2b53c" };
-  const FONT = 'Archivo, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+  const FONT = 'Geologica, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
   const FORMATS = {
     card: { w: 1200, h: 630, name: "Card" },
     story: { w: 1080, h: 1920, name: "Story" },
@@ -137,12 +137,12 @@
   }
 
   // ----------------------------------------------------------------- fonts
-  /** Load the faces the card uses (the site's Archivo), for the text it will draw. Never waits long. */
+  /** Load the faces the card uses (the site's Geologica, one variable file for every weight), for the text it will draw. Never waits long. */
   async function fontsReady(spec) {
     if (!document.fonts || !document.fonts.load) return;
     const text = [spec.title, spec.sub, spec.url, spec.hook && (spec.hook.prompt || spec.hook.question), spec.hook && spec.hook.answer,
       spec.duel && spec.duel.name, "MLion0123456789/., ofrightwinsdrawlossLongTail"].filter(Boolean).join(" ");
-    const loads = ["300", "400", "500"].map((w) => document.fonts.load(`${w} 40px Archivo`, text).catch(() => null));
+    const loads = ["300", "400", "500", "600", "700"].map((w) => document.fonts.load(`${w} 40px Geologica`, text).catch(() => null));
     await Promise.race([Promise.all(loads).then(() => document.fonts.ready), new Promise((r) => setTimeout(r, 2500))]);
   }
 
@@ -255,7 +255,7 @@
     c.beginPath(); c.arc(M.ball[0], M.ball[1], M.ball[2], 0, Math.PI * 2); c.fill();
     c.restore();
     const fs = size * 0.86;
-    font(c, fs, 300, "expanded", -0.04 * fs);
+    font(c, fs, 400, "normal", -0.04 * fs); // Geologica 400's stem matches the card mark's stroke (0.11 em)
     c.fillStyle = COL.ink; c.textBaseline = "alphabetic"; c.textAlign = "left";
     const base = y + size * 0.79;
     let tx = x + size * 1.16;
@@ -408,12 +408,12 @@
       block(spec.quiz ? "Not one right answer." : "Stuck on the plateau.", [S.answer, S.answer * 0.84], 2, 500, COL.ink, -0.02, S.small * 0.5);
     } else if (h.kind === "rarest") {
       block(`My rarest answer to “${h.prompt}”`, [S.small], 2, 400, COL.muted, 0, 0);
-      out.push({ ...txt(h.count > 1 ? `${h.tierName} ×${h.count}` : h.tierName, Math.round(S.tier * small), 500, V.TIER_COLORS[h.tier], S.small * 0.5), mark: h.tier });
+      out.push({ ...txt(h.count > 1 ? `${h.tierName} ×${h.count}` : h.tierName, Math.round(S.tier * small), 600, V.TIER_COLORS[h.tier], S.small * 0.5), mark: h.tier });
       block(h.answer, [S.answer, S.answer * 0.86, S.answer * 0.74, S.answer * 0.64], 2, 500, COL.ink, -0.02, S.tier * 0.3);
     } else {
       // the hardest question answered right: the question itself, then how it went
       const how = `${h.level ? `${h.level[0].toUpperCase()}${h.level.slice(1)} question, right` : "Right"}${h.secs != null ? ` in ${h.secs.toFixed(1)} s` : ""}`;
-      out.push({ ...txt(how, Math.round(S.tier * small), 500, V.TIER_COLORS[QUIZ_TIER], 0), mark: "hit" });
+      out.push({ ...txt(how, Math.round(S.tier * small), 600, V.TIER_COLORS[QUIZ_TIER], 0), mark: "hit" });
       block(h.question, [S.answer * 0.62, S.answer * 0.56, S.answer * 0.5], 4, 500, COL.ink, -0.01, S.tier * 0.4);
     }
     return out;
@@ -459,7 +459,7 @@
     c.textBaseline = "alphabetic"; c.textAlign = "left";
     const ofText = `/${spec.max}`;
     font(c, S.of, 400); const ofW = c.measureText(ofText).width;
-    font(c, S.score, 300, "semi-expanded", -0.05 * S.score);
+    font(c, S.score, 700, "normal", -0.045 * S.score);
     const sText = String(spec.score), sW = c.measureText(sText).width;
     const gap = S.of * 0.2, total = sW + gap + ofW;
     const left = align === "right" ? x - total : x - S.score * 0.04;

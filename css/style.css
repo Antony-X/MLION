@@ -1,6 +1,6 @@
 /* MLion — the daily descent.
  * A dark room with one lit thing in it: the loss landscape and the gold ball.
- * One family (Archivo, its width axis for the name), tone steps instead of
+ * One family (Geologica, its sharpness axis for the name and the numbers), tone steps instead of
  * lines, round controls, gold only for the ball, the action and the gem. */
 :root {
   --bg: #0b0a08;
@@ -25,7 +25,7 @@
   --t-mlion: #f2b53c;
   --t-miss: #6c665d;
 
-  --font: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font: "Geologica", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --s1: 14px;
   --s2: 17px;
   --s3: 24px;
@@ -1412,3 +1412,60 @@ html.kb .live-sp .sp-round { display: none; }
 .oth-a i { margin-left: 8px; padding: 1px 8px; border-radius: var(--round); background: var(--raised-2); color: var(--gold); font-style: normal; font-size: 12px; vertical-align: 1px; }
 .oth-who { grid-column: 2; color: var(--faint); font-size: var(--s1); overflow-wrap: anywhere; }
 .oth-who b { color: var(--muted); font-weight: 600; }
+
+/* ================================================================ type: Geologica (2026-11-06)
+ * The user asked for a better, more particular face than Archivo, and for numbers that don't look thin and out
+ * of place. Geologica (Monokrom, OFL, Google Fonts): one variable file, 28.6 KB latin for every weight, against
+ * Archivo's 88 KB. Chosen over Bricolage Grotesque and Funnel after rendering six systems into the real screens.
+ * Roles: reading text is Geologica with its sharpness axis at 0 (the default); the name, headings, tier names
+ * and the counting numbers use SHRP 100, whose cut terminals give 2 3 6 9 a n some edge at large sizes.
+ * Light text on the dark ground gets one weight step more than it would on white (the prompt, the answer).
+ * The streak count's rules live with the streak badge. */
+:root {
+  --font-display: var(--font);
+  --font-num: var(--font);
+}
+/* display: the name, headings, the jackpot word, the drawer */
+.brand, .wordmark, h1, h2, h3, .jackpot, .drawer a.nav, .modes a, .block-title {
+  font-family: var(--font-display); font-variation-settings: 'SHRP' 100;
+}
+/* the name's stems match the lion mark's stroke: the hero mark's stroke is 0.079 em and Geologica 300's stem
+   0.092 em; the top bar's 30 px mark has a 2.6 px stroke beside 21 px text, and Geologica 500's stem is 2.7 px */
+.brand { font-weight: 500; font-stretch: 100%; letter-spacing: -0.02em; font-size: 21px; }
+.wordmark { font-weight: 300; font-stretch: 100%; letter-spacing: -0.04em; }
+h1, h2, h3, .block-title { font-weight: 600; font-stretch: 100%; letter-spacing: -0.025em; }
+.jackpot { font-weight: 800; font-stretch: 100%; letter-spacing: -0.03em; }
+.drawer a.nav, .modes a { font-weight: 500; letter-spacing: -0.02em; }
+.modes a span, .modes a.friend { font-family: var(--font); font-weight: 400; font-variation-settings: normal; }
+
+/* tier names: the verdict, the band, the depths */
+.fb-name, .band, .depths .n, .depths-sec .n {
+  font-family: var(--font-display); font-weight: 600; font-stretch: 100%;
+  letter-spacing: -0.02em; font-variation-settings: 'SHRP' 100;
+}
+.depths .n small { font-family: var(--font); font-weight: 400; font-variation-settings: normal; }
+
+/* the counting numbers: heavy, tabular, lining */
+.hud b, .score-big, .figure b, .beats b, #timer-num, .fb-points, .duel-scores b,
+.lv-podium em, .lv-answers em, .lv-standings em, .sp-tally b, .sp-ph em, .adm-rows .pts {
+  font-family: var(--font-num); font-variant-numeric: tabular-nums lining-nums;
+  font-variation-settings: 'SHRP' 100; font-stretch: 100%;
+}
+.hud b { font-weight: 700; letter-spacing: -0.02em; }
+.score-big { font-weight: 700; letter-spacing: -0.045em; font-stretch: 100%; }
+.score-big small { font-family: var(--font); font-weight: 400; letter-spacing: 0; font-variation-settings: normal; font-stretch: 100%; }
+.figure b, .beats b { font-weight: 700; letter-spacing: -0.02em; }
+.duel-scores b, .lv-podium em { font-weight: 700; }
+#timer-num { font-weight: 600; }
+.fb-points { font-weight: 700; }
+
+/* the prompt players read against the clock, and their answer: one weight step up on the dark ground */
+.prompt-text { font-weight: 500; letter-spacing: -0.015em; line-height: 1.22; font-size: var(--s3); }
+@media (min-width: 760px) { .prompt-text { font-size: var(--s4); } }
+.prompt-text.rq-text { font-weight: 400; letter-spacing: 0; }
+.answer-input { font-size: 19px; font-weight: 500; letter-spacing: 0; }
+.fb-answer { font-weight: 500; }
+
+/* buttons and small labels */
+.btn { font-weight: 600; letter-spacing: 0; }
+.hud span, #timer-label, .prompt-pack, .play-head, .topbar-mid { letter-spacing: 0.01em; }

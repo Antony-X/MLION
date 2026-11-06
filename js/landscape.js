@@ -722,7 +722,7 @@
       // loss levels, set into the ground: they fade near the ball and never sit under a number
       if (!endless()) {
         const n = Math.round(END / 1000);
-        c.font = `500 ${w < 560 ? 11 : 12}px Archivo, system-ui, sans-serif`;
+        c.font = `500 ${w < 560 ? 11 : 12}px Geologica, system-ui, sans-serif`;
         c.textAlign = "center";
         for (let lv = n - 1; lv >= 0; lv--) {
           const wx = (n - lv) * 1000;
@@ -941,7 +941,7 @@
       for (const t of st.texts) {
         const [px, py] = onPath(t.x);
         const k = t.life / t.max;
-        c.font = `600 ${t.size}px Archivo, system-ui, sans-serif`;
+        c.font = `600 ${t.size}px Geologica, system-ui, sans-serif`;
         c.textAlign = "left";
         const tw = c.measureText(t.text).width;
         const tx = Math.min(px + R * 1.7, w - tw - 8);
