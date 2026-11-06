@@ -2553,7 +2553,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${bannerHtml()}
       <div class="home-hero arrive">
         <div class="brandmark">${V.mark("hero-mark")}<h1 class="wordmark" aria-label="MLion"><span class="line"><span>MLion</span></span></h1></div>
-        <p class="pitch">A daily machine-learning word game. Name the rarest right answer you can.</p>
+        <p class="pitch">A daily machine-learning word game. Name the <em class="rare">rarest</em> right answer you can.</p>
         <div class="hero-cta">${cta}</div>
         ${xpChipHtml()}
       </div>
