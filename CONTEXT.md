@@ -869,6 +869,9 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
     and `hint`; the host clamps and relays them (no `ms` means the full clock, so no speed bonus) and every
     page scores with the same function. Your feedback adds a line ("50 points, ×1.8 for speed, …") and
     the reveal tags each answer. Test: `tests/live.rules.e2e.js`.
+- **Change settings** (user, 2026-11-06): on the podium the host has "Change settings" (`hostToLobby`): the room
+  goes back to the lobby (phase `lobby` in the lobby message; guests in `done` follow), nobody ready, any
+  countdown stopped, so the format, questions, topics and teams can change between matches.
 - **Teams** (user, 2026-11-06: "not just 1v1 but also 2v2 and that kind of stuff"), every format, private
   rooms only (an open room is a duo). The host's lobby field "Teams" Off / 2 / 3 / 4 (`LIVE.teams`, saved as
   `mlion:liveTeams`, sent in `lobby` as `teams`); team names Gold, Blue, Green, Rose (`TEAM_NAMES`, colours
@@ -1137,6 +1140,22 @@ The user asked for "an admin panel I can use to do everything, easily and visual
 - **Home banner:** `#announce` above the hero; closing it stores `mlion:bannerSeen` (the text), so a new
   note shows again.
 - Test: `tests/admin.e2e.js` (fake project; an admin and a non-admin browser).
+
+### What others answered (added 2026-11-06)
+
+The user asked: "show stats like what other players answered", rarity unchanged (at most about nine players).
+- `supabase/daily_answers.sql` (applied to production 2026-11-06 through the Supabase MCP): table `daily_answers`
+  (user_id, day, answers text[7], no grants, RLS on), `post_daily_answers(day, answers)` (only with a score on that
+  day; first post wins) and `daily_answers_for(day)` (name, answers, mine; only once the caller has a score that
+  day, and only players whose score is still on the board), both security definer, authenticated only.
+- `postDaily` calls `postAnswers` after the score (also when it was already posted; once per account and day,
+  `mlion:ansPosted`). A miss goes up as "".
+- Under a word daily's results (`#others-box`, `fillOthers` after `fillBoardBox`, via `fillResultsBoard`): a
+  summary ("3 other players today. 2 of your answers nobody else gave"), then per prompt each answer the others
+  gave, most common first, tier glyph, "you too" on yours, and their names; a slot that isn't a real answer to
+  that prompt shows as "No answer" (so text posted by hand never reaches another screen). Not published yet:
+  "Publish your score to see what everyone else answered today." Test: `tests/board.e2e.js` (the fake project
+  follows the same rules).
 
 ### Publish my score, top five, name filter (added 2026-11-05)
 
@@ -1545,8 +1564,8 @@ is the lit exhibit.
 4. Enrichment never reached most theory, stack, lore and llm prompts beyond the 9 Sonnet
    batches.
 5. Design polish noted in §8.
-6. Multiplayer formats: private rooms allow up to 12 players free-for-all; public
-   rooms are duos. 2v2 teams is a future request from the user.
+6. Multiplayer formats: private rooms allow up to 12 players, free-for-all or in 2 to 4 teams (done
+   2026-11-06, see "Teams" in §7); public rooms are duos.
 7. Explanation coverage is 30% of all answers (7,077 of 23,500): every core Baseline, Overfit and One in a
    MLion answer has one, In-Distribution 84%, Outlier 36%, Long Tail 12% (extras included). The rest is a content job (mind cost);
    generic answers ("Bad hyperparameters") were skipped on purpose.

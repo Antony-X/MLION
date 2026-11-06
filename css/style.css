@@ -1396,3 +1396,19 @@ html.kb .live-sp .sp-round { display: none; }
 .lv-mark:last-child { left: auto; right: 0; transform: translateX(6px); }
 .lv-mark.on { color: var(--ink); }
 .lv-range-note { margin: 0; color: var(--muted); font-size: var(--s1); }
+
+/* ------------------------------------------------- daily: what others answered */
+.others { display: grid; gap: 12px; }
+.oth-sum { margin: 0; color: var(--muted); }
+.oth-sum b { color: var(--ink); font-weight: 600; }
+.oth-blocks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.oth { padding: 14px 16px; border-radius: var(--soft); background: var(--surface); }
+.oth-q { margin: 0 0 8px; color: var(--muted); font-size: var(--s1); }
+.oth-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.oth-list li { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 10px; align-items: baseline; color: var(--tc); }
+.oth-list .glyph { font-size: 20px; align-self: center; grid-row: span 2; }
+.oth-a { color: var(--ink); overflow-wrap: anywhere; }
+.oth-list li.t-miss .oth-a { color: var(--faint); }
+.oth-a i { margin-left: 8px; padding: 1px 8px; border-radius: var(--round); background: var(--raised-2); color: var(--gold); font-style: normal; font-size: 12px; vertical-align: 1px; }
+.oth-who { grid-column: 2; color: var(--faint); font-size: var(--s1); overflow-wrap: anywhere; }
+.oth-who b { color: var(--muted); font-weight: 600; }

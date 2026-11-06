@@ -146,6 +146,18 @@ const NAMES = ["Gold", "Blue", "Green", "Rose"];
   });
   check(fits, "25 tier marks wrap inside their card instead of running off the screen");
   await ana.screenshot({ path: path.join(OUT, "72-live-teams-podium.png"), fullPage: true });
+
+  // after a match the host can go back to the lobby to change settings; everyone follows, nobody ready
+  check(!!(await ana.$("#live-settings")) && !(await ben.$("#live-settings")), "only the host gets Change settings on the podium");
+  await ben.click("#live-ready"); // a guest who was already ready for the rematch
+  await ana.waitForFunction(() => [...window.MLION_LIVE_STATE.players.values()].some((p) => p.name === "Ben" && p.ready), null, { timeout: 8000 });
+  await ana.click("#live-settings");
+  await Promise.all(three.map((pg) => pg.waitForSelector(".lv-code", { timeout: 15000 })));
+  check(!!(await ana.$(".lv-fmt")) && !(await ana.$(".lv-podium")), "Change settings takes the host back to the lobby's settings");
+  check(await ben.evaluate(() => window.MLION_LIVE_STATE.phase === "lobby" && [...window.MLION_LIVE_STATE.players.values()].every((p) => !p.ready)), "the guests follow, and nobody is ready");
+  await ana.click('.lv-fmt[data-f="quiz"]');
+  await cat.waitForFunction(() => /Quiz format/.test(document.body.textContent), null, { timeout: 8000 });
+  check(true, "the host can now switch the format for the next match");
   for (const pg of three) await pg.context().close();
 
   // ---- a Sprint room with teams (a minute shortened to 8 s): team totals in the strip, the reveal and the end

@@ -42,6 +42,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
 const db = { profiles: new Map(), scores: [], quiz: [], quizTable: false }; // the quiz table arrives with supabase/daily_quiz.sql
 const sugg = { table: true, rows: [], reviews: new Map(), counts: [], offline: false, limited: false }; // supabase/suggestions.sql; limited: rate_limits.sql refuses writes
 const LIMITED = { code: "PT429", message: "Too many tries from this network. Try again later.", details: "suggestion", hint: "rate limit" };
+const ans = []; // supabase/daily_answers.sql: { user_id, day, answers }
 const calls = [];
 const boardGets = []; // when each board read (GET daily_scores) arrived
 const slow = { board: 0 }; // ms to hold back each board read
@@ -192,6 +193,21 @@ async function mockRoute(route) {
       return reply(out);
     }
   }
+  // what others answered, following supabase/daily_answers.sql: post only with a score that day; read only with
+  // your own score in, and only players whose score is on the board
+  if (u.pathname === "/rest/v1/rpc/post_daily_answers" && method === "POST") {
+    const a = JSON.parse(req.postData() || "{}");
+    if (!me || !Array.isArray(a.p_answers) || a.p_answers.length !== 7 || a.p_answers.some((x) => typeof x !== "string" || x.length > 80)) return json(200, false);
+    if (!db.scores.some((s) => s.user_id === me && s.day === a.p_day)) return json(200, false);
+    if (!ans.some((r) => r.user_id === me && r.day === a.p_day)) ans.push({ user_id: me, day: a.p_day, answers: a.p_answers });
+    return json(200, true);
+  }
+  if (u.pathname === "/rest/v1/rpc/daily_answers_for" && method === "POST") {
+    const a = JSON.parse(req.postData() || "{}");
+    if (!me || !db.scores.some((s) => s.user_id === me && s.day === a.p_day)) return json(200, []);
+    return json(200, ans.filter((r) => r.day === a.p_day && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day))
+      .map((r) => ({ name: (db.profiles.get(r.user_id) || {}).name || "Player", answers: r.answers, mine: r.user_id === me })));
+  }
   return json(404, { message: "not mocked" });
 }
 
@@ -256,6 +272,8 @@ async function mockRoute(route) {
   await page.goto(base + `#results-daily-${today}`);
   await page.waitForSelector("#board-box [data-login]", { timeout: 10000 }).catch(async (e) => { console.log(await page.evaluate(() => location.href + " :: " + (document.querySelector("#board-box") || {}).outerHTML + " :: " + JSON.stringify(Object.keys(localStorage)))); throw e; });
   check(!!(await page.$("#board-box #pub-btn")), "today's results offer Publish my score, and login");
+  await page.waitForFunction(() => /Publish your score to see what everyone else answered today/.test(document.querySelector("#others-box")?.textContent || ""), null, { timeout: 10000 });
+  check(true, "what others answered waits until you've published");
   await page.waitForFunction(() => /No scores yet/.test(document.querySelector("#mini-board")?.textContent || ""), null, { timeout: 10000 });
   check(true, "under the results, today's leaderboard shows (empty so far)");
 
@@ -274,6 +292,9 @@ async function mockRoute(route) {
   check(true, "after login the score posts and the rank shows (#1 of 1 as Ada)");
   check(db.profiles.get(UID).name === "Ada", "the public name defaults to a first name only");
   check(db.scores.length === 1 && db.scores[0].score === 300 && db.scores[0].tiers === "6543210", "the database got the tier digits (and scored them 300)");
+  await page.waitForFunction(() => /Nobody else has posted today's daily yet/.test(document.querySelector("#others-box")?.textContent || ""), null, { timeout: 10000 });
+  check(ans.length === 1 && ans[0].user_id === UID && ans[0].answers.join() === "A0,A1,A2,A3,A4,A5,", "your seven answers go up with your score (a miss as an empty slot)");
+  check(true, "with nobody else in yet, the box says so");
   await page.screenshot({ path: path.join(OUT, "board-01-results.png"), fullPage: true });
 
   // a rival with a higher score
@@ -288,6 +309,26 @@ async function mockRoute(route) {
   check((await page.textContent("#drawer-acct")).includes("Logged in as Ada") && !!(await page.$("#acct-out")), "the menu shows the account and a Log out button");
   check(await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:name"))) === "Ada", "the account name fills an empty player name for rooms and challenges");
   await page.screenshot({ path: path.join(OUT, "board-02-board.png"), fullPage: true });
+
+  // ---- what others answered: Grace's answers under your results, grouped; junk text and players without a score left out
+  {
+    const real = await page.evaluate((ids) => ids.map((id) => window.MLION_DATA.prompts.find((p) => p.id === id).answers.map((a) => a.a)), ids1);
+    ans.push({ user_id: RIVAL, day: today, answers: [real[0][0], "<img src=x onerror=alert(1)>", real[2][1], "", real[4][0], real[5][0], real[6][0]] });
+    db.profiles.set("lin", { id: "lin", name: "Lin" });
+    ans.push({ user_id: "lin", day: today, answers: [real[0][0], "", "", "", "", "", ""] }); // no score on the board: never listed
+    await page.goto(base + `#results-daily-${today}`);
+    await page.waitForSelector("#others-box .oth", { timeout: 10000 });
+    const blocks = await page.$$eval("#others-box .oth", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+    check(blocks.length === 7, "one block per prompt");
+    check(blocks[0].includes(real[0][0]) && blocks[0].includes("Grace") && !blocks.join().includes("Lin"), `Grace's "${real[0][0]}" shows with her name; a player with no score on the board doesn't`);
+    check(/No answer ?Grace/.test(blocks[1]) && !(await page.$("#others-box img")) && !blocks[1].includes("onerror"), "text that isn't a real answer shows as No answer, never as markup");
+    check(/1 other player today\./.test(await page.textContent(".oth-sum")), "the summary counts the other players");
+    await page.screenshot({ path: path.join(OUT, "board-02b-others.png"), fullPage: true });
+    ans.splice(ans.findIndex((r) => r.user_id === "lin"), 1);
+    db.profiles.delete("lin");
+    await page.goto(base + "#board"); // back where the next step expects to be
+    await page.waitForSelector(".board-list .list-item.me");
+  }
 
   // posting twice doesn't duplicate
   await page.evaluate(() => localStorage.removeItem("mlion:boardPosted"));

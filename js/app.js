@@ -909,6 +909,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (m.rules && typeof m.rules === "object") LIVE.rules = cleanRules(m.rules);
       if (["rarity", "quiz", "sprint"].includes(m.fmt) && LIVE.phase !== "playing") LIVE.fmt = m.fmt;
       if (TEAM_COUNTS.includes(m.teams)) LIVE.teams = m.teams;
+      if (m.phase === "lobby" && LIVE.phase === "done" && !LIVE.isHost) { LIVE.phase = "lobby"; LIVE.countdownAt = 0; } // the host went back to change settings
       if (TEAM_COUNTS.includes(m.mteams) && (m.mteams === 0 || m.mt)) { LIVE.mteams = m.mteams; LIVE.mteam = cleanTeamMap(m.mt, m.mteams); } // a page that lost the match's teams (a takeover) gets them back
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
@@ -1179,6 +1180,16 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const i = RUN.round;
       if (i > LIVE.revealed && inMatch().every((p) => p.ans[i])) liveLater(() => hostReveal(i), 700);
     }
+  }
+  /** After a match, the host takes the room back to the lobby to change the format, questions, topics or teams
+   *  (user, 2026-11-06). Everyone goes back with them, nobody ready, and a running countdown stops. */
+  function hostToLobby() {
+    if (!LIVE.isHost || LIVE.phase !== "done") return;
+    LIVE.timers.forEach(clearTimeout); LIVE.timers = [];
+    LIVE.countdownAt = 0;
+    for (const p of LIVE.players.values()) p.ready = false;
+    LIVE.phase = "lobby";
+    broadcast(lobbyMsg());
   }
   function hostReady(id, v) {
     const pl = LIVE.players.get(id);
@@ -2051,12 +2062,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ol class="lv-podium${teams.length ? " lv-ppodium" : ""}">${ps.map((pl, k) => `<li class="${k === 0 && !teams.length ? "first" : ""}${pl.id === LIVE.myId ? " me" : ""}${teamCls(pl)}">
         <span class="rk">${k + 1}</span>${avatar(pl.name)}<span class="nm"><b>${esc(pl.name)}</b>${sprint ? `<span class="nm-t">${spCount(pl)} ${spCount(pl) === 1 ? "answer" : "answers"}${LIVE.gone.has(pl.id) ? " · left" : ""}</span>` : quiz ? `${qmarksRow(Array.from({ length: LIVE.n }, (_, i) => !!(pl.ans[i] && pl.ans[i].ok)))}<span class="nm-t">${fmtSecs(liveTotalMs(pl) / 100)}</span>` : tiersRow(Array.from({ length: LIVE.n }, (_, i) => (pl.ans[i] && pl.ans[i].tier) || "miss"))}</span><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <div class="btn-row">
+        ${LIVE.isHost ? `<button class="btn big" id="live-settings">Change settings</button>` : ""}
         <a class="btn big" href="#home" id="live-leave">Leave</a>
       </div>
       ${recap}
     </section>`;
     wireAnswerKeys(app);
     $("#live-leave").addEventListener("click", () => leaveLive(false));
+    const cs = $("#live-settings");
+    if (cs) cs.addEventListener("click", hostToLobby);
     $("#live-leave").insertAdjacentHTML("beforebegin", readyBlock("Ready for rematch"));
     if (teamsOn()) { $(".btn-row", app).insertAdjacentHTML("beforebegin", `<div class="lv-rematch-teams">${teamPicker("Your team for the rematch")}</div>`); wireTeamPicker(); }
     wireReady();
@@ -3515,12 +3529,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const missingTable = (error) => !!error && (error.code === "PGRST205" || error.code === "42P01" || /schema cache|does not exist/i.test(error.message || ""));
   const postMark = (rec) => (rec.mode === "dquiz" ? `q:${rec.date}` : rec.date);
   const isPosted = (rec) => !!(rec && AUTH.user && boardPosted[postMark(rec)] === AUTH.user.id);
+  /** The daily's seven answers go up with its score (supabase/daily_answers.sql), once per account and day:
+   *  what the other players see under their results. A miss goes up as "". */
+  async function postAnswers(rec) {
+    if (!rec || rec.mode !== "daily" || !sbClient || !AUTH.user || !Array.isArray(rec.results) || rec.results.length !== E.ROUNDS) return;
+    const mark = `${rec.date}:${AUTH.user.id}`, done = LS.get("ansPosted", []);
+    if (Array.isArray(done) && done.includes(mark)) return;
+    const { data, error } = await sbClient.rpc("post_daily_answers", { p_day: rec.date, p_answers: rec.results.map((r) => String((r && r.answer) || "").slice(0, 80)) });
+    if (!error && data === true) LS.set("ansPosted", (Array.isArray(done) ? done : []).concat(mark).slice(-30));
+  }
   async function postDaily(rec) {
     if (!sbClient || !AUTH.user || !AUTH.profile || !rec || !postableDay(rec.date) || rec.tiers.length !== E.ROUNDS) return false;
     if (rec.mode !== "daily" && rec.mode !== "dquiz") return false;
     if (!dealtNow(rec)) return false; // dealt from another set (before the launch day reached this browser)
     const quiz = rec.mode === "dquiz", mark = postMark(rec);
-    if (boardPosted[mark] === AUTH.user.id) return true;
+    if (boardPosted[mark] === AUTH.user.id) { await postAnswers(rec).catch(() => {}); return true; }
     const quizRow = quiz && { user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)),
       times: rec.results.map((r) => Math.max(0, Math.min(350, Math.round((r.ms || 0) / 100)))).join(",") };
     let { error } = quiz
@@ -3534,7 +3557,58 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     Object.assign(boardPosted, LS.get("boardPosted", {}) || {}, { [mark]: AUTH.user.id }); // keep what another tab posted
     LS.set("boardPosted", boardPosted);
     boardForget(rec.date, quiz ? "quiz" : "daily"); // the rows kept for that board don't have this score yet
+    await postAnswers(rec).catch(() => {});
     return true;
+  }
+
+  // ---- what the others answered (user, 2026-11-06: "show stats like what other players answered"; rarity is
+  // unchanged). Under a posted daily's results: each prompt's answers from everyone else, most common first,
+  // with who gave them. The server hands them out only once your own score is in (no peeking before playing),
+  // and only names that are real answers to that prompt are shown.
+  async function fillOthers(box, rec) {
+    if (!box || !box.isConnected || !rec || rec.mode !== "daily" || !AUTH.ready) return;
+    const head = `<h2 class="block-title">What others answered</h2>`;
+    if (!dealtNow(rec)) { box.innerHTML = ""; return; }
+    if (!AUTH.user || !isPosted(rec)) {
+      box.innerHTML = `${head}<p class="muted small">Publish your score to see what everyone else answered ${dayWord(rec.date)}.</p>`;
+      return;
+    }
+    if (!box.innerHTML) box.innerHTML = `${head}<p class="muted small">Loading…</p>`;
+    let rows = null;
+    try { const { data, error } = await sbClient.rpc("daily_answers_for", { p_day: rec.date }); if (!error && Array.isArray(data)) rows = data; } catch { /* offline */ }
+    if (!box.isConnected) return;
+    box.innerHTML = head + (rows ? othersHtml(rec, rows) : `<p class="muted small">Couldn't load the other players' answers. Reload to try again.</p>`);
+  }
+  function othersHtml(rec, rows) {
+    const others = rows.filter((r) => r && !r.mine && Array.isArray(r.answers)).map((r) => ({ name: cleanName(r.name) || "Player", answers: r.answers }));
+    const when = dayWord(rec.date);
+    if (!others.length) return `<p class="muted small">Nobody else has posted ${when}'s daily yet. Look again later.</p>`;
+    let alone = 0, shared = 0;
+    const blocks = rec.promptIds.map((pid, i) => {
+      const p = PROMPTS.get(pid);
+      if (!p) return "";
+      const mine = rec.results[i] && rec.results[i].answer;
+      const by = new Map(), none = [];
+      for (const o of others) {
+        const x = o.answers[i], a = typeof x === "string" && x ? p.answers.find((z) => z.a === x) : null;
+        if (!a) { none.push(o.name); continue; }
+        if (!by.has(a.a)) by.set(a.a, { a, names: [] });
+        by.get(a.a).names.push(o.name);
+      }
+      if (mine) { if (by.has(mine)) shared++; else alone++; }
+      const list = [...by.values()].sort((u, v) => v.names.length - u.names.length || T[v.a.t].score - T[u.a.t].score || u.a.a.localeCompare(v.a.a));
+      return `<li class="oth"><p class="oth-q">${esc(p.text)}</p><ul class="oth-list">${list.map(({ a, names }) =>
+        `<li class="t-${a.t}${a.a === mine ? " you" : ""}">${G(a.t)}<span class="oth-a">${esc(a.a)}${a.a === mine ? `<i>you too</i>` : ""}</span><span class="oth-who">${names.length > 1 ? `<b>${names.length}</b> ` : ""}${esc(names.join(", "))}</span></li>`).join("")}${none.length
+        ? `<li class="t-miss">${G(null)}<span class="oth-a">No answer</span><span class="oth-who">${esc(none.join(", "))}</span></li>` : ""}</ul></li>`;
+    }).join("");
+    const mineN = rec.results.filter((r) => r && r.answer).length;
+    return `<p class="oth-sum"><b>${others.length}</b> ${others.length === 1 ? "other player" : "other players"} ${when}. ${mineN ? `${alone ? `<b>${alone}</b> of your answers nobody else gave` : "Every answer you gave, someone else gave too"}${shared && alone ? `, <b>${shared}</b> shared` : ""}.` : ""}</p>
+      <ul class="oth-blocks">${blocks}</ul>`;
+  }
+  /** The board box under a daily's results, then (when it's the word daily) what the others answered. */
+  function fillResultsBoard(box, rec) {
+    const ob = $("#others-box");
+    return fillBoardBox(box, rec).catch(() => {}).then(() => fillOthers(ob, rec));
   }
 
   async function boardLogin(provider) {
@@ -3661,7 +3735,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       try { return route(); } finally { boardRedrawing = false; }
     }
     const box = $("#board-box");
-    if (box) fillBoardBox(box, records[box.dataset.key || `daily:${today()}`]);
+    if (box) fillResultsBoard(box, records[box.dataset.key || `daily:${today()}`]);
   }
 
   // Only the providers switched on in the Supabase dashboard get a button, read from the
@@ -4068,6 +4142,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
               <span class="pts">+${r.score}</span>
             </li>`).join("")}</ul>
         </section>
+        ${rec.mode === "daily" && boardable && BOARD_ON ? `<section class="others" id="others-box" aria-live="polite"></section>` : ""}
         <div class="btn-row">
           <a class="btn" href="#home">Home</a>
           <a class="btn" href="#stats">Stats</a>
@@ -4076,7 +4151,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
     wireAnswerKeys(app);
     const bbox = $("#board-box");
-    if (bbox) fillBoardBox(bbox, rec);
+    if (bbox) fillResultsBoard(bbox, rec);
     const sb = $("#share");
     if (sb) sb.addEventListener("click", async () => {
       const url = settings.shareLink ? siteUrl() : "";
