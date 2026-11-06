@@ -642,10 +642,14 @@
      * the sparks), so a rolling ball leaves them behind. */
     function stepFire(dt, calm) {
       const fx = st.fx, lv = flameLevel(st.streak), R = st.R;
-      if (calm) { fx.lean = fx.leanV = fx.speed = fx.flare = fx.acc = 0; fx.grow = 1; fx.bits = []; fx.out = null; return; }
+      if (calm) { fx.lean = fx.leanV = fx.speed = fx.flare = fx.acc = 0; fx.grow = fx.follow = 1; fx.bits = []; fx.out = null; return; }
       if (dt <= 0) return; // the hit-stop holds the fire too
       const vx = st.vel * scale(); // px per ms
       fx.speed = Math.abs(vx);
+      // how far the fire stands along the slope's normal: fully when it rests or creeps, not at all at speed, where
+      // it streams back like a comet instead (turned along a downhill it would point forward against the motion)
+      const follow = 1 - clamp(fx.speed / 0.2, 0, 1);
+      fx.follow = (fx.follow ?? 1) + (follow - (fx.follow ?? 1)) * (1 - Math.exp(-dt / 140));
       const pull = -clamp(vx * 52, -R * 0.9, R * 2.2);
       fx.leanV += ((pull - fx.lean) * 0.00011 - fx.leanV * 0.013) * dt;
       fx.lean += fx.leanV * dt;
@@ -922,7 +926,7 @@
      * shape with it. Measured once a frame (fireOf), drawn in four passes: the light it throws (on the
      * ground under the ball and into the air), the two flames behind the ball, the ball itself as the
      * white-hot core (fireCore), and a tongue rising out of that core in front. */
-    function fireOf(cx, cy, bx, by, lv, calm) {
+    function fireOf(cx, cy, bx, by, lv, calm, th) {
       const fx = st.fx, R = st.R, out = fx.out;
       const flv = lv >= 3 ? lv : out ? out.lv : 0;
       if (!flv) return null;
@@ -941,9 +945,13 @@
       const lean = calm ? 0 : fx.lean + R * (0.12 * Math.sin(t * 0.0087) + 0.06 * Math.sin(t * 0.0213 + 0.7));
       // where embers break off (from the ball's crown to the tip, relative to where it stands), the tip's
       // height on the stage (tests check it stays under the numbers) and the ball's centre
-      fx.tip = { x0: cx - bx, y0: cy - R - by, x1: cx + lean - bx, y1: cy - H - by, top: cy - H, cx, cy };
+      // The fire stands out of the ball along the slope's normal, as if fixed to it, not straight up
+      // (user, 2026-11-06: "always upright" read as a static sticker). st.fireTilt: 1 = the normal, 0 = upright.
+      const tilt = (st.fireTilt ?? 1) * (fx.follow ?? 1) * (th || 0), ct = Math.cos(tilt), sn = Math.sin(tilt);
+      const tipX = cx + lean * ct + H * sn, tipY = cy + lean * sn - H * ct;
+      fx.tip = { x0: cx + R * sn - bx, y0: cy - R * ct - by, x1: tipX - bx, y1: tipY - by, top: Math.min(tipY, cy - R * ct), cx, cy };
       const cols = FLAME[flv].map(rgb);
-      return { lv: flv, cols, tongue: cols[1].map((v, i) => (v + cols[2][i]) / 2), H, lean, alpha, fl, cx, cy, bx, by, calm };
+      return { lv: flv, cols, tongue: cols[1].map((v, i) => (v + cols[2][i]) / 2), H, lean, alpha, fl, cx, cy, bx, by, calm, tilt };
     }
     function fireLight(c, F) {
       const R = st.R, k = F.alpha * F.fl * (0.78 + 0.06 * (F.lv - 3));
@@ -953,7 +961,8 @@
       // and the air round the flames
       const ar = R * (3 + 0.3 * F.lv);
       c.globalAlpha = clamp(0.36 * k, 0, 1);
-      c.drawImage(glowSprite(FLAME[F.lv][0]), F.cx + F.lean * 0.3 - ar, F.cy - F.H * 0.35 - ar, ar * 2, ar * 2);
+      const gx = F.cx + F.lean * 0.3 * Math.cos(F.tilt) + F.H * 0.35 * Math.sin(F.tilt), gy = F.cy + F.lean * 0.3 * Math.sin(F.tilt) - F.H * 0.35 * Math.cos(F.tilt);
+      c.drawImage(glowSprite(FLAME[F.lv][0]), gx - ar, gy - ar, ar * 2, ar * 2);
       c.globalAlpha = 1;
     }
     function flames(c, F, front) {
@@ -978,6 +987,7 @@
       // tongue rises out of the white-hot core over its crown. The badge draws the same layers flat.
       c.save();
       c.globalCompositeOperation = "screen";
+      if (F.tilt) { c.translate(F.cx, F.cy); c.rotate(F.tilt); c.translate(-F.cx, -F.cy); }
       if (!front) {
         const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
         layer(1.36, 0.3, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
@@ -1012,7 +1022,7 @@
       const e = st.view / 400, [lx, ly] = onPath(st.x - e), [rx, ry] = onPath(st.x + e);
       const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
       const k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
-      const F = fireOf(cx, cy, bx, by, lv, calm);
+      const F = fireOf(cx, cy, bx, by, lv, calm, th);
       const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
       const lit = 1 - 0.55 * burn; // the fire's own light takes over from the aura
       c.save();
