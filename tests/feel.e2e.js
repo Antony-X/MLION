@@ -4,6 +4,9 @@
  *      landing doesn't stop; Reduce motion has none
  *   B. Sprint's coin ladder: each counted answer one note higher, a wrong answer starts the climb again
  *   C. a wrong answer is the soft reject sound; switches, sliders and choice buttons click; hover is silent
+ *   D. the streak badge (an ink count of one size centred on the flame, the lion from seven, --font-num, ink on the
+ *      gem's gold, the stage avoids it, a miss puts it out), the ball's fire (embers, put out by a miss, under the
+ *      numbers) and the gem's lion (under the badge); Reduce motion keeps the badge and the fire still
  * Sounds are read from window.MLION_SOUNDS (test builds log every Sound call, even with sound off). */
 "use strict";
 const { chromium } = require("playwright");
@@ -126,6 +129,127 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     await p.click('.lv-fmt[data-f="quiz"]');
     await p.waitForTimeout(150);
     check(!(await sounds(p)).some((s) => s[0] === "step"), "tapping the one already chosen doesn't");
+    await ctx.close();
+  }
+
+  // ---- D. the streak badge and the ball's fire
+  console.log("D. the streak badge and the ball's fire");
+  {
+    const { ctx, p } = await fresh({ sound: false, reducedMotion: false });
+    await p.goto(base + "#daily"); await p.waitForFunction(() => !!window.MLION_STREAK && !!window.MLION_STAGE && window.MLION_STAGE.w > 0);
+    const badge = (n, mode) => p.evaluate(([n, mode]) => {
+      window.MLION_STREAK(n, mode);
+      const el = document.querySelector("#streak"), num = el.querySelector(".sk-n"), S = window.MLION_STAGE;
+      const r = el.getBoundingClientRect(), cv = document.querySelector("#descent").getBoundingClientRect();
+      const nr = num && num.getBoundingClientRect(), fr = el.querySelector(".flame") && el.querySelector(".flame").getBoundingClientRect();
+      const nm = el.querySelector(".sk-name");
+      return {
+        hidden: el.hidden, text: num && num.textContent, color: num && getComputedStyle(num).color, size: num && getComputedStyle(num).fontSize,
+        off: nr && fr ? Math.abs((nr.top + nr.bottom) / 2 - (fr.top + fr.bottom) / 2) : null,
+        lion: !!el.querySelector(".fl-core path"), name: nm && nm.textContent, nameColor: nm && getComputedStyle(nm).color,
+        pop: el.classList.contains("pop"), sparks: el.querySelectorAll(".sk-spark").length,
+        // the camera keeps the path clear of the badge: it is one of the boxes the stage avoids
+        avoided: S.rects.some((b) => Math.abs(b.x - (r.left - cv.left)) < 1 && Math.abs(b.w - r.width) < 1 && Math.abs(b.h - r.height) < 1),
+      };
+    }, [n, mode]);
+    const hex = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
+    const INK = hex("#f2ede4"), GOLD = hex("#f2b53c"), GOLD_INK = hex("#1a1306");
+    let ok = true, sizes = new Set(), off = 0;
+    for (const n of [2, 3, 4, 5, 6]) {
+      const b = await badge(n, "set");
+      ok = ok && !b.hidden && b.text === String(n) && b.color === INK && !b.lion && !b.name && b.avoided;
+      sizes.add(b.size); off = Math.max(off, b.off);
+    }
+    check(ok, "from two in a row the badge shows the count in ink, and the stage avoids it");
+    check(sizes.size === 1 && off < 1, `the count keeps one size (${[...sizes].join(", ")}) while the flame grows, centred on it (off by ${off.toFixed(2)} px at most)`);
+    const seven = await badge(9, "set");
+    check(seven.text === "9" && seven.lion && seven.name === "MLion" && seven.color === INK && seven.nameColor === GOLD, "from seven the flame is gold with the lion in it, and the gold name stands beside the ink count");
+    const flood = await p.evaluate(() => {
+      const st = document.querySelector("#stage"), el = document.querySelector("#streak");
+      st.classList.add("flood");
+      const r = [getComputedStyle(el.querySelector(".sk-n")).color, getComputedStyle(el.querySelector(".sk-name")).color];
+      st.classList.remove("flood");
+      return r;
+    });
+    check(flood[0] === GOLD_INK && flood[1] === GOLD_INK, "on the gem's gold flood the count and the name turn gold-ink");
+    const fam = await p.evaluate(() => {
+      const num = document.querySelector("#streak .sk-n"), was = getComputedStyle(num).fontFamily, house = getComputedStyle(document.body).fontFamily;
+      document.documentElement.style.setProperty("--font-num", "monospace");
+      const now = getComputedStyle(num).fontFamily;
+      document.documentElement.style.removeProperty("--font-num");
+      return [was, now, house];
+    });
+    check(fam[0] === fam[2] && fam[1] === "monospace", `the count is set in --font-num when there is one, else the house face (${fam.slice(0, 2).join(" / ")})`);
+    const up = await badge(4, "up");
+    check(up.pop && up.sparks > 0, "one more in a row pops the badge and throws embers");
+    await badge(0, "out");
+    await p.waitForTimeout(120);
+    check(await p.evaluate(() => { const el = document.querySelector("#streak"); return !el.hidden && el.classList.contains("out") && el.querySelectorAll(".sk-smoke").length === 3; }), "a miss puts it out in a puff of smoke");
+    await p.waitForTimeout(800);
+    check(await p.evaluate(() => document.querySelector("#streak").hidden && window.MLION_STAGE.rects.length === document.querySelectorAll("#stage .hud, #stage .dots, #stage .play-meta").length), "then the badge is gone and the stage stops avoiding it");
+
+    // the flames stay under the numbers over the stage, on the full stage and on the keyboard strip
+    for (const kb of [false, true]) {
+      await p.evaluate((kb) => document.documentElement.classList.toggle("kb", kb), kb);
+      await p.waitForTimeout(400);
+      await badge(7, "set");
+      await p.evaluate(() => { window.MLION_STAGE.streak = 7; });
+      await p.waitForTimeout(500);
+      const room = await p.evaluate(() => {
+        const S = window.MLION_STAGE, cv = document.querySelector("#descent").getBoundingClientRect(), r = document.querySelector("#streak").getBoundingClientRect();
+        return { tip: S.fx.tip && S.fx.tip.top, under: r.bottom - cv.top, h: S.h };
+      });
+      check(room.tip != null && room.tip >= room.under, `${kb ? "keyboard strip" : "full stage"}: the fire's tip (${Math.round(room.tip)} px) stays under the badge (${Math.round(room.under)} px)`);
+    }
+    await p.evaluate(() => document.documentElement.classList.remove("kb"));
+
+    // the gem: the lion grows out of the ball up to the badge and no further
+    await badge(4, "set");
+    await p.waitForTimeout(300);
+    const lion = await p.evaluate(() => new Promise((done) => {
+      const S = window.MLION_STAGE, cv = document.querySelector("#descent").getBoundingClientRect();
+      S.anim = { from: S.x, to: S.x + 300, tier: "mlion", start: performance.now(), dur: 200, t: 0, done: null };
+      setTimeout(() => done({ top: S.flood && S.flood.top, under: document.querySelector("#streak").getBoundingClientRect().bottom - cv.top }), 1400);
+    }));
+    check(lion.top != null && lion.top >= lion.under, `the gem's lion (top at ${Math.round(lion.top)} px) stays under the badge (${Math.round(lion.under)} px)`);
+    await p.waitForFunction(() => !window.MLION_STAGE.flood, null, { timeout: 4000 });
+
+    // the ball's fire on a stage of its own: it sheds embers, and a miss puts it out with smoke
+    const fire = (reduce) => p.evaluate((reduce) => new Promise((done) => {
+      document.documentElement.classList.toggle("reduce-motion", reduce);
+      const cv = document.createElement("canvas");
+      cv.style.cssText = "position:fixed;left:0;top:0;width:390px;height:400px;z-index:99";
+      document.body.appendChild(cv);
+      const d = window.MLION_VISUALS.Descent(cv, {}), S = window.MLION_STAGE;
+      d.set([1, 2, 3, 4, 5].map(() => ({ tier: "indist", score: 60 })));
+      setTimeout(() => {
+        const embers = S.fx.bits.filter((b) => b.kind !== "smoke").length;
+        d.roll(null, 0, () => {
+          const out = !!S.fx.out, smoke = S.fx.bits.filter((b) => b.kind === "smoke").length;
+          d.destroy(); cv.remove(); document.documentElement.classList.remove("reduce-motion");
+          done({ embers, out, smoke, streak: S.streak });
+        });
+      }, 700);
+    }), reduce);
+    const lit = await fire(false);
+    check(lit.embers > 0, `five in a row: the ball's fire sheds embers (${lit.embers} in the air)`);
+    check(lit.out && lit.smoke > 0 && lit.streak === 0, "a miss puts the ball's fire out with a puff of smoke");
+    const calm = await fire(true);
+    check(calm.embers === 0 && !calm.out && calm.smoke === 0, "Reduce motion: the fire is still (no embers, no smoke)");
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await fresh({ sound: false, reducedMotion: true });
+    await p.goto(base + "#daily"); await p.waitForFunction(() => !!window.MLION_STREAK && !!window.MLION_STAGE && window.MLION_STAGE.w > 0);
+    const still = await p.evaluate(() => {
+      window.MLION_STREAK(4, "up");
+      const el = document.querySelector("#streak");
+      const r = { pop: el.classList.contains("pop"), sparks: el.querySelectorAll(".sk-spark").length, moving: el.getAnimations({ subtree: true }).length };
+      window.MLION_STREAK(0, "out");
+      r.goneAtOnce = el.hidden;
+      return r;
+    });
+    check(!still.pop && still.sparks === 0 && still.moving === 0 && still.goneAtOnce, "Reduce motion: the badge doesn't pop, flicker or smoke, and a miss takes it away at once");
     await ctx.close();
   }
 

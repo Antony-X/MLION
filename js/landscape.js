@@ -10,8 +10,9 @@
  *    in a groove (sunk a few px into the path). In the last seconds of a clock
  *    the world drains of colour and beats red (tension/beat/release); a rare
  *    landing flashes the stage in its tier colour and spills coins.
- *  - flame: the streak mark (answers in a row), which climbs through the
- *    colours of fire and ends in the lion's gold.
+ *  - flame: the streak mark (answers in a row): the ball on fire, heating up
+ *    through the colours of fire to the lion's gold. From three in a row the
+ *    stage's ball burns with the same flame (flameOutline draws both).
  *  - glyph: the tier marks. Five are tiny charts of what the tier means, a
  *    curve and the ball on it; the gem is the lion, the sign of Leo, which is
  *    a curve and a ball too.
@@ -322,29 +323,74 @@
   }
 
   // ------------------------------------------------------------ streaks
-  // Answers in a row light a flame that climbs through the colours of fire: orange, a hotter
-  // orange, purple, blue, white-hot, and from seven the lion's gold. Outer, inner, core.
+  // Answers in a row light a flame. It heats up through the colours of real fire, all of them warm
+  // like the rest of the stage: red-orange, orange, amber, yellow, white-hot, and from seven the
+  // lion's gold. Outer, inner, core. (It used to pass through purple and blue, which no other light
+  // in the game has; on the warm stage they read as a sticker from somewhere else.)
   const FLAME = [null, null,
-    ["#ff7a1a", "#ffb347", "#ffe6b0"],
-    ["#ff4a17", "#ff9a2e", "#fff1bf"],
-    ["#8a4bff", "#c47dff", "#f8e8ff"],
-    ["#2f78ff", "#6fc6ff", "#eafaff"],
-    ["#a9c6ff", "#eef4ff", "#ffffff"],
-    ["#e08f0e", "#f2b53c", "#fff4d2"],
+    ["#e5532d", "#ff8c3a", "#ffc98a"],
+    ["#f06a1e", "#ffa53d", "#ffdca0"],
+    ["#f7841a", "#ffbf4d", "#ffe9b8"],
+    ["#fb9e1c", "#ffd35e", "#fff3cf"],
+    ["#ffb52e", "#ffe39a", "#ffffff"],
+    ["#f2b53c", "#f7c862", "#fff4d2"],
   ];
   const flameLevel = (n) => Math.min(7, Math.max(0, Math.floor(+n) || 0));
-  /** The streak flame as inline SVG: a flame rising off the ball (every mark here is a curve and
-   * the ball); from seven the core is the lion itself. */
+  /** One flame, the shape both fires share: the ball's round base (radius r, centred on x, y) rising
+   * into a tip h radii above its centre, leaning back by `lean` radii, with a smaller tongue on the
+   * forward shoulder (`side`, 0 for none). `rot` turns the whole flame (radians). It draws with the
+   * canvas path methods, into a 2D context or into svgPath() for the badge. */
+  function flameOutline(c, x, y, r, o) {
+    const h = o.h, ln = o.lean || 0, s = o.side || 0, rot = o.rot || 0;
+    const cs = Math.cos(rot), sn = Math.sin(rot);
+    const X = (u, v) => x + r * (u * cs - v * sn), Y = (u, v) => y + r * (u * sn + v * cs);
+    const curve = (a, b, d, e, u, v) => c.bezierCurveTo(X(a, b), Y(a, b), X(d, e), Y(d, e), X(u, v), Y(u, v));
+    // where the two sides leave the round base (a, b), and the direction the base runs there (ta, tb)
+    const aA = -0.35, aB = Math.PI + 0.5;
+    const a = [Math.cos(aA), Math.sin(aA)], b = [Math.cos(aB), Math.sin(aB)];
+    const ta = [-a[1], a[0]], tb = [-b[1], b[0]];
+    c.moveTo(X(ln - 0.1, -h + 0.06), Y(ln - 0.1, -h + 0.06));
+    curve(ln - 0.04, -h - 0.02, ln + 0.04, -h - 0.02, ln + 0.05, -h + 0.05); // a soft point, not a needle
+    if (s > 0) {
+      const nu = 0.3 + 0.1 * ln, nv = -h * 0.42; // the notch between the body and the tongue
+      const su = 0.86, sv = -0.3 - h * 0.42 * s; // the tongue's tip
+      curve(ln + 0.2, -h + 0.45, nu - 0.05, nv - 0.3, nu, nv);
+      curve(nu + 0.14, nv - 0.02, su - 0.12, sv + 0.25, su, sv);
+      curve(su + 0.16, sv + 0.3, a[0] - 0.5 * ta[0], a[1] - 0.5 * ta[1], a[0], a[1]);
+    } else {
+      curve(ln + 0.3, -h + 0.5, a[0] - 0.75 * ta[0], a[1] - 0.75 * ta[1], a[0], a[1]);
+    }
+    c.arc(x, y, r, aA + rot, aB + rot, false);
+    curve(b[0] + 0.75 * tb[0], b[1] + 0.75 * tb[1], ln - 0.2, -h + 0.75, ln - 0.1, -h + 0.06);
+    c.closePath();
+  }
+  /** Records the path methods flameOutline() calls as SVG path data. */
+  function svgPath(draw) {
+    let d = "";
+    const f = (v) => +v.toFixed(2);
+    draw({
+      moveTo: (x, y) => { d += `M${f(x)} ${f(y)}`; },
+      bezierCurveTo: (a, b, c, e, x, y) => { d += `C${f(a)} ${f(b)} ${f(c)} ${f(e)} ${f(x)} ${f(y)}`; },
+      arc: (cx, cy, r, a0, a1) => { d += `A${f(r)} ${f(r)} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${f(cx + r * Math.cos(a1))} ${f(cy + r * Math.sin(a1))}`; },
+      closePath: () => { d += "Z"; },
+    });
+    return d;
+  }
+  /** The streak badge's flame as inline SVG: the ball on fire. Flat colour, no outlines: a deep outer
+   * flame, a brighter inner one, and the ball at the core with the stage ball's highlight on it (the
+   * canvas draws the same flame round the real ball). It grows a little with every answer in a row.
+   * From seven it turns the gem's gold and the core becomes the lion, in ink, as on the gem. The
+   * viewBox's bottom edge sits just under the ball, so the count's baseline lines up with it. */
   function flame(n, cls) {
-    const lv = Math.max(2, flameLevel(n)), c = FLAME[lv];
+    const lv = Math.max(2, flameLevel(n)), [o, m, w] = FLAME[lv], g = lv - 2, gem = lv >= 7;
+    const outer = svgPath((p) => flameOutline(p, 0, 0, 10, { h: 1.85 + 0.05 * g, lean: -0.32, side: 0.85 + 0.06 * g }));
+    const inner = svgPath((p) => flameOutline(p, 0.2, 2, 7.4, { h: 1.35 + 0.04 * g, lean: -0.24 }));
     const [mx, my, mr] = MARK.ball;
-    const core = lv >= 7
-      ? `<g transform="translate(16.3 27) scale(0.22)"><g class="fl-core"><path d="${MARK.d}" fill="none" stroke="${c[2]}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${mx}" cy="${my}" r="${mr + 1}" fill="${c[2]}"/></g></g>`
-      : `<circle class="fl-core" cx="16" cy="30.4" r="4.3" fill="${c[2]}"/>`;
-    return `<svg class="flame fl-${lv}${cls ? " " + cls : ""}" viewBox="0 0 32 40" aria-hidden="true" focusable="false">` +
-      `<path class="fl-out" fill="${c[0]}" d="M16 1.5C17.6 7.8 25.5 12.6 26.6 22.4C27.6 31.4 22.4 38.5 16 38.5S4.4 31.4 5.4 23.6C6.1 18.1 9.4 15.3 11 10.6C12.4 14.2 13.5 15.6 14.6 16.2C13.5 10.8 14 5.8 16 1.5Z"/>` +
-      `<path class="fl-in" fill="${c[1]}" d="M16.4 14.5C17.6 19 22.2 22 22.2 27.8C22.2 32.8 19.6 36 16 36S9.8 32.8 9.8 28.6C9.8 25.2 11.8 23.3 13 20.6C13.9 22.7 14.7 23.4 15.6 23.8C15.1 20.4 15.4 17.2 16.4 14.5Z"/>` +
-      `${core}</svg>`;
+    const core = gem
+      ? `<g class="fl-core"><g transform="translate(0.4 -2.2) scale(0.3)"><path d="${MARK.d}" fill="none" stroke="${COL.goldInk}" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${mx}" cy="${my}" r="${mr + 0.6}" fill="${COL.goldInk}"/></g></g>`
+      : `<g class="fl-core"><circle cx="0.3" cy="3.6" r="4.6" fill="${w}"/><ellipse class="fl-hi" cx="-1.36" cy="1.76" rx="1.56" ry="1.01" transform="rotate(-35 -1.36 1.76)" fill="#fff" opacity="0.9"/></g>`;
+    return `<svg class="flame fl-${lv}${cls ? " " + cls : ""}" viewBox="-12 -22 24 31.6" aria-hidden="true" focusable="false">` +
+      `<path class="fl-out" fill="${o}" d="${outer}"/><path class="fl-in" fill="${gem ? COL.goldBand : m}" d="${inner}"/>${core}</svg>`;
   }
 
   // ------------------------------------------------------------ descent
@@ -384,6 +430,22 @@
   };
   const COIN_G = 0.0019; // px per ms², the coins' gravity
   const TENSE_RED = rgb("#e8412f"); // a deeper cousin of the house's negative red
+  const SMOKE = "#8c857b";
+  const glows = new Map();
+  /** A soft round glow in one colour, painted once and then only scaled: a phone draws a cached
+   * image far more cheaply than a new gradient (or a shadow blur) every frame. */
+  function glowSprite(col) {
+    let s = glows.get(col);
+    if (!s) {
+      s = document.createElement("canvas");
+      s.width = s.height = 128;
+      const g = s.getContext("2d"), c = rgb(col), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      [[0, 1], [0.2, 0.62], [0.45, 0.24], [0.7, 0.07], [1, 0]].forEach(([at, a]) => gr.addColorStop(at, css(c, a)));
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+      glows.set(col, s);
+    }
+    return s;
+  }
 
   function Descent(canvas, opts = {}) {
     const ctx = canvas.getContext("2d");
@@ -398,6 +460,9 @@
       marks: [], segs: [], ripples: [], texts: [], sparks: [], trail: [], motes: [],
       flood: null, land: null, flash: null, dim: null, shiver: 0, coins: [], wash: null, hold: 0, holdAt: 0,
       tense: 0, tenseTo: 0, beat: 0, exhale: null, // the last seconds of the clock
+      // the ball's fire: how far the flames lean (px, a spring), how fast the ball moves through the air,
+      // the flare at a landing, how far it has caught (0 to 1), embers, wisps and smoke, and the fire going out
+      fx: { lean: 0, leanV: 0, speed: 0, flare: 0, grow: 1, acc: 0, bits: [], out: null, tip: null },
       anim: null, raf: 0, onScreen: true, reported: NaN,
       onFrame: opts.onFrame || null, onFlood: opts.onFlood || null,
     };
@@ -553,13 +618,60 @@
         m.x += vx * m.f * dt; m.y += vy * m.f * dt;
         m.x = ((m.x + 10) % W + W) % W - 10; m.y = ((m.y + 10) % H + H) % H - 10;
       }
+      stepFire(dt, calm);
+    }
+
+    /** The fire moves with the ball. Its lean is a damped spring pulled towards the ball's speed through
+     * the air: the flames stream back while it rolls and swing past upright when it stops. Embers and
+     * small wisps break off the tips and stay where they were shed (they hold world coordinates, like
+     * the sparks), so a rolling ball leaves them behind. */
+    function stepFire(dt, calm) {
+      const fx = st.fx, lv = flameLevel(st.streak), R = st.R;
+      if (calm) { fx.lean = fx.leanV = fx.speed = fx.flare = fx.acc = 0; fx.grow = 1; fx.bits = []; fx.out = null; return; }
+      if (dt <= 0) return; // the hit-stop holds the fire too
+      const vx = st.vel * scale(); // px per ms
+      fx.speed = Math.abs(vx);
+      const pull = -clamp(vx * 52, -R * 0.9, R * 2.2);
+      fx.leanV += ((pull - fx.lean) * 0.00011 - fx.leanV * 0.013) * dt;
+      fx.lean += fx.leanV * dt;
+      fx.flare *= Math.exp(-dt / 380);
+      fx.grow = Math.min(1, fx.grow + dt / 420);
+      if (fx.out && (fx.out.t += dt) > fx.out.max) fx.out = null;
+      // embers off the top of the flames: a steady trickle, more the longer the streak, a gust when it rolls or lands
+      if (lv >= 3 && fx.tip) {
+        fx.acc += dt * (0.005 + 0.0015 * (lv - 3)) * (1 + 3 * Math.min(1, fx.speed * 2)) * (1 + 2 * fx.flare);
+        while (fx.acc >= 1) {
+          fx.acc -= 1;
+          if (fx.bits.length >= 40) continue;
+          // embers rise from anywhere in the flames; wisps tear off near the tip
+          const t = fx.tip, wisp = Math.random() < 0.28, k = wisp ? 0.65 + 0.3 * Math.random() : Math.random() * 0.75;
+          fx.bits.push({
+            kind: wisp ? "wisp" : "ember", wx: st.x, wy: terrain(st.x),
+            ox: lerp(t.x0, t.x1, k) + (Math.random() - 0.5) * R * (wisp ? 0.3 : 0.9), oy: lerp(t.y0, t.y1, k),
+            vx: vx * 0.35 + (Math.random() - 0.5) * 0.03, vy: -(0.02 + 0.035 * Math.random()), ph: Math.random() * 6.3,
+            size: wisp ? R * (0.15 + 0.1 * Math.random()) : 0.9 + 1.2 * Math.random(),
+            hex: FLAME[lv][Math.random() < 0.5 ? 1 : 2], life: 0, max: wisp ? 260 + 200 * Math.random() : 650 + 700 * Math.random(),
+          });
+        }
+      } else fx.acc = 0;
+      for (const b of fx.bits) {
+        b.life += dt;
+        if (b.life < 0) continue; // a puff of smoke still waiting its turn
+        b.vx *= Math.exp(-dt / 420);
+        b.vy -= (b.kind === "smoke" ? 0.00002 : 0.00005) * dt; // hot air rises
+        b.ox += (b.vx + Math.sin(b.life * 0.009 + b.ph) * 0.012) * dt;
+        b.oy += b.vy * dt;
+      }
+      fx.bits = fx.bits.filter((b) => b.life < b.max);
     }
 
     function land(a, calm) {
       const tier = a.tier, x = st.x;
       if (tier === "miss") {
+        const was = flameLevel(st.streak);
         st.streak = 0; st.tier = "miss";
         if (calm) return;
+        if (was >= 3) putOut(was);
         st.ripples.push({ x, color: TIER_COLORS.miss, size: 22, rings: 1, life: 900, max: 900 });
         st.texts.push({ x, text: "NaN", color: COL.muted, size: 16, life: 1300, max: 1300 });
         st.dim = { t: 0, max: 560 };
@@ -569,6 +681,7 @@
       st.streak += 1; st.tier = tier;
       if (calm) return;
       const lv = flameLevel(st.streak);
+      if (lv >= 3) { st.fx.flare = 1; if (lv === 3) st.fx.grow = 0; } // the fire flares at each landing; at three it catches
       const k = Math.min(1.3, (POWER[tier] || 0.5) * (1 + 0.07 * Math.max(0, lv - 1)));
       st.land = { t: 0, k };
       // hit-stop: a rare landing holds the whole stage still for a beat before it all bursts out, longer the rarer
@@ -590,6 +703,20 @@
       if (jp) {
         st.wash = { t: 0, max: jp.wash[1], a: jp.wash[0], col: rgb(TIER_COLORS[tier]) };
         coins(jp.coins, jp.cols);
+      }
+    }
+    /** A miss puts the fire out: the flames sink into the ball and a puff of smoke rises off it. */
+    function putOut(lv) {
+      const fx = st.fx, R = st.R, t = fx.tip;
+      fx.out = { t: 0, max: 480, lv };
+      if (!t) return;
+      for (let i = 0; i < 7; i++) {
+        const k = 0.15 + 0.75 * (i / 6);
+        fx.bits.push({
+          kind: "smoke", wx: st.x, wy: terrain(st.x), ox: lerp(t.x0, t.x1, k * 0.6) + (Math.random() - 0.5) * R * 0.7, oy: lerp(t.y0, t.y1, k * 0.6),
+          vx: (Math.random() - 0.5) * 0.02, vy: -(0.025 + 0.02 * Math.random()), ph: Math.random() * 6.3,
+          size: R * (0.5 + 0.25 * Math.random()), life: -i * 35, max: 900 + 300 * Math.random(),
+        });
       }
     }
     /** Coins thrown up out of the ball: they spin (a squashing ellipse), fall and fade. */
@@ -768,39 +895,72 @@
       }
     }
 
-    /** Three answers in a row and the ball catches fire. The fire is wider than the ball and wraps
-     * round it (drawn behind), and a fainter layer licks up over its crown (drawn in front), so the
-     * ball sits inside the flames instead of a flame standing behind it. */
-    function fire(c, cx, cy, lv, calm, front) {
-      const R = st.R, [o, m, w] = FLAME[lv].map(rgb);
-      const lean = calm ? 0 : -clamp(st.vel * 1400, -R * 1.2, R * 2.6); // the flames stream back as it rolls
-      // as tall as the streak, but never up into the numbers over the stage (the phone keyboard strip is short)
-      const over = st.rects.filter((r) => r.y + r.h / 2 < st.h / 2 && r.x < cx + R * 2 && r.x + r.w > cx - R * 2);
+    /** Three answers in a row and the ball catches fire: the badge's flame, wrapped round the real ball.
+     * Its round base is the ball, so the flames rise off it instead of standing behind it. Measured
+     * once a frame (fireOf), drawn in three passes: the light it throws (on the ground under the ball
+     * and into the air), the flames behind the ball, and a translucent lick across its front. */
+    function fireOf(cx, cy, bx, by, lv, calm) {
+      const fx = st.fx, R = st.R, out = fx.out;
+      const flv = lv >= 3 ? lv : out ? out.lv : 0;
+      if (!flv) return null;
+      let size = 1, alpha = 1;
+      if (lv >= 3 && !calm) { size = ease.back(fx.grow); alpha = Math.min(1, fx.grow * 3); } // catching: it leaps up out of the ball
+      else if (lv < 3) { const k = out.t / out.max; size = 1 - 0.8 * ease.out(k); alpha = 1 - k; } // going out: it sinks into the ball
+      const t = st.t;
+      const fl = calm ? 1 : 1 + 0.07 * Math.sin(t * 0.0123) + 0.05 * Math.sin(t * 0.0291 + 1.3) + 0.03 * Math.sin(t * 0.0517 + 0.4);
+      // as tall as the streak, longer when it rolls fast, flaring at a landing; never up into the numbers
+      // over the stage (the phone keyboard strip is short)
+      const over = st.rects.filter((r) => r.y + r.h / 2 < st.h / 2 && r.x < cx + R * 2.5 && r.x + r.w > cx - R * 3.5);
       const ceil = over.length ? Math.max(...over.map((r) => r.y + r.h)) : -Infinity;
-      const tall = Math.min(R * (2.2 + 0.4 * (lv - 3)), Math.max(R * 1.2, cy - R * 0.5 - ceil - 4));
-      // [offset across, height, colour, width, opacity]
-      const tongues = front
-        ? [[-0.35, 0.55, o, 0.42, 0.2], [0.3, 0.6, o, 0.42, 0.2], [0.05, 0.85, m, 0.34, 0.18]]
-        : [[-0.8, 0.6, o, 0.62, 0.5], [0.75, 0.64, o, 0.62, 0.5], [0, 1, o, 0.95, 0.5], [0.12, 0.74, m, 0.7, 0.55], [0.05, 0.45, w, 0.5, 0.55]];
-      const root = front ? cy - R * 0.45 : cy + R * 0.15;
-      c.save();
-      c.globalCompositeOperation = "lighter";
-      tongues.forEach(([dx, hk, col, wk, a], k) => {
-        const ph = calm ? k : st.t * (0.007 + 0.0012 * lv) + k * 1.9 + (front ? 0.8 : 0);
-        const ht = tall * hk * (0.82 + 0.18 * Math.sin(ph));
-        const ox = dx * R + (calm ? 0 : Math.sin(ph * 1.3) * R * 0.1);
-        flameShape(c, cx + ox, root, R * wk, ht + (cy - root) + R * 0.5, lean * hk, col, a);
-      });
-      c.restore();
+      let H = R * (2.35 + 0.2 * (flv - 3)) * fl * (1 + Math.min(0.45, fx.speed * 0.8)) * (1 + 0.4 * fx.flare);
+      H = Math.min(H, Math.max(R * 1.3, cy - ceil - 4)) * size;
+      // the spring's lean, and a slow waver of its own even at rest
+      const lean = calm ? 0 : fx.lean + R * (0.12 * Math.sin(t * 0.0087) + 0.06 * Math.sin(t * 0.0213 + 0.7));
+      // where embers break off (from the ball's crown to the tip, relative to where it stands), and the
+      // tip's height on the stage (tests check it stays under the numbers)
+      fx.tip = { x0: cx - bx, y0: cy - R - by, x1: cx + lean - bx, y1: cy - H - by, top: cy - H };
+      return { lv: flv, cols: FLAME[flv].map(rgb), H, lean, alpha, fl, cx, cy, bx, by, calm };
     }
-    function flameShape(c, x, y, wd, ht, lean, col, a) {
-      c.fillStyle = css(col, a);
-      c.beginPath();
-      c.moveTo(x + lean, y - ht);
-      c.bezierCurveTo(x + wd * 0.3 + lean * 0.5, y - ht * 0.55, x + wd, y - ht * 0.3, x + wd, y);
-      c.arc(x, y, wd, 0, Math.PI, false);
-      c.bezierCurveTo(x - wd, y - ht * 0.3, x - wd * 0.3 + lean * 0.5, y - ht * 0.55, x + lean, y - ht);
-      c.fill();
+    function fireLight(c, F) {
+      const R = st.R, k = F.alpha * F.fl * (0.78 + 0.06 * (F.lv - 3));
+      // a wide, flat pool on the ground where the ball stands: the path and the strata under it catch the light
+      c.globalAlpha = clamp(0.5 * k, 0, 1);
+      c.drawImage(glowSprite(FLAME[F.lv][1]), F.bx - R * 5.5, F.by - R * 1.7, R * 11, R * 3.8);
+      // and the air round the flames
+      const ar = R * (3 + 0.3 * F.lv);
+      c.globalAlpha = clamp(0.36 * k, 0, 1);
+      c.drawImage(glowSprite(FLAME[F.lv][0]), F.cx + F.lean * 0.3 - ar, F.cy - F.H * 0.35 - ar, ar * 2, ar * 2);
+      c.globalAlpha = 1;
+    }
+    function flames(c, F, front) {
+      const R = st.R, [o, m, w] = F.cols, t = st.t;
+      // one layer: base radius r (in R), its centre lifted above the ball's, its share of the height
+      const layer = (r, lift, share, col, a, side, ph) => {
+        r *= R;
+        const y = F.cy - lift * R;
+        const ht = Math.max(r * 0.6, F.H * share * (F.calm ? 1 : 1 + 0.07 * Math.sin(t * 0.017 + ph)) - lift * R);
+        // the tip streams back with the lean; the flame half turns and half bends towards it, so it curves
+        const lx = F.lean * share, rot = 0.5 * Math.atan2(lx, ht);
+        const u = lx * Math.cos(rot) - ht * Math.sin(rot), h = lx * Math.sin(rot) + ht * Math.cos(rot);
+        c.fillStyle = css(col, a * F.alpha);
+        c.beginPath();
+        flameOutline(c, F.cx, y, r, { h: h / r, lean: u / r - 0.3, side, rot });
+        c.fill();
+      };
+      // fire is light, so the layers brighten what is under them (deep at the edge, yellow where they
+      // overlap) and the scene shows faintly through. Screen rather than adding: added up, orange clips
+      // to a lime yellow on the cold plateau. The badge draws the same layers flat.
+      c.save();
+      c.globalCompositeOperation = "screen";
+      if (!front) {
+        const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
+        layer(1.14, 0.34, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
+        layer(1.0, 0.3, 0.74, m, 0.85, 0, 1.9);
+        if (F.lv >= 5) layer(0.74, 0.42, 0.54, w, 0.75, 0, 3.7); // white-hot: a pale core rises off the ball's crown
+      } else {
+        layer(0.78, -0.3, 0.58, m, 0.2, 0.7, 0.8);
+      }
+      c.restore();
     }
     /** The ball, lit twice: a cool key light from the sky (the specular), and from below the
      * minimum's glow, which grows as the ball goes deeper. Its aura takes the last answer's
@@ -817,6 +977,8 @@
       const e = st.view / 400, [lx, ly] = onPath(st.x - e), [rx, ry] = onPath(st.x + e);
       const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
       const k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
+      const F = fireOf(cx, cy, bx, by, lv, calm);
+      const lit = F ? 1 - 0.55 * F.alpha : 1; // the fire's own light takes over from the aura
       c.save();
       c.globalCompositeOperation = "lighter";
       // a pool of light where it rests
@@ -827,10 +989,11 @@
       c.restore();
       const ar = R * (2.3 + 1.3 * d + 0.18 * lv);
       g = c.createRadialGradient(cx, cy, R * 0.7, cx, cy, ar);
-      g.addColorStop(0, css(tint, 0.2 + 0.26 * d + 0.03 * lv)); g.addColorStop(1, css(tint, 0));
+      g.addColorStop(0, css(tint, (0.2 + 0.26 * d + 0.03 * lv) * lit)); g.addColorStop(1, css(tint, 0));
       c.fillStyle = g; c.fillRect(cx - ar, cy - ar, ar * 2, ar * 2);
-      if (lv >= 3) fire(c, cx, cy, lv, calm, false);
+      if (F) fireLight(c, F);
       c.restore();
+      if (F) flames(c, F, false);
       // a soft contact shadow where it sits in the groove, drawn under the ball, so it looks seated, not pasted on
       c.save();
       c.translate(cx, cy); c.rotate(th); c.translate(0, R * 0.62); c.scale(1, 0.42); // an ellipse along the slope
@@ -849,12 +1012,53 @@
       g = c.createRadialGradient(R * 0.5, R * 0.8, 0, R * 0.5, R * 0.8, R * 1.15);
       g.addColorStop(0, css(tint, 0.2 + 0.6 * d)); g.addColorStop(1, css(tint, 0));
       c.globalCompositeOperation = "lighter"; c.fillStyle = g; c.fillRect(-R, -R, 2 * R, 2 * R);
+      if (F) { // the flames over it light its crown, and the side they stream back to
+        c.globalAlpha = clamp(0.42 * F.alpha * F.fl, 0, 1);
+        c.drawImage(glowSprite(FLAME[F.lv][1]), F.lean * 0.3 - R * 1.5, -R * 2.75, R * 3, R * 3);
+        c.globalAlpha = 1;
+      }
       c.restore();
       c.fillStyle = "rgba(255,255,255,0.85)";
       c.beginPath(); c.ellipse(-R * 0.36, -R * 0.42, R * 0.26, R * 0.17, -0.6, 0, Math.PI * 2); c.fill();
       c.restore();
-      if (lv >= 3) fire(c, cx, cy, lv, calm, true); // and its front: the ball sits inside the fire
+      if (F) flames(c, F, true); // and its front: the ball sits inside the fire
       return [cx, cy];
+    }
+
+    /** What the fire sheds: embers (sparks of light), wisps (small flames that tear off the tips and
+     * burn out as they rise) and, when it goes out, smoke. All of it fades before the numbers. */
+    function drawBits(c) {
+      const bits = st.fx.bits;
+      if (!bits.length) return;
+      const top = st.topY;
+      c.save();
+      for (const b of bits) {
+        if (b.life < 0) continue;
+        const [sx, sy] = toScreen(b.wx, b.wy);
+        const x = sx + b.ox, y = sy + b.oy, k = b.life / b.max;
+        const a = smooth(top, top + 26, y);
+        if (a <= 0) continue;
+        if (b.kind === "smoke") {
+          const r = b.size * (1 + 1.8 * k);
+          c.globalCompositeOperation = "source-over";
+          c.globalAlpha = 0.55 * (1 - k) * Math.min(1, b.life / 90) * a;
+          c.drawImage(glowSprite(SMOKE), x - r, y - r, r * 2, r * 2);
+          continue;
+        }
+        c.globalCompositeOperation = "lighter";
+        c.globalAlpha = 1;
+        if (b.kind === "wisp") {
+          const r = b.size * (1 - 0.7 * k);
+          c.fillStyle = css(rgb(b.hex), 0.85 * (1 - k * k) * a);
+          c.beginPath(); flameOutline(c, x, y, r, { h: 1.9, lean: clamp(-0.3 - b.vx * 8, -1.2, 0.5) }); c.fill();
+        } else { // a hot point with a little glow round it
+          c.globalAlpha = (1 - k) * a;
+          const r = b.size * 1.8;
+          c.drawImage(glowSprite(b.hex), x - r, y - r, r * 2, r * 2);
+          c.globalAlpha = 1;
+        }
+      }
+      c.restore();
     }
 
     function drawLive(c, L) {
@@ -897,7 +1101,7 @@
         const n = pts.length, [x0, y0] = pts[0], [x1, y1] = pts[n - 1];
         if (fade > 0 && Math.hypot(x1 - x0, y1 - y0) > R) {
           c.save(); c.globalCompositeOperation = "lighter";
-          const ribbon = (half, a) => {
+          const ribbon = (half, a, col) => {
             const left = [], right = [];
             for (let i = 0; i < n; i++) {
               const [ax, ay] = pts[Math.max(0, i - 1)], [cx2, cy2] = pts[Math.min(n - 1, i + 1)];
@@ -908,16 +1112,18 @@
               right.push([pts[i][0] - nx * wv, pts[i][1] - ny * wv]);
             }
             const g = c.createLinearGradient(x0, y0, x1, y1);
-            g.addColorStop(0, css(tint, 0)); g.addColorStop(1, css(tint, a * fade));
+            g.addColorStop(0, css(col, 0)); g.addColorStop(1, css(col, a * fade));
             c.fillStyle = g;
             c.beginPath(); c.moveTo(left[0][0], left[0][1]);
             for (let i = 1; i < n; i++) c.lineTo(left[i][0], left[i][1]);
             for (let i = n - 1; i >= 0; i--) c.lineTo(right[i][0], right[i][1]);
             c.closePath(); c.fill();
           };
-          ribbon(R * 1.35, 0.1);
-          ribbon(R * 0.85, 0.24);
-          ribbon(R * 0.32, 0.42);
+          // on fire, the wake burns in the fire's own layers: deep outside, white-hot down the middle
+          const [o, m, wh] = lv >= 3 ? FLAME[lv].map(rgb) : [tint, tint, tint];
+          ribbon(R * 1.35, 0.1, o);
+          ribbon(R * 0.85, 0.24, m);
+          ribbon(R * 0.32, 0.42, wh);
           c.restore();
         }
       }
@@ -935,6 +1141,7 @@
       }
 
       const [cx, cy] = drawBall(c, L, bx, by, tint, lv);
+      drawBits(c);
 
       // what the landing took off the loss, rising beside the ball on the open (downhill) side, clear
       // of the ball, its flames and every box at the top
@@ -1013,10 +1220,16 @@
         for (let rr = diag + bandW * 2 - phase; rr > R * 1.6; rr -= bandW * 2) {
           c.beginPath(); c.arc(cx, cy, rr, 0, Math.PI * 2); c.arc(cx, cy, Math.max(0, rr - bandW), 0, Math.PI * 2, true); c.fill();
         }
-        // the ball becomes the lion: it stays put and Leo's curve grows out of it
+        // the ball becomes the lion: it stays put and Leo's curve grows out of it, up to the numbers along
+        // the top and no further (the streak sits right over it). The mane rises 44.4 units over the
+        // ball's centre and the tail reaches 47.5 to its right, stroke included.
         const grow = clamp((r - R) / (diag * 0.4), 0, 1);
         const [mx, my, mr] = MARK.ball;
-        const ms = R / mr + grow * (w < 560 ? 1 : 1.4);
+        const ms0 = R / mr, msBig = ms0 + (w < 560 ? 1 : 1.4);
+        const over = st.rects.filter((b) => b.y + b.h / 2 < h / 2 && b.x < cx + 47.5 * msBig && b.x + b.w > cx - mr * msBig);
+        const ceil = over.length ? Math.max(...over.map((b) => b.y + b.h)) : -Infinity;
+        const ms = ms0 + grow * Math.max(0, Math.min(msBig, (cy - ceil - 6) / 44.4) - ms0);
+        f.top = cy - 44.4 * ms; // the top of the mane on the stage (tests check it stays under the numbers)
         c.save();
         c.globalAlpha = clamp(grow * 5, 0, 1);
         c.translate(cx, cy); c.scale(ms, ms); c.translate(-mx, -my);
@@ -1095,7 +1308,7 @@
       drawLive(ctx, L);
     }
     const busy = () => !!(st.hold > 0 || st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
-      st.coins.length || st.wash || st.exhale || st.beat || (!still() && (st.tense || st.tenseTo)) ||
+      st.coins.length || st.wash || st.exhale || st.beat || st.fx.out || (!still() && (st.tense || st.tenseTo)) ||
       (st.T && (Math.abs(st.camX - st.x - st.lead) > 0.3 || Math.abs(st.by - st.T.by) > 0.3 || Math.abs(st.sy - st.T.sy) > 0.002 || Math.abs(st.zoom - 1) > 0.0008)));
 
     let last = 0, lastPaint = 0;
@@ -1129,6 +1342,7 @@
       if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
       st.ripples = []; st.texts = []; st.sparks = []; st.trail = []; st.flash = null; st.dim = null; st.land = null; st.shiver = 0; st.hold = 0;
       st.coins = []; st.wash = null; st.tense = st.tenseTo = st.beat = 0; st.exhale = null;
+      st.fx.bits = []; st.fx.out = null; st.fx.flare = 0; st.fx.grow = 1;
       if (st.w) paint();
     }
 
@@ -1149,6 +1363,7 @@
         st.x = x; st.anim = null;
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
         st.trail = []; st.sparks = []; st.land = null; st.coins = []; st.wash = null; st.hold = 0;
+        Object.assign(st.fx, { lean: 0, leanV: 0, flare: 0, grow: 1, bits: [], out: null });
         measure();
         snap();
       },
