@@ -1187,6 +1187,30 @@ The user asked: "show stats like what other players answered", rarity unchanged 
   "Publish your score to see what everyone else answered today." Test: `tests/board.e2e.js` (the fake project
   follows the same rules).
 
+### Player levels (added 2026-11-06, branch `levels`)
+
+The user asked for player levels, so people want to play more, without confusing new players, without being
+harsh, and without changing much. The full design, the numbers and the sources are in LEVELS.md.
+- XP is computed from what the browser holds, each time it is shown (`xpNow` in app.js section "levels"):
+  every record in `mlion:records` through `E.recordXp`, plus `mlion:xplog` for play that leaves no record
+  (sprints `sp:<pid>:<time>`, live matches `live:<seed>`, and one `sprints-before-levels` entry built once
+  from `mlion:sprints`). So it is retroactive, Export/Import carry it, and Reset clears it.
+- Rules (`E.XP` in engine.js): accepted answer 2/2/3/5/7/10 by tier; right quiz answer 2/3/4 by level;
+  Sprint answer 1/1/2/3/4/5; +20 for finishing the daily or the Daily Quiz; +5 for a live match. Misses earn 0.
+  Everything but the two dailies goes through a daily practice pool (`E.practiceXp`: in full to 60, at most
+  160 a day). Curve: Level 2 at 30 XP, each early level 20 more, a steady 400 from Level 20 (`E.levelFor`).
+  Levels never go down and lock nothing.
+- Shown: an XP row on results, the sprint end screen and the live podium (`xpRowHtml`; the moment is
+  `xpPlay`: fill, a 140 ms hit-stop on the full bar, ring pop, "Level up" tag, `Sound.levelUp`; Reduce
+  motion shows the end at once). Home has a chip for players with records (`xpChipHtml`; never on the
+  first-visit hero, which preboot.e2e.js pins). Stats has `#xp-block` and a "Levels" section. FAQ entry.
+  Live lobby rows show "Level N" from an optional `lvl` field on hello, ready and the lobby list (`cleanLvl`).
+- A finished run stores what it earned as `rec.xp`; its results show that again later without the moment.
+- Not done: levels on the leaderboard (needs a `profiles.level` column and a change to the inline board
+  fetch in index.html; LEVELS.md says how). No SQL was written.
+- Test: `tests/levels.e2e.js` (rules in Node; then new player, retroactive level, the level-up moment and its
+  hit-stop, Reduce motion, a daily, the practice pool, a sprint, a live lobby and podium on the fake relay).
+
 ### Publish my score, top five, name filter (added 2026-11-05)
 
 The user asked: after the daily, see other people's scores, and a "Publish" button that asks for a name,
@@ -1531,6 +1555,7 @@ is the lit exhibit.
   refused share saves, cancelled share does nothing, the text grid still copies, no page errors.
   `e2e.js` and `quiz.e2e.js` now reach the text grid through the sheet's `#card-text`.
 
+- Levels (2026-11-06): `tests/levels.e2e.js` (see "Player levels" in section 7).
 ---
 
 ## 10. Constraints to keep
