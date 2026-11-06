@@ -484,9 +484,10 @@
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
-    /** How far the ball sinks into the path. Negative: it rests on top of the lit line (3.5 px wide) instead.
-     *  (It used to sink 38% of its radius, which read as the line running into the ball; user, 2026-11-06.) */
-    const sink = () => -2;
+    /** How far the ball's bottom presses into the path's centre line, in px: just enough that it visibly sits on
+     *  the lit line (3.5 px wide) with the line's lower edge showing under it. History (user, 2026-11-06): it sank
+     *  38% of its radius (the line seemed to run into the ball), then it rested 2 px up (it seemed to float). */
+    const sink = () => 1;
     /** The ball's centre when it stands at x: out along the slope's normal (not straight up), r from the path. */
     const ballAt = (x, r) => {
       const e = st.view / 400, [px, py] = onPath(x), [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e);
@@ -1031,11 +1032,12 @@
       if (F) flames(c, F, false);
       // a soft contact shadow where it sits in the groove, drawn under the ball, so it looks seated, not pasted on
       c.save();
-      c.translate(cx, cy); c.rotate(th); c.translate(0, R * 0.62); c.scale(1, 0.42); // an ellipse along the slope
-      g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.25);
+      // centred on the contact point itself and kept shallow: a shadow between the ball and the line reads as a gap
+      c.translate(cx, cy); c.rotate(th); c.translate(0, R * ay - k); c.scale(1, 0.3); // an ellipse along the slope
+      g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.1);
       const shade = 1 - 0.75 * burn; // a burning ball casts light, not shadow
-      g.addColorStop(0, `rgba(0,0,0,${0.55 * shade})`); g.addColorStop(0.6, `rgba(0,0,0,${0.3 * shade})`); g.addColorStop(1, "rgba(0,0,0,0)");
-      c.fillStyle = g; c.fillRect(-R * 1.25, -R * 1.25, R * 2.5, R * 2.5);
+      g.addColorStop(0, `rgba(0,0,0,${0.4 * shade})`); g.addColorStop(0.6, `rgba(0,0,0,${0.18 * shade})`); g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g; c.fillRect(-R * 1.1, -R * 1.1, R * 2.2, R * 2.2);
       c.restore();
       c.save();
       // squash against the ground it lands on, then turn back so the light stays top-left
