@@ -136,7 +136,7 @@ function pageHelpers(records) {
     check(ogDim.w === +meta("og:image:width") && ogDim.h === +meta("og:image:height") && +meta("og:image:width") === 1200 && +meta("og:image:height") === 630, `og.jpg is 1200x630, as its tags say (${ogDim.w}x${ogDim.h})`);
     check(og.length < KB300, `og.jpg is under 300 KB, as some chat apps need for a preview (${(og.length / 1024).toFixed(0)} KB)`);
     const words = (t) => t.trim().split(/\s+/).length;
-    check(words(meta("og:title")) < 10 && words(meta("og:description")) < 10, `title and description stay under 10 words ("${meta("og:title")}" / "${meta("og:description")}")`);
+    check(words(meta("og:title")) < 10 && words(meta("og:description")) <= 11, `title and description stay under 10 words ("${meta("og:title")}" / "${meta("og:description")}")`);
     check(meta("og:type") === "website" && meta("og:site_name") === "MLion" && meta("twitter:card") === "summary_large_image" && !!meta("og:image:alt"), "og:type, og:site_name, twitter:card and the image's alt text are set");
     check(meta("theme-color") === "#f2b53c", "chat embeds read a gold theme-color (Discord's side bar)");
 

@@ -755,7 +755,7 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
   `node tools/build.js`: it stamps og.jpg's hash into the image URL (`og.jpg?v=<hash>`), so Discord's cache
   fetches the new one.
 - Tags in `index.html`: og:type, og:site_name, og:url, og:title "MLion, a daily word game for ML
-  people", og:description "Seven prompts a day. Common answers barely count.", og:image with type,
+  people", og:description "Write the most niche answer you know to an ML question." (the user's wording, 2026-11-07), og:image with type,
   width, height and alt, twitter:card summary_large_image, twitter:image and its alt.
 - theme-color is gold `#f2b53c` in the HTML, which Discord uses for the embed's side bar. An inline
   script right after it sets it back to `#0b0a08`, so the browser's toolbar stays the dark room
