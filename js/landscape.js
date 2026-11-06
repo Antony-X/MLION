@@ -312,6 +312,7 @@
   const mixC = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   const css = (c, a = 1) => `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${clamp(a, 0, 1).toFixed(3)})`;
   const GOLD = rgb(COL.gold);
+  const hexOf = (c) => "#" + c.map((v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, "0")).join("");
   function lightAt(d) {
     let i = 0;
     while (i < KEYS.length - 2 && d > KEYS[i + 1]) i++;
@@ -481,10 +482,14 @@
       tier: null, streak: 0,
       marks: [], segs: [], ripples: [], texts: [], sparks: [], trail: [], motes: [],
       flood: null, land: null, flash: null, dim: null, shiver: 0, coins: [], wash: null, hold: 0, holdAt: 0,
+      impact: null, afterHold: null, dust: [], wake: 0, // the hit-stop's flash, the burst it holds back, landing dust, the wake's strength
+      fading: null, // a new prompt fading the last landing's effects out (calm())
       tense: 0, tenseTo: 0, beat: 0, exhale: null, // the last seconds of the clock
       // the ball's fire: how far the flames lean (px, a spring), how fast the ball moves through the air,
       // the flare at a landing, how far it has caught (0 to 1), embers, wisps and smoke, and the fire going out
-      fx: { lean: 0, leanV: 0, speed: 0, flare: 0, grow: 1, acc: 0, bits: [], out: null, tip: null },
+      // flareT: ms since the landing's flare began; cols: the fire's colours now (they blend to a new level's)
+      fx: { lean: 0, leanV: 0, speed: 0, flare: 0, flareT: null, grow: 1, acc: 0, bits: [], out: null, tip: null, cols: null },
+      tintNow: null, // the ball's glow colour now (it blends to the last answer's, or the streak's)
       sinkK: -0.5, // how far the ball presses into the line's centre now (sink(); it eases to sinkFor())
       anim: null, raf: 0, onScreen: true, reported: NaN,
       onFrame: opts.onFrame || null, onFlood: opts.onFlood || null,
@@ -494,6 +499,12 @@
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
+    /** The path's centre line at screen x (css px): where sparks die and coins bounce. */
+    const groundY = (sx) => onPath(st.camX + (sx - st.w * AX) / scale())[1];
+    /** The weak rolls ease out (or overshoot) and so set off at full speed from rest: their clock starts slowly
+     *  instead, its pace rising from nothing over the first 12% (reviewer, 2026-11-06). */
+    const SOFT = 0.12;
+    const softStart = (t) => (t < SOFT ? (t * t) / (2 * SOFT) : t - SOFT / 2) / (1 - SOFT / 2);
     /** How far the ball's bottom presses into the path's centre line, in px (negative: it stays above it). The ball
      *  rests on top of the lit line, which is 3.5 px wide: its bottom is on the line's top edge, overlapping it by
      *  half a pixel so no dark seam shows between them (sinkFor). History (user, 2026-11-06): it sank 38% of its
@@ -590,11 +601,12 @@
       st.t = now;
       const a = st.anim, prevX = st.x, pcx = st.camX, pcy = st.camY;
       if (a) {
-        a.t = calm ? 1 : Math.min(1, (now - a.start) / a.dur);
+        a.t = calm ? 1 : clamp((now - a.start) / a.dur, 0, 1);
         if (a.tier === "miss") st.x = a.from; // no gradient, no step
         else if (a.tier === "overfit") { // overshoot the target, then oscillate back: textbook overfitting
-          st.x = a.from + (a.to - a.from) * ease.back(a.t) + Math.sin(a.t * 22) * 22 * (1 - a.t) * (a.t > 0.5 ? 1 : 0);
-        } else st.x = a.from + (a.to - a.from) * (a.tier === "baseline" ? ease.out(a.t) : ease.inOut(a.t));
+          // the wobble starts from nothing at the half (it used to switch on at sin(11), a 6 px jump in one frame)
+          st.x = a.from + (a.to - a.from) * ease.back(softStart(a.t)) + Math.sin((a.t - 0.5) * 22) * 22 * (1 - a.t) * smooth(0.45, 0.6, a.t);
+        } else st.x = a.from + (a.to - a.from) * (a.tier === "baseline" ? ease.out(softStart(a.t)) : ease.inOut(a.t));
         if (a.t >= 1) {
           st.x = a.tier === "miss" ? a.from : a.to;
           if (a.tier !== "miss") { st.segs.push({ x0: a.from, x1: a.to, tier: a.tier }); st.marks.push({ x: a.to, tier: a.tier }); }
@@ -607,6 +619,10 @@
       const sk = sinkFor(); // onto the bright line as it starts, over a few frames, not in one jump
       st.sinkK = calm ? sk : st.sinkK + (sk - st.sinkK) * (1 - Math.exp(-Math.max(0, dt) / 70));
       if (!calm && st.anim && Math.abs(st.x - prevX) > 0.01) st.trail.push({ x: st.x, t: now });
+      // the wake shows with speed: it swells as the ball gets going and fades as it slows, never in one frame
+      const sp = !calm && st.anim ? smooth(0.025, 0.2, Math.abs(st.vel) * scale()) : 0;
+      st.wake = calm ? 0 : st.wake + (sp - st.wake) * (1 - Math.exp(-Math.max(0, dt) / (sp > st.wake ? 50 : 150)));
+      if (st.wake < 0.002 && !sp) st.wake = 0;
       while (st.trail.length && now - st.trail[0].t > 420) st.trail.shift();
 
       // camera
@@ -634,14 +650,33 @@
       st.shake = st.shake > 0.2 && !calm ? st.shake * Math.exp(-dt / 120) : 0;
 
       // effects
+      if (st.fading && (st.fading.t += dt) >= st.fading.max) dropFx();
       for (const r of st.ripples) r.life -= dt;
       st.ripples = st.ripples.filter((r) => r.life > 0);
       for (const t of st.texts) t.life -= dt;
       st.texts = st.texts.filter((t) => t.life > 0);
+      // sparks go out where they meet the ground (they used to fall on through it)
       for (const p of st.sparks) { p.life += dt; p.vy += 0.0011 * dt; p.vx *= Math.exp(-dt / 900); p.ox += p.vx * dt; p.oy += p.vy * dt; }
-      st.sparks = st.sparks.filter((p) => p.life < p.max);
-      for (const p of st.coins) { p.life += dt; p.vy += COIN_G * dt; p.ox += p.vx * dt; p.oy += p.vy * dt; p.spin += p.vs * dt; }
+      st.sparks = st.sparks.filter((p) => {
+        if (p.life >= p.max) return false;
+        if (p.vy <= 0) return true;
+        const [sx, sy] = toScreen(p.wx, p.wy);
+        return sy + p.oy < groundY(sx + p.ox);
+      });
+      // coins land on the path: one small bounce, then they lie there and fade
+      for (const p of st.coins) {
+        p.life += dt; p.vy += COIN_G * dt; p.ox += p.vx * dt; p.oy += p.vy * dt; p.spin += p.vs * dt;
+        if (p.vy <= 0 || dt <= 0) continue;
+        const [sx, sy] = toScreen(p.wx, p.wy), floor = groundY(sx + p.ox) - p.r * 0.9, y = sy + p.oy;
+        if (y < floor) continue;
+        p.oy -= y - floor;
+        if (p.hitAt == null) { p.hitAt = p.life; p.end = p.max; p.vy *= -0.3; p.vx *= 0.45; p.vs *= 0.4; p.max = Math.min(p.max, p.life + 460); }
+        else { p.vy = 0; p.vx *= Math.exp(-dt / 50); p.vs *= Math.exp(-dt / 80); }
+      }
       st.coins = st.coins.filter((p) => p.life < p.max);
+      for (const p of st.dust) { p.life += dt; p.ox += p.vx * dt; p.oy += p.vy * dt; p.vx *= Math.exp(-dt / 260); p.vy *= Math.exp(-dt / 400); }
+      st.dust = st.dust.filter((p) => p.life < p.max);
+      if (st.impact && dt > 0 && (st.impact.t += dt) > st.impact.max) st.impact = null;
       if (st.wash && (st.wash.t += dt) > st.wash.max) st.wash = null;
       // low time: the tension eases in, and lets go at once when the answer is in
       if (st.tense !== st.tenseTo) {
@@ -654,7 +689,7 @@
       if (st.flash && (st.flash.t += dt) > st.flash.max) st.flash = null;
       if (st.dim && (st.dim.t += dt) > st.dim.max) st.dim = null;
       if (st.shiver > 0) st.shiver = Math.max(0, st.shiver - dt);
-      if (st.flood) {
+      if (st.flood && !st.fading) {
         const f = st.flood;
         f.t += dt;
         if (!f.inkOn && f.t > f.grow * 0.35) { f.inkOn = true; st.onFlood && st.onFlood(true); }
@@ -676,6 +711,13 @@
         m.x = ((m.x + 10) % W + W) % W - 10; m.y = ((m.y + 10) % H + H) % H - 10;
       }
       stepFire(dt, calm);
+      const tw = tintFor();
+      st.tintNow = calm || !st.tintNow ? tw : dt > 0 ? mixC(st.tintNow, tw, 1 - Math.exp(-dt / 120)) : st.tintNow;
+    }
+    /** The ball's glow colour: the streak's flame from two in a row, else the last answer's tier, else gold. */
+    function tintFor() {
+      const lv = flameLevel(st.streak);
+      return lv >= 2 ? rgb(FLAME[lv][1]) : st.tier && TIER_COLORS[st.tier] ? rgb(TIER_COLORS[st.tier]) : GOLD;
     }
 
     /** The fire moves with the ball. Its lean is a damped spring pulled towards the ball's speed through
@@ -684,7 +726,12 @@
      * the sparks), so a rolling ball leaves them behind. */
     function stepFire(dt, calm) {
       const fx = st.fx, lv = flameLevel(st.streak), R = st.R;
-      if (calm) { fx.lean = fx.leanV = fx.speed = fx.flare = fx.acc = 0; fx.grow = fx.follow = 1; fx.bits = []; fx.out = null; return; }
+      const flv = lv >= 3 ? lv : fx.out ? fx.out.lv : 0, want = flv ? FLAME[flv].map(rgb) : null;
+      if (calm) { fx.lean = fx.leanV = fx.speed = fx.flare = fx.acc = 0; fx.flareT = null; fx.grow = fx.follow = 1; fx.bits = []; fx.out = null; fx.cols = want; return; }
+      // a new level's colours come in over about a third of a second (they switched in one frame at the landing);
+      // a fire that catches fresh starts in its own
+      if (!want || !fx.cols) fx.cols = want;
+      else if (dt > 0) { const k = 1 - Math.exp(-dt / 110); fx.cols = fx.cols.map((c, i) => mixC(c, want[i], k)); }
       if (dt <= 0) return; // the hit-stop holds the fire too
       const vx = st.vel * scale(); // px per ms
       fx.speed = Math.abs(vx);
@@ -692,10 +739,15 @@
       // it streams back like a comet instead (turned along a downhill it would point forward against the motion)
       const follow = 1 - clamp(fx.speed / 0.2, 0, 1);
       fx.follow = (fx.follow ?? 1) + (follow - (fx.follow ?? 1)) * (1 - Math.exp(-dt / 140));
-      const pull = -clamp(vx * 52, -R * 0.9, R * 2.2);
+      const pull = -clamp(vx * 52, -R * 0.9, R * 3.4); // up to its own height back, about 45 degrees
       fx.leanV += ((pull - fx.lean) * 0.00011 - fx.leanV * 0.013) * dt;
       fx.lean += fx.leanV * dt;
-      fx.flare *= Math.exp(-dt / 380);
+      // a landing's flare rises over about 0.1 s and dies away over the next half second (it jumped up in one frame)
+      if (fx.flareT != null) {
+        const t = (fx.flareT += dt);
+        fx.flare = ((1 - Math.exp(-t / 45)) * Math.exp(-t / 380)) / 0.685;
+        if (t > 2500) { fx.flareT = null; fx.flare = 0; }
+      }
       fx.grow = Math.min(1, fx.grow + dt / 420);
       if (fx.out && (fx.out.t += dt) > fx.out.max) fx.out = null;
       // embers off the top of the flames: a steady trickle, more the longer the streak, a gust when it rolls or lands
@@ -711,7 +763,7 @@
             ox: lerp(t.x0, t.x1, k) + (Math.random() - 0.5) * R * (wisp ? 0.3 : 0.9), oy: lerp(t.y0, t.y1, k),
             vx: vx * 0.35 + (Math.random() - 0.5) * 0.03, vy: -(0.02 + 0.035 * Math.random()), ph: Math.random() * 6.3,
             size: wisp ? R * (0.15 + 0.1 * Math.random()) : 0.9 + 1.2 * Math.random(),
-            hex: FLAME[lv][Math.random() < 0.5 ? 1 : 2], life: 0, max: wisp ? 260 + 200 * Math.random() : 650 + 700 * Math.random(),
+            hex: FLAME[lv][wisp ? (Math.random() < 0.5 ? 0 : 1) : Math.random() < 0.5 ? 1 : 2], life: 0, max: wisp ? 260 + 200 * Math.random() : 650 + 700 * Math.random(),
           });
         }
       } else fx.acc = 0;
@@ -750,29 +802,38 @@
       const lv = flameLevel(st.streak);
       // the fire flares at each landing; at three it catches, on a ball at rest, so it is born standing along the
       // slope (it was born upright, as it had streamed back while rolling, and swung round over about 0.4 s)
-      if (lv >= 3) { st.fx.flare = 1; if (lv === 3) { st.fx.grow = 0; st.fx.follow = 1; } }
+      if (lv >= 3) { st.fx.flareT = 0; if (lv === 3) { st.fx.grow = 0; st.fx.follow = 1; } }
       const k = Math.min(1.3, (POWER[tier] || 0.5) * (1 + 0.07 * Math.max(0, lv - 1)));
       st.land = { t: 0, k };
+      const burstOut = () => {
+        const [size, rings] = RIPPLE[tier] || [30, 1];
+        st.ripples.push({ x, color: TIER_COLORS[tier], size, rings, life: 900 + rings * 120, max: 900 + rings * 120 });
+        const pts = Math.round((a.to - a.from) / 10);
+        if (tier !== "mlion" && pts > 0) st.texts.push({ x, text: `+${pts}`, color: TIER_COLORS[tier], size: st.w < 560 ? 14 : 16, life: 1500, max: 1500 });
+        const n = (SPARKS[tier] || 0) + (lv >= 2 ? 3 * lv : 0);
+        if (n) burst(n, lv >= 2 ? FLAME[lv] : [TIER_COLORS[tier], COL.gold, "#fff1cf"], 0.7 + 0.5 * k);
+        dust(x, k);
+        if (tier === "longtail" || tier === "mlion" || lv >= 5) st.flash = { t: 0, max: 460, col: rgb(lv >= 5 ? FLAME[lv][1] : TIER_COLORS[tier]) };
+        st.kick = Math.max(KICK[tier] || 0, lv >= 4 ? 0.012 + 0.004 * lv : 0);
+        if (tier === "longtail") st.shake = 4;
+        if (tier === "mlion") st.flood = { t: 0, grow: 600, hold: 900, shrink: 500, inkOn: false };
+        // the jackpot: the rare ones wash the whole stage in their colour and spill coins
+        const jp = JACKPOT[tier];
+        if (jp) {
+          st.wash = { t: 0, max: jp.wash[1], a: jp.wash[0], col: rgb(TIER_COLORS[tier]) };
+          coins(jp.coins, jp.cols);
+        }
+      };
       // hit-stop: a rare landing holds the whole stage still for a beat before it all bursts out, longer the rarer
       // (and a little more on a long streak), never more than 300 ms. Common landings don't stop: a beat on every
-      // answer would only slow the game down.
-      if (HOLD[tier]) { st.hold = Math.min(300, HOLD[tier] + (lv >= 4 ? 30 : 0)); st.holdAt = st.t; }
-      const [size, rings] = RIPPLE[tier] || [30, 1];
-      st.ripples.push({ x, color: TIER_COLORS[tier], size, rings, life: 900 + rings * 120, max: 900 + rings * 120 });
-      const pts = Math.round((a.to - a.from) / 10);
-      if (tier !== "mlion" && pts > 0) st.texts.push({ x, text: `+${pts}`, color: TIER_COLORS[tier], size: st.w < 560 ? 14 : 16, life: 1500, max: 1500 });
-      const n = (SPARKS[tier] || 0) + (lv >= 2 ? 3 * lv : 0);
-      if (n) burst(n, lv >= 2 ? FLAME[lv] : [TIER_COLORS[tier], COL.gold, "#fff1cf"], 0.7 + 0.5 * k);
-      if (tier === "longtail" || tier === "mlion" || lv >= 5) st.flash = { t: 0, max: 460, col: rgb(lv >= 5 ? FLAME[lv][1] : TIER_COLORS[tier]) };
-      st.kick = Math.max(KICK[tier] || 0, lv >= 4 ? 0.012 + 0.004 * lv : 0);
-      if (tier === "longtail") st.shake = 4;
-      if (tier === "mlion") st.flood = { t: 0, grow: 600, hold: 900, shrink: 500, inkOn: false };
-      // the jackpot: the rare ones wash the whole stage in their colour and spill coins
-      const jp = JACKPOT[tier];
-      if (jp) {
-        st.wash = { t: 0, max: jp.wash[1], a: jp.wash[0], col: rgb(TIER_COLORS[tier]) };
-        coins(jp.coins, jp.cols);
-      }
+      // answer would only slow the game down. While it holds, only the impact shows (the ball pressed flat, a white
+      // flash where it meets the ground); the burst starts when time does. (It used to start the burst first and
+      // freeze it a frame in: coins in a clump, the wash at 80%, the lion's disc a third open. Reviewer, 2026-11-06.)
+      if (HOLD[tier]) {
+        st.hold = Math.min(300, HOLD[tier] + (lv >= 4 ? 30 : 0)); st.holdAt = st.t;
+        st.impact = { t: 0, max: st.hold + 160, k };
+        st.afterHold = burstOut;
+      } else burstOut();
     }
     /** A miss puts the fire out: the flames sink into the ball and a puff of smoke rises off it. */
     function putOut(lv) {
@@ -797,10 +858,23 @@
         const col = rgb(cols[i % cols.length]);
         st.coins.push({
           wx: st.x, wy: terrain(st.x), ox: (Math.random() - 0.5) * st.R, oy: -st.R,
-          vx: (Math.random() - 0.5) * 0.4 * side, vy: -Math.sqrt(2 * COIN_G * room * (0.35 + 0.55 * Math.random())),
+          vx: (Math.random() - 0.5) * 0.6 * side, vy: -Math.sqrt(2 * COIN_G * room * (0.35 + 0.55 * Math.random())),
           spin: Math.random() * 6, vs: 0.012 + 0.014 * Math.random(), tilt: (Math.random() - 0.5) * 0.5,
-          r: st.R * (0.4 + 0.24 * Math.random()), col, dark: col.map((v) => v * 0.55),
+          r: st.R * (0.4 + 0.24 * Math.random()), col, dark: col.map((v) => v * 0.78), rim: col.map((v) => v * 0.42),
           life: 0, max: 950 + 450 * Math.random(),
+        });
+      }
+    }
+    /** A landing kicks up a little dust: soft puffs running out along the ground both ways, rising a touch and
+     *  spreading as they thin. More the harder it lands. */
+    function dust(x, k) {
+      const n = Math.round(3 + 5 * k), th = slopeAt(x), ux = Math.cos(th), uy = Math.sin(th), R = st.R;
+      for (let i = 0; i < n; i++) {
+        const dir = i % 2 ? 1 : -1, v = (0.03 + 0.05 * Math.random()) * (0.6 + 0.5 * k);
+        st.dust.push({
+          wx: x, wy: terrain(x), ox: dir * ux * R * 0.5, oy: dir * uy * R * 0.5 - 1,
+          vx: dir * ux * v, vy: dir * uy * v - 0.012 - 0.012 * Math.random(),
+          size: R * (0.35 + 0.25 * Math.random()), life: 0, max: 520 + 380 * Math.random(),
         });
       }
     }
@@ -970,13 +1044,16 @@
           c.strokeStyle = g3; c.lineWidth = w; c.stroke(p);
         }
       }
-      const [ballX] = onPath(st.x);
+      const [ballX, ballY] = onPath(st.x);
       for (const m of st.marks) {
         const [px, py] = onPath(m.x);
         if (px < -20 || px > w + 20) continue;
-        if (Math.abs(px - ballX) < st.R * 1.6) continue; // the ball is standing on it
-        c.fillStyle = TIER_COLORS[m.tier];
-        c.beginPath(); c.arc(px, py, 4, 0, Math.PI * 2); c.fill();
+        // under the ball it hides; as the ball rolls off it, it grows and fades in (it popped in whole behind it)
+        const a = smooth(st.R * 1.4, st.R * 3, Math.hypot(px - ballX, py - ballY));
+        if (a <= 0) continue;
+        c.globalAlpha = a; c.fillStyle = TIER_COLORS[m.tier];
+        c.beginPath(); c.arc(px, py, 2 + 2 * a, 0, Math.PI * 2); c.fill();
+        c.globalAlpha = 1;
       }
     }
 
@@ -1008,8 +1085,8 @@
       const tilt = (fx.follow ?? 1) * (th || 0), ct = Math.cos(tilt), sn = Math.sin(tilt);
       const tipX = cx + lean * ct + H * sn, tipY = cy + lean * sn - H * ct;
       fx.tip = { x0: cx + R * sn - bx, y0: cy - R * ct - by, x1: tipX - bx, y1: tipY - by, top: Math.min(tipY, cy - R * ct), cx, cy };
-      const cols = FLAME[flv].map(rgb);
-      return { lv: flv, cols, tongue: cols[1].map((v, i) => (v + cols[2][i]) / 2), H, lean, alpha, fl, cx, cy, bx, by, calm, tilt };
+      const cols = fx.cols || FLAME[flv].map(rgb);
+      return { lv: flv, cols, tongue: cols[1].map((v, i) => (v + cols[2][i]) / 2), H, lean, alpha, fl, cx, cy, bx, by, calm, tilt, tipX };
     }
     function flames(c, F) {
       const R = st.R, [o, m] = F.cols, t = st.t;
@@ -1036,7 +1113,8 @@
       // (A paler tongue used to rise out of the core in front; it left a teardrop outline over the ball and the
       // user chose none, 2026-11-06. The core is a clean round ball inside the two flames.)
       const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
-      layer(1.36, 0.3, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
+      // the tongue on the front shoulder folds away at speed: streaming back, a flame has nothing pointing forward
+      layer(1.36, 0.3, 1, o, 1, (0.85 + 0.05 * (F.lv - 3) + sway) * (st.fx.follow ?? 1), 0);
       layer(1.12, 0.14, 0.74, m, 1, 0, 1.9);
       c.restore();
     }
@@ -1044,11 +1122,15 @@
      * rim dissolves into that flame, so the round core stays the ball and its edge is the fire. The
      * flicker pumps the heat. */
     function fireCore(c, F, R) {
-      const [, m, w] = F.cols, hot = clamp(0.36 + 1.1 * (F.fl - 1), 0.2, 0.6);
+      // Light, like the flames round it: screened over them, white-hot in the middle and melting through the inner
+      // flame's colour into them. It was an opaque disc with a hard white middle: a bullseye (reviewer, 2026-11-06).
+      const [, m, w] = F.cols, hot = clamp(0.26 + 1.1 * (F.fl - 1), 0.14, 0.46);
       const g = c.createRadialGradient(0, R * 0.06, 0, 0, R * 0.06, R);
-      g.addColorStop(0, css(w)); g.addColorStop(hot, css(w)); g.addColorStop(0.74, css(m)); g.addColorStop(1, css(m, 0));
+      g.addColorStop(0, css(w)); g.addColorStop(hot, css(w)); g.addColorStop(Math.min(0.9, hot + 0.36), css(mixC(m, w, 0.35), 0.92)); g.addColorStop(1, css(m, 0));
+      c.save(); c.globalCompositeOperation = "screen";
       c.fillStyle = g;
       c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
+      c.restore();
     }
     /** The ball's pose this frame, shared by everything drawn round it (the ball, its fire, its wake and
      *  the low-time fog), so they all agree on one centre. ax, ay: its squash along and across the slope (it flattens
@@ -1056,7 +1138,9 @@
     function pose(lv) {
       const R = st.R, calm = still();
       let ax = 1, ay = 1;
-      if (st.land) { const t = st.land.t, e = Math.exp(-t / 130) * Math.cos(t / 42); ax = 1 + 0.28 * st.land.k * e; ay = 1 - 0.3 * st.land.k * e; }
+      // a landing presses it flat by at most about 18% (the rarest on a long streak; 8% a common one). It was up
+      // to 39%, a rubber ball (reviewer, 2026-11-06).
+      if (st.land) { const t = st.land.t, e = Math.exp(-t / 130) * Math.cos(t / 42); ax = 1 + 0.13 * st.land.k * e; ay = 1 - 0.14 * st.land.k * e; }
       else if (st.anim) { const v = clamp(Math.abs(st.vel) * 0.45, 0, 1); ax = 1 + 0.14 * v; ay = 1 - 0.1 * v; }
       // it shivers after a miss and trembles as time runs out: to and fro along the path, so it never leaves the line
       // (it used to shake sideways on the screen, which on a slope lifted it off the line or pushed it in)
@@ -1077,18 +1161,21 @@
      *  grows as the ball goes deeper. A tight glow round it takes the last answer's colour, or the streak's fire's.
      *  On fire it turns into the fire's core instead. It is drawn from its pose: squashed, turned and seated along
      *  the slope it stands on. */
-    function drawBall(c, L, P, tint) {
-      const R = st.R, d = L.d, { ax, ay, S, F } = P, { cx, cy, th } = S;
-      const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
-      // The ground is solid: the ball's glow, its fire and the ball itself stop at the line it stands on (user,
-      // 2026-11-06: a glow that went into the ground "breaks the laws of physics"). The line is traced as the stage
-      // traces it, across the whole stage.
+    /** Everything above the path's centre line, across the whole stage. The ground is
+     *  solid: the ball's glow, its fire, its wake, sparks and dust stop at the line (user, 2026-11-06: a glow that
+     *  went into the ground "breaks the laws of physics"). The line is traced as the stage traces it. */
+    function skyAbove() {
       const s = scale(), step = (st.w < 560 ? 4 : 5) / s, x0 = st.camX - (st.w * AX) / s - 40, x1 = st.camX + (st.w * (1 - AX)) / s + 40;
       const line = new Path2D();
       let first = null, last = null;
       for (let x = x0; x <= x1; x += step) { const q = onPath(x); if (first) line.lineTo(q[0], q[1]); else { line.moveTo(q[0], q[1]); first = q; } last = q; }
       const sky = new Path2D(line);
       sky.lineTo(last[0], -st.h); sky.lineTo(first[0], -st.h); sky.closePath();
+      return sky;
+    }
+    function drawBall(c, L, P, tint, sky) {
+      const R = st.R, d = L.d, { ax, ay, S, F } = P, { cx, cy, th } = S;
+      const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
       let g;
       // (A contact shadow lay under the line at the contact for a day; the user saw it as a bump and it went.)
       c.save(); c.clip(sky);
@@ -1103,7 +1190,12 @@
       c.save();
       // squashed along the slope it stands on, then turned back so the light stays top-left
       c.translate(cx, cy); c.rotate(th); c.scale(ax, ay); c.rotate(-th);
-      if (burn < 1) { // the ball itself: glossy, lit by the sky and the minimum (it fades into the fire as it catches)
+      // the ball itself: glossy, lit by the sky and the minimum. As the fire catches it fades into the core, which
+      // fades in over it: the ball stays whole until the core is half in, then goes (it used to stay whole to the
+      // end and vanish in one frame, and come back the same way when the fire went out: a pop each time)
+      const ballA = 1 - smooth(0.5, 1, burn);
+      if (ballA > 0) {
+        c.globalAlpha = ballA;
         g = c.createRadialGradient(-R * 0.35, -R * 0.4, R * 0.08, 0, 0, R * 1.05);
         g.addColorStop(0, "#fff7e2"); g.addColorStop(0.34, css(L.body)); g.addColorStop(1, css(L.edge));
         c.fillStyle = g;
@@ -1115,6 +1207,7 @@
         c.restore();
         c.fillStyle = `rgba(255,255,255,${0.85 * (1 - burn)})`;
         c.beginPath(); c.ellipse(-R * 0.36, -R * 0.42, R * 0.26, R * 0.17, -0.6, 0, Math.PI * 2); c.fill();
+        c.globalAlpha = 1;
       }
       if (burn > 0) { c.globalAlpha = burn; fireCore(c, F, R); c.globalAlpha = 1; }
       c.restore();
@@ -1144,10 +1237,13 @@
         }
         c.globalCompositeOperation = "lighter";
         c.globalAlpha = 1;
-        if (b.kind === "wisp") {
-          const r = b.size * (1 - 0.7 * k);
-          c.fillStyle = css(rgb(b.hex), 0.85 * (1 - k * k) * a);
-          c.beginPath(); flameOutline(c, x, y, r, { h: 1.9, lean: clamp(-0.3 - b.vx * 8, -1.2, 0.5) }); c.fill();
+        if (b.kind === "wisp") { // a lick of flame torn off the tip: a soft glow, stretched as it rises, burning out
+          const r = b.size * (1.3 - 0.6 * k);
+          c.globalAlpha = 0.7 * (1 - k * k) * a;
+          c.save(); c.translate(x, y); c.rotate(clamp(b.vx * 6, -0.6, 0.6)); c.scale(1, 1.9 + 0.8 * k);
+          c.drawImage(glowSprite(b.hex), -r, -r, r * 2, r * 2);
+          c.restore();
+          c.globalAlpha = 1;
         } else { // a hot point with a little glow round it
           c.globalAlpha = (1 - k) * a;
           const r = b.size * 1.8;
@@ -1158,113 +1254,174 @@
       c.restore();
     }
 
+    /** Walk the path from world x by `dist` css px of its length (dir: +1 on down it, -1 back up). */
+    function along(x, dir, dist) {
+      const hx = 2 / scale();
+      let [px, py] = onPath(x), run = 0;
+      for (let i = 0; i < 500 && run < dist; i++) {
+        const nx = x + dir * hx, [qx, qy] = onPath(nx), d = Math.hypot(qx - px, qy - py) || 1e-6;
+        if (run + d >= dist) return x + dir * hx * ((dist - run) / d);
+        run += d; x = nx; px = qx; py = qy;
+      }
+      return x;
+    }
+    /** The path from world x a to b, about len px long, as a Path2D. */
+    function stretch(a, b, len) {
+      const p = new Path2D(), n = Math.max(2, Math.ceil(len / 2));
+      for (let i = 0; i <= n; i++) { const [qx, qy] = onPath(a + ((b - a) * i) / n); if (i) p.lineTo(qx, qy); else p.moveTo(qx, qy); }
+      return p;
+    }
+
     function drawLive(c, L) {
       const { w, h, R } = st;
       const calm = still();
       const lv = flameLevel(st.streak);
-      const tint = lv >= 2 ? rgb(FLAME[lv][1]) : st.tier && TIER_COLORS[st.tier] ? rgb(TIER_COLORS[st.tier]) : GOLD;
+      const tint = st.tintNow || tintFor();
       const P = pose(lv);
+      const fxA = st.fading ? 1 - st.fading.t / st.fading.max : 1; // a new prompt fading the landing's effects out
+      const sky = skyAbove();
 
-      // dust and embers
+      // dust and embers in the air: round specks (squares read as pixels)
       const ember = L.A.basin;
       for (const m of st.motes) {
         const flick = calm ? 0.8 : 0.6 + 0.4 * Math.sin(st.t * 0.002 * m.sp * (1 + 2 * ember) + m.ph);
         c.fillStyle = css(L.mote, (0.14 + 0.36 * m.f) * flick * (0.7 + 0.5 * ember));
         const r = (0.6 + 1.3 * m.f) * (1 + 0.4 * ember);
-        c.fillRect(m.x - r / 2, m.y - r / 2, r, r);
+        c.beginPath(); c.arc(m.x, m.y, r * 0.565, 0, Math.PI * 2); c.fill(); // the same area as the r-wide square
       }
 
-      // landing rings, flat on the ground: lying along its slope
-      for (const r of st.ripples) {
-        const t = 1 - r.life / r.max;
-        const [px, py] = onPath(r.x), rot = slopeAt(r.x);
-        c.strokeStyle = r.color;
-        for (let n = 0; n < r.rings; n++) {
-          const tt = clamp(t * 1.25 - n * 0.14, 0, 1);
-          if (tt <= 0 || tt >= 1) continue;
-          const rad = 10 + ease.out(tt) * r.size * (1 - n * 0.1);
-          c.globalAlpha = 0.6 * (1 - tt); c.lineWidth = 2.2 * (1 - tt) + 0.6;
-          c.beginPath(); c.ellipse(px, py, rad, rad * 0.3, rot, 0, Math.PI * 2); c.stroke();
-        }
-      }
-      c.globalAlpha = 1;
-
-      // the wake behind a rolling ball: a ribbon that swells from nothing to the ball's width and
-      // brightens towards it, with a hotter core
-      if (st.trail.length > 1) {
-        const pts = st.trail.map((p) => ballAt(p.x, P.S.r)); // as far out from the path as the ball's centre
-        pts.push([P.S.cx, P.S.cy]);
-        const fade = clamp(1 - (st.t - st.trail[st.trail.length - 1].t) / 300, 0, 1);
-        const n = pts.length, [x0, y0] = pts[0], [x1, y1] = pts[n - 1];
-        if (fade > 0 && Math.hypot(x1 - x0, y1 - y0) > R) {
-          c.save(); c.globalCompositeOperation = "lighter";
-          const ribbon = (half, a, col) => {
-            const left = [], right = [];
-            for (let i = 0; i < n; i++) {
-              const [ax, ay] = pts[Math.max(0, i - 1)], [cx2, cy2] = pts[Math.min(n - 1, i + 1)];
-              const dl = Math.hypot(cx2 - ax, cy2 - ay) || 1;
-              const nx = -(cy2 - ay) / dl, ny = (cx2 - ax) / dl;
-              const wv = half * Math.pow(i / (n - 1), 1.4);
-              left.push([pts[i][0] + nx * wv, pts[i][1] + ny * wv]);
-              right.push([pts[i][0] - nx * wv, pts[i][1] - ny * wv]);
+      // a landing sends light running out along the path both ways, one pulse each way per ring, brightest at its
+      // head. (They were rings lying along the slope, which read as orbits cutting through the ground and the sky;
+      // reviewer, 2026-11-06.)
+      if (st.ripples.length) {
+        c.save(); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
+        for (const r of st.ripples) {
+          const t = 1 - r.life / r.max, col = rgb(r.color);
+          for (let n = 0; n < r.rings; n++) {
+            const tt = clamp(t * 1.25 - n * 0.14, 0, 1);
+            if (tt <= 0 || tt >= 1) continue;
+            const head = R * 0.8 + ease.out(tt) * r.size * 1.5 * (1 - n * 0.12), len = Math.min(head, 10 + 26 * (1 - tt));
+            const a = 0.9 * Math.pow(1 - tt, 1.3) * fxA;
+            for (const dir of [-1, 1]) {
+              const xa = along(r.x, dir, head - len), xb = along(r.x, dir, head), path = stretch(xa, xb, len);
+              const [ax2, ay2] = onPath(xa), [bx2, by2] = onPath(xb);
+              for (const [lw, k] of [[9, 0.22], [3.5, 1]]) {
+                const g = c.createLinearGradient(ax2, ay2, bx2, by2);
+                g.addColorStop(0, css(col, 0)); g.addColorStop(1, css(col, a * k));
+                c.strokeStyle = g; c.lineWidth = lw; c.stroke(path);
+              }
             }
-            const g = c.createLinearGradient(x0, y0, x1, y1);
-            g.addColorStop(0, css(col, 0)); g.addColorStop(1, css(col, a * fade));
-            c.fillStyle = g;
-            c.beginPath(); c.moveTo(left[0][0], left[0][1]);
-            for (let i = 1; i < n; i++) c.lineTo(left[i][0], left[i][1]);
-            for (let i = n - 1; i >= 0; i--) c.lineTo(right[i][0], right[i][1]);
-            c.closePath(); c.fill();
-          };
-          // on fire, the wake burns in the fire's own layers: deep outside, white-hot down the middle
-          const [o, m, wh] = lv >= 3 ? FLAME[lv].map(rgb) : [tint, tint, tint];
-          ribbon(R * 1.35, 0.1, o);
-          ribbon(R * 0.85, 0.24, m);
-          ribbon(R * 0.32, 0.42, wh);
+          }
+        }
+        c.restore();
+      }
+
+      // the wake: the light the ball leaves in the air as it rolls, a soft streak along the way its centre came,
+      // widening and brightening towards the ball. It shows with speed, and stops at the ground like everything
+      // else. (Three hard ribbons at the centre's height before, which kinked in the valleys and, slow, closed to a
+      // beak; reviewer, 2026-11-06.)
+      if (st.wake > 0 && st.trail.length > 1) {
+        const raw = st.trail.map((p) => { const S = seat(p.x); return [S.cx, S.cy]; });
+        raw.push([P.S.cx, P.S.cy]);
+        const gap = 2.5, pts = [raw[0]]; // even steps along it
+        let carry = 0;
+        for (let i = 1; i < raw.length; i++) {
+          const [ax2, ay2] = raw[i - 1], [bx2, by2] = raw[i], d = Math.hypot(bx2 - ax2, by2 - ay2);
+          let at = gap - carry;
+          for (; at <= d; at += gap) pts.push([ax2 + ((bx2 - ax2) * at) / d, ay2 + ((by2 - ay2) * at) / d]);
+          carry = d - (at - gap);
+        }
+        const n = pts.length;
+        if (n > 4) {
+          // on fire it burns in the fire's colours, deep outside and white-hot down the middle
+          const [o, , wh] = lv >= 3 && st.fx.cols ? st.fx.cols : [tint, tint, mixC(tint, [255, 255, 255], 0.55)];
+          const so = glowSprite(hexOf(o)), si = glowSprite(hexOf(wh));
+          c.save(); c.clip(sky); c.globalCompositeOperation = "lighter";
+          for (let i = 0; i < n; i++) {
+            const u = i / (n - 1), [x, y] = pts[i];
+            // each stamp's share, so that the streak's centre line comes to the target brightness (0.64: the
+            // sprite's profile summed across its width)
+            let r = R * (0.5 + 0.8 * u);
+            c.globalAlpha = clamp((0.42 * st.wake * Math.pow(u, 1.5) * gap) / (0.64 * r), 0, 1);
+            c.drawImage(so, x - r, y - r, 2 * r, 2 * r);
+            r *= 0.45;
+            c.globalAlpha = clamp((0.34 * st.wake * u * u * gap) / (0.64 * r), 0, 1);
+            c.drawImage(si, x - r, y - r, 2 * r, 2 * r);
+          }
           c.restore();
         }
       }
 
+      // landing dust: soft puffs along the ground, thinning as they spread
+      if (st.dust.length) {
+        c.save(); c.clip(sky);
+        const dc = glowSprite(hexOf(mixC(L.mote, [150, 140, 125], 0.35)));
+        for (const p of st.dust) {
+          const [sx, sy] = toScreen(p.wx, p.wy), k = p.life / p.max, r = p.size * (1 + 1.8 * ease.out(k));
+          c.globalAlpha = 0.3 * Math.pow(1 - k, 1.5) * Math.min(1, p.life / 50) * fxA;
+          c.drawImage(dc, sx + p.ox - r, sy + p.oy - r, 2 * r, 2 * r);
+        }
+        c.restore();
+      }
+
       // sparks
       if (st.sparks.length) {
-        c.save(); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
+        c.save(); c.clip(sky); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
         for (const p of st.sparks) {
           const [sx, sy] = toScreen(p.wx, p.wy);
           const x = sx + p.ox, y = sy + p.oy, k = 1 - p.life / p.max;
-          c.strokeStyle = css(p.col, k); c.lineWidth = p.size;
+          c.strokeStyle = css(p.col, k * fxA); c.lineWidth = p.size;
           c.beginPath(); c.moveTo(x, y); c.lineTo(x - p.vx * 16, y - p.vy * 16); c.stroke();
         }
         c.restore();
       }
 
-      const [cx, cy] = drawBall(c, L, P, tint);
+      const [cx, cy] = drawBall(c, L, P, tint, sky);
+      if (st.impact) { // the hit-stop: a white flash where the ball meets the ground, fading as it holds
+        const im = st.impact, a = Math.pow(1 - im.t / im.max, 1.6), rr = R * (1.5 + 0.9 * im.k);
+        c.save(); c.clip(sky); c.globalCompositeOperation = "lighter";
+        c.translate(P.S.px, P.S.py); c.rotate(P.S.th); c.scale(1, 0.45);
+        const g = c.createRadialGradient(0, 0, 0, 0, 0, rr);
+        g.addColorStop(0, `rgba(255,255,255,${(0.95 * a).toFixed(3)})`); g.addColorStop(0.35, `rgba(255,248,230,${(0.42 * a).toFixed(3)})`); g.addColorStop(1, "rgba(255,248,230,0)");
+        c.fillStyle = g; c.fillRect(-rr, -rr, rr * 2, rr * 2);
+        c.restore();
+      }
       drawBits(c);
 
       // what the landing took off the loss, rising beside the ball on the open (downhill) side, clear
       // of the ball, its flames and every box at the top
       for (const t of st.texts) {
         const [px, py] = onPath(t.x);
-        const k = t.life / t.max;
+        const k = t.life / t.max, inA = smooth(0, 120, t.max - t.life); // it grows and fades in over 120 ms
         c.font = `600 ${t.size}px Geologica, system-ui, sans-serif`;
         c.textAlign = "left";
         const tw = c.measureText(t.text).width;
-        const tx = Math.min(px + R * 1.7, w - tw - 8);
+        let tx = px + R * 1.7;
+        // on fire, clear of the flames: right of their widest point and of their tip (the tongue on the front
+        // shoulder reached over it)
+        const F = P.F;
+        if (F && F.alpha > 0.05) tx = Math.max(tx, F.cx + R * 1.5 + 4, F.tipX + R * 0.6 + 4);
+        tx = Math.min(tx, w - tw - 8);
         let y = py - R * 1.4 - (1 - k) * 16;
         for (const r of st.rects) if (tx + tw > r.x - 6 && tx < r.x + r.w + 6 && r.y + r.h / 2 < h / 2) y = Math.max(y, r.y + r.h + t.size + 4);
-        c.globalAlpha = Math.min(1, k * 2.5);
+        c.save();
+        c.globalAlpha = Math.min(1, k * 2.5) * inA * fxA;
         c.fillStyle = t.color;
-        c.fillText(t.text, tx, y);
+        const sc = lerp(0.8, 1, ease.out(inA));
+        c.translate(tx, y); c.scale(sc, sc);
+        c.fillText(t.text, 0, 0);
+        c.restore();
       }
       c.globalAlpha = 1;
 
       if (st.dim) { // a miss: the room goes dark for a moment
-        c.fillStyle = css(L.skyTop, 0.38 * (1 - st.dim.t / st.dim.max));
+        c.fillStyle = css(L.skyTop, 0.38 * (1 - st.dim.t / st.dim.max) * fxA);
         c.fillRect(0, 0, w, h);
       }
       if (st.wash) { // a jackpot: the whole stage flashes in the tier's colour
         const k = st.wash.t / st.wash.max;
         c.save(); c.globalCompositeOperation = "lighter";
-        c.fillStyle = css(st.wash.col, st.wash.a * (k < 0.08 ? k / 0.08 : Math.pow(1 - (k - 0.08) / 0.92, 2)));
+        c.fillStyle = css(st.wash.col, st.wash.a * (k < 0.08 ? k / 0.08 : Math.pow(1 - (k - 0.08) / 0.92, 2)) * fxA);
         c.fillRect(0, 0, w, h);
         c.restore();
       }
@@ -1273,22 +1430,15 @@
         const rr = R * (2.5 + 7 * ease.out(k));
         c.save(); c.globalCompositeOperation = "lighter";
         const g = c.createRadialGradient(cx, cy, 0, cx, cy, rr);
-        g.addColorStop(0, css(st.flash.col, 0.6 * (1 - k))); g.addColorStop(0.4, css(st.flash.col, 0.22 * (1 - k))); g.addColorStop(1, css(st.flash.col, 0));
+        g.addColorStop(0, css(st.flash.col, 0.6 * (1 - k) * fxA)); g.addColorStop(0.4, css(st.flash.col, 0.22 * (1 - k) * fxA)); g.addColorStop(1, css(st.flash.col, 0));
         c.fillStyle = g; c.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
         c.restore();
       }
 
       drawTension(c, L, cx, cy); // low time, under the edge fades so it melts into the page like the rest
 
-      // the stage's edges dissolve into the page
       const bg = rgb(COL.bg);
-      let g = c.createLinearGradient(0, h - 30, 0, h);
-      g.addColorStop(0, css(bg, 0)); g.addColorStop(1, css(bg, 1));
-      c.fillStyle = g; c.fillRect(0, h - 30, w, 30);
-      g = c.createLinearGradient(0, 0, 0, 12);
-      g.addColorStop(0, css(bg, 1)); g.addColorStop(1, css(bg, 0));
-      c.fillStyle = g; c.fillRect(0, 0, w, 12);
-
+      let g;
       // a faint shade behind every number on the stage (the dust and the glow pass behind it)
       for (const r of st.rects) {
         const mx = r.x + r.w / 2, my = r.y + r.h / 2;
@@ -1304,25 +1454,37 @@
       if (st.flood) {
         const f = st.flood;
         const diag = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) + 8;
+        const sh = clamp((f.t - f.grow - f.hold) / f.shrink, 0, 1); // how far it has closed
         let r;
         if (f.t < f.grow) r = lerp(R, diag, ease.expo(f.t / f.grow));
         else if (f.t < f.grow + f.hold) r = diag;
-        else r = lerp(diag, R, ease.inOut(clamp((f.t - f.grow - f.hold) / f.shrink, 0, 1)));
-        c.save();
-        c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip();
-        c.fillStyle = COL.gold; c.fillRect(0, 0, w, h);
+        else r = lerp(diag, R, ease.inOut(sh));
         const bandW = w < 560 ? 22 : 30;
         const phase = (f.t * 0.05) % (bandW * 2);
-        c.fillStyle = COL.goldBand;
-        for (let rr = diag + bandW * 2 - phase; rr > R * 1.6; rr -= bandW * 2) {
-          c.beginPath(); c.arc(cx, cy, rr, 0, Math.PI * 2); c.arc(cx, cy, Math.max(0, rr - bandW), 0, Math.PI * 2, true); c.fill();
-        }
+        const gold = () => {
+          c.fillStyle = COL.gold; c.fillRect(0, 0, w, h);
+          c.fillStyle = COL.goldBand;
+          for (let rr = diag + bandW * 2 - phase; rr > R * 1.6; rr -= bandW * 2) {
+            c.beginPath(); c.arc(cx, cy, rr, 0, Math.PI * 2); c.arc(cx, cy, Math.max(0, rr - bandW), 0, Math.PI * 2, true); c.fill();
+          }
+        };
+        // Closing, the gold drains off the ground first, then fades out over its last 150 ms, so it ends in the
+        // ball. (It closed to a flat gold disc over the ball, dipping below the line, and then vanished; reviewer,
+        // 2026-11-06.)
+        const groundA = 1 - smooth(0, 0.45, sh), gone = smooth(1 - 150 / f.shrink, 1, sh);
+        c.save();
+        c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip();
+        if (groundA > 0) { c.globalAlpha = groundA * fxA; gold(); }
+        if (sh > 0 && gone < 1) { c.save(); c.clip(sky); c.globalAlpha = (1 - gone) * fxA; gold(); c.restore(); }
+        c.globalAlpha = 1;
         // the ball becomes the lion: it stays put and Leo's curve grows out of it, up to the numbers along
         // the top and no further (the streak sits right over it). The mane rises 44.4 units over the
         // ball's centre and the tail reaches 47.5 to its right, stroke included. On a stage too short
         // for even a ball-sized lion (the phone keyboard strip) it settles smaller than the ball, which
         // the gold has covered by then.
-        const grow = clamp((r - R) / (diag * 0.4), 0, 1);
+        // closing, it stays whole and fades out in the first 40% (it was cut by the closing gold and drawn back
+        // stroke first, leaving a hook of tail)
+        const grow = sh > 0 ? 1 : clamp((r - R) / (diag * 0.4), 0, 1);
         const [mx, my, mr] = MARK.ball;
         const ms0 = R / mr, msBig = ms0 + (w < 560 ? 1 : 1.4);
         const over = st.rects.filter((b) => b.y + b.h / 2 < h / 2 && b.x < cx + 47.5 * msBig && b.x + b.w > cx - mr * msBig);
@@ -1330,7 +1492,7 @@
         const ms = ms0 + grow * (clamp((cy - ceil - 6) / 44.4, ms0 * 0.35, msBig) - ms0);
         f.top = cy - 44.4 * ms; // the top of the mane on the stage (tests check it stays under the numbers)
         c.save();
-        c.globalAlpha = clamp(grow * 5, 0, 1);
+        c.globalAlpha = clamp(grow * 5, 0, 1) * (1 - smooth(0, 0.4, sh)) * fxA;
         c.translate(cx, cy); c.scale(ms, ms); c.translate(-mx, -my);
         c.strokeStyle = COL.goldInk; c.lineWidth = MARK.stroke; c.lineCap = "round"; c.lineJoin = "round";
         c.setLineDash([MARK.len * ease.out(grow), MARK.len + 1]);
@@ -1344,21 +1506,39 @@
 
       // the coins, over everything (the gem's gold too): a dark rim keeps them readable on gold
       if (st.coins.length) {
-        c.save(); c.lineWidth = 1; c.strokeStyle = "rgba(26,19,6,0.7)";
+        c.save(); c.lineWidth = 0.9;
         for (const p of st.coins) {
           const [sx, sy] = toScreen(p.wx, p.wy);
-          const x = sx + p.ox, y = sy + p.oy, k = p.life / p.max;
+          const x = sx + p.ox, y = sy + p.oy, end = p.end ?? p.max;
           const face = Math.cos(p.spin), rx = Math.max(0.9, Math.abs(face) * p.r);
-          c.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
-          c.fillStyle = css(face >= 0 ? p.col : p.dark);
+          // they fade late in the air, or soon after they land
+          const a = Math.min(clamp(1 - (p.life / end - 0.7) / 0.3, 0, 1), p.hitAt == null ? 1 : 1 - smooth(120, 460, p.life - p.hitAt));
+          c.globalAlpha = a * fxA;
+          c.fillStyle = css(face >= 0 ? p.col : p.dark); c.strokeStyle = css(p.rim, 0.85);
           c.beginPath(); c.ellipse(x, y, rx, p.r, p.tilt, 0, Math.PI * 2); c.fill(); c.stroke();
-          if (face > 0.4) { // the glint on the face
+          if (face > 0.4) { // the sheen on the face
             c.fillStyle = "rgba(255,255,255,0.75)";
             c.beginPath(); c.ellipse(x - rx * 0.32, y - p.r * 0.34, rx * 0.3, p.r * 0.2, p.tilt, 0, Math.PI * 2); c.fill();
+          }
+          const tw = Math.pow(Math.max(0, face), 10);
+          if (tw > 0.05) { // a glint as the face turns full on to us
+            c.save(); c.globalCompositeOperation = "lighter"; c.globalAlpha = a * tw * fxA; c.fillStyle = "#fff";
+            const gx = x - rx * 0.3, gy = y - p.r * 0.35, s2 = p.r * 1.25;
+            c.beginPath(); c.ellipse(gx, gy, s2, s2 * 0.11, 0, 0, Math.PI * 2); c.ellipse(gx, gy, s2 * 0.11, s2, 0, 0, Math.PI * 2); c.fill();
+            c.restore();
           }
         }
         c.restore();
       }
+
+      // the stage's edges dissolve into the page: last, over the gold and the coins too (the gem's gold used to
+      // cover them, a hard gold rectangle)
+      g = c.createLinearGradient(0, h - 30, 0, h);
+      g.addColorStop(0, css(bg, 0)); g.addColorStop(1, css(bg, 1));
+      c.fillStyle = g; c.fillRect(0, h - 30, w, 30);
+      g = c.createLinearGradient(0, 0, 0, 12);
+      g.addColorStop(0, css(bg, 1)); g.addColorStop(1, css(bg, 0));
+      c.fillStyle = g; c.fillRect(0, 0, w, 12);
     }
 
     /** Low time: the colour drains out of the world, fog closes in on the ball from the edges, and
@@ -1397,17 +1577,23 @@
       const L = lightAt(depthAt(st.camX));
       const sig = [st.camX.toFixed(2), st.by.toFixed(2), st.sy.toFixed(4), st.zoom.toFixed(4), st.x.toFixed(1), st.segs.length, st.w, st.h, st.rects.map((r) => `${r.x | 0},${r.y | 0},${r.w | 0},${r.h | 0}`).join(";"), st.anim ? 1 : 0].join("|");
       if (sig !== st.sig) { st.sig = sig; drawWorld(wctx, L); }
-      const { dpr } = st;
-      const jx = st.shake ? (Math.random() - 0.5) * st.shake : 0, jy = st.shake ? (Math.random() - 0.5) * st.shake * 0.6 : 0;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      if (st.shake) { ctx.fillStyle = css(L.skyTop); ctx.fillRect(0, 0, canvas.width, canvas.height); }
-      const ox = Math.round(jx * dpr), oy = Math.round(jy * dpr); // device px, the same for the world and the ball
-      ctx.drawImage(world, ox, oy);
-      ctx.setTransform(dpr, 0, 0, dpr, ox, oy);
+      const { dpr } = st, W = canvas.width, H = canvas.height;
+      // The shake moves the whole picture, the world and the ball together, zoomed in by just enough that its edges
+      // never come into view (it left 1 to 2 px strips of bare sky along them; reviewer, 2026-11-06). At rest the
+      // world is drawn 1:1, pixel for pixel.
+      let z = 1, ox = 0, oy = 0;
+      if (st.shake) {
+        const jx = (Math.random() - 0.5) * st.shake, jy = (Math.random() - 0.5) * st.shake * 0.6;
+        z = 1 + Math.max(st.shake / st.w, (0.6 * st.shake) / st.h) + 1 / st.w;
+        ox = ((1 - z) * W) / 2 + jx * dpr; oy = ((1 - z) * H) / 2 + jy * dpr;
+      }
+      ctx.setTransform(z, 0, 0, z, ox, oy);
+      ctx.drawImage(world, 0, 0);
+      ctx.setTransform(dpr * z, 0, 0, dpr * z, ox, oy);
       drawLive(ctx, L);
     }
     const busy = () => !!(st.hold > 0 || st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
-      st.coins.length || st.wash || st.exhale || st.beat || st.fx.out || (!still() && (st.tense || st.tenseTo)) ||
+      st.coins.length || st.wash || st.exhale || st.beat || st.fx.out || st.impact || st.afterHold || st.dust.length || st.wake || st.fading || (!still() && (st.tense || st.tenseTo)) ||
       (st.T && (Math.abs(st.camX - st.x - st.lead) > 0.3 || Math.abs(st.by - st.T.by) > 0.3 || Math.abs(st.sy - st.T.sy) > 0.002 || Math.abs(st.zoom - 1) > 0.0008)));
 
     let last = 0, lastPaint = 0;
@@ -1415,7 +1601,10 @@
       st.raf = 0;
       let dt = last ? Math.min(50, now - last) : 16;
       last = now;
-      if (st.hold > 0) { st.hold -= dt; dt = 0; now = st.holdAt; } // hit-stop: time stands still at the impact
+      if (st.hold > 0) { // hit-stop: time stands still at the impact (only its flash fades), then it all bursts out
+        st.hold -= dt; if (st.impact) st.impact.t += dt; dt = 0; now = st.holdAt;
+        if (st.hold <= 0 && st.afterHold) { const go = st.afterHold; st.afterHold = null; go(); }
+      }
       step(now, dt);
       const active = busy();
       // while something moves, every frame; at rest only the dust drifts, about 30 times a second
@@ -1437,12 +1626,26 @@
     function durationFor(tier) {
       return { miss: 280, baseline: 600, overfit: 1000, indist: 800, outlier: 950, longtail: 1150, mlion: 1300 }[tier] || 800;
     }
-    function calm() {
+    /** Drop the last landing's effects. */
+    function dropFx() {
       if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
-      st.ripples = []; st.texts = []; st.sparks = []; st.trail = []; st.flash = null; st.dim = null; st.land = null; st.shiver = 0; st.hold = 0;
-      st.coins = []; st.wash = null; st.tense = st.tenseTo = st.beat = 0; st.exhale = null;
-      st.fx.bits = []; st.fx.out = null; st.fx.flare = 0; st.fx.grow = 1;
-      if (st.w) paint();
+      st.ripples = []; st.texts = []; st.sparks = []; st.flash = null; st.dim = null; st.coins = []; st.wash = null; st.dust = [];
+      st.impact = null; st.fading = null;
+    }
+    function calm() {
+      // low time lets go at once, and a burst still held back by a hit-stop never comes
+      st.tense = st.tenseTo = st.beat = 0; st.exhale = null; st.hold = 0; st.afterHold = null; st.impact = null;
+      const showing = st.ripples.length || st.texts.length || st.sparks.length || st.flash || st.dim || st.coins.length || st.wash || st.dust.length || st.flood;
+      if (still() || !st.w || !showing) {
+        dropFx(); st.trail = []; st.land = null; st.shiver = 0; st.wake = 0;
+        st.fx.bits = []; st.fx.out = null; st.fx.flare = 0; st.fx.flareT = null; st.fx.grow = 1;
+        if (st.w) paint();
+        return;
+      }
+      // the rest fades out over 150 ms (it all went in one frame; reviewer, 2026-11-06), the numbers back to ink at once
+      if (st.flood && st.flood.inkOn) { st.flood.inkOn = false; st.onFlood && st.onFlood(false); }
+      st.fading = { t: 0, max: 150 };
+      kick();
     }
 
     const api = {
@@ -1462,13 +1665,16 @@
         st.x = x; st.anim = null; st.sinkK = sinkFor();
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
         st.trail = []; st.sparks = []; st.land = null; st.coins = []; st.wash = null; st.hold = 0;
-        Object.assign(st.fx, { lean: 0, leanV: 0, flare: 0, grow: 1, bits: [], out: null });
+        st.impact = null; st.afterHold = null; st.dust = []; st.wake = 0; st.fading = null;
+        Object.assign(st.fx, { lean: 0, leanV: 0, flare: 0, flareT: null, grow: 1, bits: [], out: null, cols: null });
+        st.tintNow = null;
         measure();
         snap();
       },
       /** Animate one round's result; calls done() on landing. */
       roll(tier, points, done) {
         measure();
+        if (st.fading) dropFx();
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
         st.anim = { from: st.x, to: st.x + points * 10, tier: tier || "miss", start: performance.now(), dur: durationFor(tier || "miss"), t: 0, done };
         kick();

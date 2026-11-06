@@ -1464,8 +1464,8 @@ is the lit exhibit.
     phone), so there `seat` lifts it until it rests on the valley's sides (up to 2 px) instead of cutting in.
   - Things that used to knock it off the line, all fixed: the miss shiver and the low-time tremble moved it
     sideways on the screen (now to and fro along the path); the screen shake moved the world `dpr` times
-    further than the ball (they now share one device-pixel offset); the wake, the fog and `spot()` each had their
-    own centre (spot() went straight up; it now follows the normal); landing rings were flat (now along the slope).
+    further than the ball (now the whole picture moves as one, see below); the wake, the fog and `spot()` each had
+    their own centre (spot() went straight up; it now follows the normal).
   - feel.e2e.js sweeps `seat` over the whole course (round and squashed) and checks the drawn pose in every
     frame of real rolls (fire, landings, shiver, tremble) against the path worked out on its own: it cuts in at
     most 0.06 px past `k` and never floats.
@@ -1478,6 +1478,36 @@ is the lit exhibit.
   - The fire catches already standing along the slope (`fx.follow = 1` at the catch); it used to be born
     upright from the roll and swing round over ~0.4 s. After later landings it still settles from the comet
     tail to the slope (that lag is the motion's).
+- **Effects reviewed frame by frame** (2026-11-06). A reviewer agent went through 30 fps footage at phone size
+  (a Playwright fake clock, a screenshot per frame) and listed what was wrong; the user left the calls to us
+  ("realistic, accurate, very clean, no flaws"). What changed, each with its reason in the code:
+  - Hit-stop: while it holds, only the impact shows (the ball pressed flat, a white flash at the contact,
+    `st.impact`); the burst (`burstOut` in `land()`: pulses, "+N", sparks, dust, flash, kick, shake, the flood,
+    the jackpot) starts when time does (`st.afterHold`). It used to start the burst and freeze it a frame in.
+  - Landing rings are gone: light pulses run out along the path both ways (`along`, `stretch`), one pair per ring.
+  - The wake is one soft streak of glow sprites along the way the ball's centre came (`seat` per trail point),
+    strength eased with speed (`st.wake`), clipped to the sky. It was three hard ribbons that kinked in valleys.
+  - Sparks die at the ground; coins land on the path, bounce once and fade (`groundY`); coins spread wider, have
+    lighter backs and rims, and glint as a face turns full on. Landing dust (`dust()`): soft puffs along the
+    ground, more the harder the landing.
+  - The weak rolls (Baseline, Overfit) start from rest (`softStart`); Overfit's wobble starts from nothing (it
+    jumped about 6 px in one frame).
+  - The fire: the ball crossfades into the core (`ballA`), the core is screened light, not a disc (it read as a
+    bullseye); wisps are soft stretched glows in the deeper flame colours (they were white drops); at speed the
+    flame streams back up to 3.4 R and its front tongue folds away (`side * fx.follow`); a landing's flare rises
+    over ~0.1 s (`fx.flareT`) and a new level's colours blend in over ~0.3 s (`fx.cols`, `st.tintNow`), where
+    both used to jump at the landing.
+  - The squash is at most ~18% (rarest, long streak; ~8% common). It was 39%.
+  - "+N" grows and fades in over 120 ms and sits right of the fire when it burns. Landing dots grow and fade in
+    as the ball rolls off them (they popped in whole behind it). Motes are round.
+  - The gem's flood closes cleanly: the lion stays whole and fades in the first 40% of the close, the gold
+    drains off the ground first and fades out over its last 150 ms. The stage's edge fades are drawn last, over
+    the gold and the coins (the gold made a hard rectangle).
+  - The shake moves the whole picture, zoomed in just enough that no edge shows (it left bare strips).
+  - A new prompt (`calm()`) fades the landing's effects out over 150 ms (`st.fading`, `dropFx`) instead of
+    cutting them; low time still lets go at once.
+  - Not done: a spinning mark on the ball (a plain glossy ball shows no spin, and a mark would change the
+    logo's ball).
 - **Low time** applies to the last 5 s of any answer clock. Classic and quiz call `tense(left,
   el)` from `tickLoop`/`quizTick`; both Sprint clocks call it too, with no stage there.
   - The stage's colour drains (a `saturation` fill), and dark fog closes in on the ball.
