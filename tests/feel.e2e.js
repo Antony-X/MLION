@@ -303,6 +303,68 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     check(common.afterOverfit === 0 && common.out && common.moved, "an Overfit answer still rolls the ball but puts its fire out");
     const calm = await fire(true);
     check(calm.embers === 0 && !calm.out && calm.smoke === 0, "Reduce motion: the fire is still (no embers, no smoke)");
+    // The ball sits on the line everywhere, at every moment (user, 2026-11-06: "make sure 0 flaws"). Its seat is swept
+    // over the whole course, round and squashed as on the hardest landing; then the ball as drawn (S.pose) is checked
+    // in every frame of real rolls: on fire, landing, after a miss (the shiver) and in low time (the tremble). The
+    // path is worked out here on its own from terrain() and the camera. cut: how much deeper into the line than meant
+    // (k px); gap: how far it floats off it.
+    const seated = await p.evaluate(() => new Promise((done) => {
+      const cv = document.createElement("canvas");
+      cv.style.cssText = "position:fixed;left:0;top:0;width:390px;height:400px;z-index:99";
+      document.body.appendChild(cv);
+      const d = window.MLION_VISUALS.Descent(cv, {}), S = window.MLION_STAGE, V = window.MLION_VISUALS, AX = 0.38; // AX: where the ball stands across the stage
+      const fit = (P) => {
+        const sc = (S.w / S.view) * S.zoom, onPath = (x) => [(x - S.camX) * sc + S.w * AX, (V.terrain(x) - S.camY) * sc * S.sy + S.by];
+        const { ax, ay, k } = P, B = P.S, a = S.R * ax - k, b = S.R * ay - k, nx = Math.sin(B.th), ny = -Math.cos(B.th);
+        const [px, py] = onPath(B.x), [lx, ly] = onPath(B.x - 0.01), [rx, ry] = onPath(B.x + 0.01);
+        let worst = -Infinity;
+        const span = (S.R * ax + 3) / sc;
+        for (let x = B.x - span; x <= B.x + span; x += 0.05 / sc) {
+          const [qx, qy] = onPath(x), dx = qx - B.cx, dy = qy - B.cy, u = -dx * ny + dy * nx, v = dx * nx + dy * ny;
+          if (Math.abs(u) < a) worst = Math.max(worst, v + b * Math.sqrt(1 - (u / a) ** 2));
+        }
+        return { cut: Math.max(0, worst), gap: Math.max(0, -worst), off: Math.hypot(px - B.px, py - B.py), turn: Math.abs(Math.atan2(ry - ly, rx - lx) - B.th) };
+      };
+      const good = { tier: "indist", score: 30 };
+      d.set([good]);
+      const sweep = { cut: 0, gap: 0, n: 0 }, cam = [S.camX, S.camY];
+      for (const [ax, ay] of [[1, 1], [1.364, 0.61]]) {
+        for (let x = 10; x < 6990; x += 4.7) {
+          S.camX = x; S.camY = V.terrain(x);
+          const f = fit({ ax, ay, k: 1, S: S.seat(x, S.R * ax, S.R * ay, 1) });
+          sweep.cut = Math.max(sweep.cut, f.cut); sweep.gap = Math.max(sweep.gap, f.gap); sweep.n++;
+        }
+      }
+      [S.camX, S.camY] = cam;
+      const live = { frames: 0, fire: 0, land: 0, shiver: 0, tense: 0, cut: 0, gap: 0, off: 0, turn: 0 };
+      let on = true;
+      const tick = () => {
+        if (!on) return;
+        if (S.pose) {
+          const f = fit(S.pose);
+          live.frames++; live.fire += !!S.pose.F; live.land += !!S.land; live.shiver += S.shiver > 0; live.tense += S.tense > 0.01;
+          for (const key of ["cut", "gap", "off", "turn"]) live[key] = Math.max(live[key], f[key]);
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      d.set([good, good, good]); // on fire
+      const rolls = [["outlier", 60], ["longtail", 85], [null, 0], ["indist", 30]];
+      const next = () => {
+        if (!rolls.length) {
+          d.tension(1);
+          setTimeout(() => { on = false; d.tension(0); d.destroy(); cv.remove(); done({ sweep, live }); }, 500);
+          return;
+        }
+        const [t, pts] = rolls.shift();
+        d.roll(t, pts, () => setTimeout(next, 450));
+      };
+      setTimeout(next, 100);
+    }));
+    const { sweep: sw, live } = seated;
+    check(sw.cut < 0.1 && sw.gap < 0.01, `the ball sits on the line all over the course, round and squashed on a hard landing (${sw.n} spots: cuts in ${sw.cut.toFixed(3)} px, floats ${sw.gap.toFixed(3)} px at most)`);
+    check(live.frames > 60 && live.fire > 10 && live.land > 10 && live.shiver > 3 && live.tense > 5, `the check saw it rolling, on fire, landing, shivering and trembling (${live.frames} frames)`);
+    check(live.cut < 0.1 && live.gap < 0.01 && live.off < 0.01 && live.turn < 0.001, `in every frame it touches the line, turned to its slope (cuts in ${live.cut.toFixed(3)} px, floats ${live.gap.toFixed(3)} px, slope off by ${(live.turn * 180 / Math.PI).toFixed(4)}°)`);
     await ctx.close();
   }
   {

@@ -1412,14 +1412,14 @@ is the lit exhibit.
 - **Landing.** The size of the moment scales with the tier through the tables `RIPPLE`,
   `POWER`, `SPARKS` and `KICK`: squash, ripples, sparks, flash and camera kick. A miss dims the
   stage and makes the ball shiver.
-  - The ball has a pool of light, an aura, a specular highlight, rim light and a tapered
-    trail. At a streak of 3 or more it becomes a fireball, one shape with the badge's flame
+  - The ball has a tight glow round it, a specular highlight, rim light, a soft contact shadow and a
+    tapered trail (the pool of light on the ground went 2026-11-06: see Groove). At a streak of 3 or more it becomes a fireball, one shape with the badge's flame
     (`flameOutline`): the ball's body turns into the fire's core (`fireCore`: white-hot in the middle,
     the inner flame's colour further out, its rim melting into the flames; no specular, no dark edge),
     the two flames behind wrap the whole ball (the paler tongue that rose out of the core in front was removed
     2026-11-06 at the user's choice: it left a teardrop outline over the ball). At rest
     the tongues rise; rolling, they stream back like a comet's tail. The flicker pumps the core's heat.
-    The fire lights the ball and the ground (cached glow sprites, no shadowBlur), sheds embers, flares at
+    The fire lights the air round the ball (never the ground: see Groove), sheds embers, flares at
     each landing, catches at three, and goes out with smoke on a miss, the ball turning back into its
     glossy self. It stays under the numbers at the top. (Second pass 2026-11-06: the user saw "a ball
     pasted in front of a flame sticker" and wanted the ball and the fire to be one object.)
@@ -1450,8 +1450,25 @@ is the lit exhibit.
     flame is static.
 - **Idle loop.** It paints at about 30 fps, stops when the tab is hidden, and pauses when the
   stage is off screen.
-- **Groove.** The ball sinks `sink()` px (0.38 R, at most 7) into the path. The lit line ends
-  behind it, and a soft contact shadow sits under it.
+- **Groove: the ball sits on the line in every frame** (user, 2026-11-06: "make sure 0 flaws").
+  - One pose a frame, `pose(lv)` in js/landscape.js, is shared by the ball, its fire, its shadow, its wake and
+    the low-time fog, so they agree on one centre. `seat(x, rx, ry, k)` places it: the centre lies out along the
+    slope's normal at the contact, so the bottom presses `k` px into the line (`sink()` = 1 px; plus
+    `FIRE_SINK` 0.3 R while it burns, since the fire's white core fades out before its rim). The ball squashes
+    along the slope (rx × ry); on a hard landing it is wider than the tightest valleys (15 px curve radius on a
+    phone), so there `seat` lifts it until it rests on the valley's sides (up to 2 px) instead of cutting in.
+  - Things that used to knock it off the line, all fixed: the miss shiver and the low-time tremble moved it
+    sideways on the screen (now to and fro along the path); the screen shake moved the world `dpr` times
+    further than the ball (they now share one device-pixel offset); the wake, the fog and `spot()` each had their
+    own centre (spot() went straight up; it now follows the normal); landing rings were flat (now along the slope).
+  - feel.e2e.js sweeps `seat` over the whole course (round and squashed) and checks the drawn pose in every
+    frame of real rolls (fire, landings, shiver, tremble) against the path worked out on its own: it cuts in at
+    most 0.06 px past `k` and never floats.
+  - The ground is solid: the ball's glow, its fire and the ball itself are clipped to the sky side of the line,
+    and its contact shadow (an ellipse along the slope, at the contact point) only to the ground side (user: a
+    glow going into the ground "breaks the laws of physics"). Chosen 2026-11-06 from five lights: the tight glow.
+  - The bright line runs on under the ball and cools into the grey path within 2.4 R past it (`fadeRun`), so
+    no stub pokes out where it meets the ball. Chosen from five line ends ("through"), 2026-11-06.
 - **Low time** applies to the last 5 s of any answer clock. Classic and quiz call `tense(left,
   el)` from `tickLoop`/`quizTick`; both Sprint clocks call it too, with no stage there.
   - The stage's colour drains (a `saturation` fill), and dark fog closes in on the ball.
@@ -1695,7 +1712,7 @@ To deploy, push to `claude/mlion-game`. GitHub Pages ("Deploy from a branch", ro
 in about 30–60 s. Cache-busting means phones load the new code on their next full load.
 
 ### Ball seating and synthesised sounds (2026-11-05, late)
-- The ball's centre is `ballAt(x, R)` in js/landscape.js: one radius along the slope's normal, so it
+- (Superseded 2026-11-06 by `seat`/`pose`, see Groove.) The ball's centre was `ballAt(x, R)`: one radius along the slope's normal, so it
   touches the path at its contact point (it used to sit straight above it and float beside the landing
   dot on slopes; user screenshot). The landing mark under the ball is hidden while the ball stands on
   it, and the wake follows the same centre. Squash happens against the ground's tangent.

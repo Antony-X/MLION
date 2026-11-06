@@ -489,12 +489,29 @@
      *  38% of its radius (the line seemed to run into the ball), then it rested 2 px up (it seemed to float). */
     const sink = () => 1;
     const FIRE_SINK = 0.3; // and this much more of R while it burns
-    /** The ball's centre when it stands at x: out along the slope's normal (not straight up), r from the path. */
-    const ballAt = (x, r) => {
-      const e = st.view / 400, [px, py] = onPath(x), [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e);
-      const th = Math.atan2(ry - ly, rx - lx);
-      return [px + Math.sin(th) * r, py - Math.cos(th) * r, th];
+    /** The path's slope at world x, as an angle on the screen. */
+    const slopeAt = (x) => { const e = st.view / 4000, [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e); return Math.atan2(ry - ly, rx - lx); };
+    /** A point r px out from the path at x, along the slope's normal (not straight up). */
+    const ballAt = (x, r) => { const [px, py] = onPath(x), th = slopeAt(x); return [px + Math.sin(th) * r, py - Math.cos(th) * r]; };
+    /** Where the ball stands with its contact at world x. P = (px, py), the contact on the path; th, the slope there;
+     *  C = (cx, cy), the centre, out along the slope's normal so its bottom presses k px into the line. rx, ry: its
+     *  half-widths along and across the slope (it squashes on landing). The path curves, so a squashed ball, wider
+     *  than the tightest valleys, would cut into a valley's sides: there it is lifted (lift) until it rests on them,
+     *  and no part of it ever goes deeper into the line than k. At rest it is a circle and lift is 0 everywhere
+     *  (the tightest valley is wider than the ball; tests/feel.e2e.js sweeps the course). */
+    const seat = (x, rx = st.R, ry = st.R, k = sink()) => {
+      const [px, py] = onPath(x), th = slopeAt(x), nx = Math.sin(th), ny = -Math.cos(th);
+      const a = rx - k, b = ry - k, span = (rx + 2) / scale(), n = 24;
+      let lift = 0;
+      for (let i = 0; i <= n && a > 0 && b > 0; i++) {
+        const [qx, qy] = onPath(x - span + (2 * span * i) / n), dx = qx - px, dy = qy - py;
+        const u = -dx * ny + dy * nx, v = dx * nx + dy * ny; // along the slope, and up off it
+        if (Math.abs(u) < a) lift = Math.max(lift, v - b + b * Math.sqrt(1 - (u / a) ** 2));
+      }
+      const r = ry - k + lift;
+      return { x, px, py, th, cx: px + nx * r, cy: py + ny * r, r, lift };
     };
+    if (window.MLION_TEST) st.seat = seat; // tests sweep it over the course (tests/feel.e2e.js)
 
     function measure() {
       let list = [];
@@ -897,21 +914,37 @@
         c.globalAlpha = 1;
       }
 
-      // the path: ahead in the light of its depth, behind painted by tier
+      // the path: ahead in the light of its depth, behind painted by tier. Where the bright line meets the ball it
+      // runs on under it and cools into the grey one just past it, so the two read as one line with no stub poking
+      // out (the user's pick of five, 2026-11-06)
+      const Rw = st.R / s;
       c.strokeStyle = css(L.path, 0.9); c.lineWidth = 2; c.stroke(path);
       const segs = st.segs.slice();
       if (st.anim && st.anim.tier !== "miss") segs.push({ x0: st.anim.from, x1: Math.max(st.anim.from, st.x), tier: st.anim.tier });
+      const run = (a, b) => { // always from a to b, however short
+        const p = new Path2D(), [ax, ay] = onPath(a);
+        p.moveTo(ax, ay);
+        for (let x = a + stepX; x < b; x += stepX) { const [px, py] = onPath(x); p.lineTo(px, py); }
+        const [ex, ey] = onPath(b); p.lineTo(ex, ey);
+        return p;
+      };
+      const solid = (p, col) => { c.strokeStyle = col; c.globalAlpha = 0.16; c.lineWidth = 9; c.stroke(p); c.globalAlpha = 1; c.lineWidth = 3.5; c.stroke(p); };
+      // a stretch of the bright line whose opacity follows `stops` ([[t, alpha], ...]) from a to b: one path, one
+      // gradient, so no seams; the grey path under it shows through where it fades
+      const fadeRun = (a, b, col, stops) => {
+        if (b <= a) return;
+        const p = run(a, b), [sx, sy] = onPath(a), [ex, ey] = onPath(b);
+        for (const [w, k] of [[9, 0.16], [3.5, 1]]) {
+          const g3 = c.createLinearGradient(sx, sy, ex, ey);
+          for (const [t, al] of stops) g3.addColorStop(t, css(col, al * k));
+          c.strokeStyle = g3; c.lineWidth = w; c.stroke(p);
+        }
+      };
       for (const sg of segs) {
         const a = Math.max(sg.x0, x0), b = Math.min(sg.x1, x1);
         if (b <= a) continue;
-        const p = new Path2D();
-        for (let x = a, f = true; x <= b + 0.01; x += stepX) {
-          const [px, py] = onPath(Math.min(x, b));
-          if (f) { p.moveTo(px, py); f = false; } else p.lineTo(px, py);
-        }
-        c.strokeStyle = TIER_COLORS[sg.tier];
-        c.globalAlpha = 0.16; c.lineWidth = 9; c.stroke(p);
-        c.globalAlpha = 1; c.lineWidth = 3.5; c.stroke(p);
+        solid(run(a, b), TIER_COLORS[sg.tier]);
+        if (Math.abs(sg.x1 - st.x) < 1e-6) fadeRun(b, Math.min(x1, b + 2.4 * Rw), rgb(TIER_COLORS[sg.tier]), [[0, 1], [0.3, 1], [1, 0]]);
       }
       const [ballX] = onPath(st.x);
       for (const m of st.marks) {
@@ -947,26 +980,14 @@
       // where embers break off (from the ball's crown to the tip, relative to where it stands), the tip's
       // height on the stage (tests check it stays under the numbers) and the ball's centre
       // The fire stands out of the ball along the slope's normal, as if fixed to it, not straight up
-      // (user, 2026-11-06: "always upright" read as a static sticker). st.fireTilt: 1 = the normal, 0 = upright.
-      const tilt = (st.fireTilt ?? 1) * (fx.follow ?? 1) * (th || 0), ct = Math.cos(tilt), sn = Math.sin(tilt);
+      // (user, 2026-11-06: "always upright" read as a static sticker). At speed it streams back instead (fx.follow).
+      const tilt = (fx.follow ?? 1) * (th || 0), ct = Math.cos(tilt), sn = Math.sin(tilt);
       const tipX = cx + lean * ct + H * sn, tipY = cy + lean * sn - H * ct;
       fx.tip = { x0: cx + R * sn - bx, y0: cy - R * ct - by, x1: tipX - bx, y1: tipY - by, top: Math.min(tipY, cy - R * ct), cx, cy };
       const cols = FLAME[flv].map(rgb);
       return { lv: flv, cols, tongue: cols[1].map((v, i) => (v + cols[2][i]) / 2), H, lean, alpha, fl, cx, cy, bx, by, calm, tilt };
     }
-    function fireLight(c, F) {
-      const R = st.R, k = F.alpha * F.fl * (0.78 + 0.06 * (F.lv - 3));
-      // a wide, flat pool on the ground where the ball stands: the path and the strata under it catch the light
-      c.globalAlpha = clamp(0.5 * k, 0, 1);
-      c.drawImage(glowSprite(FLAME[F.lv][1]), F.bx - R * 5.5, F.by - R * 1.7, R * 11, R * 3.8);
-      // and the air round the flames
-      const ar = R * (3 + 0.3 * F.lv);
-      c.globalAlpha = clamp(0.36 * k, 0, 1);
-      const gx = F.cx + F.lean * 0.3 * Math.cos(F.tilt) + F.H * 0.35 * Math.sin(F.tilt), gy = F.cy + F.lean * 0.3 * Math.sin(F.tilt) - F.H * 0.35 * Math.cos(F.tilt);
-      c.drawImage(glowSprite(FLAME[F.lv][0]), gx - ar, gy - ar, ar * 2, ar * 2);
-      c.globalAlpha = 1;
-    }
-    function flames(c, F, front) {
+    function flames(c, F) {
       const R = st.R, [o, m] = F.cols, t = st.t;
       // one layer: base radius r (in R), its centre lifted above the ball's, its share of the height
       const layer = (r, lift, share, col, a, side, ph) => {
@@ -984,18 +1005,16 @@
       // fire is light, so the layers brighten what is under them and the scene shows faintly through.
       // Screen rather than adding: added up, orange clips to a lime yellow on the cold plateau. The
       // two flames behind wrap the whole ball, the outer one wide round it, the inner one hugging it in
-      // the colour of the ball's own rim, so the ball's edge melts into the fire; in front, a paler
-      // tongue rises out of the white-hot core over its crown. The badge draws the same layers flat.
+      // the colour of the ball's own rim, so the ball's edge melts into the fire. The badge draws the same
+      // layers flat.
       c.save();
       c.globalCompositeOperation = "screen";
       if (F.tilt) { c.translate(F.cx, F.cy); c.rotate(F.tilt); c.translate(-F.cx, -F.cy); }
       // (A paler tongue used to rise out of the core in front; it left a teardrop outline over the ball and the
       // user chose none, 2026-11-06. The core is a clean round ball inside the two flames.)
-      if (!front) {
-        const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
-        layer(1.36, 0.3, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
-        layer(1.12, 0.14, 0.74, m, 1, 0, 1.9);
-      }
+      const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
+      layer(1.36, 0.3, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
+      layer(1.12, 0.14, 0.74, m, 1, 0, 1.9);
       c.restore();
     }
     /** The ball as the fire's core: white-hot in the middle, out to the inner flame's colour, and its
@@ -1008,58 +1027,71 @@
       c.fillStyle = g;
       c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
     }
-    /** The ball, lit twice: a cool key light from the sky (the specular), and from below the
-     * minimum's glow, which grows as the ball goes deeper. Its aura takes the last answer's
-     * colour, or the streak's fire. On fire it turns into the fire's core instead. */
-    function drawBall(c, L, bx, by, tint, lv) {
-      const R = st.R, d = L.d, calm = still();
+    /** The ball's pose this frame, shared by everything drawn round it (the ball, its fire, its shadow, its wake and
+     *  the low-time fog), so they all agree on one centre. ax, ay: its squash along and across the slope (it flattens
+     *  on landing and stretches as it rolls); k: how far it presses into the line (more while it burns); S: its seat. */
+    function pose(lv) {
+      const R = st.R, calm = still();
       let ax = 1, ay = 1;
       if (st.land) { const t = st.land.t, e = Math.exp(-t / 130) * Math.cos(t / 42); ax = 1 + 0.28 * st.land.k * e; ay = 1 - 0.3 * st.land.k * e; }
       else if (st.anim) { const v = clamp(Math.abs(st.vel) * 0.45, 0, 1); ax = 1 + 0.14 * v; ay = 1 - 0.1 * v; }
-      let jx = st.shiver > 0 ? Math.sin(st.shiver * 0.11) * 3 * (st.shiver / 360) : 0;
-      if (st.tense && !calm) jx += st.tense * (1.1 * Math.sin(st.t * 0.083) + 0.6 * Math.sin(st.t * 0.217)) * (0.5 + 0.5 * st.beat + 0.5 * st.tense); // it trembles as time runs out
-      // it touches the path where it stands: the centre sits along the slope's normal, not straight up
-      // (straight up leaves it floating beside its contact point on a slope)
-      const e = st.view / 400, [lx, ly] = onPath(st.x - e), [rx, ry] = onPath(st.x + e);
-      const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
-      let k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
-      let F = fireOf(cx, cy, bx, by, lv, calm, th);
+      // it shivers after a miss and trembles as time runs out: to and fro along the path, so it never leaves the line
+      // (it used to shake sideways on the screen, which on a slope lifted it off the line or pushed it in)
+      let j = st.shiver > 0 ? Math.sin(st.shiver * 0.11) * 3 * (st.shiver / 360) : 0;
+      if (st.tense && !calm) j += st.tense * (1.1 * Math.sin(st.t * 0.083) + 0.6 * Math.sin(st.t * 0.217)) * (0.5 + 0.5 * st.beat + 0.5 * st.tense);
+      const x = st.x + j / scale();
+      let k = sink(), S = seat(x, R * ax, R * ay, k), F = fireOf(S.cx, S.cy, S.px, S.py, lv, calm, S.th);
       if (F) {
         // On fire, what reads as the ball is its white-hot core, which fades out about a third of the way in from
         // its edge (fireCore), so the core seemed to hover over the line (user, 2026-11-06). Sink it by that much.
         k += F.alpha * R * FIRE_SINK;
-        cx = bx + jx + nx * (R * ay - k); cy = by + ny * (R * ay - k);
-        F = fireOf(cx, cy, bx, by, lv, calm, th);
+        S = seat(x, R * ax, R * ay, k);
+        F = fireOf(S.cx, S.cy, S.px, S.py, lv, calm, S.th);
       }
+      return (st.pose = { ax, ay, k, S, F });
+    }
+    /** The ball, lit twice: a cool key light from the sky (the specular), and from below the minimum's glow, which
+     *  grows as the ball goes deeper. A tight glow round it takes the last answer's colour, or the streak's fire's.
+     *  On fire it turns into the fire's core instead. It is drawn from its pose: squashed, turned and seated along
+     *  the slope it stands on, its shadow with it. */
+    function drawBall(c, L, P, tint) {
+      const R = st.R, d = L.d, { ax, ay, S, F } = P, { cx, cy, th } = S;
       const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
-      const lit = 1 - 0.55 * burn; // the fire's own light takes over from the aura
-      c.save();
-      c.globalCompositeOperation = "lighter";
-      // a pool of light where it rests
-      c.save(); c.translate(bx, by + 1); c.scale(1, 0.32);
-      let g = c.createRadialGradient(0, 0, 0, 0, 0, R * 3.4);
-      g.addColorStop(0, css(tint, 0.24 + 0.24 * d)); g.addColorStop(1, css(tint, 0));
-      c.fillStyle = g; c.fillRect(-R * 3.4, -R * 3.4, R * 6.8, R * 6.8);
-      c.restore();
-      const ar = R * (2.3 + 1.3 * d + 0.18 * lv);
-      g = c.createRadialGradient(cx, cy, R * 0.7, cx, cy, ar);
-      g.addColorStop(0, css(tint, (0.2 + 0.26 * d + 0.03 * lv) * lit)); g.addColorStop(1, css(tint, 0));
+      // The ground is solid: the ball's glow, its fire and the ball itself stop at the line it stands on, and its
+      // shadow falls only on the ground side of it (user, 2026-11-06: a glow that went into the ground "breaks the
+      // laws of physics"). The line is traced as the stage traces it, across the whole stage.
+      const s = scale(), step = (st.w < 560 ? 4 : 5) / s, x0 = st.camX - (st.w * AX) / s - 40, x1 = st.camX + (st.w * (1 - AX)) / s + 40;
+      const line = new Path2D();
+      let first = null, last = null;
+      for (let x = x0; x <= x1; x += step) { const q = onPath(x); if (first) line.lineTo(q[0], q[1]); else { line.moveTo(q[0], q[1]); first = q; } last = q; }
+      const sky = new Path2D(line), under = new Path2D(line);
+      sky.lineTo(last[0], -st.h); sky.lineTo(first[0], -st.h); sky.closePath();
+      under.lineTo(last[0], 2 * st.h); under.lineTo(first[0], 2 * st.h); under.closePath();
+      let g;
+      // a soft contact shadow where it presses on the line, lying along the slope like the ball; a burning ball
+      // throws light, not shadow
+      const shade = 1 - 0.75 * burn;
+      if (shade > 0.01) {
+        c.save(); c.clip(under);
+        c.translate(S.px, S.py); c.rotate(th); c.scale(1, 0.34);
+        const sw = R * 1.15 * ax;
+        g = c.createRadialGradient(0, 0, 0, 0, 0, sw);
+        g.addColorStop(0, `rgba(0,0,0,${0.5 * shade})`); g.addColorStop(0.55, `rgba(0,0,0,${0.22 * shade})`); g.addColorStop(1, "rgba(0,0,0,0)");
+        c.fillStyle = g; c.fillRect(-sw, -sw, 2 * sw, 2 * sw);
+        c.restore();
+      }
+      c.save(); c.clip(sky);
+      // a tight glow hugging it, nothing thrown on the ground; on fire it turns to the fire's outer colour
+      const glowCol = F ? mixC(tint, F.cols[0], burn) : tint, ar = R * lerp(1.8, 2.3, burn);
+      c.save(); c.globalCompositeOperation = "lighter";
+      g = c.createRadialGradient(cx, cy, R * 0.85, cx, cy, ar);
+      g.addColorStop(0, css(glowCol, lerp(0.34 + 0.2 * d, 0.5, burn))); g.addColorStop(1, css(glowCol, 0));
       c.fillStyle = g; c.fillRect(cx - ar, cy - ar, ar * 2, ar * 2);
-      if (F) fireLight(c, F);
       c.restore();
-      if (F) flames(c, F, false);
-      // a soft contact shadow where it sits in the groove, drawn under the ball, so it looks seated, not pasted on
+      if (F) flames(c, F);
       c.save();
-      // centred on the contact point itself and kept shallow: a shadow between the ball and the line reads as a gap
-      c.translate(cx, cy); c.rotate(th); c.translate(0, R * ay - k); c.scale(1, 0.3); // an ellipse along the slope
-      g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.1);
-      const shade = 1 - 0.75 * burn; // a burning ball casts light, not shadow
-      g.addColorStop(0, `rgba(0,0,0,${0.4 * shade})`); g.addColorStop(0.6, `rgba(0,0,0,${0.18 * shade})`); g.addColorStop(1, "rgba(0,0,0,0)");
-      c.fillStyle = g; c.fillRect(-R * 1.1, -R * 1.1, R * 2.2, R * 2.2);
-      c.restore();
-      c.save();
-      // squash against the ground it lands on, then turn back so the light stays top-left
-      c.translate(bx + jx - nx * k, by - ny * k); c.rotate(th); c.scale(ax, ay); c.translate(0, -R); c.rotate(-th);
+      // squashed along the slope it stands on, then turned back so the light stays top-left
+      c.translate(cx, cy); c.rotate(th); c.scale(ax, ay); c.rotate(-th);
       if (burn < 1) { // the ball itself: glossy, lit by the sky and the minimum (it fades into the fire as it catches)
         g = c.createRadialGradient(-R * 0.35, -R * 0.4, R * 0.08, 0, 0, R * 1.05);
         g.addColorStop(0, "#fff7e2"); g.addColorStop(0.34, css(L.body)); g.addColorStop(1, css(L.edge));
@@ -1075,7 +1107,7 @@
       }
       if (burn > 0) { c.globalAlpha = burn; fireCore(c, F, R); c.globalAlpha = 1; }
       c.restore();
-      if (F) flames(c, F, true); // nothing in front any more (no tongue); kept as the hook for front layers
+      c.restore();
       return [cx, cy];
     }
 
@@ -1118,9 +1150,9 @@
     function drawLive(c, L) {
       const { w, h, R } = st;
       const calm = still();
-      const [bx, by] = onPath(st.x);
       const lv = flameLevel(st.streak);
       const tint = lv >= 2 ? rgb(FLAME[lv][1]) : st.tier && TIER_COLORS[st.tier] ? rgb(TIER_COLORS[st.tier]) : GOLD;
+      const P = pose(lv);
 
       // dust and embers
       const ember = L.A.basin;
@@ -1131,17 +1163,17 @@
         c.fillRect(m.x - r / 2, m.y - r / 2, r, r);
       }
 
-      // landing rings, flat on the ground
+      // landing rings, flat on the ground: lying along its slope
       for (const r of st.ripples) {
         const t = 1 - r.life / r.max;
-        const [px, py] = onPath(r.x);
+        const [px, py] = onPath(r.x), rot = slopeAt(r.x);
         c.strokeStyle = r.color;
         for (let n = 0; n < r.rings; n++) {
           const tt = clamp(t * 1.25 - n * 0.14, 0, 1);
           if (tt <= 0 || tt >= 1) continue;
           const rad = 10 + ease.out(tt) * r.size * (1 - n * 0.1);
           c.globalAlpha = 0.6 * (1 - tt); c.lineWidth = 2.2 * (1 - tt) + 0.6;
-          c.beginPath(); c.ellipse(px, py, rad, rad * 0.3, 0, 0, Math.PI * 2); c.stroke();
+          c.beginPath(); c.ellipse(px, py, rad, rad * 0.3, rot, 0, Math.PI * 2); c.stroke();
         }
       }
       c.globalAlpha = 1;
@@ -1149,8 +1181,8 @@
       // the wake behind a rolling ball: a ribbon that swells from nothing to the ball's width and
       // brightens towards it, with a hotter core
       if (st.trail.length > 1) {
-        const pts = st.trail.map((p) => { const [x, y] = ballAt(p.x, R - sink()); return [x, y]; });
-        const [hx, hy] = ballAt(st.x, R - sink()); pts.push([hx, hy]);
+        const pts = st.trail.map((p) => ballAt(p.x, P.S.r)); // as far out from the path as the ball's centre
+        pts.push([P.S.cx, P.S.cy]);
         const fade = clamp(1 - (st.t - st.trail[st.trail.length - 1].t) / 300, 0, 1);
         const n = pts.length, [x0, y0] = pts[0], [x1, y1] = pts[n - 1];
         if (fade > 0 && Math.hypot(x1 - x0, y1 - y0) > R) {
@@ -1194,7 +1226,7 @@
         c.restore();
       }
 
-      const [cx, cy] = drawBall(c, L, bx, by, tint, lv);
+      const [cx, cy] = drawBall(c, L, P, tint);
       drawBits(c);
 
       // what the landing took off the loss, rising beside the ball on the open (downhill) side, clear
@@ -1235,7 +1267,7 @@
         c.restore();
       }
 
-      drawTension(c, L); // low time, under the edge fades so it melts into the page like the rest
+      drawTension(c, L, cx, cy); // low time, under the edge fades so it melts into the page like the rest
 
       // the stage's edges dissolve into the page
       const bg = rgb(COL.bg);
@@ -1320,11 +1352,10 @@
 
     /** Low time: the colour drains out of the world, fog closes in on the ball from the edges, and
      * the edges beat red with the heart. When the answer is in, a breath of warm light at the ball. */
-    function drawTension(c, L) {
+    function drawTension(c, L, bx, by) {
       const k = st.tense, ex = st.exhale;
       if (k < 0.003 && !ex) return;
       const { w, h, R } = st;
-      const [bx, by] = ballAt(st.x, R - sink());
       if (k >= 0.003) {
         c.save();
         c.globalCompositeOperation = "saturation"; c.globalAlpha = Math.min(1, 0.85 * k);
@@ -1359,8 +1390,9 @@
       const jx = st.shake ? (Math.random() - 0.5) * st.shake : 0, jy = st.shake ? (Math.random() - 0.5) * st.shake * 0.6 : 0;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       if (st.shake) { ctx.fillStyle = css(L.skyTop); ctx.fillRect(0, 0, canvas.width, canvas.height); }
-      ctx.drawImage(world, Math.round(jx * dpr), Math.round(jy * dpr));
-      ctx.setTransform(dpr, 0, 0, dpr, jx, jy);
+      const ox = Math.round(jx * dpr), oy = Math.round(jy * dpr); // device px, the same for the world and the ball
+      ctx.drawImage(world, ox, oy);
+      ctx.setTransform(dpr, 0, 0, dpr, ox, oy);
       drawLive(ctx, L);
     }
     const busy = () => !!(st.hold > 0 || st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
@@ -1442,8 +1474,11 @@
       },
       /** Where the ball comes to rest on the stage (css px), its radius, and the bottom of the numbers over the stage. */
       spot() {
-        const T = st.T || targets();
-        return { x: st.w * AX, y: T.by - (st.R - sink()), r: st.R, top: T.topY, w: st.w, h: st.h };
+        const T = st.T || targets(), r = st.R - sink();
+        // at rest the camera stands over the ball: its contact is at (w·AX, T.by), and the slope there on the screen
+        // is the path's own, squashed by sy (the scale cancels)
+        const th = Math.atan2((terrain(st.x + 1) - terrain(st.x - 1)) * T.sy, 2);
+        return { x: st.w * AX + Math.sin(th) * r, y: T.by - Math.cos(th) * r, r: st.R, top: T.topY, w: st.w, h: st.h };
       },
       /** A heartbeat: the red at the edges swells, then fades. */
       beat() { if (!still() && st.tenseTo) { st.beat = 1; kick(); } },
