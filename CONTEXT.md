@@ -1806,3 +1806,31 @@ the next day at the user's request: it didn't fit the game. The sound effects st
 level from before the music (`master.gain` 1.8; the music merge had lowered it to 1.2). The code is in
 git history (commit ed8a05b) if it is ever wanted again; old saved settings may still hold `music` and
 `musicVol` keys, which nothing reads.
+
+### Lag hunt: smooth without a GPU (2026-11-06, live as 5912a6a)
+The user asked for the least possible lag on every device, tested mostly WITHOUT a GPU (most players have
+none). Measured per part of the stage (each part's canvas work flushed and timed on its own) on three profiles:
+desktop 1920x640, laptop (1.25x, CPU/2), phone (3x, CPU/4), all with `--disable-gpu`, plus the user's RTX 5090.
+- **Software canvas (no GPU).** Main-thread time per frame fell 20-40 %: rolling 12.3 → 9.4 ms, flood 14.8 → 9.2,
+  low time 13.3 → 10.2 (desktop); dropped frames on the phone profile: flood 108 → 61, rolling on fire 62 → 45,
+  low time 38 → 21. Changes in js/landscape.js: sky and fog drawn into small canvases and scaled up (`skyLo`,
+  `fogLo`); the basin glow as a direct radial gradient over its own bounding box (a low-res glow was tried and
+  was SLOWER: the bilinear upscale costs more than the gradient); flood rings as one Path2D; the low-time grey
+  copy as four sub-rect drawImages around the box (an even-odd clip was slow on GPU). js/app.js `setText`
+  writes the timer and score only when the text changes.
+- **GPU canvas (Chrome).** Anti-aliased strokes wider than 1 device px and big non-convex paths fall back in
+  Skia to a CPU mask the size of their whole bounding box, uploaded each frame (16-31 ms of GPU-process time
+  per frame at 2x DPR). `strokeLine`/`bandsOf` stroke the long lines (hill rims, strata, grey path) in
+  vertical bands clipped at whole device pixels (`PIECE` = 25000 device px² per band): 6-10 ms, late frames
+  0 in every scenario. Bands only when a GPU is there: `window.MLION_GPU` from the WebGL renderer string
+  (hero3d `noteGpu`; SwiftShader/llvmpipe = none) or `navigator.gpu.requestAdapter()` in idle time. Do NOT
+  use `failIfMajorPerformanceCaveat`: it reported a GPU under --disable-gpu and costs ~117 ms.
+- **Pressing Enter.** The prompt's answer index used to be built on the first submit (40-80 ms stall on a
+  phone). engine.js `indexSteps` is a generator (tokenise once per name, memoised idf: 2.3x faster) and
+  app.js `warm()` runs it in requestIdleCallback slices while the player reads; `prepare()` still builds it
+  at once if a submit comes first. Checked identical on 160 prompts / 3600 typed answers.
+- Known and left: a one-off 30-44 ms shader compile at the first low-time frame (Chrome caches it on disk); a
+  ~150 ms long frame when the results page opens (was 119 ms before; route render, not the stage);
+  tests/e2e.js `swishh` autocorrect check fails depending on the date's prompt, identically on the old code.
+- Pixel parity old vs new: same picture (largest diffs are a few anti-aliasing pixels on band seams, ≤7
+  levels in low time, and mote/ember phase).
