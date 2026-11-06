@@ -1416,7 +1416,8 @@ is the lit exhibit.
     trail. At a streak of 3 or more it becomes a fireball, one shape with the badge's flame
     (`flameOutline`): the ball's body turns into the fire's core (`fireCore`: white-hot in the middle,
     the inner flame's colour further out, its rim melting into the flames; no specular, no dark edge),
-    the two flames behind wrap the whole ball and a paler tongue rises out of the core in front. At rest
+    the two flames behind wrap the whole ball (the paler tongue that rose out of the core in front was removed
+    2026-11-06 at the user's choice: it left a teardrop outline over the ball). At rest
     the tongues rise; rolling, they stream back like a comet's tail. The flicker pumps the core's heat.
     The fire lights the ball and the ground (cached glow sprites, no shadowBlur), sheds embers, flares at
     each landing, catches at three, and goes out with smoke on a miss, the ball turning back into its

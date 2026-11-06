@@ -926,7 +926,7 @@
     /** Three answers in a row and the ball catches fire: the badge's fireball, round the real ball, one
      * shape with it. Measured once a frame (fireOf), drawn in four passes: the light it throws (on the
      * ground under the ball and into the air), the two flames behind the ball, the ball itself as the
-     * white-hot core (fireCore), and a tongue rising out of that core in front. */
+     * white-hot core (fireCore). No tongue in front since 2026-11-06. */
     function fireOf(cx, cy, bx, by, lv, calm, th) {
       const fx = st.fx, R = st.R, out = fx.out;
       const flv = lv >= 3 ? lv : out ? out.lv : 0;
@@ -989,12 +989,12 @@
       c.save();
       c.globalCompositeOperation = "screen";
       if (F.tilt) { c.translate(F.cx, F.cy); c.rotate(F.tilt); c.translate(-F.cx, -F.cy); }
+      // (A paler tongue used to rise out of the core in front; it left a teardrop outline over the ball and the
+      // user chose none, 2026-11-06. The core is a clean round ball inside the two flames.)
       if (!front) {
         const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
         layer(1.36, 0.3, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
         layer(1.12, 0.14, 0.74, m, 1, 0, 1.9);
-      } else {
-        layer(0.6, 0.12, 0.56, F.tongue, 0.8, 0, 3.7);
       }
       c.restore();
     }
@@ -1075,7 +1075,7 @@
       }
       if (burn > 0) { c.globalAlpha = burn; fireCore(c, F, R); c.globalAlpha = 1; }
       c.restore();
-      if (F) flames(c, F, true); // and the tongue out of its core, in front: ball and fire are one shape
+      if (F) flames(c, F, true); // nothing in front any more (no tongue); kept as the hook for front layers
       return [cx, cy];
     }
 
