@@ -308,8 +308,8 @@ body[data-view="play"] #app { max-width: none; }
 .play-meta:has(.stop-run) { display: flex; align-items: center; gap: 6px; }
 .stop-run { pointer-events: auto; min-height: 32px; padding: 0 14px; margin-left: 10px; font-size: var(--s1); }
 
-/* the streak: answers in a row light a flame at the top of the stage. The flame is the ball on fire (the
-   stage draws the same flame round the real ball from three in a row) and the count sits beside it,
+/* the streak: answers in a row light a flame at the top of the stage. The flame is a flame icon (outer flame,
+   inner flame, white-hot teardrop; the lion from seven) in the colours of the ball's fire, and the count sits beside it,
    centred on it, in heavy ink numerals that inherit the stage's colour (ink, and gold-ink on the gem's
    flood), so the flame carries the heat. showStreak sets the glow's colour from FLAME in landscape.js
    (--sk-o). --fh is the flame's height and grows with the streak; the count keeps one size (--k
@@ -332,9 +332,9 @@ html:not(.reduce-motion) .streak .sk-icon::before { animation: sk-glow 1300ms ea
 /* the count: seven-eighths of the first flame's height, at every level */
 .streak .sk-n { font-family: var(--font-num, var(--font)); font-variant-numeric: tabular-nums lining-nums; font-variation-settings: "SHRP" 100; font-weight: 800; font-size: calc(26px * var(--k)); line-height: 1; letter-spacing: -0.02em; color: inherit; }
 .streak .sk-name { font-size: var(--s1); font-weight: 600; line-height: 1; color: var(--gold); margin-left: calc(2px * var(--k)); }
-/* it flickers from the ball up: the base stays put and the tips sway, each layer on its own beat */
-.flame .fl-out, .flame .fl-in { transform-box: fill-box; transform-origin: 50% 100%; }
-html:not(.reduce-motion) .streak .fl-out { animation: sk-flick var(--flick) ease-in-out infinite alternate; }
+/* it flickers from the base up: the base stays put and the tips sway, each layer on its own beat */
+.flame .fl-og, .flame .fl-in { transform-box: fill-box; transform-origin: 50% 100%; }
+html:not(.reduce-motion) .streak .fl-og { animation: sk-flick var(--flick) ease-in-out infinite alternate; }
 html:not(.reduce-motion) .streak .fl-in { animation: sk-flick calc(var(--flick) * 0.73) ease-in-out infinite alternate-reverse; }
 @keyframes sk-flick { 0% { transform: none; } 50% { transform: scale(0.97, 1.05) skewX(-2.5deg); } 100% { transform: scale(1.03, 0.96) skewX(1.5deg); } }
 /* one more in a row: the flame crouches and leaps, the new count springs up, embers fly off the top */
@@ -344,11 +344,11 @@ html:not(.reduce-motion) .streak.pop .sk-n, html:not(.reduce-motion) .streak.pop
 @keyframes sk-count { 0% { transform: translateY(35%) scale(0.75); opacity: 0; } 55% { transform: translateY(-6%) scale(1.1); opacity: 1; } 100% { transform: none; } }
 .sk-spark { position: absolute; left: 50%; top: 32%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: var(--c); opacity: 0; animation: sk-spark 720ms cubic-bezier(0.2, 0.7, 0.4, 1) var(--d, 0ms) forwards; }
 @keyframes sk-spark { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 70% { opacity: 0.85; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.35); } }
-/* a miss: the flame sinks into its ball, the ball cools to grey, smoke rises off it and the count drops away */
-html:not(.reduce-motion) .streak.out .fl-out, html:not(.reduce-motion) .streak.out .fl-in { transform-origin: 50% 78%; animation: sk-sink 420ms ease-in forwards; }
+/* a miss: the flame sinks, its core cools to grey, smoke rises off it and the count drops away */
+html:not(.reduce-motion) .streak.out .fl-og, html:not(.reduce-motion) .streak.out .fl-in { transform-origin: 50% 78%; animation: sk-sink 420ms ease-in forwards; }
 @keyframes sk-sink { 70% { opacity: 0.35; } 100% { transform: scale(0.4); opacity: 0; } }
 .streak.out .fl-core { opacity: 0; transition: opacity 260ms ease 420ms; }
-.streak.out .fl-core circle { fill: var(--t-miss); transition: fill 360ms ease; }
+.streak.out .fl-core circle, .streak.out path.fl-core { fill: var(--t-miss); transition: fill 360ms ease; }
 .streak.out .fl-core path { stroke: var(--t-miss); transition: stroke 360ms ease; }
 html:not(.reduce-motion) .streak.out .sk-icon::before, html:not(.reduce-motion) .streak.out .sk-icon::after { opacity: 0; animation: none; transition: opacity 380ms ease; }
 .streak.out { color: var(--muted); transition: color 260ms ease; }
@@ -365,7 +365,8 @@ html:not(.reduce-motion) .sk-quick.on { animation: sk-quick 1500ms var(--ease-ou
 .stage.flood .streak, .stage.flood .streak .sk-name { color: var(--gold-ink); }
 .stage.flood .streak .fl-out { fill: var(--gold-ink); }
 .stage.flood .streak .fl-in { fill: #4a3812; }
-.stage.flood .streak .fl-core circle { fill: var(--gold); }
+.stage.flood .streak .fl-core circle, .stage.flood .streak path.fl-core { fill: var(--gold); }
+.stage.flood .streak .fl-shine { opacity: 0; }
 .stage.flood .streak .fl-core path { stroke: var(--gold); }
 html .stage.flood .streak .sk-icon::before, html .stage.flood .streak .sk-icon::after { opacity: 0; animation: none; }
 @media (min-width: 1000px) {

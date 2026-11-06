@@ -1431,18 +1431,19 @@ is the lit exhibit.
   - What counts (2026-11-06, the user's rule): only In-Distribution or rarer answers build the streak
     (`V.keepsStreak`; a right quiz answer is In-Distribution). A Baseline or Overfit answer still scores and rolls
     the ball but puts the fire out like a miss, so players chase good answers to keep it. Not explained anywhere on purpose (the user: players work it out).
-  - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` over the stage: the ball on fire, the same
-    `flameOutline` the stage draws round the real ball from 3 in a row (redesigned 2026-11-06: the user found
-    the old badge "very low quality" and the ball's fire "synthetic, laid on top"). `FLAME` climbs: 2 orange,
-    3 a hotter red-orange, 4 purple, 5 blue, 6 white-hot, 7 and up the lion's gold with the ink lion inside
-    and "MLion" (the first redesign tried fire colours only; the user wanted purple and blue back). Each
-    level is outer, inner and a near-white core, and the badge is the same fireball as the stage: the two
-    flames, the ball as the white-hot core and a paler tongue rising out of it. From 7 the inner flame is
-    fuller and the lion (`LION` in landscape.js) sits wholly inside it, clear of its edge even at the
-    flicker's widest sway; feel.e2e.js checks the margin. The count is ink (gold-ink on the gem's flood), one size at every level,
-    centred on the flame, weight 800 in `--font-num`. A new answer makes the flame crouch, leap and throw
-    embers; a miss sinks it into its ball, the ball greys and smoke rises. On the gem's flood the lion grows
-    only up to the boxes along the top, so it no longer covers the count.
+  - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` over the stage: a flame icon (third redesign,
+    2026-11-06, late: the user had sent Duolingo's streak flames as examples and still saw "the ball on fire" with
+    a white disc and a spike in it; they wanted "a full-on fire icon"). Our own shape, flat colour, no outlines:
+    a chunky outer flame with a tongue on its shoulder and a faint shine down its left side (`tonguePath`), an
+    inner flame of the same shape, and a white-hot teardrop at the base (`dropPath`). The outer flame and its
+    shine flicker as one group (`.fl-og`). `FLAME` climbs: 2 orange, 3 a hotter red-orange, 4 purple, 5 blue,
+    6 white-hot, 7 and up the lion's gold with "MLion" (the first redesign tried fire colours only; the user wanted
+    purple and blue back). From 7 the outer flame is bigger, the inner one is a wide pale-gold teardrop (a
+    tongue's notch would cut into the lion) and the ink lion (`LION`) sits wholly inside it, clear of its edge
+    even at the flicker's widest sway; feel.e2e.js checks the margin. The count is ink (gold-ink on the gem's
+    flood), one size at every level, centred on the flame, weight 800 in `--font-num`. A new answer makes the
+    flame crouch, leap and throw embers; a miss sinks it, its core greys and smoke rises. On the gem's flood the
+    lion grows only up to the boxes along the top, so it no longer covers the count.
   - `celebrate()` runs when the ball lands. It plays `Sound.streak(n)` (a chord that climbs
     each step, with a buzz), `Sound.quick()` with a "Quick" pill for answers under
     `QUICK_MS` (5 s), and `Sound.fizzle()` with smoke when a streak of 2 or more breaks.
@@ -1454,9 +1455,10 @@ is the lit exhibit.
 - **Groove: the ball sits on the line in every frame** (user, 2026-11-06: "make sure 0 flaws").
   - One pose a frame, `pose(lv)` in js/landscape.js, is shared by the ball, its fire, its shadow, its wake and
     the low-time fog, so they agree on one centre. `seat(x, rx, ry, k)` places it: the centre lies out along the
-    slope's normal at the contact, `k` px into the line's centre: `sink()` = -1.25, so it rests on top of the
-    3.5 px lit line, on its top edge with half a pixel of overlap (at 1 px into the centre the user saw it
-    "inside the line, too deep"); plus `FIRE_SINK` 0.3 R while it burns, since the fire's white core fades out
+    slope's normal at the contact, `k` px into the line's centre: `sink()` rests it on the top edge of the line
+    under it with half a pixel of overlap: -1.25 on the 3.5 px lit line, -0.5 on the 2 px grey path before the
+    first answer (`sinkFor`, eased as the roll starts; on the grey path the lit line's value left it floating). At
+    1 px into the centre the user saw it "inside the line, too deep"; plus `FIRE_SINK` 0.3 R while it burns, since the fire's white core fades out
     about 0.7 R from its centre, which puts that visible edge on the line's top edge too. The ball squashes
     along the slope (rx × ry); on a hard landing it is wider than the tightest valleys (15 px curve radius on a
     phone), so there `seat` lifts it until it rests on the valley's sides (up to 2 px) instead of cutting in.

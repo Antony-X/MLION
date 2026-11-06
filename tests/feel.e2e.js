@@ -326,9 +326,11 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
         return { cut: Math.max(0, worst), gap: Math.max(0, -worst), off: Math.hypot(px - B.px, py - B.py), turn: Math.abs(Math.atan2(ry - ly, rx - lx) - B.th) };
       };
       const good = { tier: "indist", score: 30 };
+      d.set([]);
+      const kStart = S.pose.k; // before the first answer it stands on the grey path, 2 px wide
       d.set([good]);
       const k0 = S.pose.k; // how far a plain ball at rest presses into the line's centre (negative: it sits above it)
-      const sweep = { cut: 0, gap: 0, n: 0, k0 }, cam = [S.camX, S.camY];
+      const sweep = { cut: 0, gap: 0, n: 0, k0, kStart }, cam = [S.camX, S.camY];
       for (const [ax, ay] of [[1, 1], [1.364, 0.61]]) {
         for (let x = 10; x < 6990; x += 4.7) {
           S.camX = x; S.camY = V.terrain(x);
@@ -363,6 +365,7 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
       setTimeout(next, 100);
     }));
     const { sweep: sw, live } = seated;
+    check(Math.abs(sw.kStart + 0.5) < 1e-9, "before the first answer the ball rests on the grey path's top edge (0.5 px above its centre: it is 2 px wide), not over it");
     check(Math.abs(sw.k0 + 1.25) < 1e-9, `at rest the ball's bottom is on the lit line's top edge, not inside it (1.25 px above the centre of the 3.5 px line, overlapping it by half a pixel)`);
     check(sw.cut < 0.1 && sw.gap < 0.01, `the ball sits on the line all over the course, round and squashed on a hard landing (${sw.n} spots: cuts in ${sw.cut.toFixed(3)} px, floats ${sw.gap.toFixed(3)} px at most)`);
     check(live.frames > 60 && live.fire > 10 && live.land > 10 && live.shiver > 3 && live.tense > 5, `the check saw it rolling, on fire, landing, shivering and trembling (${live.frames} frames)`);

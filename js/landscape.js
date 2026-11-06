@@ -10,10 +10,10 @@
  *    in a groove (sunk a few px into the path). In the last seconds of a clock
  *    the world drains of colour and beats red (tension/beat/release); a rare
  *    landing flashes the stage in its tier colour and spills coins.
- *  - flame: the streak mark (answers in a row): the ball on fire, burning hotter
+ *  - flame: the streak mark (answers in a row): a flame icon burning hotter
  *    from orange through purple, blue and white-hot to the lion's gold. From
- *    three in a row the stage's ball becomes the same fireball, the ball its
- *    white-hot core (flameOutline draws both).
+ *    three in a row the stage's ball catches fire in the same colours, the ball
+ *    its white-hot core (flameOutline).
  *  - glyph: the tier marks. Five are tiny charts of what the tier means, a
  *    curve and the ball on it; the gem is the lion, the sign of Leo, which is
  *    a curve and a ball too.
@@ -345,7 +345,7 @@
   /** One flame, the shape both fires share: the ball's round base (radius r, centred on x, y) rising
    * into a tip h radii above its centre, leaning back by `lean` radii, with a smaller tongue on the
    * forward shoulder (`side`, 0 for none). `rot` turns the whole flame (radians). It draws with the
-   * canvas path methods, into a 2D context or into svgPath() for the badge. */
+   * canvas path methods into a 2D context. */
   function flameOutline(c, x, y, r, o) {
     const h = o.h, ln = o.lean || 0, s = o.side || 0, rot = o.rot || 0;
     const cs = Math.cos(rot), sn = Math.sin(rot);
@@ -370,40 +370,49 @@
     curve(b[0] + 0.75 * tb[0], b[1] + 0.75 * tb[1], ln - 0.2, -h + 0.75, ln - 0.1, -h + 0.06);
     c.closePath();
   }
-  /** Records the path methods flameOutline() calls as SVG path data. */
-  function svgPath(draw) {
-    let d = "";
-    const f = (v) => +v.toFixed(2);
-    draw({
-      moveTo: (x, y) => { d += `M${f(x)} ${f(y)}`; },
-      bezierCurveTo: (a, b, c, e, x, y) => { d += `C${f(a)} ${f(b)} ${f(c)} ${f(e)} ${f(x)} ${f(y)}`; },
-      arc: (cx, cy, r, a0, a1) => { d += `A${f(r)} ${f(r)} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${f(cx + r * Math.cos(a1))} ${f(cy + r * Math.sin(a1))}`; },
-      closePath: () => { d += "Z"; },
-    });
-    return d;
+  /** The streak badge: a flame icon (user, 2026-11-06, with Duolingo's streak flames as examples: "a full-on fire
+   *  icon", not the ball on fire with a spike in it). Flat colour, no outlines, three nested layers: a chunky outer
+   *  flame with a tongue on its shoulder and a soft shine down its left side, an inner flame of the same shape, and
+   *  a white-hot teardrop at the base. It grows a little with every answer in a row. From seven it turns the gem's
+   *  gold and the core becomes the lion, in ink, as on the gem; the inner flame is wider there so the whole lion sits
+   *  inside it, clear of its edge even at the flicker's widest sway (tests/feel.e2e.js checks the margin). */
+  const LION = { x: 0.5, y: 0.25, s: 0.225, stroke: 7.2 };
+  const svn = (v) => +v.toFixed(2);
+  /** SVG path data for a teardrop: a round bottom w wide resting on y = by, its tip h above, leaning by `lean`. */
+  function dropPath(cx, by, w, h, lean = 0) {
+    const r = w / 2, y0 = by - r, tx = cx + lean, ty = by - h;
+    return `M${svn(tx)} ${svn(ty)}C${svn(tx + 0.2 * w)} ${svn(ty + 0.3 * h)} ${svn(cx + r)} ${svn(y0 - 0.32 * h)} ${svn(cx + r)} ${svn(y0)}` +
+      `A${svn(r)} ${svn(r)} 0 0 1 ${svn(cx - r)} ${svn(y0)}C${svn(cx - r)} ${svn(y0 - 0.32 * h)} ${svn(tx - 0.2 * w)} ${svn(ty + 0.3 * h)} ${svn(tx)} ${svn(ty)}Z`;
   }
-  /** The streak badge's flame as inline SVG: the ball on fire, the same fireball the stage draws round
-   * the real ball. Flat colour, no outlines: a deep outer flame, a brighter inner one, and the ball as
-   * the white-hot core with a paler tongue rising out of it. It grows a little with every answer in a
-   * row. From seven it turns the gem's gold and the core becomes the lion, in ink, as on the gem; the
-   * inner flame is fuller there so the whole lion sits inside it, clear of its edge even at the
-   * flicker's widest sway (LION; tests/feel.e2e.js checks the margin). */
-  const LION = { x: 0.5, y: 0.25, s: 0.225, stroke: 7.2, inner: { x: 0.2, y: 1.2, r: 8.4, h: 1.42 } };
+  /** SVG path data for a flame: a round bottom w wide resting on y = by, a main tip h above it leaning back by
+   *  `lean` widths, and a tongue on the forward shoulder whose tip is `side` of h up. */
+  function tonguePath(cx, by, w, h, lean, side) {
+    const r = w / 2, y0 = by - r, tx = cx + lean * w, ty = by - h;
+    const nx = cx + 0.18 * w, ny = by - h * 0.56; // the notch between the body and the tongue
+    const sx = cx + 0.47 * w, sy = by - h * side; // the tongue's tip
+    return `M${svn(tx)} ${svn(ty)}` +
+      `C${svn(tx + 0.1 * w)} ${svn(ty + 0.18 * h)} ${svn(nx - 0.06 * w)} ${svn(ny - 0.08 * h)} ${svn(nx)} ${svn(ny)}` +
+      `C${svn(nx + 0.1 * w)} ${svn(ny - 0.02 * h)} ${svn(sx - 0.1 * w)} ${svn(sy + 0.04 * h)} ${svn(sx)} ${svn(sy)}` +
+      `C${svn(sx + 0.08 * w)} ${svn(sy + 0.12 * h)} ${svn(cx + r)} ${svn(y0 - 0.2 * h)} ${svn(cx + r)} ${svn(y0)}` +
+      `A${svn(r)} ${svn(r)} 0 0 1 ${svn(cx - r)} ${svn(y0)}` +
+      `C${svn(cx - r)} ${svn(y0 - 0.34 * h)} ${svn(tx - 0.16 * w)} ${svn(ty + 0.42 * h)} ${svn(tx)} ${svn(ty)}Z`;
+  }
   function flame(n, cls) {
     const lv = Math.max(2, flameLevel(n)), [o, m, w] = FLAME[lv], g = lv - 2, gem = lv >= 7;
-    const outer = svgPath((p) => flameOutline(p, 0, 0, 10, { h: 1.85 + 0.05 * g, lean: -0.32, side: 0.85 + 0.06 * g }));
-    const I = gem ? LION.inner : { x: 0.2, y: 2, r: 7.4, h: 1.35 + 0.04 * g };
-    const inner = svgPath((p) => flameOutline(p, I.x, I.y, I.r, { h: I.h, lean: -0.24 }));
-    const [mx, my, mr] = MARK.ball;
+    // the gem's outer flame is bigger, so it still shows round the wide inner flame that holds the lion
+    const outer = gem ? tonguePath(0, 10.4, 26, 35, -0.2, 0.6) : tonguePath(0, 9.6, 21.5, 29 + 0.5 * g, -0.2, 0.58);
+    // from seven the inner flame is a wide teardrop: a tongue's notch would cut into the lion
+    const inner = gem ? dropPath(0.9, 9.8, 19.4, 25, -0.4) : tonguePath(0.4, 9.6, 14.2, 20 + 0.5 * g, -0.16, 0.52);
+    const shine = "M-7.4 -1.5C-7.8 -5.5 -6 -9.5 -3.6 -12.6C-5.2 -9 -6.2 -5.6 -5.9 -1.8Z";
     let core;
     if (gem) {
+      const [mx, my, mr] = MARK.ball;
       core = `<g class="fl-core"><g transform="translate(${LION.x} ${LION.y}) scale(${LION.s})"><path d="${MARK.d}" fill="none" stroke="${COL.goldInk}" stroke-width="${LION.stroke}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${mx}" cy="${my}" r="${mr + 0.6}" fill="${COL.goldInk}"/></g></g>`;
-    } else {
-      const tongue = svgPath((p) => flameOutline(p, 0.3, 3, 2.9, { h: 3, lean: -0.3 }));
-      core = `<path class="fl-in fl-tg" fill="${mix(m, w, 0.5)}" d="${tongue}"/><g class="fl-core"><circle cx="0.3" cy="3.6" r="4.6" fill="${w}"/></g>`;
-    }
+    } else core = `<path class="fl-core" fill="${w}" d="${dropPath(0.4, 9.2, 7.2, 11 + 0.4 * g, -0.6)}"/>`;
+    // the outer flame and its shine flicker as one (.fl-og), so the shine never slides off the flame
     return `<svg class="flame fl-${lv}${cls ? " " + cls : ""}" viewBox="-12 -22 24 31.6" aria-hidden="true" focusable="false">` +
-      `<path class="fl-out" fill="${o}" d="${outer}"/><path class="fl-in" fill="${gem ? COL.goldBand : m}" d="${inner}"/>${core}</svg>`;
+      `<g class="fl-og"><path class="fl-out" fill="${o}" d="${outer}"/><path class="fl-shine" fill="#fff" opacity="0.22" d="${shine}"/></g>` +
+      `<path class="fl-in" fill="${gem ? mix(m, w, 0.45) : m}" d="${inner}"/>${core}</svg>`; // the gem's inner flame: pale gold, hot
   }
 
   // ------------------------------------------------------------ descent
@@ -476,6 +485,7 @@
       // the ball's fire: how far the flames lean (px, a spring), how fast the ball moves through the air,
       // the flare at a landing, how far it has caught (0 to 1), embers, wisps and smoke, and the fire going out
       fx: { lean: 0, leanV: 0, speed: 0, flare: 0, grow: 1, acc: 0, bits: [], out: null, tip: null },
+      sinkK: -0.5, // how far the ball presses into the line's centre now (sink(); it eases to sinkFor())
       anim: null, raf: 0, onScreen: true, reported: NaN,
       onFrame: opts.onFrame || null, onFlood: opts.onFlood || null,
     };
@@ -486,10 +496,18 @@
     const onPath = (x) => toScreen(x, terrain(x));
     /** How far the ball's bottom presses into the path's centre line, in px (negative: it stays above it). The ball
      *  rests on top of the lit line, which is 3.5 px wide: its bottom is on the line's top edge, overlapping it by
-     *  half a pixel so no dark seam shows between them. History (user, 2026-11-06): it sank 38% of its radius (the
-     *  line ran into it), rested 2 px up with a shadow under it (it seemed to float), then sat 1 px past the centre
-     *  ("inside the line, too deep"). */
-    const sink = () => -1.25;
+     *  half a pixel so no dark seam shows between them (sinkFor). History (user, 2026-11-06): it sank 38% of its
+     *  radius (the line ran into it), rested 2 px up with a shadow under it (it seemed to float), then sat 1 px past
+     *  the centre ("inside the line, too deep"). */
+    const sink = () => st.sinkK;
+    /** What sink() eases to: the ball's bottom on the top edge of the line under it, overlapping it by half a pixel.
+     *  That line is the bright one (3.5 px) once the ball has rolled, and the grey path (2 px) before the first
+     *  answer: on the bright line's sink the ball floated a quarter pixel over the grey one (user, 2026-11-06). */
+    const sinkFor = () => {
+      const a = st.anim, x = st.x;
+      const lit = (a && a.tier !== "miss" && x > a.from + 1e-6) || st.segs.some((sg) => sg.x0 < x - 1e-6 && x <= sg.x1 + 1e-6);
+      return 0.5 - (lit ? 1.75 : 1);
+    };
     // and this much more of R while it burns: the fire's core is the ball then, and it fades out about 0.7 R from its
     // centre, so this puts that visible edge where the plain ball's edge is, on the line's top edge
     const FIRE_SINK = 0.3;
@@ -586,6 +604,8 @@
         }
       }
       st.vel = dt > 0 ? (st.x - prevX) / dt : 0;
+      const sk = sinkFor(); // onto the bright line as it starts, over a few frames, not in one jump
+      st.sinkK = calm ? sk : st.sinkK + (sk - st.sinkK) * (1 - Math.exp(-Math.max(0, dt) / 70));
       if (!calm && st.anim && Math.abs(st.x - prevX) > 0.01) st.trail.push({ x: st.x, t: now });
       while (st.trail.length && now - st.trail[0].t > 420) st.trail.shift();
 
@@ -1009,8 +1029,7 @@
       // fire is light, so the layers brighten what is under them and the scene shows faintly through.
       // Screen rather than adding: added up, orange clips to a lime yellow on the cold plateau. The
       // two flames behind wrap the whole ball, the outer one wide round it, the inner one hugging it in
-      // the colour of the ball's own rim, so the ball's edge melts into the fire. The badge draws the same
-      // layers flat.
+      // the colour of the ball's own rim, so the ball's edge melts into the fire.
       c.save();
       c.globalCompositeOperation = "screen";
       if (F.tilt) { c.translate(F.cx, F.cy); c.rotate(F.tilt); c.translate(-F.cx, -F.cy); }
@@ -1440,7 +1459,7 @@
           } else { streak = 0; tier = "miss"; }
         }
         st.streak = streak; st.tier = tier;
-        st.x = x; st.anim = null;
+        st.x = x; st.anim = null; st.sinkK = sinkFor();
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
         st.trail = []; st.sparks = []; st.land = null; st.coins = []; st.wash = null; st.hold = 0;
         Object.assign(st.fx, { lean: 0, leanV: 0, flare: 0, grow: 1, bits: [], out: null });
