@@ -1428,7 +1428,7 @@ is the lit exhibit.
   accepted answers in Classic and right answers in the quiz formats.
   - What counts (2026-11-06, the user's rule): only In-Distribution or rarer answers build the streak
     (`V.keepsStreak`; a right quiz answer is In-Distribution). A Baseline or Overfit answer still scores and rolls
-    the ball but puts the fire out like a miss, so players chase good answers to keep it. How to play says so.
+    the ball but puts the fire out like a miss, so players chase good answers to keep it. Not explained anywhere on purpose (the user: players work it out).
   - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` over the stage: the ball on fire, the same
     `flameOutline` the stage draws round the real ball from 3 in a row (redesigned 2026-11-06: the user found
     the old badge "very low quality" and the ball's fire "synthetic, laid on top"). `FLAME` climbs: 2 orange,

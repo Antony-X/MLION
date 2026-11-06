@@ -5296,7 +5296,6 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <p>The fewer people who'd think of your answer, the more it scores:</p>
       ${depthList(true)}
       <p class="muted">Your score is a ball rolling down a hill: every answer rolls it further down, rarer answers further. A perfect day is 700 points.</p>
-      <p class="muted">Two In-Distribution or rarer answers in a row set the ball on fire, and every one after that burns it hotter. A Baseline, an Overfit or a miss puts the fire out.</p>
     </div>`;
   }
   function renderHow() {
