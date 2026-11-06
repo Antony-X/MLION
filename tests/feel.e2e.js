@@ -327,11 +327,12 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
       };
       const good = { tier: "indist", score: 30 };
       d.set([good]);
-      const sweep = { cut: 0, gap: 0, n: 0 }, cam = [S.camX, S.camY];
+      const k0 = S.pose.k; // how far a plain ball at rest presses into the line's centre (negative: it sits above it)
+      const sweep = { cut: 0, gap: 0, n: 0, k0 }, cam = [S.camX, S.camY];
       for (const [ax, ay] of [[1, 1], [1.364, 0.61]]) {
         for (let x = 10; x < 6990; x += 4.7) {
           S.camX = x; S.camY = V.terrain(x);
-          const f = fit({ ax, ay, k: 1, S: S.seat(x, S.R * ax, S.R * ay, 1) });
+          const f = fit({ ax, ay, k: k0, S: S.seat(x, S.R * ax, S.R * ay, k0) });
           sweep.cut = Math.max(sweep.cut, f.cut); sweep.gap = Math.max(sweep.gap, f.gap); sweep.n++;
         }
       }
@@ -362,6 +363,7 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
       setTimeout(next, 100);
     }));
     const { sweep: sw, live } = seated;
+    check(Math.abs(sw.k0 + 1.25) < 1e-9, `at rest the ball's bottom is on the lit line's top edge, not inside it (1.25 px above the centre of the 3.5 px line, overlapping it by half a pixel)`);
     check(sw.cut < 0.1 && sw.gap < 0.01, `the ball sits on the line all over the course, round and squashed on a hard landing (${sw.n} spots: cuts in ${sw.cut.toFixed(3)} px, floats ${sw.gap.toFixed(3)} px at most)`);
     check(live.frames > 60 && live.fire > 10 && live.land > 10 && live.shiver > 3 && live.tense > 5, `the check saw it rolling, on fire, landing, shivering and trembling (${live.frames} frames)`);
     check(live.cut < 0.1 && live.gap < 0.01 && live.off < 0.01 && live.turn < 0.001, `in every frame it touches the line, turned to its slope (cuts in ${live.cut.toFixed(3)} px, floats ${live.gap.toFixed(3)} px, slope off by ${(live.turn * 180 / Math.PI).toFixed(4)}°)`);

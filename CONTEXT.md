@@ -1412,8 +1412,9 @@ is the lit exhibit.
 - **Landing.** The size of the moment scales with the tier through the tables `RIPPLE`,
   `POWER`, `SPARKS` and `KICK`: squash, ripples, sparks, flash and camera kick. A miss dims the
   stage and makes the ball shiver.
-  - The ball has a tight glow round it, a specular highlight, rim light, a soft contact shadow and a
-    tapered trail (the pool of light on the ground went 2026-11-06: see Groove). At a streak of 3 or more it becomes a fireball, one shape with the badge's flame
+  - The ball has a tight glow round it, a specular highlight, rim light and a tapered trail (the pool of
+    light on the ground went 2026-11-06, and a contact shadow under the line went the same day: the user saw a
+    bump; see Groove). At a streak of 3 or more it becomes a fireball, one shape with the badge's flame
     (`flameOutline`): the ball's body turns into the fire's core (`fireCore`: white-hot in the middle,
     the inner flame's colour further out, its rim melting into the flames; no specular, no dark edge),
     the two flames behind wrap the whole ball (the paler tongue that rose out of the core in front was removed
@@ -1453,8 +1454,10 @@ is the lit exhibit.
 - **Groove: the ball sits on the line in every frame** (user, 2026-11-06: "make sure 0 flaws").
   - One pose a frame, `pose(lv)` in js/landscape.js, is shared by the ball, its fire, its shadow, its wake and
     the low-time fog, so they agree on one centre. `seat(x, rx, ry, k)` places it: the centre lies out along the
-    slope's normal at the contact, so the bottom presses `k` px into the line (`sink()` = 1 px; plus
-    `FIRE_SINK` 0.3 R while it burns, since the fire's white core fades out before its rim). The ball squashes
+    slope's normal at the contact, `k` px into the line's centre: `sink()` = -1.25, so it rests on top of the
+    3.5 px lit line, on its top edge with half a pixel of overlap (at 1 px into the centre the user saw it
+    "inside the line, too deep"); plus `FIRE_SINK` 0.3 R while it burns, since the fire's white core fades out
+    about 0.7 R from its centre, which puts that visible edge on the line's top edge too. The ball squashes
     along the slope (rx × ry); on a hard landing it is wider than the tightest valleys (15 px curve radius on a
     phone), so there `seat` lifts it until it rests on the valley's sides (up to 2 px) instead of cutting in.
   - Things that used to knock it off the line, all fixed: the miss shiver and the low-time tremble moved it
@@ -1464,11 +1467,15 @@ is the lit exhibit.
   - feel.e2e.js sweeps `seat` over the whole course (round and squashed) and checks the drawn pose in every
     frame of real rolls (fire, landings, shiver, tremble) against the path worked out on its own: it cuts in at
     most 0.06 px past `k` and never floats.
-  - The ground is solid: the ball's glow, its fire and the ball itself are clipped to the sky side of the line,
-    and its contact shadow (an ellipse along the slope, at the contact point) only to the ground side (user: a
-    glow going into the ground "breaks the laws of physics"). Chosen 2026-11-06 from five lights: the tight glow.
-  - The bright line runs on under the ball and cools into the grey path within 2.4 R past it (`fadeRun`), so
-    no stub pokes out where it meets the ball. Chosen from five line ends ("through"), 2026-11-06.
+  - The ground is solid: the ball's glow, its fire and the ball itself are clipped to the sky side of the line
+    (user: a glow going into the ground "breaks the laws of physics"). Chosen 2026-11-06 from five lights: the
+    tight glow.
+  - The bright line runs on under the ball and cools into the grey path within 2.4 R past it, so no stub pokes
+    out where it meets the ball. Chosen from five line ends ("through"), 2026-11-06. The stretch the ball stands
+    on is one path with one gradient: drawn as two strokes, their soft glows doubled under the ball (a pale bump).
+  - The fire catches already standing along the slope (`fx.follow = 1` at the catch); it used to be born
+    upright from the roll and swing round over ~0.4 s. After later landings it still settles from the comet
+    tail to the slope (that lag is the motion's).
 - **Low time** applies to the last 5 s of any answer clock. Classic and quiz call `tense(left,
   el)` from `tickLoop`/`quizTick`; both Sprint clocks call it too, with no stage there.
   - The stage's colour drains (a `saturation` fill), and dark fog closes in on the ball.

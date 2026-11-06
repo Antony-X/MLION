@@ -484,11 +484,15 @@
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
-    /** How far the ball's bottom presses into the path's centre line, in px: just enough that it visibly sits on
-     *  the lit line (3.5 px wide) with the line's lower edge showing under it. History (user, 2026-11-06): it sank
-     *  38% of its radius (the line seemed to run into the ball), then it rested 2 px up (it seemed to float). */
-    const sink = () => 1;
-    const FIRE_SINK = 0.3; // and this much more of R while it burns
+    /** How far the ball's bottom presses into the path's centre line, in px (negative: it stays above it). The ball
+     *  rests on top of the lit line, which is 3.5 px wide: its bottom is on the line's top edge, overlapping it by
+     *  half a pixel so no dark seam shows between them. History (user, 2026-11-06): it sank 38% of its radius (the
+     *  line ran into it), rested 2 px up with a shadow under it (it seemed to float), then sat 1 px past the centre
+     *  ("inside the line, too deep"). */
+    const sink = () => -1.25;
+    // and this much more of R while it burns: the fire's core is the ball then, and it fades out about 0.7 R from its
+    // centre, so this puts that visible edge where the plain ball's edge is, on the line's top edge
+    const FIRE_SINK = 0.3;
     /** The path's slope at world x, as an angle on the screen. */
     const slopeAt = (x) => { const e = st.view / 4000, [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e); return Math.atan2(ry - ly, rx - lx); };
     /** A point r px out from the path at x, along the slope's normal (not straight up). */
@@ -724,7 +728,9 @@
       st.tier = tier;
       if (calm) return;
       const lv = flameLevel(st.streak);
-      if (lv >= 3) { st.fx.flare = 1; if (lv === 3) st.fx.grow = 0; } // the fire flares at each landing; at three it catches
+      // the fire flares at each landing; at three it catches, on a ball at rest, so it is born standing along the
+      // slope (it was born upright, as it had streamed back while rolling, and swung round over about 0.4 s)
+      if (lv >= 3) { st.fx.flare = 1; if (lv === 3) { st.fx.grow = 0; st.fx.follow = 1; } }
       const k = Math.min(1.3, (POWER[tier] || 0.5) * (1 + 0.07 * Math.max(0, lv - 1)));
       st.land = { t: 0, k };
       // hit-stop: a rare landing holds the whole stage still for a beat before it all bursts out, longer the rarer
@@ -929,22 +935,20 @@
         return p;
       };
       const solid = (p, col) => { c.strokeStyle = col; c.globalAlpha = 0.16; c.lineWidth = 9; c.stroke(p); c.globalAlpha = 1; c.lineWidth = 3.5; c.stroke(p); };
-      // a stretch of the bright line whose opacity follows `stops` ([[t, alpha], ...]) from a to b: one path, one
-      // gradient, so no seams; the grey path under it shows through where it fades
-      const fadeRun = (a, b, col, stops) => {
-        if (b <= a) return;
-        const p = run(a, b), [sx, sy] = onPath(a), [ex, ey] = onPath(b);
-        for (const [w, k] of [[9, 0.16], [3.5, 1]]) {
-          const g3 = c.createLinearGradient(sx, sy, ex, ey);
-          for (const [t, al] of stops) g3.addColorStop(t, css(col, al * k));
-          c.strokeStyle = g3; c.lineWidth = w; c.stroke(p);
-        }
-      };
       for (const sg of segs) {
         const a = Math.max(sg.x0, x0), b = Math.min(sg.x1, x1);
         if (b <= a) continue;
-        solid(run(a, b), TIER_COLORS[sg.tier]);
-        if (Math.abs(sg.x1 - st.x) < 1e-6) fadeRun(b, Math.min(x1, b + 2.4 * Rw), rgb(TIER_COLORS[sg.tier]), [[0, 1], [0.3, 1], [1, 0]]);
+        if (Math.abs(sg.x1 - st.x) > 1e-6) { solid(run(a, b), TIER_COLORS[sg.tier]); continue; }
+        // the stretch the ball stands on: one path from its start, on under the ball, to 2.4 R past it, its light
+        // fading out past the ball along one gradient laid along the slope there (two strokes, one up to the ball and
+        // one fading past it, doubled their soft glow where they met under it: a pale bump, user 2026-11-06)
+        const e = Math.min(x1, b + 2.4 * Rw), p = run(a, e), [bx, by] = onPath(b), th = slopeAt(b), ux = Math.cos(th), uy = Math.sin(th);
+        const [ex, ey] = onPath(e), len = Math.max(1, (ex - bx) * ux + (ey - by) * uy), col = rgb(TIER_COLORS[sg.tier]);
+        for (const [w, k] of [[9, 0.16], [3.5, 1]]) {
+          const g3 = c.createLinearGradient(bx, by, bx + ux * len, by + uy * len);
+          g3.addColorStop(0, css(col, k)); g3.addColorStop(0.3, css(col, k)); g3.addColorStop(1, css(col, 0));
+          c.strokeStyle = g3; c.lineWidth = w; c.stroke(p);
+        }
       }
       const [ballX] = onPath(st.x);
       for (const m of st.marks) {
@@ -1027,7 +1031,7 @@
       c.fillStyle = g;
       c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
     }
-    /** The ball's pose this frame, shared by everything drawn round it (the ball, its fire, its shadow, its wake and
+    /** The ball's pose this frame, shared by everything drawn round it (the ball, its fire, its wake and
      *  the low-time fog), so they all agree on one centre. ax, ay: its squash along and across the slope (it flattens
      *  on landing and stretches as it rolls); k: how far it presses into the line (more while it burns); S: its seat. */
     function pose(lv) {
@@ -1053,33 +1057,21 @@
     /** The ball, lit twice: a cool key light from the sky (the specular), and from below the minimum's glow, which
      *  grows as the ball goes deeper. A tight glow round it takes the last answer's colour, or the streak's fire's.
      *  On fire it turns into the fire's core instead. It is drawn from its pose: squashed, turned and seated along
-     *  the slope it stands on, its shadow with it. */
+     *  the slope it stands on. */
     function drawBall(c, L, P, tint) {
       const R = st.R, d = L.d, { ax, ay, S, F } = P, { cx, cy, th } = S;
       const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
-      // The ground is solid: the ball's glow, its fire and the ball itself stop at the line it stands on, and its
-      // shadow falls only on the ground side of it (user, 2026-11-06: a glow that went into the ground "breaks the
-      // laws of physics"). The line is traced as the stage traces it, across the whole stage.
+      // The ground is solid: the ball's glow, its fire and the ball itself stop at the line it stands on (user,
+      // 2026-11-06: a glow that went into the ground "breaks the laws of physics"). The line is traced as the stage
+      // traces it, across the whole stage.
       const s = scale(), step = (st.w < 560 ? 4 : 5) / s, x0 = st.camX - (st.w * AX) / s - 40, x1 = st.camX + (st.w * (1 - AX)) / s + 40;
       const line = new Path2D();
       let first = null, last = null;
       for (let x = x0; x <= x1; x += step) { const q = onPath(x); if (first) line.lineTo(q[0], q[1]); else { line.moveTo(q[0], q[1]); first = q; } last = q; }
-      const sky = new Path2D(line), under = new Path2D(line);
+      const sky = new Path2D(line);
       sky.lineTo(last[0], -st.h); sky.lineTo(first[0], -st.h); sky.closePath();
-      under.lineTo(last[0], 2 * st.h); under.lineTo(first[0], 2 * st.h); under.closePath();
       let g;
-      // a soft contact shadow where it presses on the line, lying along the slope like the ball; a burning ball
-      // throws light, not shadow
-      const shade = 1 - 0.75 * burn;
-      if (shade > 0.01) {
-        c.save(); c.clip(under);
-        c.translate(S.px, S.py); c.rotate(th); c.scale(1, 0.34);
-        const sw = R * 1.15 * ax;
-        g = c.createRadialGradient(0, 0, 0, 0, 0, sw);
-        g.addColorStop(0, `rgba(0,0,0,${0.5 * shade})`); g.addColorStop(0.55, `rgba(0,0,0,${0.22 * shade})`); g.addColorStop(1, "rgba(0,0,0,0)");
-        c.fillStyle = g; c.fillRect(-sw, -sw, 2 * sw, 2 * sw);
-        c.restore();
-      }
+      // (A contact shadow lay under the line at the contact for a day; the user saw it as a bump and it went.)
       c.save(); c.clip(sky);
       // a tight glow hugging it, nothing thrown on the ground; on fire it turns to the fire's outer colour
       const glowCol = F ? mixC(tint, F.cols[0], burn) : tint, ar = R * lerp(1.8, 2.3, burn);
