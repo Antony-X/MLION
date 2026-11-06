@@ -65,7 +65,7 @@ async function runIds(b, base, hash, { extras, time, launch }) {
   check(r.ids.length === 7 && !offPool(r.ids).length && !inWeek(r.ids).length && r.intro.includes("MLion #8"), "day 8 moves on to pool prompts the launch week didn't use");
   check(r.ids.join() === D.daily.later[0].join(), "and it is the day frozen in data/daily.json (later[0]), so updates can't change it");
   r = await runIds(b, base, "#daily", { extras: true, time: "2026-12-30T12:00:00", launch: "2026-11-10" });
-  check(r.ids.join() === D.daily.later[50 - 8].join() && r.intro.includes("MLion #51"), "day 51 is the frozen day 51 too");
+  check(r.ids.join() === D.daily.later[51 - 8].join() && r.intro.includes("MLion #51"), "day 51 is the frozen day 51 too");
   console.log("extras e2e passed");
   await b.close(); srv.close();
 })();
