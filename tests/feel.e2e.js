@@ -284,6 +284,23 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
     const lit = await fire(false);
     check(lit.embers > 0, `five in a row: the ball's fire sheds embers (${lit.embers} in the air)`);
     check(lit.out && lit.smoke > 0 && lit.streak === 0, "a miss puts the ball's fire out with a puff of smoke");
+    // only In-Distribution or rarer keeps the fire going; a Baseline or Overfit still lands but puts it out
+    const common = await p.evaluate(() => new Promise((done) => {
+      const cv = document.createElement("canvas");
+      cv.style.cssText = "position:fixed;left:0;top:0;width:390px;height:400px;z-index:99";
+      document.body.appendChild(cv);
+      const d = window.MLION_VISUALS.Descent(cv, {}), S = window.MLION_STAGE, good = { tier: "indist", score: 30 };
+      d.set([good, good, good, { tier: "baseline", score: 10 }]);
+      const afterBaseline = S.streak;
+      d.set([good, good, good, good]);
+      const x0 = S.x;
+      d.roll("overfit", 15, () => {
+        const r = { afterBaseline, afterOverfit: S.streak, out: !!S.fx.out, moved: S.x > x0 };
+        d.destroy(); cv.remove(); done(r);
+      });
+    }));
+    check(common.afterBaseline === 0, "a Baseline answer resets the streak");
+    check(common.afterOverfit === 0 && common.out && common.moved, "an Overfit answer still rolls the ball but puts its fire out");
     const calm = await fire(true);
     check(calm.embers === 0 && !calm.out && calm.smoke === 0, "Reduce motion: the fire is still (no embers, no smoke)");
     await ctx.close();

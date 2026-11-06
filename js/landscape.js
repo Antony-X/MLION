@@ -336,6 +336,12 @@
     ["#f2b53c", "#f7c862", "#fff4d2"],
   ];
   const flameLevel = (n) => Math.min(7, Math.max(0, Math.floor(+n) || 0));
+  // What keeps the fire going (user, 2026-11-06: "do that kind of streak if they answer with something more than
+  // Baseline and Overfit, and when they don't, reset"): In-Distribution or rarer. A Baseline or Overfit answer
+  // still scores and rolls the ball, but it puts the fire out like a miss. A right quiz answer counts as
+  // In-Distribution, so a quiz streak is still right answers in a row.
+  const STREAK_TIERS = new Set(["indist", "outlier", "longtail", "mlion"]);
+  const keepsStreak = (tier) => STREAK_TIERS.has(tier);
   /** One flame, the shape both fires share: the ball's round base (radius r, centred on x, y) rising
    * into a tip h radii above its centre, leaning back by `lean` radii, with a smaller tongue on the
    * forward shoulder (`side`, 0 for none). `rot` turns the whole flame (radians). It draws with the
@@ -674,6 +680,11 @@
 
     function land(a, calm) {
       const tier = a.tier, x = st.x;
+      if (tier !== "miss" && !keepsStreak(tier)) { // a common answer: it lands as usual, but the fire goes out
+        const was = flameLevel(st.streak);
+        st.streak = 0;
+        if (!calm && was >= 3) putOut(was);
+      }
       if (tier === "miss") {
         const was = flameLevel(st.streak);
         st.streak = 0; st.tier = "miss";
@@ -685,7 +696,8 @@
         st.shiver = 360;
         return;
       }
-      st.streak += 1; st.tier = tier;
+      if (keepsStreak(tier)) st.streak += 1;
+      st.tier = tier;
       if (calm) return;
       const lv = flameLevel(st.streak);
       if (lv >= 3) { st.fx.flare = 1; if (lv === 3) st.fx.grow = 0; } // the fire flares at each landing; at three it catches
@@ -1379,7 +1391,7 @@
           if (r.tier) {
             const nx = x + r.score * 10;
             st.segs.push({ x0: x, x1: nx, tier: r.tier }); st.marks.push({ x: nx, tier: r.tier });
-            x = nx; streak++; tier = r.tier;
+            x = nx; streak = keepsStreak(r.tier) ? streak + 1 : 0; tier = r.tier;
           } else { streak = 0; tier = "miss"; }
         }
         st.streak = streak; st.tier = tier;
@@ -1478,5 +1490,5 @@
     </svg>`;
   }
 
-  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, depthAt, glyph, mark, MARK, profileSvg, GLYPHS, setRounds, flame, FLAME, flameLevel };
+  window.MLION_VISUALS = { initBackdrop, scene, Descent, TIER_COLORS, terrain, depthAt, glyph, mark, MARK, profileSvg, GLYPHS, setRounds, flame, FLAME, flameLevel, keepsStreak };
 })();

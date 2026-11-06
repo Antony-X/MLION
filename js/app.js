@@ -2804,11 +2804,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     });
   }
 
-  // ---- streaks: answers in a row (accepted in Classic, right in a quiz). The flame over the stage
-  // climbs through the colours of fire; a miss puts it out.
+  // ---- streaks: good answers in a row (In-Distribution or rarer in Classic, right in a quiz; V.keepsStreak).
+  // The flame over the stage climbs through the colours of fire; a miss, a Baseline or an Overfit puts it out.
   const QUICK_MS = 5000; // an answer inside this gets the Quick flourish
-  function streakOf(results) { let n = 0; for (let i = results.length - 1; i >= 0 && results[i].tier; i--) n++; return n; }
-  /** mode: "set" (no fuss: resume, a new screen), "up" (one more in a row), "out" (a miss put it out). */
+  function streakOf(results) { let n = 0; for (let i = results.length - 1; i >= 0 && V.keepsStreak(results[i].tier); i--) n++; return n; }
+  /** mode: "set" (no fuss: resume, a new screen), "up" (one more in a row), "out" (a miss or a common answer put it out). */
   function showStreak(n, mode) {
     const el = $("#streak");
     if (!el) return;
@@ -2865,15 +2865,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const res = results[results.length - 1];
     if (!res) return;
     const n = streakOf(results), before = streakOf(results.slice(0, -1));
-    if (res.tier) {
-      const jp = jackpot(res.tier);
+    const jp = res.tier ? jackpot(res.tier) : false;
+    if (n > 0) {
       showStreak(n, "up");
       if (n >= 2) Sound.streak(n, jp);
-      if (Number.isFinite(ms) && ms < QUICK_MS) { flashQuick(); if (!jp) Sound.quick(); }
     } else if (before >= 2) {
       showStreak(0, "out");
       Sound.fizzle();
     }
+    if (res.tier && Number.isFinite(ms) && ms < QUICK_MS) { flashQuick(); if (!jp) Sound.quick(); }
   }
 
   // ---- jackpots: a rare answer gets one clear moment when the ball lands. The stage flashes in the
@@ -5296,6 +5296,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <p>The fewer people who'd think of your answer, the more it scores:</p>
       ${depthList(true)}
       <p class="muted">Your score is a ball rolling down a hill: every answer rolls it further down, rarer answers further. A perfect day is 700 points.</p>
+      <p class="muted">Two In-Distribution or rarer answers in a row set the ball on fire, and every one after that burns it hotter. A Baseline, an Overfit or a miss puts the fire out.</p>
     </div>`;
   }
   function renderHow() {
