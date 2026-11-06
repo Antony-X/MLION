@@ -488,6 +488,7 @@
      *  the lit line (3.5 px wide) with the line's lower edge showing under it. History (user, 2026-11-06): it sank
      *  38% of its radius (the line seemed to run into the ball), then it rested 2 px up (it seemed to float). */
     const sink = () => 1;
+    const FIRE_SINK = 0.3; // and this much more of R while it burns
     /** The ball's centre when it stands at x: out along the slope's normal (not straight up), r from the path. */
     const ballAt = (x, r) => {
       const e = st.view / 400, [px, py] = onPath(x), [lx, ly] = onPath(x - e), [rx, ry] = onPath(x + e);
@@ -1021,8 +1022,15 @@
       // (straight up leaves it floating beside its contact point on a slope)
       const e = st.view / 400, [lx, ly] = onPath(st.x - e), [rx, ry] = onPath(st.x + e);
       const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
-      const k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
-      const F = fireOf(cx, cy, bx, by, lv, calm, th);
+      let k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
+      let F = fireOf(cx, cy, bx, by, lv, calm, th);
+      if (F) {
+        // On fire, what reads as the ball is its white-hot core, which fades out about a third of the way in from
+        // its edge (fireCore), so the core seemed to hover over the line (user, 2026-11-06). Sink it by that much.
+        k += F.alpha * R * FIRE_SINK;
+        cx = bx + jx + nx * (R * ay - k); cy = by + ny * (R * ay - k);
+        F = fireOf(cx, cy, bx, by, lv, calm, th);
+      }
       const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
       const lit = 1 - 0.55 * burn; // the fire's own light takes over from the aura
       c.save();
