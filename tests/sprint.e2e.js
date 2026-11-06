@@ -116,6 +116,30 @@ const elsewhere = ["ReLU", "Adam", "GELU", "XGBoost", "K-means"].find((s) => E.m
   check(shared.includes(`2 answers · ${pts} points in ${60 + bonus} s`), "the share text gives the time the sprint really ran");
   await ctx2.close();
 
+  // --- a near miss (user, 2026-11-06: "it said 'Did you mean X?' and Enter didn't use it"): the box now holds the
+  // answer it's close to, so Enter again counts it; any other close answers are chips that count with a tap
+  const NEAR = "balanced s", near = E.matchAnswer(P, NEAR);
+  if (near.kind !== "suggest" || near.suggestions.length < 2) throw new Error(`FAIL: setup: "${NEAR}" should be close to two loss-function answers`);
+  const [n1, n2] = near.suggestions;
+  const ctx3 = await b.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx3.route(/fonts\./, (r) => r.abort());
+  await ctx3.addInitScript(() => { localStorage.setItem("mlion:seenHow", "true"); localStorage.setItem("mlion:settings", JSON.stringify({ sound: false })); });
+  const r = await ctx3.newPage(); r.on("pageerror", (e) => errs.push(e.message));
+  await r.goto(base + "#sprint-loss-function"); await r.waitForSelector("#sp-go");
+  await r.click("#sp-go");
+  await r.fill("#sp-answer", NEAR); await r.press("#sp-answer", "Enter"); await r.waitForTimeout(50);
+  check((await r.inputValue("#sp-answer")) === n1.a && (await r.textContent("#status")).includes(`Did you mean “${n1.a}”`), `a near miss puts "${n1.a}" in the box and asks`);
+  check((await r.$$eval("#sp-chips .chip", (els) => els.map((e) => e.textContent))).join("|") === near.suggestions.slice(1).map((x) => x.a).join("|"), "the other close answers are chips");
+  await r.press("#sp-answer", "Enter"); await r.waitForTimeout(50);
+  check((await r.textContent("#sp-n")) === "1" && (await r.inputValue("#sp-answer")) === "" && !(await r.$("#sp-chips .chip")), `Enter again counts "${n1.a}"`);
+  await r.fill("#sp-answer", NEAR); await r.press("#sp-answer", "Enter"); await r.waitForTimeout(50);
+  await r.click(`#sp-chips .chip >> text="${n2.a}"`); await r.waitForTimeout(50);
+  check((await r.textContent("#sp-n")) === "2" && (await r.$$eval("#sp-found li span", (els) => els.map((e) => e.textContent))).includes(n2.a), `tapping the chip counts "${n2.a}"`);
+  await r.fill("#sp-answer", NEAR); await r.press("#sp-answer", "Enter"); await r.waitForTimeout(50);
+  await r.fill("#sp-answer", "banana bread"); await r.press("#sp-answer", "Enter"); await r.waitForTimeout(50);
+  check((await r.textContent("#sp-n")) === "2" && /isn't an accepted answer/.test(await r.textContent("#status")), "typing over the suggestion replaces it");
+  await ctx3.close();
+
   check(!errs.length, "no page errors" + (errs.length ? ": " + errs.join("; ") : ""));
   console.log("sprint e2e passed");
   await b.close(); srv.close();

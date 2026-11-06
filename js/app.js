@@ -720,7 +720,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   const LIVE = { active: false, code: "", isHost: false, client: null, conns: new Map(), myId: "",
     players: new Map(), n: 7, seed: "", phase: "lobby", revealed: -1, timers: [], intervals: [], status: "",
-    fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, quiz: null, gone: new Map() }; // rules and mrules: the lobby's and the running match's room rules; fmt: the lobby's choice; mfmt and quiz: the running match's format and questions; gone: players who left a sprint match, kept for its standings
+    fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, quiz: null, gone: new Map(), teams: 0, mteams: 0, mteam: {} }; // teams and mteams: the lobby's and the match's team count (0: everyone for themselves), mteam: the match's player id -> team; rules and mrules: the lobby's and the running match's room rules; fmt: the lobby's choice; mfmt and quiz: the running match's format and questions; gone: players who left a sprint match, kept for its standings
   let mqttLib = null;
   function loadMqtt() {
     if (window.mqtt) return Promise.resolve(window.mqtt);
@@ -749,7 +749,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     const n = LIVE.fmt === "sprint" || LIVE.mfmt === "sprint" ? (validQ(LIVE.nOther) ? LIVE.nOther : 7) : LIVE.n; // a Sprint room's count stays with Sprint
     Object.assign(LIVE, { active: false, code: "", secret: "", key: null, hostId: "", knock: null, isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
-      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, moreOpen: false, quiz: null, gone: new Map(), spRec: null, n });
+      players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, moreOpen: false, quiz: null, gone: new Map(), spRec: null, teams: 0, mteams: 0, mteam: {}, n });
     liveSprintStop();
     chatRate.clear();
     syncChat();
@@ -788,6 +788,96 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const rankCmp = (a, b) => shownTotal(b) - shownTotal(a) || (liveQuiz() ? liveTotalMs(a) - liveTotalMs(b) : 0);
   const hostNow = () => Date.now() + (LIVE.isHost ? 0 : LIVE.offset || 0); // clocks synced to the host
 
+  // ---- teams (user, 2026-11-06: "not just 1v1 but also 2v2 and that kind of stuff"). Off by default. The host
+  // picks 2 to 4 teams, newcomers join the smallest, anyone can switch sides before a match, and the host can
+  // shuffle. A team scores its players' points added up; a smaller team's sum is scaled up to the biggest team's
+  // size, so 3 v 2, or a player who drops out, stays fair. Each match keeps the teams it started with (mteam).
+  const TEAM_NAMES = ["Gold", "Blue", "Green", "Rose"];
+  const TEAM_COUNTS = [0, 2, 3, 4];
+  const teamsOn = () => (!LIVE.isPublic && TEAM_COUNTS.includes(LIVE.teams) ? LIVE.teams : 0);
+  const validTeam = (t, k) => Number.isInteger(t) && t >= 0 && t < k;
+  /** A team map from the wire: player id -> team, nothing else. */
+  function cleanTeamMap(x, k) {
+    const out = {};
+    if (!k || !x || typeof x !== "object") return out;
+    for (const id of Object.keys(x).slice(0, 2 * ROOM_MAX)) if (/^[a-z0-9]{2,16}$/i.test(id) && validTeam(x[id], k)) out[id] = x[id];
+    return out;
+  }
+  /** How many players each lobby team has (seats on a team the count no longer has don't count). */
+  function teamSizes(k = teamsOn(), except) {
+    const n = Array(k).fill(0);
+    for (const p of LIVE.players.values()) if (p.id !== except && validTeam(p.team, k)) n[p.team]++;
+    return n;
+  }
+  /** The team a newcomer joins: the smallest one (the first, on a tie). */
+  const smallestTeam = (except) => { const n = teamSizes(teamsOn(), except); return n.indexOf(Math.min(...n)); };
+  /** Host: deal every player onto the teams, evenly, in join order (`shuffle`: in a random order). */
+  function hostDealTeams(shuffle) {
+    const k = teamsOn();
+    const ps = shuffle ? E.shuffled(playerList(), Math.random) : playerList();
+    const off = shuffle ? Math.floor(Math.random() * Math.max(1, k)) : 0; // which team gets the odd player out
+    ps.forEach((p, j) => { p.team = k ? (j + off) % k : undefined; });
+  }
+  function hostSetTeams(k) {
+    if (!LIVE.isHost || LIVE.phase === "playing" || !TEAM_COUNTS.includes(k)) return;
+    LIVE.teams = k;
+    LS.set("liveTeams", k);
+    hostDealTeams(false);
+    broadcast(lobbyMsg());
+  }
+  function hostTeam(id, t) {
+    const pl = LIVE.players.get(id), k = teamsOn();
+    if (!pl || LIVE.phase === "playing" || !validTeam(t, k) || pl.team === t) return;
+    pl.team = t;
+    broadcast(lobbyMsg());
+    hostReadyCheck(); // a switch can be what lets the match start
+  }
+  function sendTeam(t) {
+    if (LIVE.isHost) hostTeam(LIVE.myId, t); else guestSend({ t: "team", v: t });
+  }
+  /** With teams on, a match needs players (still here) on at least two of them. */
+  const teamsReady = () => !teamsOn() || new Set(playerList().filter((p) => !p.away && validTeam(p.team, teamsOn())).map((p) => p.team)).size >= 2;
+  const teamDot = (t) => `<i class="tm-dot tm-${t}" aria-hidden="true"></i>`;
+  const teamCls = (pl) => (LIVE.mteams && validTeam(LIVE.mteam[pl.id], LIVE.mteams) ? ` tm-${LIVE.mteam[pl.id]}` : "");
+  /** A match's teams, best first: members, points (each player's from `pts`) and the total after evening out sizes. */
+  function teamStand(ps, pts = shownTotal) {
+    const k = LIVE.mteams;
+    if (!k) return [];
+    const rows = Array.from({ length: k }, (_, t) => ({ t, name: TEAM_NAMES[t], members: ps.filter((p) => LIVE.mteam[p.id] === t) })).filter((r) => r.members.length);
+    const size = Math.max(0, ...rows.map((r) => r.members.length));
+    for (const r of rows) {
+      r.raw = r.members.reduce((s, p) => s + pts(p), 0);
+      r.mult = size / r.members.length;
+      r.total = Math.round(r.raw * r.mult);
+      r.mine = r.members.some((p) => p.id === LIVE.myId);
+    }
+    return rows.sort((a, b) => b.total - a.total || a.t - b.t);
+  }
+  /** Team standings for a reveal: one line a team, above the players'. */
+  function teamStandHtml(ps, pts) {
+    const rows = teamStand(ps, pts);
+    return rows.length ? `<ol class="lv-standings lv-tstand">${rows.map((r) => `<li class="tm-${r.t}${r.mine ? " me" : ""}"><b>${teamDot(r.t)}${r.name}<span class="tm-who">${esc(r.members.map((p) => p.name).join(", "))}</span></b><em>${r.total}</em></li>`).join("")}</ol>` : "";
+  }
+  /** Team totals at the head of a live strip. */
+  function teamChips(ps, pts) {
+    return teamStand(ps, pts).map((r) => `<span class="lp tm-sum tm-${r.t}${r.mine ? " me" : ""}">${teamDot(r.t)}<b>${r.name}</b><em>${r.total}</em></span>`).join("");
+  }
+  /** Lobby and podium: pick your side; the host can shuffle everyone. */
+  function teamPicker(label = "Your team") {
+    const k = teamsOn();
+    if (!k) return "";
+    const me = LIVE.players.get(LIVE.myId), sizes = teamSizes(k);
+    return `<div class="vs-field lv-teampick"><span>${label}</span><div class="vs-sizes" role="radiogroup" aria-label="${label}">${Array.from({ length: k }, (_, t) => `<button type="button" class="vs-size lv-team tm-${t}${me && me.team === t ? " on" : ""}" role="radio" aria-checked="${!!me && me.team === t}" data-t="${t}">${teamDot(t)}${TEAM_NAMES[t]}<span class="tm-n">${sizes[t]}</span></button>`).join("")}</div></div>
+      ${LIVE.isHost ? `<div class="btn-row"><button type="button" class="btn sm" id="lv-shuffle">Shuffle teams</button></div>` : ""}`;
+  }
+  function wireTeamPicker() {
+    $$(".lv-team").forEach((b) => b.addEventListener("click", () => sendTeam(+b.dataset.t)));
+    const sh = $("#lv-shuffle");
+    if (sh) sh.addEventListener("click", () => { if (LIVE.phase === "playing") return; hostDealTeams(true); broadcast(lobbyMsg()); hostReadyCheck(); });
+  }
+  /** "2 v 2", "3 v 2 v 2": the lobby's matchup. */
+  const matchup = () => teamSizes().join(" v ");
+
   // ---- messages: everyone (host included) applies the same events
   function apply(m) {
     if (!m || typeof m !== "object") return;
@@ -801,7 +891,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         // live on it, and a fresh copy would let a stale timer free a seat its owner came back to.
         const old = LIVE.players.get(p.id);
         const kept = !old && LIVE.spRec && LIVE.spRec.get(p.id); // a sprint match this page rebuilt after a takeover
-        next.set(p.id, Object.assign(old || { ans: kept ? kept.ans : {}, sp: kept ? kept.sp : {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready }));
+        next.set(p.id, Object.assign(old || { ans: kept ? kept.ans : {}, sp: kept ? kept.sp : {}, typing: null }, { id: p.id, name: cleanName(p.name) || "Player", host: !!p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, team: validTeam(p.team, 4) ? p.team : undefined }));
         if (!before.has(p.id) && p.id !== LIVE.myId && before.size) {
           LIVE.flash = `${cleanName(p.name) || "Someone"} joined`;
           toast(LIVE.flash); Sound.tier("mlion");
@@ -818,6 +908,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (ASSISTS.includes(m.assist)) LIVE.assist = m.assist;
       if (m.rules && typeof m.rules === "object") LIVE.rules = cleanRules(m.rules);
       if (["rarity", "quiz", "sprint"].includes(m.fmt) && LIVE.phase !== "playing") LIVE.fmt = m.fmt;
+      if (TEAM_COUNTS.includes(m.teams)) LIVE.teams = m.teams;
+      if (TEAM_COUNTS.includes(m.mteams) && (m.mteams === 0 || m.mt)) { LIVE.mteams = m.mteams; LIVE.mteam = cleanTeamMap(m.mt, m.mteams); } // a page that lost the match's teams (a takeover) gets them back
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
     } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && validQ(+m.n)) {
@@ -826,6 +918,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       stopRun();
       liveSprintStop();
       LIVE.mrules = cleanRules(m.rules);
+      LIVE.mteams = TEAM_COUNTS.includes(m.teams) ? m.teams : 0;
+      LIVE.mteam = cleanTeamMap(m.tm, LIVE.mteams);
       if (m.fmt === "sprint") return liveSprintStart(m);
       // a quiz match: every page builds the same questions from the room's seed and the host's prompt list
       const quiz = m.fmt === "quiz" ? E.quizFor(CORE, m.seed, LIVE.n, { promptIds: Array.isArray(m.ids) ? m.ids.filter((id) => PROMPTS.has(id)) : [], ...(Array.isArray(m.topics) && m.topics.length ? { reasoningIds: [] } : {}) }) : null; // the host's dealt bank ids, rebuilt exactly
@@ -961,7 +1055,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return `<div class="vs-field"><span>Topics</span><div class="chips" role="group" aria-label="Topics">${chip("", "All topics", !t.length)}${DATA.packs.map((pk) => chip(pk.id, pk.name, t.includes(pk.id))).join("")}</div></div>`;
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready })) };
+    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, teams: teamsOn(), mteams: LIVE.mteams || 0, ...(LIVE.mteams ? { mt: LIVE.mteam } : {}),
+      players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, ...(teamsOn() && validTeam(p.team, teamsOn()) ? { team: p.team } : {}) })) };
   }
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
@@ -985,7 +1080,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const taken = new Set(playerList().map((p) => p.name));
       for (let k = 2; taken.has(name); k++) name = `${cleanName(m.name) || "Player"} ${k}`;
       LIVE.conns.set(conn.peer, conn);
-      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now() });
+      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: teamsOn() ? smallestTeam(conn.peer) : undefined });
       LIVE.knock = null; // an open room's seat is taken: the next knock hears "full"
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
@@ -993,6 +1088,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       hostRemove(conn.peer);
     } else if (m.t === "ready" && LIVE.players.has(conn.peer)) {
       hostReady(conn.peer, !!m.v);
+    } else if (m.t === "team" && LIVE.players.has(conn.peer)) {
+      hostTeam(conn.peer, m.v);
     } else if (m.t === "typing" && LIVE.players.has(conn.peer)) {
       const pl = LIVE.players.get(conn.peer), now = Date.now();
       if (now - (pl.typedAt || 0) < TYPING_EVERY_MS / 2) return; // honest pages send one every 2 s at most; this leaves room for network jitter
@@ -1095,10 +1192,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function hostReadyCheck() {
     if (!LIVE.isHost || !LIVE.active || LIVE.phase === "playing") return;
     const ps = playerList().filter((p) => !p.away);
-    if (ps.length < 2 || !ps.every((p) => p.ready)) return;
+    if (ps.length < 2 || !ps.every((p) => p.ready) || !teamsReady()) return;
     if (LIVE.countdownAt > Date.now()) return; // already counting down: its own check at the end still applies
     broadcast({ t: "countdown", at: Date.now() + 3000 });
-    liveLater(() => { const all = playerList().filter((p) => !p.away); if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready)) hostStart(); }, 3000);
+    liveLater(() => { const all = playerList().filter((p) => !p.away); if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready) && teamsReady()) hostStart(); }, 3000);
   }
   function hostStart() {
     if (!LIVE.isHost || LIVE.players.size < 2) return;
@@ -1126,7 +1223,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.n = ids.length;
     }
     if (LIVE.noRepeat !== false) LS.set("liveUsed", fresh.length >= LIVE.n ? [...used, ...ids].slice(-400) : ids);
-    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt === "quiz" || sprint ? LIVE.fmt : "rarity", topics }); // guests rebuild a quiz knowing whether it was a topic match
+    const k = teamsOn(), tm = {};
+    if (k) for (const p of playerList()) if (validTeam(p.team, k)) tm[p.id] = p.team;
+    broadcast({ t: "start", seed, n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, ids, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt === "quiz" || sprint ? LIVE.fmt : "rarity", topics, teams: k, tm }); // guests rebuild a quiz knowing whether it was a topic match
     broadcast(lobbyMsg());
     liveLater(() => hostRound(0), 1800);
   }
@@ -1457,8 +1556,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`, ...(isPublic ? [knockTopic(code)] : [])]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)) });
-        LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now() });
+        Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)), teams: !isPublic && TEAM_COUNTS.includes(LS.get("liveTeams", 0)) ? LS.get("liveTeams", 0) : 0 });
+        LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now(), team: LIVE.teams ? 0 : undefined });
         if (LIVE.fmt === "sprint") liveSetFmt("sprint", true);
         becomeHost();
         go(liveHash());
@@ -1622,7 +1721,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (cd) return `<div class="lv-banner" role="status">Starting in <b id="lv-cd">${cd}</b>…</div>`;
     const waiting = ps.filter((p) => !p.ready).map((p) => (p.id === LIVE.myId ? "you" : p.name));
     return `<div class="btn-row"><button class="btn ${me && me.ready ? "" : "primary "}big" id="live-ready" ${ps.length < 2 ? "disabled" : ""}>${me && me.ready ? "Not ready" : label}</button></div>
-      <p class="lv-note">${ps.length < 2 ? "The match starts when at least two players are here and everyone taps Ready." : waiting.length ? `Waiting for ${esc(waiting.join(" and "))} to tap Ready.` : "Everyone's ready…"}</p>`;
+      <p class="lv-note">${ps.length < 2 ? "The match starts when at least two players are here and everyone taps Ready." : !teamsReady() ? "Everyone is on one team. Someone needs to switch so at least two teams have players." : waiting.length ? `Waiting for ${esc(waiting.join(" and "))} to tap Ready.` : "Everyone's ready…"}</p>`;
   }
   function wireReady() {
     const b = $("#live-ready");
@@ -1646,23 +1745,27 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     setMid(`Room ${LIVE.code}`);
     const ps = playerList();
     const host = ps.find((p) => p.host);
+    const tk = teamsOn();
     app.innerHTML = `<section class="screen live">
       <div class="page-head"><h1>Room <span class="lv-code">${esc(LIVE.code)}</span></h1>
-        <p>${LIVE.isPublic ? "Open room for two players, listed for anyone to join. " : ""}${ps.length < 2 ? "Waiting for someone to join…" : `${ps.length} players here.`}</p>
+        <p>${LIVE.isPublic ? "Open room for two players, listed for anyone to join. " : ""}${ps.length < 2 ? "Waiting for someone to join…" : `${ps.length} players here${tk ? `, ${matchup()}` : ""}.`}</p>
         ${LIVE.isHost ? `<p class="lv-note">Keep MLion open while friends join. If you switch apps, come back here and the room reconnects.</p>` : ""}</div>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
       <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#live" id="live-leave-lobby">Leave</a></div>
-      <ul class="lv-players" aria-live="polite">${ps.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}
+      <ul class="lv-players${tk ? " teamed" : ""}" aria-live="polite">${(tk ? Array.from({ length: tk }, (_, t) => [t, ps.filter((p) => p.team === t)]).concat([[-1, ps.filter((p) => !validTeam(p.team, tk))]]) : [[-1, ps]]).map(([t, list]) =>
+        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
+      ${teamPicker()}
       ${LIVE.isHost ? `<div class="vs-form">
         <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"], ["sprint", "Sprint"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
+        ${LIVE.isPublic ? "" : `<div class="vs-field"><span>Teams</span><div class="vs-sizes" role="radiogroup" aria-label="Teams">${TEAM_COUNTS.map((k) => `<button type="button" class="vs-size lv-teams${tk === k ? " on" : ""}" role="radio" aria-checked="${tk === k}" data-k="${k}" aria-label="${k ? `${k} teams` : "No teams"}">${k || "Off"}</button>`).join("")}</div></div>`}
         ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos"], ["full", "Full"], ["generous", "Generous"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
         ${topicPicker()}
         ${qPicker(LIVE.n, LIVE.fmt === "sprint" ? "sprints" : "questions")}
         ${LIVE.fmt === "sprint" ? "" : timePicker(LIVE.secs || DEFAULT_SECS)}
         ${LIVE.fmt === "sprint" ? "" : rulesPanel()}
         <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>Skip questions this room already played</span></label>
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many answers as you can. Rarer ones score more and add more time." : LIVE.fmt === "quiz" ? "Quiz format: pick one of four answers." : `autocorrect ${({ off: "off", typos: "typos only", full: "full", generous: "generous" })[LIVE.assist || "typos"]}. Classic format: type an answer, rarer answers score more.`}${activeRules(LIVE.rules, LIVE.fmt).length ? ` Options: ${esc(activeRules(LIVE.rules, LIVE.fmt).join(", "))}.` : ""}</p>`}
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many answers as you can. Rarer ones score more and add more time." : LIVE.fmt === "quiz" ? "Quiz format: pick one of four answers." : `autocorrect ${({ off: "off", typos: "typos only", full: "full", generous: "generous" })[LIVE.assist || "typos"]}. Classic format: type an answer, rarer answers score more.`}${activeRules(LIVE.rules, LIVE.fmt).length ? ` Options: ${esc(activeRules(LIVE.rules, LIVE.fmt).join(", "))}.` : ""}${tk ? ` ${tk} teams: a team scores its players' points added up.` : ""}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -1679,6 +1782,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       broadcast(lobbyMsg());
     }));
     $$(".lv-fmt").forEach((b) => b.addEventListener("click", () => liveSetFmt(b.dataset.f)));
+    $$(".lv-teams").forEach((b) => b.addEventListener("click", () => hostSetTeams(+b.dataset.k)));
+    wireTeamPicker();
     $$(".lv-rule").forEach((b) => b.addEventListener("click", () => setRule(b.dataset.k, b.dataset.v)));
     $$(".lv-rule-x").forEach((x) => x.addEventListener("change", () => setRule(x.dataset.k, x.checked)));
     const more = $("#lv-more");
@@ -1767,11 +1872,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const el = $("#live-strip");
     if (!el || !RUN || RUN.mode !== "live") return;
     const i = RUN.round;
-    el.innerHTML = inMatch().map((p) => {
+    const iDone = RUN.results.length > i || LIVE.revealed >= i;
+    const tot = (p) => shownTotal(p) - (!liveQuiz() && !iDone && p.id !== LIVE.myId ? roundPts(p, i) : 0); // quiz totals already count revealed rounds only
+    // with teams, a rival's points for the open question stay hidden from everyone until you've answered (your own count)
+    const teamTot = (p) => shownTotal(p) - (!liveQuiz() && !iDone && LIVE.revealed < i ? roundPts(p, i) : 0);
+    el.innerHTML = teamChips(inMatch(), teamTot) + inMatch().map((p) => {
       const done = !!p.ans[i];
-      const iDone = RUN.results.length > i || LIVE.revealed >= i;
-      const tot = shownTotal(p) - (!liveQuiz() && !iDone && p.id !== LIVE.myId ? roundPts(p, i) : 0); // quiz totals already count revealed rounds only
-      return `<span class="lp${p.id === LIVE.myId ? " me" : ""}${done ? " done" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><em>${tot}</em>${done && LIVE.revealed < i ? `<i class="lp-tick" aria-label="answered">✓</i>` : ""}</span>`;
+      return `<span class="lp${p.id === LIVE.myId ? " me" : ""}${done ? " done" : ""}${teamCls(p)}">${avatar(p.name)}<b>${esc(p.name)}</b><em>${tot(p)}</em>${done && LIVE.revealed < i ? `<i class="lp-tick" aria-label="answered">✓</i>` : ""}</span>`;
     }).join("");
   }
   /** Vote to skip the open question; shows who else wants to. */
@@ -1810,7 +1917,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         const x = a && explainOf(p.id, a.answer);
         return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="lx">${esc(x)}</span>` : ""}${liveTags(pl, i)}</span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
       }).join("")}</ul>
-      <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
+      ${teamStandHtml(inMatch())}
+      <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}${teamCls(pl)}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <p class="lv-note">${last ? "Final standings coming up…" : `Question ${i + 2} of ${LIVE.n} coming up…`}</p>
     </div>`;
   }
@@ -1845,7 +1953,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <span class="mcq-who">${who.map((pl) => `<i class="${pl.id === LIVE.myId ? "me" : ""}">${esc(pl.name)}</i>`).join("")}</span></li>`;
       }).join("")}</ul>
       ${silent.length ? `<p class="lv-note">No answer: ${esc(silent.map((pl) => pl.name).join(", "))}</p>` : ""}
-      <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
+      ${teamStandHtml(ps)}
+      <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}${teamCls(pl)}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <p class="lv-note">${last ? "Final standings coming up…" : `Question ${i + 2} of ${LIVE.n} coming up…`}</p>
     </div>`;
   }
@@ -1875,6 +1984,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const ps = (sprint ? spPlayers() : inMatch()).sort(rankCmp);
     const top = ps.length ? ps[0] : null;
     const winners = top ? ps.filter((p) => rankCmp(p, top) === 0) : [];
+    const teams = teamStand(ps);
+    const teamWin = teams.length ? teams.filter((r) => r.total === teams[0].total) : [];
+    const scaled = teams.filter((r) => r.mult !== 1);
     const timeNote = quiz && ps.length > 1 && shownTotal(ps[0]) === shownTotal(ps[1]) && liveTotalMs(ps[0]) !== liveTotalMs(ps[1])
       ? ` · level on points, ${esc(ps[0].name)} was faster (${fmtSecs(liveTotalMs(ps[0]) / 100)} to ${fmtSecs(liveTotalMs(ps[1]) / 100)})` : "";
     const ids = (LIVE.ids || []).slice(0, LIVE.n).filter((id) => PROMPTS.has(id));
@@ -1896,8 +2008,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${ids.map((pid, i) => (PROMPTS.get(pid).reasoning ? "" : answerKey(PROMPTS.get(pid), quiz ? rightOf(i) : me && me.ans[i] && me.ans[i].answer, openKeys.has(pid)))).join("")}
       </section>` : "";
     app.innerHTML = `<section class="screen live">
-      <div class="page-head"><h1>${winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${sprint ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"}` : `${LIVE.n} questions`}${quiz ? " · Quiz" : ""} · Room ${esc(LIVE.code)}${timeNote}</p></div>
-      <ol class="lv-podium">${ps.map((pl, k) => `<li class="${k === 0 ? "first" : ""}${pl.id === LIVE.myId ? " me" : ""}">
+      <div class="page-head"><h1>${teams.length ? (teamWin.length > 1 ? "It's a tie" : `Team ${teamWin[0].name} wins`) : winners.length > 1 ? "It's a tie" : `${esc(winners[0] ? winners[0].name : "")} wins`}</h1><p>${teams.length ? `${teams.map((r) => r.members.length).join(" v ")} · ` : ""}${sprint ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"}` : `${LIVE.n} questions`}${quiz ? " · Quiz" : ""} · Room ${esc(LIVE.code)}${teams.length ? "" : timeNote}</p></div>
+      ${teams.length ? `<ol class="lv-podium lv-tpodium">${teams.map((r, k) => `<li class="tm-${r.t}${k === 0 && teamWin.length === 1 ? " first" : ""}${r.mine ? " me" : ""}">
+        <span class="rk">${k + 1}</span>${teamDot(r.t)}<span class="nm"><b>${r.name}</b><span class="nm-t">${esc(r.members.map((p) => p.name).join(", "))}${r.mult !== 1 ? ` · ${r.raw} ×${+r.mult.toFixed(2)}` : ""}</span></span><em>${r.total}</em></li>`).join("")}</ol>
+      ${scaled.length ? `<p class="lv-note">Uneven teams: a smaller team's points are scaled up to the biggest team's size.</p>` : ""}
+      <h2 class="block-title">Players</h2>` : ""}
+      <ol class="lv-podium${teams.length ? " lv-ppodium" : ""}">${ps.map((pl, k) => `<li class="${k === 0 && !teams.length ? "first" : ""}${pl.id === LIVE.myId ? " me" : ""}${teamCls(pl)}">
         <span class="rk">${k + 1}</span>${avatar(pl.name)}<span class="nm"><b>${esc(pl.name)}</b>${sprint ? `<span class="nm-t">${spCount(pl)} ${spCount(pl) === 1 ? "answer" : "answers"}${LIVE.gone.has(pl.id) ? " · left" : ""}</span>` : quiz ? `${qmarksRow(Array.from({ length: LIVE.n }, (_, i) => !!(pl.ans[i] && pl.ans[i].ok)))}<span class="nm-t">${fmtSecs(liveTotalMs(pl) / 100)}</span>` : tiersRow(Array.from({ length: LIVE.n }, (_, i) => (pl.ans[i] && pl.ans[i].tier) || "miss"))}</span><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <div class="btn-row">
         <a class="btn big" href="#home" id="live-leave">Leave</a>
@@ -1907,6 +2023,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     wireAnswerKeys(app);
     $("#live-leave").addEventListener("click", () => leaveLive(false));
     $("#live-leave").insertAdjacentHTML("beforebegin", readyBlock("Ready for rematch"));
+    if (teamsOn()) { $(".btn-row", app).insertAdjacentHTML("beforebegin", `<div class="lv-rematch-teams">${teamPicker("Your team for the rematch")}</div>`); wireTeamPicker(); }
     wireReady();
   }
   // ---- chat: room messages ride the same relay as everything else. Guests send
@@ -4182,6 +4299,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <input class="answer-input" id="sp-answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Your answer" placeholder="Type an answer">
         <button class="btn primary step-btn" type="submit">Submit</button>
       </form>
+      <div class="chips" id="sp-chips"></div>
       <div class="status" id="status" role="status" aria-live="polite"></div>
       <p class="sp-tally"><b id="sp-n">0</b> answers <b id="sp-pts">0</b> points${vs ? `<span class="sp-target">${esc(vs.name)}: ${vs.pts}</span>` : ""}</p>
       <ol class="sp-found" id="sp-found"></ol>`;
@@ -4213,14 +4331,29 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const m = E.matchAnswer(p, raw);
     const a = m.kind === "exact" || (m.kind === "correction" && !(m.confidence < 0.88)) ? m.answer : null;
     if (a) return { kind: "hit", a, idx: p.answers.indexOf(a), corrected: m.kind === "correction" };
-    if (m.kind === "suggest" || m.kind === "correction") return { kind: "close", name: (m.kind === "suggest" ? m.suggestions[0] : m.answer).a };
+    if (m.kind === "suggest" || m.kind === "correction") return { kind: "close", names: (m.kind === "suggest" ? m.suggestions : [m.answer]).map((x) => x.a) };
     return { kind: "miss" };
+  }
+  /** The other answers a sprint near miss could mean: a tap puts one in the box and sends it. */
+  function sprintChips(S, input, names) {
+    const el = $("#sp-chips");
+    if (!el) return;
+    el.innerHTML = names.length ? `<span class="chips-label">Or</span>` + names.map((n, i) => `<button type="button" class="chip" data-i="${i}">${esc(n)}</button>`).join("") : "";
+    $$(".chip", el).forEach((b) => b.addEventListener("click", () => {
+      const form = $("#sp-form");
+      if (!form || input.disabled) return;
+      input.value = names[+b.dataset.i];
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.dispatchEvent(new Event("submit", { cancelable: true }));
+      if (!chatTyping()) input.focus({ preventScroll: true });
+    }));
   }
   /** Take the typed answer in `input` for sprint state S (solo or live): count it, say why not, or clear the box. True when it counted. */
   function sprintSubmit(S, input) {
     const raw = input.value.trim();
     if (!raw) return false;
     const r = sprintJudge(S.p, raw);
+    sprintChips(S, input, []);
     if (r.kind === "hit") {
       input.value = "";
       if (S.got.has(r.idx)) { setStatus(`Already counted: ${r.a.a}`, "info"); return false; }
@@ -4234,7 +4367,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       return true;
     }
     if (r.kind === "close") {
-      setStatus(`Close to “${r.name}”. Check the spelling.`, "info");
+      // A near miss: the box now holds the answer it's close to, so Enter again counts it (typing replaces it);
+      // other close answers are chips. The text sent is the full answer, so a live host's re-check agrees.
+      input.value = r.names[0];
+      setStatus(`Did you mean “${r.names[0]}”? Press Enter to count it, or keep typing.`, "info");
+      sprintChips(S, input, r.names.slice(1));
       input.select();
       return false;
     }
@@ -4547,6 +4684,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           <div class="preview-veil${S.phase === "preview" ? "" : " hidden"}" id="sp-veil"><span>Read the prompt</span><b id="sp-veil-n">${Math.max(1, Math.ceil(((S.previewEndsAt || 0) - Date.now()) / 1000))}</b></div>
         </div>
         ${ended ? `<p class="lv-note" id="sp-wait" aria-live="polite"></p>` : ""}
+        <div class="chips" id="sp-chips"></div>
         <div class="status" id="status" role="status" aria-live="polite"></div>
         <p class="sp-tally"><b id="sp-n">${S.found.length}</b> answers <b id="sp-pts">${S.pts}</b> points</p>
         <ol class="sp-found" id="sp-found">${S.found.slice().reverse().map(spFoundRow).join("")}</ol>`;
@@ -4568,12 +4706,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!on) return;
     const ps = spPlayers();
     el.classList.toggle("many", ps.length > 4); // up to twelve players: drop the avatars so the strip stays a row or two
-    el.innerHTML = ps.map((pl) => {
+    el.innerHTML = teamChips(ps, (pl) => (pl.id === LIVE.myId ? S.pts : spNow(pl, S.i).pts)) + ps.map((pl) => {
       const me = pl.id === LIVE.myId, s = me ? { n: S.found.length, pts: S.pts } : spNow(pl, S.i);
       const key = `${s.n}/${s.pts}`, bump = S.shown[pl.id] !== undefined && S.shown[pl.id] !== key;
       S.shown[pl.id] = key;
       const left = LIVE.gone.has(pl.id);
-      return `<span class="lp sp-lp${me ? " me" : ""}${bump ? " bump" : ""}${left || pl.away ? " off" : ""}" title="${esc(pl.name)}: ${s.n} ${s.n === 1 ? "answer" : "answers"}, ${s.pts} points${left ? ", left" : pl.away ? ", reconnecting" : ""}">${avatar(pl.name)}<b>${esc(pl.name)}</b><span class="sp-ct">${s.n}</span><em>${s.pts}</em></span>`;
+      return `<span class="lp sp-lp${me ? " me" : ""}${bump ? " bump" : ""}${left || pl.away ? " off" : ""}${teamCls(pl)}" title="${esc(pl.name)}: ${s.n} ${s.n === 1 ? "answer" : "answers"}, ${s.pts} points${left ? ", left" : pl.away ? ", reconnecting" : ""}">${avatar(pl.name)}<b>${esc(pl.name)}</b><span class="sp-ct">${s.n}</span><em>${s.pts}</em></span>`;
     }).join("");
   }
   /** After your own clock ends: who hasn't sent a list yet. */
@@ -4605,7 +4743,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div><p class="sp-round">Sprint ${i + 1} of ${LIVE.n}</p><p class="fb-q">${esc(p.text)}</p></div>
       ${spRowsHtml(i)}
       ${shared ? `<p class="lv-note">${shared === 1 ? "One answer was" : `${shared} answers were`} named by more than one player. ×2 means two players named it.</p>` : ""}
-      <ol class="lv-standings">${spPlayers().sort(rankCmp).map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
+      ${teamStandHtml(spPlayers())}
+      <ol class="lv-standings">${spPlayers().sort(rankCmp).map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}${teamCls(pl)}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
       <p class="lv-note" id="sp-next">${spNextLine(S)}</p>
     </div>`;
   }

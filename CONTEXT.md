@@ -638,8 +638,11 @@ content and no LLM. Same shape in solo, async challenges and live rooms.
   (solo: `S.bonus` stretches the clock; live: `S.endsAt` moves). "+N s" flashes above the clock
   (`#sp-plus`); the bar never overfills. The end screen shows Seconds and the share text says the real
   length ("in 66 s"). Duel links are unchanged (points and answers). Answers count
-  once (aliases included); a confident typo counts and says "Counted as X"; a near miss says
-  "Close to X" and keeps the text; a miss clears. Everything is in app.js under `// sprint`.
+  once (aliases included); a confident typo counts and says "Counted as X"; a near miss (user, 2026-11-06: "it said 'did you
+  mean X' and Enter didn't take it") puts the closest answer in the box, selected, and asks "Did you mean
+  X? Press Enter to count it, or keep typing"; other close answers are chips (`#sp-chips`, `sprintChips`)
+  that count with a tap. The text sent is the full answer, so a live host's re-check (`sprintJudge`) agrees.
+  A miss clears. Everything is in app.js under `// sprint`.
 - Pool: `soloPool()` prompts with at least 40 answers (so extras follow the setting). Unranked:
   bests in `mlion:sprints` (prompt id -> {best points, n answers, plays, at}), carried by
   Export/Import, shown on Stats. The end screen lists the common answers you missed and the lion.
@@ -864,6 +867,20 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
     and `hint`; the host clamps and relays them (no `ms` means the full clock, so no speed bonus) and every
     page scores with the same function. Your feedback adds a line ("50 points, ×1.8 for speed, …") and
     the reveal tags each answer. Test: `tests/live.rules.e2e.js`.
+- **Teams** (user, 2026-11-06: "not just 1v1 but also 2v2 and that kind of stuff"), every format, private
+  rooms only (an open room is a duo). The host's lobby field "Teams" Off / 2 / 3 / 4 (`LIVE.teams`, saved as
+  `mlion:liveTeams`, sent in `lobby` as `teams`); team names Gold, Blue, Green, Rose (`TEAM_NAMES`, colours
+  `.tm-0`..`.tm-3` set `--tm`). Each player has `team` in the roster: a newcomer joins the smallest team
+  (`smallestTeam`), changing the count re-deals everyone in join order, "Shuffle teams" (host) deals them in a
+  random order, and anyone can switch with the "Your team" picker (`{t:"team", v}` → `hostTeam`) in the lobby
+  and on the podium (for the rematch); never during a match. A match can't start until players still here
+  are on at least two teams (`teamsReady`, also in the ready note). `start` carries `teams` and `tm` (player
+  id → team): the match keeps those (`LIVE.mteams`, `LIVE.mteam`, also in `lobby` as `mteams`/`mt` so a
+  taken-over page gets them back). Team score (`teamStand`) = its players' points added up, scaled up to the
+  biggest team's size when sizes differ (3 v 2, or someone left), shown as "170 ×2" and explained on the
+  podium. Shown: team totals at the head of the strip (Classic/Quiz: the open question's points stay hidden
+  until you've answered; Sprint: this round's points), team standings above the players' in every reveal, and
+  a team podium ("Team Blue wins", "2 v 1") above the players' podium. Test: `tests/live.teams.e2e.js`.
 - Rounds use `{t:"round", i, at: host+1500ms}`. Clients start at `at - offset`, where the
   offset is smoothed from heartbeats.
 - **The next question waits until everyone has answered.** A safety cap of
@@ -1576,6 +1593,7 @@ node tests/engine.test.js
 npx playwright install chromium  # only if you don't already have a Playwright browser
 node tests/e2e.js --fixture --fonts
 node tests/live.e2e.js           # needs network to public.cloud.shiftr.io (MQTT.js is vendored)
+node tests/live.teams.e2e.js     # needs network: teams lobby, a 2 v 1 Classic match, a Sprint with teams
 node tests/live.security.e2e.js  # no network: outsider attacks, a dishonest guest, open rooms, ten players
 ```
 

@@ -181,7 +181,7 @@ kbd { font-family: inherit; font-size: 0.9em; padding: 1px 8px; border-radius: 6
 
 /* --------------------------------------------------------------- glyphs */
 .glyph { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; flex: none; overflow: visible; color: var(--tc); }
-.tiers { display: inline-flex; align-items: center; gap: 0.34em; font-size: 26px; line-height: 1; }
+.tiers { display: inline-flex; flex-wrap: wrap; max-width: 100%; align-items: center; gap: 0.3em 0.34em; font-size: 26px; line-height: 1; } /* long rooms (up to 25 questions) wrap instead of running off a phone */
 .t-baseline { --tc: var(--t-baseline); }
 .t-overfit { --tc: var(--t-overfit); }
 .t-indist { --tc: var(--t-indist); }
@@ -803,6 +803,7 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .lv-podium .rk { color: var(--muted); font-variant-numeric: tabular-nums; }
 .lv-podium .nm { display: grid; gap: 6px; min-width: 0; }
 .lv-podium .nm b { font-weight: 400; font-size: var(--s3); }
+.lv-podium .nm .tiers { font-size: 21px; }
 .lv-podium em { font-size: var(--s4); font-weight: 300; }
 .reduce-motion .lv-pulse { animation: none; }
 
@@ -1328,3 +1329,33 @@ html.kb .live-sp .sp-round { display: none; }
 .lim-form label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--s1); }
 .adm-bar .search.lim-n { flex: 0 0 110px; width: 110px; min-width: 0; }
 .lim-top .who b { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+/* ------------------------------------------------- live rooms: teams */
+.tm-0 { --tm: #f2b53c; } .tm-1 { --tm: #74a9e0; } .tm-2 { --tm: #7fc79c; } .tm-3 { --tm: #e98fa0; }
+.tm-dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--tm); }
+.vs-size.lv-teams, .vs-size.lv-team { font-size: var(--s2); padding: 0 18px; min-width: 0; }
+.vs-size.lv-team { display: inline-flex; align-items: center; gap: 8px; }
+.vs-size.lv-team .tm-n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.vs-size.lv-team.on { background: var(--tm); color: var(--gold-ink); }
+.vs-size.lv-team.on .tm-dot { background: var(--gold-ink); }
+.vs-size.lv-team.on .tm-n { color: var(--gold-ink); opacity: 0.7; }
+.lv-teampick + .btn-row, .lv-rematch-teams .btn-row { margin-top: 10px; }
+.lv-rematch-teams { margin-bottom: 4px; }
+.lv-players li.lv-tm-head { background: transparent; padding: 10px 4px 0; gap: 10px; animation: none; }
+.lv-players li.lv-tm-head b { font-size: var(--s2); }
+.lv-players.teamed li:not(.lv-tm-head):not(.lv-wait)[class*="tm-"] { box-shadow: inset 4px 0 0 var(--tm); }
+.lp[class*="tm-"] .lv-av { box-shadow: 0 0 0 2px var(--tm); }
+.lp.tm-sum { gap: 8px; padding: 6px 12px; background: var(--raised); }
+.lp.tm-sum .tm-dot { width: 12px; height: 12px; }
+.lp.tm-sum b { font-weight: 600; }
+.lv-standings:not(.lv-tstand) li[class*="tm-"] b::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px; border-radius: 50%; background: var(--tm); vertical-align: 2px; }
+.lv-tstand li { color: var(--ink); align-items: baseline; }
+.lv-tstand li b { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 10px; min-width: 0; }
+.lv-tstand .tm-dot { align-self: center; }
+.lv-tstand .tm-who { flex-basis: 100%; padding-left: 20px; color: var(--faint); font-size: var(--s1); overflow-wrap: anywhere; }
+.lv-tstand + .lv-standings { padding-top: 10px; border-top: 1px solid var(--raised); }
+.lv-tpodium .tm-dot { width: 16px; height: 16px; }
+.lv-tpodium li.first .tm-dot { box-shadow: 0 0 0 2px var(--gold-ink); }
+.lv-tpodium .nm-t { overflow-wrap: anywhere; }
+.lv-tpodium + .lv-note, .lv-tpodium + .block-title { margin-top: 4px; }
+.lv-ppodium li[class*="tm-"] .lv-av { box-shadow: 0 0 0 2px var(--tm); }
