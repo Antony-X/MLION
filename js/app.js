@@ -2576,16 +2576,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       for (let i = 1; i < xs.length; i++) if (y < xs[i]) return ts[i - 1] + ((ts[i] - ts[i - 1]) * (y - xs[i - 1])) / (xs[i] - xs[i - 1]);
       return 1;
     }
+    // Which depth is lit follows the scroll itself. It used to follow the ball, which eases after the scroll by
+    // about a tenth of a second, so on a quick swipe on a phone the lit row stayed bright while the rows under it
+    // were already fading: they seemed to vanish out of order (user, 2026-11-06). Now lit and fading agree.
+    function light() {
+      let s = 0;
+      for (let i = 1; i < rows.length; i++) if (scrollY >= xs[i]) s = i;
+      rows.forEach((r, k) => { r.classList.toggle("on", k === s); r.classList.toggle("past", k < s); });
+    }
     function fade() { // on a phone, rows already read fade as they rise into the basin
       const p = phone();
       for (const r of rows) r.style.setProperty("--fade", p ? Math.max(0, Math.min(1, (r.getBoundingClientRect().top / innerHeight - 0.45) / 0.2)).toFixed(2) : "1");
+      light();
     }
     document.body.classList.add("hero3d");
     anchors(); fade();
-    const h = MLionHero.mount(canvas, {
-      progress,
-      onStage(i) { rows.forEach((r, k) => { r.classList.toggle("on", k === i); r.classList.toggle("past", k < i); }); },
-    });
+    const h = MLionHero.mount(canvas, { progress });
     if (!h.ok) { h.destroy(); document.body.classList.remove("hero3d"); canvas.remove(); rows.forEach((r) => r.style.removeProperty("--fade")); return false; }
     const onResize = () => { anchors(); fade(); };
     addEventListener("resize", onResize);

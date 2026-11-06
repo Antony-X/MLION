@@ -498,6 +498,9 @@
       } else {
         const k = 1 - Math.exp(-dt / 160), kv = 1 - Math.exp(-dt / 220), kz = 1 - Math.exp(-dt / 60);
         st.lead += (lead - st.lead) * k;
+        // never look past where the ball will stop: the look-ahead used to carry the camera about 80 units beyond
+        // the landing, and it drifted back after (user, 2026-11-06). Now it arrives with the ball.
+        st.lead = Math.min(st.lead, st.anim ? Math.max(0, st.anim.to - st.x) : 0);
         st.camX += (st.x + st.lead - st.camX) * k;
         st.by += (T.by - st.by) * kv;
         st.sy += (T.sy - st.sy) * kv;
