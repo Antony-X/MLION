@@ -5,6 +5,7 @@
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
+const { startRelay, attachRelay } = require("./relay-dev");
 const fs = require("fs");
 const path = require("path");
 
@@ -31,6 +32,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
+  const relay = await startRelay(); // the live relay (worker/relay.js) under wrangler dev
+  attachRelay(server, relay);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
   const browser = await chromium.launch({ proxy, });
@@ -69,7 +72,7 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(true, "the waiting friend gets in as soon as the room is back");
 
   // The host's phone drops its server connection; a third player must still get in.
-  await ana.evaluate(() => window.MLION_LIVE_STATE.client.stream.end());
+  await ana.evaluate(() => window.MLION_LIVE_STATE.client.testDrop());
   await cy.goto(base + `#live-${code}-${code.padEnd(22, "K")}`);
   await cy.fill("#live-name", "Cy");
   await cy.click("#live-go");
@@ -211,5 +214,6 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();
   server.close();
+  await relay.stop();
   console.log("live e2e passed");
 })().catch((e) => { console.error(e); process.exit(1); });

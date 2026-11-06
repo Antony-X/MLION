@@ -19,6 +19,7 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
   const base = `http://127.0.0.1:${srv.address().port}/`;
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.routeWebSocket(/\/relay$/, () => {}); // the live page lists open rooms: a stand-in relay that answers nothing
   await ctx.route(/fonts\./, (r) => r.abort());
   await ctx.addInitScript(() => { localStorage.setItem("mlion:seenHow", "true"); });
   const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message));

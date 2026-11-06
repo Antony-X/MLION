@@ -194,7 +194,9 @@ supabase/*.sql        schema, daily_quiz, admin, names, quiz_speed, suggestions,
 tools/cards.js        render sample share cards (14 runs x 2 shapes) for design review; `thumbs` adds chat-size screenshots
 tests/engine.test.js  normalization, matcher layers, self-match of every alias, 365-day schedule
 tests/e2e.js          Playwright: full daily, autocorrect, chips, reload-timer, share, challenge flow
-tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the real MQTT broker
+tests/relay.test.js   the live relay (worker/relay.js) under wrangler dev: origins, pub/sub, retained, wills, junk, rate limit
+tests/relay-dev.js    helper: starts wrangler dev for a test and passes /relay from the test's server to it
+tests/live.e2e.js     Playwright: 3 browsers, live match + chat over the relay (local wrangler dev)
 tests/live.rejoin.e2e.js  Playwright: a guest drops ~10 s mid-match and must keep their seat (--quiz: in a Quiz match, real data)
 tests/sharecard.e2e.js  Playwright: the share sheet with navigator.share / clipboard.write mocked (desktop + phone, daily, challenge, Daily Quiz) and the link-preview tags
 tests/quiz.e2e.js     Playwright: solo quiz (taps, keys 1-4, verdict, timeout, resume, results, stats) + #vq- challenge between two browsers
@@ -213,7 +215,7 @@ npm run build      # node tools/build.js
 npm run stats      # node tools/build.js --stats
 npm test           # build + engine tests
 npm run e2e        # node tests/e2e.js           (add --fixture to use clone data, --fonts to load Google Fonts)
-npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint, live.takeover.e2e.js, live.security.e2e.js (the first seven need network: public.cloud.shiftr.io)
+npm run e2e:live   # live.e2e.js, live.rejoin.e2e.js, live.quiz.e2e.js, live.rejoin.e2e.js --quiz, live.topics.e2e.js, live.sprint.e2e.js, live.rejoin.e2e.js --sprint, live.takeover.e2e.js, live.security.e2e.js (the first seven start a local relay with wrangler dev)
 npm run e2e:quiz   # quiz.e2e.js (solo + challenge; no network)
 npm run e2e:launch # launch.e2e.js: launch-day race, broken links, two tabs, Supabase down, no CDN (no network)
 npm run e2e:card   # sharecard.e2e.js (the share card and sheet; no network, add --fonts to load Archivo)
@@ -765,17 +767,37 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
 
 ### Live match (real time)
 
-**Transport: MQTT over a WebSocket on port 443.**
-- Broker: `wss://public.cloud.shiftr.io`, username and password `public` (the constants `BROKER` and
-  `BROKER_LOGIN` in app.js; change the relay there only).
-- Library: vendored at `js/vendor/mqtt-4.3.7.min.js` (MQTT.js 4.3.7, MIT; the header gives the source URL
-  and the sha256 of the untouched original). Nothing in live play loads from a CDN any more.
+**Transport: MLion's own relay, a WebSocket to `/relay` on the site (added 2026-11-06).**
+- Server: `worker/relay.js`, one Cloudflare Durable Object ("hub", SQLite class `Relay`, bound as `RELAY` in
+  wrangler.jsonc; `/relay` is in `run_worker_first`, and `worker/index.js` sends it there). It is a tiny
+  MQTT-style publish/subscribe broker: exact topics, the one wildcard `mlion/<v>/pub/+` (the open-room list),
+  retained listings (in memory only: hosts refresh them every 3 s, pages ignore one older than 45 s), wills,
+  and like MQTT 3.1.1 a page hears its own messages back. Frames are JSON arrays (see the header of
+  relay.js). It uses the WebSocket Hibernation API (sleeps, unbilled, while nobody talks; the runtime
+  answers `ping` itself) and keeps each socket's subscriptions and will in its attachment.
+- Limits in `LIMITS`: 600 sockets, 40 per address, 24 subscriptions, 256 KB a message, 25 messages a
+  second per socket (burst 150; a socket that keeps flooding is closed with 1008). The Worker only lets
+  pages from mlion.lol / www.mlion.lol connect (under wrangler dev, requests look as if they came to mlion.lol; tests/relay-dev.js presents its pages that way).
+- Cost: free. The free plan has 100,000 Durable Object requests a day (a connection is one, incoming
+  WebSocket messages count 20 to 1, outgoing ones are free) and 13,000 GB-s of duration; one object can
+  use at most 86,400 s × 128 MB = 10,800 GB-s a day, so duration can't run out. Over a limit, calls fail
+  until 00:00 UTC; nothing is charged.
+- Client: `relayConnect()` in app.js has the surface of the mqtt.js client the live code was written for
+  (on connect/message/offline, subscribe, publish with retain, will, end, reconnect, connected), so the
+  live code didn't change; it reconnects (1.5 s, then slower up to 7.5 s), subscribes again, queues
+  publishes while offline, and pings every 15 s (40 s of silence = dead connection, reconnect).
+- Fallback: `TRANSPORT = "mqtt"` in app.js goes back to the public broker `wss://public.cloud.shiftr.io`
+  (still allowed by the CSP) with the vendored `js/vendor/mqtt-4.3.7.min.js` (MQTT.js 4.3.7, MIT; the
+  header gives the source URL and the sha256 of the untouched original), loaded only in that case.
+- Tests: `tests/relay.test.js` checks the relay itself; the live e2e tests start `wrangler dev` through
+  `tests/relay-dev.js` and pass `/relay` from their static server to it (set `MLION_RELAY_DEV` to share one
+  running relay). `live.takeover` and `live.security` use an in-page fake relay (`window.MLION_FAKE_RELAY`).
 - Topic root: `mlion/v3` (v2 pages sent plain JSON and can't talk to v3 rooms).
   - Room: `mlion/v3/r/<code>/{up,down,to/<id>}`; open rooms also use `…/knock` and `…/knock/<nonce>`.
   - Public room info (retained, plain): `mlion/v3/pub/<code>`, plus a last-will that clears it.
 - It's **disabled inside the Artifact**, because claude.ai blocks WebRTC and outside
   WebSockets. There, `#live` shows an "Open live mode" link to the Pages site.
-- The create and join page says: "Chat and answers pass through a public relay, encrypted with the room's
+- The create and join page says: "Chat and answers pass through MLion's relay, encrypted with the room's
   link." (`#live-relay`).
 
 **Room secret and sealed messages** (added 2026-11-05, pre-launch hardening)
@@ -1014,10 +1036,10 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
   the lobby list, host broadcasts signed), not done.
 - Still self-reported and only clamped: answer times (speed bonus), the wrong-guess count, hint use, and a
   sprint's running tally before its list arrives.
-- The relay: still the shared public shiftr.io test instance (undocumented quotas, shared by everyone as
-  user `public`, no SLA). An outsider can still flood topics, fake or clear open-room listings, answer a
-  knock with "full", and see which room codes and player ids are active. Moving to an own broker or to
-  Supabase Realtime is out of scope for now; the sealed protocol works on any of them.
+- The relay is our own since 2026-11-06 (see Transport). Anyone with a page on mlion.lol can still open a
+  socket, fake or clear open-room listings and answer a knock with "full"; listening to a room now takes
+  its code (no room wildcards), and a flood is cut off per socket. Many sockets from many addresses could
+  still use up the free day's requests (live play would stop until 00:00 UTC).
 - A replay to a page that has never heard from that sender (a fresh joiner, or a host just taken over) is
   accepted once; only the same room's traffic can be replayed, and a joiner applies nothing but the lobby
   that seats it before it knows its host.
@@ -1541,12 +1563,10 @@ is the lit exhibit.
    questions, the kick-out fix, and chat with the phone keyboard open (the panel follows
    `visualViewport`; only desktop and emulated phone sizes were checked). Ask the user what the screen says if anything
    fails.
-2. **Public broker risk:** shiftr.io's public instance is shared and unauthenticated. Since the 2026-11-05
-   hardening, room traffic is sealed with the link's secret and the host re-judges answers (see "What the
-   hardening blocks" in §7), so outsiders can't read or forge rooms; they can still flood, fake open-room
-   listings, and the instance has no published quota or SLA. Members holding a link can still impersonate
-   each other (needs per-player signatures). An own broker (shiftr Plus) or Supabase Realtime would be more
-   robust; the sealed protocol works unchanged on either.
+2. **Relay:** live rooms moved off the public shiftr.io broker to our own Durable Object relay on
+   2026-11-06 (free plan; see "Transport" in §7). Watch the Durable Objects usage in the Cloudflare
+   dashboard once people play; `TRANSPORT = "mqtt"` in app.js switches back to the public broker. Members
+   holding a link can still impersonate each other (needs per-player signatures).
 3. The never-written new prompts from the stopped workflow (special-token, numpy-function,
    turing-award, ai-leader, calculus-concept, and classic-cv / tabular-dataset in place of
    classic-cv-algo / classic-dataset were written overnight 2026-11-05). The original list of 46:
@@ -1613,7 +1633,8 @@ node tools/build.js              # after editing data/prompts/*.json or display.
 node tests/engine.test.js
 npx playwright install chromium  # only if you don't already have a Playwright browser
 node tests/e2e.js --fixture --fonts
-node tests/live.e2e.js           # needs network to public.cloud.shiftr.io (MQTT.js is vendored)
+node tests/relay.test.js         # the relay on its own (starts wrangler dev)
+node tests/live.e2e.js           # starts a local relay (wrangler dev); no outside network needed
 node tests/live.teams.e2e.js     # needs network: teams lobby, a 2 v 1 Classic match, a Sprint with teams
 node tests/live.security.e2e.js  # no network: outsider attacks, a dishonest guest, open rooms, ten players
 ```
@@ -1632,6 +1653,32 @@ in about 30–60 s. Cache-busting means phones load the new code on their next f
   runs; mlion adds a held saw chord and a high sparkle. Same method names as before (tick, reject,
   submit, miss, chat, tier, streak, quick, fizzle), so call sites are unchanged. Not listened to by the
   session that wrote it (headless); tune by ear.
+
+### Game feel from Nintendo's practice (2026-11-06)
+The user asked for research into how Nintendo makes simple actions feel good, keeping only what fits.
+Sources (Iwata Asks: Super Mario Galaxy sound team, Wii Fit, Wii Channels; Sakurai's Famitsu column 490
+on hitstop; Nintendo patent US 7,781,664; Smash wiki hitlag numbers) were collected by a research agent.
+What was already in MLion and kept: the answer box shakes (small, fading, only the box, off with Reduce
+motion); squash on landing; rarer tiers get longer bell runs and the jackpot gets coins in two stages
+(bells at the answer, coins where the ball lands); the streak chord climbs one step per answer.
+Added:
+- **Hit-stop** (js/landscape.js `HOLD`, used in `land()` and `frame()`): a rare landing holds the whole stage
+  still at the impact for 70 ms (Rare), 130 ms (Ultra rare) or 220 ms (Legendary), +30 ms on a long streak,
+  never over 300 ms. Common landings don't stop (Sakurai: games with constant hits rarely use it). Off with
+  Reduce motion (the stage is calm). Typing is never blocked.
+- **A gentle wrong answer** (`Sound.reject`): two soft triangle notes stepping down instead of square-wave
+  buzzes; one short buzz on phones. Wii Fit's designers avoided a quiz-show buzzer for the same reason.
+- **Sprint's coin ladder** (`Sound.coin`, `S.chain` in `sprintSubmit`): each counted answer plays a short
+  note one step up a major scale (Mario's red coins climb a note each); a wrong answer starts it again;
+  the eighth in a row tops out with a run, then the notes alternate at the top. Rare answers add a shimmer
+  and an octave, a Legendary its chord. Sprint used to play the full landing sound, roll ticks included,
+  for every answer, though no ball rolls in Sprint.
+- **Controls click** (delegated listeners after `Sound` in app.js): a switch turned on plays a rising pair,
+  off a falling one; a slider ticks once per step, up a pentatonic scale; a choice button ticks. Hover is
+  silent.
+Left out on purpose: a chime per screen (a web game is navigated far more than a console menu), sound on
+the music's beat (there is no music), slow motion or zoom beyond the Legendary flood, and a constant
+low-time alarm (the last five seconds already tick and the heartbeat speeds up).
 
 ### Background music: removed (2026-11-06)
 A generative background score (`js/music.js`, Settings → Music) shipped on 2026-11-05 and was removed

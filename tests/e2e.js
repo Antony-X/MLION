@@ -45,6 +45,7 @@ function check(cond, msg) { if (!cond) throw new Error("FAIL: " + msg); console.
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
   await ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await ctx.routeWebSocket(/\/relay$/, () => {}); // the live page lists open rooms: a stand-in relay that answers nothing
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

@@ -4,10 +4,11 @@
  * other player has answered, verdicts wait for the reveal, a skip vote draws a fresh question,
  * chat keeps working (and typing digits there never answers), the host rejects a bad pick and
  * clamps a forged time, and a tie on points goes to the faster total time.
- *   node tests/live.quiz.e2e.js   (needs public.cloud.shiftr.io) */
+ *   node tests/live.quiz.e2e.js   (starts a local relay with wrangler dev) */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
+const { startRelay, attachRelay } = require("./relay-dev");
 const fs = require("fs");
 const path = require("path");
 const assert = require("assert");
@@ -35,6 +36,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
+  const relay = await startRelay(); // the live relay (worker/relay.js) under wrangler dev
+  attachRelay(server, relay);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
   const browser = await chromium.launch({ proxy });
@@ -191,5 +194,6 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();
   server.close();
+  await relay.stop();
   console.log("live quiz e2e passed");
 })().catch((e) => { console.error(e); process.exit(1); });

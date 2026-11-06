@@ -3,7 +3,7 @@
  * No network: Supabase is a stand-in (https://mock.supabase.test), fonts are blocked, the relay is a mocked WebSocket.
  *   A. the Content-Security-Policy is on, every inline script is allowed by its hash, and it stops what it should
  *      (an injected onerror handler, a script from another site, a socket to an unknown host)
- *   B. supabase-js and MQTT.js load from js/vendor, never from a CDN
+ *   B. supabase-js and MQTT.js (the relay's fallback) load from js/vendor, never from a CDN; the relay's socket is allowed
  *   C. framed by another site: the game hides (and steps out of the frame when allowed)
  *   D. damaged saved data and hostile #links don't leave a blank page; Import refuses records that would
  *   E. the boot watchdog: a game that can't start offers Reload and Repair, and Repair keeps a copy
@@ -42,7 +42,8 @@ function mockSupabase(route) {
     await ctx.route(/jsdelivr\.net|unpkg\.com|cdnjs\.|esm\.sh/, (r) => { cdn.push(r.request().url()); return r.abort(); });
     await ctx.route(/supabase\.co\//, (r) => r.abort()); // the real project is never contacted from tests
     await ctx.route(`${MOCK}/**`, mockSupabase);
-    await ctx.routeWebSocket(/shiftr\.io/, (ws) => { sockets.push(ws.url()); }); // mocked: nothing reaches the public relay
+    await ctx.routeWebSocket(/shiftr\.io/, (ws) => { sockets.push(ws.url()); }); // mocked: nothing reaches the public broker
+    await ctx.routeWebSocket(/\/relay$/, (ws) => { sockets.push(ws.url()); }); // nor the relay
     await ctx.addInitScript(([preset, board]) => {
       window.MLION_TEST = true;
       if (board) window.MLION_BOARD = { url: board, key: "sb_publishable_test" };
@@ -117,6 +118,11 @@ function mockSupabase(route) {
     await page.evaluate(() => { try { window.__c.end(true); } catch { /* ignore */ } });
     check((await page.evaluate(() => typeof (window.mqtt && window.mqtt.connect))) === "function" && sockets.length >= 1, `MQTT.js runs under the CSP and may open the relay's socket (mocked here; ${sockets.length} opened)`);
     check((await csp(page)).length === 0, `the board and the relay socket break no CSP rule${(await csp(page)).length ? ": " + (await csp(page)).join(" | ") : ""}`);
+    sockets.length = 0;
+    await page.evaluate(() => { window.__r = new WebSocket(location.origin.replace(/^http/, "ws") + "/relay"); });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => { try { window.__r.close(); } catch { /* ignore */ } });
+    check(sockets.some((u) => /^ws:\/\/127\.0\.0\.1:\d+\/relay$/.test(u)) && (await csp(page)).length === 0, "the relay's socket at this site's /relay is allowed by the CSP");
     check(cdn.length === 0, `nothing was requested from a CDN${cdn.length ? ": " + cdn.join(", ") : ""}`);
     await ctx.close();
   }

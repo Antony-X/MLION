@@ -3,11 +3,12 @@
  * both players type as many answers as they can on the same clock, each sees the other's count and points
  * tick up while the answers stay hidden, the round ends on the clock, the reveal marks an answer both named,
  * a player who leaves mid-round keeps the points they had sent, and the totals are the sum of tier points.
- *   node tests/live.sprint.e2e.js   (needs public.cloud.shiftr.io)
+ *   node tests/live.sprint.e2e.js   (starts a local relay with wrangler dev)
  * The minute is shortened to 8 s through window.MLION_SPRINT_TEST (honoured only with window.MLION_TEST). */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
+const { startRelay, attachRelay } = require("./relay-dev");
 const fs = require("fs");
 const path = require("path");
 const assert = require("assert");
@@ -50,6 +51,8 @@ function plan(P) {
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
+  const relay = await startRelay(); // the live relay (worker/relay.js) under wrangler dev
+  attachRelay(server, relay);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
   const browser = await chromium.launch({ proxy });
@@ -228,5 +231,6 @@ function plan(P) {
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();
   server.close();
+  await relay.stop();
   console.log("live sprint e2e passed");
 })().catch((e) => { console.error(e); process.exit(1); });

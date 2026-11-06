@@ -12,7 +12,7 @@ function check(c, m) { if (!c) throw new Error("FAIL: " + m); console.log("  ✓
 const T = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };
 const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split("?")[0]); const f = path.join(ROOT, u === "/" ? "index.html" : u); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { "Content-Type": T[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(r); });
 
-/** Stands in for the MQTT client: every page of the context shares one BroadcastChannel "broker". */
+/** Stands in for the relay's client: every page of the context shares one BroadcastChannel "broker". */
 const FAKE_RELAY = () => {
   class Client {
     constructor() {
@@ -33,6 +33,7 @@ const FAKE_RELAY = () => {
     reconnect() {}
   }
   window.mqtt = { connect: () => new Client() };
+  window.MLION_FAKE_RELAY = () => new Client();
 };
 
 (async () => {

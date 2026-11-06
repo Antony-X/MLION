@@ -64,6 +64,7 @@ const FAKE_RELAY = () => {
     reconnect() {}
   }
   window.mqtt = { connect: () => new Client() };
+  window.MLION_FAKE_RELAY = () => new Client();
 };
 
 (async () => {
@@ -101,7 +102,7 @@ const FAKE_RELAY = () => {
   console.log("A. an outsider listening on the relay");
   const ana = await open("ana"), ben = await open("ben");
   await ana.goto(base + "#live"); await ana.waitForSelector("#live-relay");
-  check(/public relay, encrypted with the room's link/.test(await ana.textContent("#live-relay")), "the create page says chat and answers pass through a public relay, encrypted");
+  check(/MLion's relay, encrypted with the room's link/.test(await ana.textContent("#live-relay")), "the create page says chat and answers pass through MLion's relay, encrypted");
   const link = await create(ana, "Ana");
   const A = await live(ana);
   check(link === `#live-${A.code}-${A.secret}`, "the invite link carries the room code and a 22-character secret in the #fragment");

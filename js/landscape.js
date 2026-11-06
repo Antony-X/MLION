@@ -374,6 +374,7 @@
   const POWER = { baseline: 0.35, overfit: 0.5, indist: 0.6, outlier: 0.8, longtail: 1, mlion: 1 };
   const SPARKS = { baseline: 0, overfit: 2, indist: 5, outlier: 12, longtail: 24, mlion: 30 };
   const KICK = { outlier: 0.025, longtail: 0.055, mlion: 0.045 };
+  const HOLD = { outlier: 70, longtail: 130, mlion: 220 }; // hit-stop at a rare landing, ms (see land())
   // the jackpots, for the rare tiers only (the common ones stay modest): how strongly the stage
   // flashes in the tier's colour and for how long (ms), and how many coins spill out of the ball
   const JACKPOT = {
@@ -395,12 +396,13 @@
       topY: 0, T: null, framed: false, rects: [], sig: "", t: 0,
       tier: null, streak: 0,
       marks: [], segs: [], ripples: [], texts: [], sparks: [], trail: [], motes: [],
-      flood: null, land: null, flash: null, dim: null, shiver: 0, coins: [], wash: null,
+      flood: null, land: null, flash: null, dim: null, shiver: 0, coins: [], wash: null, hold: 0, holdAt: 0,
       tense: 0, tenseTo: 0, beat: 0, exhale: null, // the last seconds of the clock
       anim: null, raf: 0, onScreen: true, reported: NaN,
       onFrame: opts.onFrame || null, onFlood: opts.onFlood || null,
     };
     const still = prefersReduced; // read on every frame: the setting can change mid-run
+    if (window.MLION_TEST) window.MLION_STAGE = st; // tests time the hit-stop (tests/feel.e2e.js)
     const scale = () => (st.w / st.view) * st.zoom;
     const toScreen = (x, y) => { const s = scale(); return [(x - st.camX) * s + st.w * AX, (y - st.camY) * s * st.sy + st.by]; };
     const onPath = (x) => toScreen(x, terrain(x));
@@ -566,6 +568,10 @@
       const lv = flameLevel(st.streak);
       const k = Math.min(1.3, (POWER[tier] || 0.5) * (1 + 0.07 * Math.max(0, lv - 1)));
       st.land = { t: 0, k };
+      // hit-stop: a rare landing holds the whole stage still for a beat before it all bursts out, longer the rarer
+      // (and a little more on a long streak), never more than 300 ms. Common landings don't stop: a beat on every
+      // answer would only slow the game down.
+      if (HOLD[tier]) { st.hold = Math.min(300, HOLD[tier] + (lv >= 4 ? 30 : 0)); st.holdAt = st.t; }
       const [size, rings] = RIPPLE[tier] || [30, 1];
       st.ripples.push({ x, color: TIER_COLORS[tier], size, rings, life: 900 + rings * 120, max: 900 + rings * 120 });
       const pts = Math.round((a.to - a.from) / 10);
@@ -1085,15 +1091,16 @@
       ctx.setTransform(dpr, 0, 0, dpr, jx, jy);
       drawLive(ctx, L);
     }
-    const busy = () => !!(st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
+    const busy = () => !!(st.hold > 0 || st.anim || st.ripples.length || st.texts.length || st.sparks.length || st.trail.length || st.flood || st.land || st.flash || st.dim || st.shiver || st.kick || st.shake ||
       st.coins.length || st.wash || st.exhale || st.beat || (!still() && (st.tense || st.tenseTo)) ||
       (st.T && (Math.abs(st.camX - st.x - st.lead) > 0.3 || Math.abs(st.by - st.T.by) > 0.3 || Math.abs(st.sy - st.T.sy) > 0.002 || Math.abs(st.zoom - 1) > 0.0008)));
 
     let last = 0, lastPaint = 0;
     function frame(now) {
       st.raf = 0;
-      const dt = last ? Math.min(50, now - last) : 16;
+      let dt = last ? Math.min(50, now - last) : 16;
       last = now;
+      if (st.hold > 0) { st.hold -= dt; dt = 0; now = st.holdAt; } // hit-stop: time stands still at the impact
       step(now, dt);
       const active = busy();
       // while something moves, every frame; at rest only the dust drifts, about 30 times a second
@@ -1117,7 +1124,7 @@
     }
     function calm() {
       if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
-      st.ripples = []; st.texts = []; st.sparks = []; st.trail = []; st.flash = null; st.dim = null; st.land = null; st.shiver = 0;
+      st.ripples = []; st.texts = []; st.sparks = []; st.trail = []; st.flash = null; st.dim = null; st.land = null; st.shiver = 0; st.hold = 0;
       st.coins = []; st.wash = null; st.tense = st.tenseTo = st.beat = 0; st.exhale = null;
       if (st.w) paint();
     }
@@ -1138,7 +1145,7 @@
         st.streak = streak; st.tier = tier;
         st.x = x; st.anim = null;
         if (st.flood) { st.flood = null; st.onFlood && st.onFlood(false); }
-        st.trail = []; st.sparks = []; st.land = null; st.coins = []; st.wash = null;
+        st.trail = []; st.sparks = []; st.land = null; st.coins = []; st.wash = null; st.hold = 0;
         measure();
         snap();
       },

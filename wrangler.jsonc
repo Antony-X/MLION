@@ -1,6 +1,7 @@
 // Cloudflare hosting: a static-assets Worker (what Cloudflare Pages is now part of). Every request is a file from
 // dist/, which tools/deploy.sh fills with only the files the site serves. The one script, worker/index.js, runs
-// only for the two big data files, to send their pre-compressed brotli copies.
+// only for the two big data files, to send their pre-compressed brotli copies, and for /relay, the live rooms'
+// WebSocket relay (worker/relay.js, a Durable Object).
 // Deploy with `bash tools/deploy.sh` (needs a one-time `npx wrangler login`).
 {
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
@@ -12,10 +13,13 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/js/data.js", "/js/explain.js"],
+    "run_worker_first": ["/js/data.js", "/js/explain.js", "/relay"],
     "not_found_handling": "none",
     "html_handling": "auto-trailing-slash"
   },
+  // live rooms' relay (worker/relay.js): one Durable Object, SQLite-backed as the free plan requires
+  "durable_objects": { "bindings": [{ "name": "RELAY", "class_name": "Relay" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Relay"] }],
   "routes": [
     { "pattern": "mlion.lol", "custom_domain": true },
     { "pattern": "www.mlion.lol", "custom_domain": true }

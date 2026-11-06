@@ -2,10 +2,11 @@
 /* Live rooms with teams (2 v 2 and the like): the host turns teams on, newcomers join the smaller team, players
  * switch sides, the host shuffles, a room all on one side can't start, and a match scores each team as its
  * players' points added up, a smaller team's scaled up to the bigger one's size. Four phones, then three.
- *   node tests/live.teams.e2e.js   (needs public.cloud.shiftr.io) */
+ *   node tests/live.teams.e2e.js   (starts a local relay with wrangler dev) */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
+const { startRelay, attachRelay } = require("./relay-dev");
 const fs = require("fs");
 const path = require("path");
 
@@ -31,6 +32,8 @@ const NAMES = ["Gold", "Blue", "Green", "Rose"];
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
+  const relay = await startRelay(); // the live relay (worker/relay.js) under wrangler dev
+  attachRelay(server, relay);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
   const browser = await chromium.launch({ proxy });
@@ -188,4 +191,5 @@ const NAMES = ["Gold", "Blue", "Green", "Rose"];
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   console.log("live teams e2e passed");
   await browser.close(); server.close();
+  await relay.stop();
 })().catch((e) => { console.error(e); if (errors.length) console.error("page errors: " + errors.join(" | ")); process.exit(1); });

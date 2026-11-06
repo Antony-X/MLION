@@ -268,6 +268,7 @@
       mlion: { hit: 0.16, notes: [0, 4, 7, 12, 16, 19, 24], root: 523.25 },
     };
     const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // a major pentatonic run: any order sounds bright
+    const LADDER = [0, 2, 4, 5, 7, 9, 11, 12]; // Sprint's run of answers climbs a major scale, an octave in eight
     const COUNT = { indist: 3, outlier: 6, longtail: 8, mlion: 10 }; // score ticks while the ball rolls
     const ROLL_S = { indist: 0.8, outlier: 0.95, longtail: 1.15, mlion: 1.3 }; // how long it rolls (landscape.js durationFor)
     // A short buzz with each verdict, where the browser can (Android; iOS Safari can't).
@@ -276,7 +277,29 @@
       unlock() { ac(); },
       /** the last seconds of the clock: a dry woodblock */
       tick() { noise(0.035, { from: 2600, q: 6, vol: 0.12, wet: 0 }); voice(1760, 0.04, { type: "sine", vol: 0.03, detune: 0, wet: 0 }); },
-      reject() { buzz([30, 50, 30]); voice(233, 0.12, { type: "square", vol: 0.03, bright: 900, wet: 0.1 }); voice(196, 0.18, { type: "square", vol: 0.03, bright: 800, wet: 0.1, delay: 0.11 }); },
+      /** Not an accepted answer: two soft notes stepping down, nothing like a buzzer. It's heard often (typos,
+       *  near misses), so it stays gentle, as Nintendo's sound designers keep their "too bad" sounds (Wii Fit). */
+      reject() { buzz(22); voice(392, 0.13, { type: "triangle", vol: 0.026, bright: 1600, wet: 0.15 }); voice(330, 0.2, { type: "triangle", vol: 0.022, bright: 1300, wet: 0.2, delay: 0.09 }); },
+      /** A Sprint answer counted: a short note one step up the scale from the last, like a row of coins (Mario's
+       *  red coins climb a note each), so a run of answers rises and never repeats a note. A wrong answer starts
+       *  the climb again. The eighth in a row tops out with a run; after that each one rings at the top. Rare
+       *  answers add a shimmer and an octave, a Legendary its chord. */
+      coin(n, t) {
+        const k = Math.max(1, n | 0), root = 783.99; // G5
+        const semis = k <= LADDER.length ? LADDER[k - 1] : (k % 2 ? 12 : 16);
+        buzz(t === "mlion" ? [20, 60, 20, 60, 90] : k >= 8 ? [14, 40, 14] : 14);
+        voice(st(root, semis), 0.05, { type: "sine", vol: 0.02, detune: 0, wet: 0 }); // the dry attack
+        bell(st(root, semis), 0.24, { vol: 0.042, ratio: 2, index: 1.1, wet: 0.2 });
+        if (k === LADDER.length) [12, 16, 19, 24].forEach((s, i) => bell(st(root, s), 0.3, { vol: 0.024, delay: 0.08 + i * 0.05 }));
+        if (t === "outlier" || t === "longtail" || t === "mlion") {
+          noise(0.35, { from: 4000, to: 9000, vol: 0.012, wet: 0.6, delay: 0.03 });
+          bell(st(root, semis + 12), 0.45, { vol: 0.018, delay: 0.06 });
+        }
+        if (t === "mlion") [0, 4, 7, 12].forEach((s) => voice(st(261.63, s), 1.1, { type: "sawtooth", vol: 0.014, bright: 2400, attack: 0.06, wet: 0.7, delay: 0.08 }));
+      },
+      /** Controls: a switch turned on rises, off falls; a slider or a choice ticks once per step. Quiet and dry. */
+      toggle(on) { voice(on ? 1318.5 : 1568, 0.04, { type: "sine", vol: 0.018, detune: 0, wet: 0 }); voice(on ? 1568 : 1318.5, 0.05, { type: "sine", vol: 0.018, detune: 0, wet: 0, delay: 0.045 }); },
+      step(i) { voice(st(1046.5, PENTA[Math.max(0, Math.min(PENTA.length - 1, i | 0))]), 0.035, { type: "sine", vol: 0.016, detune: 0, wet: 0 }); },
       submit() { noise(0.14, { from: 500, to: 2600, vol: 0.06, wet: 0.1 }); voice(660, 0.08, { type: "sine", vol: 0.04, slide: 1.5, detune: 0, wet: 0.1 }); },
       miss() {
         buzz(60);
@@ -337,7 +360,25 @@
       fizzle() { buzz(28); noise(0.55, { from: 6000, to: 900, filter: "highpass", q: 0.5, vol: 0.035, attack: 0.005, wet: 0.2 }); voice(330, 0.45, { type: "triangle", vol: 0.025, slide: 0.45, wet: 0.2, delay: 0.05 }); },
     };
   })();
+  if (window.MLION_TEST) { // tests read which sounds played (tests/feel.e2e.js), even with sound off
+    window.MLION_SOUNDS = [];
+    for (const k of Object.keys(Sound)) { const f = Sound[k]; Sound[k] = (...a) => { window.MLION_SOUNDS.push([k, ...a]); return f(...a); }; }
+  }
   document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+  // Every switch and slider answers with a click (Sound.toggle, Sound.step), wherever it is; choice buttons too.
+  // Hovering stays silent. A switch that turns sound off is quiet, since sound is already off when this runs.
+  document.addEventListener("change", (e) => {
+    const el = e.target;
+    if (el && el.matches && el.matches('input[type="checkbox"][role="switch"]')) Sound.toggle(el.checked);
+  });
+  document.addEventListener("input", (e) => {
+    const el = e.target;
+    if (el && el.matches && el.matches('input[type="range"]')) Sound.step(+el.value - +el.min);
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target && e.target.closest && e.target.closest('[role="radio"], .lv-mark');
+    if (b && !b.disabled && b.getAttribute("aria-checked") !== "true" && !b.classList.contains("on")) Sound.step(2);
+  });
 
   // ------------------------------------------------- Claude answer check
   // Where the page runs inside a Claude viewer, a miss the local matcher can't
@@ -669,14 +710,18 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // ================================================================ live
-  // Real-time matches over a public MQTT relay. The host's page is the authority: it admits players,
+  // Real-time matches over MLion's own relay (worker/relay.js). The host's page is the authority: it admits players,
   // paces rounds, re-judges answers and relays them. Every room message is sealed (AES-GCM) with a key
   // derived from a random room secret that travels only in the invite link's #fragment, so the relay
   // and anyone listening on it see ciphertext and can't forge anything. claude.ai blocks outside
   // WebSockets inside artifacts, so there live mode points to the web version.
   const WEB_URL = ((document.querySelector('meta[property="og:url"]') || {}).content || "").trim(); // the public site (SITE_URL in tools/build.js)
+  // The relay pages talk through. "relay": MLion's own, at /relay on this site (worker/relay.js, a Cloudflare Durable
+  // Object; user, 2026-11-06). "mqtt": the public MQTT broker live rooms used before it, kept as a fallback:
+  // switching back is this one word (the CSP still allows the broker).
+  const TRANSPORT = "relay";
   const MQTT_SRC = "js/vendor/mqtt-4.3.7.min.js"; // vendored (MIT), so live play doesn't hang on a CDN
-  const BROKER = "wss://public.cloud.shiftr.io"; // the relay: change it here and only here
+  const BROKER = "wss://public.cloud.shiftr.io";
   const BROKER_LOGIN = { username: "public", password: "public" };
   const TOPIC = "mlion/v3"; // v3: sealed messages; v2 pages (plain JSON) can't talk to these rooms
   const PUB_SLOTS = 10; // public rooms live at fixed codes pub01..pub10 so anyone can find them
@@ -1294,19 +1339,110 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   // ---- connecting
-  // ---- transport: a public MQTT broker over WebSocket on port 443.
-  // Works on any network (no peer-to-peer). Room traffic is sealed (see "room crypto"); only the open-room
-  // listings (retained, so the room list is instant) and the open-room knock travel in the clear.
+  // ---- transport: a WebSocket to the relay on port 443, so it works on any network (no peer-to-peer). Room
+  // traffic is sealed (see "room crypto"); only the open-room listings (retained, so the room list is instant)
+  // and the open-room knock travel in the clear.
   const rid = (n) => Array.from({ length: n }, () => CODE_ABC[Math.floor(Math.random() * CODE_ABC.length)]).join("");
-  async function mqttConnect(extra) {
+  async function liveConnect(extra) {
+    if (window.MLION_TEST && typeof window.MLION_FAKE_RELAY === "function") return window.MLION_FAKE_RELAY(extra); // tests' in-page relay
+    if (TRANSPORT === "relay") return relayConnect(extra);
     const m = await loadMqtt();
     return m.connect(BROKER, Object.assign({ ...BROKER_LOGIN, clientId: "mlion-" + rid(12),
       keepalive: 15, reconnectPeriod: 1500, connectTimeout: 9000, clean: true }, extra || {}));
   }
+  /** A connection to MLion's relay (frames in worker/relay.js). It has the surface of the mqtt.js client the live
+   *  code was written against: on("connect" | "message" | "offline"), removeAllListeners, subscribe, publish (with
+   *  retain), a will, end, reconnect and connected. Like mqtt.js it reconnects by itself, subscribes again after
+   *  a reconnect, and holds publishes made while offline until it's back. A message's payload is its text. */
+  function relayConnect(opts) {
+    const o = opts || {};
+    const handlers = new Map(); // event -> listeners
+    const subs = new Set(); // every filter subscribed so far
+    const queue = []; // publishes waiting for the connection
+    let ws = null, ended = false, fails = 0, heard = 0, retry = 0, openTimer = 0;
+    const emit = (ev, ...args) => (handlers.get(ev) || []).slice().forEach((fn) => { try { fn(...args); } catch (e) { setTimeout(() => { throw e; }); } });
+    const raw = (f) => { try { ws.send(typeof f === "string" ? f : JSON.stringify(f)); return true; } catch { return false; } };
+    const client = {
+      connected: false,
+      on(ev, fn) { if (!handlers.has(ev)) handlers.set(ev, []); handlers.get(ev).push(fn); return client; },
+      removeAllListeners(ev) { if (ev) handlers.delete(ev); else handlers.clear(); return client; },
+      subscribe(t) {
+        const list = (Array.isArray(t) ? t : [t]).filter((x) => typeof x === "string" && x);
+        list.forEach((x) => subs.add(x));
+        if (client.connected && list.length) raw(["s", list]);
+        return client;
+      },
+      publish(topic, payload, po) {
+        const f = ["p", String(topic), payload == null ? "" : String(payload), po && po.retain ? 1 : 0];
+        if (!(client.connected && raw(f)) && queue.length < 300) queue.push(f);
+        return client;
+      },
+      /** Close for good. end(true), as the live code calls it, leaves without a bye, so the relay sends the will. */
+      end(force) {
+        if (ended) return client;
+        if (!force && client.connected) raw(["b"]);
+        ended = true;
+        clearTimeout(retry); clearInterval(keepalive);
+        drop();
+        return client;
+      },
+      reconnect() { if (!ended && !client.connected) { clearTimeout(retry); drop(); open(); } return client; },
+    };
+    if (window.MLION_TEST) client.testDrop = () => { if (ws) ws.close(4000, "test"); }; // tests cut the line as a network would
+    // keepalive: a ping every 15 s (the relay answers without waking up); nothing heard for 40 s means the
+    // connection died without saying so (a phone that slept, a network that changed): drop it and reconnect
+    const keepalive = setInterval(() => {
+      if (!client.connected) return;
+      if (Date.now() - heard > 40000) { drop(); later(); } else raw("ping");
+    }, 15000);
+    function open() {
+      if (ended) return;
+      let sock;
+      try { sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/relay`); } catch { later(); return; }
+      ws = sock;
+      openTimer = setTimeout(() => { if (ws === sock && !client.connected) { drop(); later(); } }, o.connectTimeout || 9000);
+      sock.onopen = () => {
+        if (ws !== sock) return;
+        clearTimeout(openTimer);
+        fails = 0; heard = Date.now();
+        client.connected = true;
+        if (o.will) raw(["w", String(o.will.topic), String(o.will.payload == null ? "" : o.will.payload), o.will.retain ? 1 : 0]);
+        if (subs.size) raw(["s", [...subs]]);
+        queue.splice(0).forEach(raw);
+        emit("connect");
+      };
+      sock.onmessage = (e) => {
+        if (ws !== sock) return;
+        heard = Date.now();
+        if (e.data === "pong") return;
+        let m = null;
+        try { m = JSON.parse(e.data); } catch { return; }
+        if (Array.isArray(m) && m[0] === "m" && typeof m[1] === "string" && typeof m[2] === "string") emit("message", m[1], m[2]);
+      };
+      sock.onclose = () => { if (ws === sock) { drop(); later(); } };
+    }
+    /** Let go of the current socket; the page hears "offline" if it was connected. */
+    function drop() {
+      const s = ws;
+      ws = null;
+      clearTimeout(openTimer);
+      if (s) { s.onopen = s.onmessage = s.onclose = null; try { s.close(1000); } catch { /* ignore */ } }
+      if (client.connected) { client.connected = false; emit("offline"); }
+    }
+    /** Try again soon: 1.5 s after the first failure, then a little slower each time, up to 7.5 s. */
+    function later() {
+      if (ended) return;
+      clearTimeout(retry);
+      fails = Math.min(fails + 1, 5);
+      retry = setTimeout(open, (o.reconnectPeriod || 1500) * fails);
+    }
+    open();
+    return client;
+  }
   const roomTopic = (code) => `${TOPIC}/r/${code}`;
   const infoTopic = (code) => `${TOPIC}/pub/${code}`;
   const knockTopic = (code) => `${roomTopic(code)}/knock`;
-  const pubJSON = (client, topic, m, opts) => { try { client.publish(topic, JSON.stringify(m), opts || {}); } catch { /* offline: mqtt queues */ } };
+  const pubJSON = (client, topic, m, opts) => { try { client.publish(topic, JSON.stringify(m), opts || {}); } catch { /* offline: the client queues */ } };
 
   // ---- room crypto (WebCrypto). The room secret (16 random bytes, base64url) comes from the invite link and
   // never goes over the relay or into a topic name. HKDF-SHA-256 turns it into the room's AES-GCM key. A message
@@ -1354,7 +1490,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!client || !key) return;
     const body = JSON.stringify({ s: sender, c: ++txCount, m }); // now, before anything can change m
     sendChain = sendChain.then(() => sealText(key, topic, body))
-      .then((payload) => { try { client.publish(topic, payload, opts || {}); } catch { /* offline: mqtt queues */ } })
+      .then((payload) => { try { client.publish(topic, payload, opts || {}); } catch { /* offline: the client queues */ } })
       .catch(() => { /* a failed seal sends nothing */ });
   }
   /** Listen for sealed messages on a client: open each in arrival order, drop what doesn't open and replays, then
@@ -1499,7 +1635,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!cryptoOk()) return renderLiveStatus("Live play needs a secure page (https). Open MLion from its web address.", true);
     renderJoinWait(code, "Asking the host to let you in…");
     let client, me;
-    try { me = await ecdhPair(); client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
+    try { me = await ecdhPair(); client = await liveConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
     const n = rid(12), reply = `${knockTopic(code)}/${n}`;
     const js = joinState = { code, name, client, knocking: true, started: Date.now() };
     const ask = () => pubJSON(client, knockTopic(code), { pub: me.pub, n });
@@ -1526,7 +1662,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   /** Read the public room list once (or keep listening with onUpdate). */
   async function scanPublic(ms, onUpdate) {
-    const client = await mqttConnect();
+    const client = await liveConnect();
     const rooms = new Map();
     const pre = `${TOPIC}/pub/`;
     client.on("connect", () => client.subscribe(`${pre}+`));
@@ -1559,7 +1695,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       }
       const key = await roomKey(code, secret);
       renderLiveStatus("Connecting to the live server…");
-      const client = await mqttConnect(isPublic ? { will: { topic: infoTopic(code), payload: "", retain: true, qos: 1 } } : {});
+      const client = await liveConnect(isPublic ? { will: { topic: infoTopic(code), payload: "", retain: true, qos: 1 } } : {});
       const id = "h" + rid(8);
       let ready = false;
       const fail = setTimeout(() => { if (!ready) { try { client.end(true); } catch { /* ignore */ } renderLiveStatus("Couldn't reach the live server. Check your connection and try again.", true); } }, 15000);
@@ -1587,7 +1723,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!SECRET_RE.test(secret || "")) return renderLiveStatus("This invite link is missing its key. Ask your friend to send the link again from inside the room.", true);
     renderJoinWait(code, "Connecting to the live server…");
     let client, key;
-    try { key = await roomKey(code, secret); client = await mqttConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
+    try { key = await roomKey(code, secret); client = await liveConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
     const id = keepId || "g" + rid(8);
     const js = joinState = { code, name, client, id, secret, key, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
     const up = `${roomTopic(code)}/up`, down = `${roomTopic(code)}/down`, mine = `${roomTopic(code)}/to/${id}`;
@@ -1704,7 +1840,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
         ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms, so one other player can join you</span></label>`}
         <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button></div>
-        <p class="lv-note" id="live-relay">Chat and answers pass through a public relay, encrypted with the room's link.</p>
+        <p class="lv-note" id="live-relay">Chat and answers pass through MLion's relay, encrypted with the room's link.</p>
       </div>
       ${joining ? "" : `<section class="lv-open"><h2 class="block-title">Open rooms</h2><p id="rooms-status" role="status">Looking for rooms…</p>
         <ul class="lv-players" id="rooms-list"></ul>
@@ -4470,7 +4606,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       S.got.add(r.idx); S.found.push(r.a); S.pts += T[r.a.t].score;
       (S.raws = S.raws || []).push(raw); // what was typed: a live host re-judges it
       sprintAddTime(S, r.a.t);
-      Sound.tier(r.a.t);
+      S.chain = (S.chain || 0) + 1;
+      Sound.coin(S.chain, r.a.t);
       setStatus(r.corrected ? `Counted as ${r.a.a}` : "");
       $("#sp-n").textContent = S.found.length; $("#sp-pts").textContent = S.pts;
       $("#sp-found").insertAdjacentHTML("afterbegin", `<li class="t-${r.a.t} pop">${G(r.a.t)}<span>${esc(r.a.a)}</span><b>+${T[r.a.t].score}</b></li>`);
@@ -4485,6 +4622,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       input.select();
       return false;
     }
+    S.chain = 0; // a wrong answer: the climb starts again
     Sound.reject();
     const other = otherHome(raw, S.p.id);
     setStatus(other ? `“${raw}” answers “${other.text}”, not this one.` : `“${raw}” isn't an accepted answer.`, "bad");

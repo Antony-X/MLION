@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /* Live room options (the host's "More options"): speed bonus, hints, wrong-answer penalties, final question
  * double, clash, and the quiz's 50:50. Two phones play a Classic match, then a Quiz match.
- *   node tests/live.rules.e2e.js   (needs public.cloud.shiftr.io) */
+ *   node tests/live.rules.e2e.js   (starts a local relay with wrangler dev) */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
+const { startRelay, attachRelay } = require("./relay-dev");
 const fs = require("fs");
 const path = require("path");
 
@@ -31,6 +32,8 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
+  const relay = await startRelay(); // the live relay (worker/relay.js) under wrangler dev
+  attachRelay(server, relay);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined;
   const browser = await chromium.launch({ proxy });
@@ -197,4 +200,5 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   console.log("live rules e2e passed");
   await browser.close(); server.close();
+  await relay.stop();
 })().catch((e) => { console.error(e); if (errors.length) console.error("page errors: " + errors.join(" | ")); process.exit(1); });

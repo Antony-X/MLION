@@ -2,13 +2,14 @@
 /* Live match: a guest whose phone goes quiet long enough to be marked away, and
  * comes back inside the grace period, keeps their seat in the running match.
  * Regression test for a stale grace timer that freed the seat anyway.
- *   node tests/live.rejoin.e2e.js          (needs public.cloud.shiftr.io)
+ *   node tests/live.rejoin.e2e.js          (starts a local relay with wrangler dev)
  *   node tests/live.rejoin.e2e.js --quiz   the same in a Quiz match (real data: a quiz needs distinct prompts)
  *   node tests/live.rejoin.e2e.js --sprint the same in a Sprint match (real data, 12 s sprints): the guest sits out the rest of
  *                                          the sprint he was away for and plays the next one */
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http");
+const { startRelay, attachRelay } = require("./relay-dev");
 const fs = require("fs");
 const path = require("path");
 
@@ -35,6 +36,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
+  const relay = await startRelay(); // the live relay (worker/relay.js) under wrangler dev
+  attachRelay(server, relay);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch();
   const code = "k" + Math.random().toString(36).slice(2, 6).replace(/[^a-z0-9]/g, "x");
@@ -108,4 +111,5 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   console.log("live rejoin e2e passed");
   await browser.close(); server.close();
+  await relay.stop();
 })().catch((e) => { console.error(e); process.exit(1); });
