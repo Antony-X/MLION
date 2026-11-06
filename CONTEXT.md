@@ -1864,3 +1864,8 @@ Link preview redone the same day (user): no spoilers and almost no words. The fi
 activation-function one, so showing ReLU / GELU / Snake gave answers away. img/og.jpg is now the lockup,
 "Krillion, but for machine learning.", and a made-up run on the real course getting rarer each step and
 rolling to the minimum on fire (purple, a level-4 streak). Never put a real prompt or answer in it.
+Then (user): the preview's purple fire didn't read as a ball, it sat above the bottom, and its landings stopped
+halfway. Now seven even landings, no streak (a plain gold ball), resting in the lowest point. And the course
+itself was fixed: terrain()'s far wall started at END, which put the bowl's lowest point 245 units before it
+(x = 6746), so a perfect 700 stopped up the far wall in the game too. The wall now starts WALL = 260 ln(1.5/0.42
+- 1) past END, where the floor's slope is exactly 0: the lowest point is at END for any number of rounds.

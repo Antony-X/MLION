@@ -67,7 +67,8 @@ function appIconHtml(size) {
 
 /** In the page: the link-preview image, 1200 x 630. A picture more than words, and no spoilers (no prompt, no
  * answers: the first day's prompts are the ones a new player meets): the name, one line saying what it is, and
- * a run on the real course (drawn by the play stage, as the share card is) rolling all the way down, on fire. */
+ * a run on the real course (drawn by the play stage, as the share card is) rolling all the way down to rest in the
+ * lowest point. */
 async function drawOg() {
   const K = window.MLION_CARD.kit, { COL, font, lockup, descent } = K;
   const W = 1200, H = 630, PAD = 72;
@@ -76,8 +77,9 @@ async function drawOg() {
   const c = canvas.getContext("2d", { alpha: false });
   c.fillStyle = COL.bg; c.fillRect(0, 0, W, H);
 
-  // a run that gets rarer each time and so catches fire, down to the minimum (not a real day's scores)
-  const steps = [["baseline", 45], ["indist", 85], ["outlier", 120], ["longtail", 170], ["mlion", 280]].map(([tier, pts]) => ({ tier, pts }));
+  // seven landings evenly down the whole course to the minimum, mixed tiers (not a real day's scores). No streak of
+  // three, so no fire: a plain gold ball reads as a ball; a purple fire didn't (user, 2026-11-07)
+  const steps = ["indist", "outlier", "overfit", "longtail", "mlion", "baseline", "mlion"].map((tier) => ({ tier, pts: 100 }));
   descent(c, { n: 7, steps, duel: null }, { x: 0, y: 250, w: W, h: 330 }, { lead: 0.05, tail: 0.1, k: 1.5, ball: 26, ridgeTop: 205, ridgeBand: 170, marks: false });
 
   lockup(c, PAD, 58, 92, "");

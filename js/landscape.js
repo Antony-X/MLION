@@ -282,10 +282,14 @@
    * minimum and rises after it, so the end is the floor. Its character changes on the way down:
    * long swells on the plateau; terraces in the ravines (flat stretches and sudden drops, the
    * shape of a loss curve under a step schedule); a smooth bowl at the bottom. */
+  const WALL = 260 * Math.log(1.5 / 0.42 - 1);
   function terrain(x, z = 0) {
     const k = 260, P = 380;
     const A = acts(depthAt(x));
-    const sp = k * Math.log1p(Math.exp((x - END) / k));
+    // the far wall starts just past the end, by as much as puts the floor's lowest point exactly at END (the slope
+    // 0.42 - 1.5 * sigmoid is 0 there): it used to start at END, which put the bottom 245 units short of it, and a
+    // perfect run stopped up the far wall (user, 2026-11-07)
+    const sp = k * Math.log1p(Math.exp((x - END - WALL) / k));
     const taper = 1 - Math.exp(-(((x - END) / 520) ** 2));
     const steps = A.ravine * 0.78 * (P / (2 * Math.PI)) * Math.sin((2 * Math.PI * x) / P);
     return 0.42 * (x - steps) - 1.5 * sp + wig(x, z, A) * taper;
