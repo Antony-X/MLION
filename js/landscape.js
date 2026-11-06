@@ -10,9 +10,10 @@
  *    in a groove (sunk a few px into the path). In the last seconds of a clock
  *    the world drains of colour and beats red (tension/beat/release); a rare
  *    landing flashes the stage in its tier colour and spills coins.
- *  - flame: the streak mark (answers in a row): the ball on fire, heating up
- *    through the colours of fire to the lion's gold. From three in a row the
- *    stage's ball burns with the same flame (flameOutline draws both).
+ *  - flame: the streak mark (answers in a row): the ball on fire, burning hotter
+ *    from orange through purple, blue and white-hot to the lion's gold. From
+ *    three in a row the stage's ball becomes the same fireball, the ball its
+ *    white-hot core (flameOutline draws both).
  *  - glyph: the tier marks. Five are tiny charts of what the tier means, a
  *    curve and the ball on it; the gem is the lion, the sign of Leo, which is
  *    a curve and a ball too.
@@ -323,16 +324,15 @@
   }
 
   // ------------------------------------------------------------ streaks
-  // Answers in a row light a flame. It heats up through the colours of real fire, all of them warm
-  // like the rest of the stage: red-orange, orange, amber, yellow, white-hot, and from seven the
-  // lion's gold. Outer, inner, core. (It used to pass through purple and blue, which no other light
-  // in the game has; on the warm stage they read as a sticker from somewhere else.)
+  // Answers in a row light a flame, and it burns hotter with every one: orange, a hotter red-orange,
+  // purple, blue, white-hot, and from seven the lion's gold. Outer, inner, core: the core is the
+  // ball, near white at every level, so the ball always reads as the fire's heart.
   const FLAME = [null, null,
-    ["#e5532d", "#ff8c3a", "#ffc98a"],
-    ["#f06a1e", "#ffa53d", "#ffdca0"],
-    ["#f7841a", "#ffbf4d", "#ffe9b8"],
-    ["#fb9e1c", "#ffd35e", "#fff3cf"],
-    ["#ffb52e", "#ffe39a", "#ffffff"],
+    ["#f2701f", "#ffa640", "#fff0cf"],
+    ["#ec4a1c", "#ff8f2e", "#fff3d6"],
+    ["#8a4bff", "#c27dff", "#f8edff"],
+    ["#2f78ff", "#6cc4ff", "#ecfaff"],
+    ["#7ea6ff", "#c8dbff", "#ffffff"],
     ["#f2b53c", "#f7c862", "#fff4d2"],
   ];
   const flameLevel = (n) => Math.min(7, Math.max(0, Math.floor(+n) || 0));
@@ -376,19 +376,26 @@
     });
     return d;
   }
-  /** The streak badge's flame as inline SVG: the ball on fire. Flat colour, no outlines: a deep outer
-   * flame, a brighter inner one, and the ball at the core with the stage ball's highlight on it (the
-   * canvas draws the same flame round the real ball). It grows a little with every answer in a row.
-   * From seven it turns the gem's gold and the core becomes the lion, in ink, as on the gem. The
-   * viewBox's bottom edge sits just under the ball, so the count's baseline lines up with it. */
+  /** The streak badge's flame as inline SVG: the ball on fire, the same fireball the stage draws round
+   * the real ball. Flat colour, no outlines: a deep outer flame, a brighter inner one, and the ball as
+   * the white-hot core with a paler tongue rising out of it. It grows a little with every answer in a
+   * row. From seven it turns the gem's gold and the core becomes the lion, in ink, as on the gem; the
+   * inner flame is fuller there so the whole lion sits inside it, clear of its edge even at the
+   * flicker's widest sway (LION; tests/feel.e2e.js checks the margin). */
+  const LION = { x: 0.5, y: 0.25, s: 0.225, stroke: 7.2, inner: { x: 0.2, y: 1.2, r: 8.4, h: 1.42 } };
   function flame(n, cls) {
     const lv = Math.max(2, flameLevel(n)), [o, m, w] = FLAME[lv], g = lv - 2, gem = lv >= 7;
     const outer = svgPath((p) => flameOutline(p, 0, 0, 10, { h: 1.85 + 0.05 * g, lean: -0.32, side: 0.85 + 0.06 * g }));
-    const inner = svgPath((p) => flameOutline(p, 0.2, 2, 7.4, { h: 1.35 + 0.04 * g, lean: -0.24 }));
+    const I = gem ? LION.inner : { x: 0.2, y: 2, r: 7.4, h: 1.35 + 0.04 * g };
+    const inner = svgPath((p) => flameOutline(p, I.x, I.y, I.r, { h: I.h, lean: -0.24 }));
     const [mx, my, mr] = MARK.ball;
-    const core = gem
-      ? `<g class="fl-core"><g transform="translate(0.4 -2.2) scale(0.3)"><path d="${MARK.d}" fill="none" stroke="${COL.goldInk}" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${mx}" cy="${my}" r="${mr + 0.6}" fill="${COL.goldInk}"/></g></g>`
-      : `<g class="fl-core"><circle cx="0.3" cy="3.6" r="4.6" fill="${w}"/><ellipse class="fl-hi" cx="-1.36" cy="1.76" rx="1.56" ry="1.01" transform="rotate(-35 -1.36 1.76)" fill="#fff" opacity="0.9"/></g>`;
+    let core;
+    if (gem) {
+      core = `<g class="fl-core"><g transform="translate(${LION.x} ${LION.y}) scale(${LION.s})"><path d="${MARK.d}" fill="none" stroke="${COL.goldInk}" stroke-width="${LION.stroke}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${mx}" cy="${my}" r="${mr + 0.6}" fill="${COL.goldInk}"/></g></g>`;
+    } else {
+      const tongue = svgPath((p) => flameOutline(p, 0.3, 3, 2.9, { h: 3, lean: -0.3 }));
+      core = `<path class="fl-in fl-tg" fill="${mix(m, w, 0.5)}" d="${tongue}"/><g class="fl-core"><circle cx="0.3" cy="3.6" r="4.6" fill="${w}"/></g>`;
+    }
     return `<svg class="flame fl-${lv}${cls ? " " + cls : ""}" viewBox="-12 -22 24 31.6" aria-hidden="true" focusable="false">` +
       `<path class="fl-out" fill="${o}" d="${outer}"/><path class="fl-in" fill="${gem ? COL.goldBand : m}" d="${inner}"/>${core}</svg>`;
   }
@@ -897,10 +904,10 @@
       }
     }
 
-    /** Three answers in a row and the ball catches fire: the badge's flame, wrapped round the real ball.
-     * Its round base is the ball, so the flames rise off it instead of standing behind it. Measured
-     * once a frame (fireOf), drawn in three passes: the light it throws (on the ground under the ball
-     * and into the air), the flames behind the ball, and a translucent lick across its front. */
+    /** Three answers in a row and the ball catches fire: the badge's fireball, round the real ball, one
+     * shape with it. Measured once a frame (fireOf), drawn in four passes: the light it throws (on the
+     * ground under the ball and into the air), the two flames behind the ball, the ball itself as the
+     * white-hot core (fireCore), and a tongue rising out of that core in front. */
     function fireOf(cx, cy, bx, by, lv, calm) {
       const fx = st.fx, R = st.R, out = fx.out;
       const flv = lv >= 3 ? lv : out ? out.lv : 0;
@@ -918,10 +925,11 @@
       H = Math.min(H, Math.max(R * 1.3, cy - ceil - 4)) * size;
       // the spring's lean, and a slow waver of its own even at rest
       const lean = calm ? 0 : fx.lean + R * (0.12 * Math.sin(t * 0.0087) + 0.06 * Math.sin(t * 0.0213 + 0.7));
-      // where embers break off (from the ball's crown to the tip, relative to where it stands), and the
-      // tip's height on the stage (tests check it stays under the numbers)
-      fx.tip = { x0: cx - bx, y0: cy - R - by, x1: cx + lean - bx, y1: cy - H - by, top: cy - H };
-      return { lv: flv, cols: FLAME[flv].map(rgb), H, lean, alpha, fl, cx, cy, bx, by, calm };
+      // where embers break off (from the ball's crown to the tip, relative to where it stands), the tip's
+      // height on the stage (tests check it stays under the numbers) and the ball's centre
+      fx.tip = { x0: cx - bx, y0: cy - R - by, x1: cx + lean - bx, y1: cy - H - by, top: cy - H, cx, cy };
+      const cols = FLAME[flv].map(rgb);
+      return { lv: flv, cols, tongue: cols[1].map((v, i) => (v + cols[2][i]) / 2), H, lean, alpha, fl, cx, cy, bx, by, calm };
     }
     function fireLight(c, F) {
       const R = st.R, k = F.alpha * F.fl * (0.78 + 0.06 * (F.lv - 3));
@@ -935,7 +943,7 @@
       c.globalAlpha = 1;
     }
     function flames(c, F, front) {
-      const R = st.R, [o, m, w] = F.cols, t = st.t;
+      const R = st.R, [o, m] = F.cols, t = st.t;
       // one layer: base radius r (in R), its centre lifted above the ball's, its share of the height
       const layer = (r, lift, share, col, a, side, ph) => {
         r *= R;
@@ -949,24 +957,35 @@
         flameOutline(c, F.cx, y, r, { h: h / r, lean: u / r - 0.3, side, rot });
         c.fill();
       };
-      // fire is light, so the layers brighten what is under them (deep at the edge, yellow where they
-      // overlap) and the scene shows faintly through. Screen rather than adding: added up, orange clips
-      // to a lime yellow on the cold plateau. The badge draws the same layers flat.
+      // fire is light, so the layers brighten what is under them and the scene shows faintly through.
+      // Screen rather than adding: added up, orange clips to a lime yellow on the cold plateau. The
+      // two flames behind wrap the whole ball, the outer one wide round it, the inner one hugging it in
+      // the colour of the ball's own rim, so the ball's edge melts into the fire; in front, a paler
+      // tongue rises out of the white-hot core over its crown. The badge draws the same layers flat.
       c.save();
       c.globalCompositeOperation = "screen";
       if (!front) {
         const sway = F.calm ? 0 : 0.1 * Math.sin(t * 0.021 + 2);
-        layer(1.14, 0.34, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
-        layer(1.0, 0.3, 0.74, m, 0.85, 0, 1.9);
-        if (F.lv >= 5) layer(0.74, 0.42, 0.54, w, 0.75, 0, 3.7); // white-hot: a pale core rises off the ball's crown
+        layer(1.36, 0.3, 1, o, 1, 0.85 + 0.05 * (F.lv - 3) + sway, 0);
+        layer(1.12, 0.14, 0.74, m, 1, 0, 1.9);
       } else {
-        layer(0.78, -0.3, 0.58, m, 0.2, 0.7, 0.8);
+        layer(0.6, 0.12, 0.56, F.tongue, 0.8, 0, 3.7);
       }
       c.restore();
     }
+    /** The ball as the fire's core: white-hot in the middle, out to the inner flame's colour, and its
+     * rim dissolves into that flame, so the round core stays the ball and its edge is the fire. The
+     * flicker pumps the heat. */
+    function fireCore(c, F, R) {
+      const [, m, w] = F.cols, hot = clamp(0.36 + 1.1 * (F.fl - 1), 0.2, 0.6);
+      const g = c.createRadialGradient(0, R * 0.06, 0, 0, R * 0.06, R);
+      g.addColorStop(0, css(w)); g.addColorStop(hot, css(w)); g.addColorStop(0.74, css(m)); g.addColorStop(1, css(m, 0));
+      c.fillStyle = g;
+      c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
+    }
     /** The ball, lit twice: a cool key light from the sky (the specular), and from below the
      * minimum's glow, which grows as the ball goes deeper. Its aura takes the last answer's
-     * colour, or the streak's fire. */
+     * colour, or the streak's fire. On fire it turns into the fire's core instead. */
     function drawBall(c, L, bx, by, tint, lv) {
       const R = st.R, d = L.d, calm = still();
       let ax = 1, ay = 1;
@@ -980,7 +999,8 @@
       const th = Math.atan2(ry - ly, rx - lx), nx = Math.sin(th), ny = -Math.cos(th);
       const k = sink(), cx = bx + jx + nx * (R * ay - k), cy = by + ny * (R * ay - k);
       const F = fireOf(cx, cy, bx, by, lv, calm);
-      const lit = F ? 1 - 0.55 * F.alpha : 1; // the fire's own light takes over from the aura
+      const burn = F ? F.alpha : 0; // how far the ball has turned into the fire's core
+      const lit = 1 - 0.55 * burn; // the fire's own light takes over from the aura
       c.save();
       c.globalCompositeOperation = "lighter";
       // a pool of light where it rests
@@ -1000,30 +1020,29 @@
       c.save();
       c.translate(cx, cy); c.rotate(th); c.translate(0, R * 0.62); c.scale(1, 0.42); // an ellipse along the slope
       g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.25);
-      g.addColorStop(0, "rgba(0,0,0,0.55)"); g.addColorStop(0.6, "rgba(0,0,0,0.3)"); g.addColorStop(1, "rgba(0,0,0,0)");
+      const shade = 1 - 0.75 * burn; // a burning ball casts light, not shadow
+      g.addColorStop(0, `rgba(0,0,0,${0.55 * shade})`); g.addColorStop(0.6, `rgba(0,0,0,${0.3 * shade})`); g.addColorStop(1, "rgba(0,0,0,0)");
       c.fillStyle = g; c.fillRect(-R * 1.25, -R * 1.25, R * 2.5, R * 2.5);
       c.restore();
       c.save();
       // squash against the ground it lands on, then turn back so the light stays top-left
       c.translate(bx + jx - nx * k, by - ny * k); c.rotate(th); c.scale(ax, ay); c.translate(0, -R); c.rotate(-th);
-      g = c.createRadialGradient(-R * 0.35, -R * 0.4, R * 0.08, 0, 0, R * 1.05);
-      g.addColorStop(0, "#fff7e2"); g.addColorStop(0.34, css(L.body)); g.addColorStop(1, css(L.edge));
-      c.fillStyle = g;
-      c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
-      c.save(); c.clip();
-      g = c.createRadialGradient(R * 0.5, R * 0.8, 0, R * 0.5, R * 0.8, R * 1.15);
-      g.addColorStop(0, css(tint, 0.2 + 0.6 * d)); g.addColorStop(1, css(tint, 0));
-      c.globalCompositeOperation = "lighter"; c.fillStyle = g; c.fillRect(-R, -R, 2 * R, 2 * R);
-      if (F) { // the flames over it light its crown, and the side they stream back to
-        c.globalAlpha = clamp(0.42 * F.alpha * F.fl, 0, 1);
-        c.drawImage(glowSprite(FLAME[F.lv][1]), F.lean * 0.3 - R * 1.5, -R * 2.75, R * 3, R * 3);
-        c.globalAlpha = 1;
+      if (burn < 1) { // the ball itself: glossy, lit by the sky and the minimum (it fades into the fire as it catches)
+        g = c.createRadialGradient(-R * 0.35, -R * 0.4, R * 0.08, 0, 0, R * 1.05);
+        g.addColorStop(0, "#fff7e2"); g.addColorStop(0.34, css(L.body)); g.addColorStop(1, css(L.edge));
+        c.fillStyle = g;
+        c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
+        c.save(); c.clip();
+        g = c.createRadialGradient(R * 0.5, R * 0.8, 0, R * 0.5, R * 0.8, R * 1.15);
+        g.addColorStop(0, css(tint, 0.2 + 0.6 * d)); g.addColorStop(1, css(tint, 0));
+        c.globalCompositeOperation = "lighter"; c.fillStyle = g; c.fillRect(-R, -R, 2 * R, 2 * R);
+        c.restore();
+        c.fillStyle = `rgba(255,255,255,${0.85 * (1 - burn)})`;
+        c.beginPath(); c.ellipse(-R * 0.36, -R * 0.42, R * 0.26, R * 0.17, -0.6, 0, Math.PI * 2); c.fill();
       }
+      if (burn > 0) { c.globalAlpha = burn; fireCore(c, F, R); c.globalAlpha = 1; }
       c.restore();
-      c.fillStyle = "rgba(255,255,255,0.85)";
-      c.beginPath(); c.ellipse(-R * 0.36, -R * 0.42, R * 0.26, R * 0.17, -0.6, 0, Math.PI * 2); c.fill();
-      c.restore();
-      if (F) flames(c, F, true); // and its front: the ball sits inside the fire
+      if (F) flames(c, F, true); // and the tongue out of its core, in front: ball and fire are one shape
       return [cx, cy];
     }
 
@@ -1224,13 +1243,15 @@
         }
         // the ball becomes the lion: it stays put and Leo's curve grows out of it, up to the numbers along
         // the top and no further (the streak sits right over it). The mane rises 44.4 units over the
-        // ball's centre and the tail reaches 47.5 to its right, stroke included.
+        // ball's centre and the tail reaches 47.5 to its right, stroke included. On a stage too short
+        // for even a ball-sized lion (the phone keyboard strip) it settles smaller than the ball, which
+        // the gold has covered by then.
         const grow = clamp((r - R) / (diag * 0.4), 0, 1);
         const [mx, my, mr] = MARK.ball;
         const ms0 = R / mr, msBig = ms0 + (w < 560 ? 1 : 1.4);
         const over = st.rects.filter((b) => b.y + b.h / 2 < h / 2 && b.x < cx + 47.5 * msBig && b.x + b.w > cx - mr * msBig);
         const ceil = over.length ? Math.max(...over.map((b) => b.y + b.h)) : -Infinity;
-        const ms = ms0 + grow * Math.max(0, Math.min(msBig, (cy - ceil - 6) / 44.4) - ms0);
+        const ms = ms0 + grow * (clamp((cy - ceil - 6) / 44.4, ms0 * 0.35, msBig) - ms0);
         f.top = cy - 44.4 * ms; // the top of the mane on the stage (tests check it stays under the numbers)
         c.save();
         c.globalAlpha = clamp(grow * 5, 0, 1);

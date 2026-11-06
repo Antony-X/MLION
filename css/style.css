@@ -350,7 +350,6 @@ html:not(.reduce-motion) .streak.out .fl-out, html:not(.reduce-motion) .streak.o
 .streak.out .fl-core { opacity: 0; transition: opacity 260ms ease 420ms; }
 .streak.out .fl-core circle { fill: var(--t-miss); transition: fill 360ms ease; }
 .streak.out .fl-core path { stroke: var(--t-miss); transition: stroke 360ms ease; }
-.streak.out .fl-hi { opacity: 0; transition: opacity 200ms ease; }
 html:not(.reduce-motion) .streak.out .sk-icon::before, html:not(.reduce-motion) .streak.out .sk-icon::after { opacity: 0; animation: none; transition: opacity 380ms ease; }
 .streak.out { color: var(--muted); transition: color 260ms ease; }
 .streak.out .sk-n, .streak.out .sk-name { opacity: 0; transform: translateY(22%); transition: opacity 420ms ease 140ms, transform 420ms ease-in 140ms, color 260ms ease; }
@@ -368,7 +367,6 @@ html:not(.reduce-motion) .sk-quick.on { animation: sk-quick 1500ms var(--ease-ou
 .stage.flood .streak .fl-in { fill: #4a3812; }
 .stage.flood .streak .fl-core circle { fill: var(--gold); }
 .stage.flood .streak .fl-core path { stroke: var(--gold); }
-.stage.flood .streak .fl-hi { opacity: 0; }
 html .stage.flood .streak .sk-icon::before, html .stage.flood .streak .sk-icon::after { opacity: 0; animation: none; }
 @media (min-width: 1000px) {
   .streak { --k: 1.3; }

@@ -1413,18 +1413,28 @@ is the lit exhibit.
   `POWER`, `SPARKS` and `KICK`: squash, ripples, sparks, flash and camera kick. A miss dims the
   stage and makes the ball shiver.
   - The ball has a pool of light, an aura, a specular highlight, rim light and a tapered
-    trail. At a streak of 3 or more it burns with the badge's flame (`flameOutline`): the fire lights the
-    ball and the ground (cached glow sprites, no shadowBlur), leans with speed, sheds embers, flares at each
-    landing, catches at three, and goes out with smoke on a miss. It stays under the numbers at the top.
+    trail. At a streak of 3 or more it becomes a fireball, one shape with the badge's flame
+    (`flameOutline`): the ball's body turns into the fire's core (`fireCore`: white-hot in the middle,
+    the inner flame's colour further out, its rim melting into the flames; no specular, no dark edge),
+    the two flames behind wrap the whole ball and a paler tongue rises out of the core in front. At rest
+    the tongues rise; rolling, they stream back like a comet's tail. The flicker pumps the core's heat.
+    The fire lights the ball and the ground (cached glow sprites, no shadowBlur), sheds embers, flares at
+    each landing, catches at three, and goes out with smoke on a miss, the ball turning back into its
+    glossy self. It stays under the numbers at the top. (Second pass 2026-11-06: the user saw "a ball
+    pasted in front of a flame sticker" and wanted the ball and the fire to be one object.)
   - A landing prints its points beside the ball (`+30`; it printed the loss drop, `−0.30`, before
     2026-11-06). A miss prints `NaN`, kept as an ML joke: no number scored.
 - **Streak.** `streakOf(results)` counts trailing results that have a tier. That means
   accepted answers in Classic and right answers in the quiz formats.
   - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` over the stage: the ball on fire, the same
     `flameOutline` the stage draws round the real ball from 3 in a row (redesigned 2026-11-06: the user found
-    the old badge "very low quality" and the ball's fire "synthetic, laid on top"). `FLAME` climbs through fire
-    colours only: 2 red-orange, 3 orange, 4 amber, 5 yellow, 6 white-hot, 7 and up the lion's gold with the
-    ink lion inside and "MLion". The count is ink (gold-ink on the gem's flood), one size at every level,
+    the old badge "very low quality" and the ball's fire "synthetic, laid on top"). `FLAME` climbs: 2 orange,
+    3 a hotter red-orange, 4 purple, 5 blue, 6 white-hot, 7 and up the lion's gold with the ink lion inside
+    and "MLion" (the first redesign tried fire colours only; the user wanted purple and blue back). Each
+    level is outer, inner and a near-white core, and the badge is the same fireball as the stage: the two
+    flames, the ball as the white-hot core and a paler tongue rising out of it. From 7 the inner flame is
+    fuller and the lion (`LION` in landscape.js) sits wholly inside it, clear of its edge even at the
+    flicker's widest sway; feel.e2e.js checks the margin. The count is ink (gold-ink on the gem's flood), one size at every level,
     centred on the flame, weight 800 in `--font-num`. A new answer makes the flame crouch, leap and throw
     embers; a miss sinks it into its ball, the ball greys and smoke rises. On the gem's flood the lion grows
     only up to the boxes along the top, so it no longer covers the count.
