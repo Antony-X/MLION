@@ -1436,7 +1436,8 @@ is the lit exhibit.
     a white disc and a spike in it; they wanted "a full-on fire icon"). Our own shape, flat colour, no outlines:
     a chunky outer flame with a tongue on its shoulder and a faint shine down its left side (`tonguePath`), an
     inner flame of the same shape, and a white-hot teardrop at the base (`dropPath`). The outer flame and its
-    shine flicker as one group (`.fl-og`). `FLAME` climbs: 2 orange, 3 a hotter red-orange, 4 purple, 5 blue,
+    shine flicker as one group (`.fl-og`). The tips stand nearly over the middle and the flicker (`sk-flick`) sways as far
+    one way as the other (2026-11-06: leaning a fifth of the width back and swaying unevenly, it read as tipping left). `FLAME` climbs: 2 orange, 3 a hotter red-orange, 4 purple, 5 blue,
     6 white-hot, 7 and up the lion's gold with "MLion" (the first redesign tried fire colours only; the user wanted
     purple and blue back). From 7 the outer flame is bigger, the inner one is a wide pale-gold teardrop (a
     tongue's notch would cut into the lion) and the ink lion (`LION`) sits wholly inside it, clear of its edge

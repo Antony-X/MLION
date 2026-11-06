@@ -336,7 +336,8 @@ html:not(.reduce-motion) .streak .sk-icon::before { animation: sk-glow 1300ms ea
 .flame .fl-og, .flame .fl-in { transform-box: fill-box; transform-origin: 50% 100%; }
 html:not(.reduce-motion) .streak .fl-og { animation: sk-flick var(--flick) ease-in-out infinite alternate; }
 html:not(.reduce-motion) .streak .fl-in { animation: sk-flick calc(var(--flick) * 0.73) ease-in-out infinite alternate-reverse; }
-@keyframes sk-flick { 0% { transform: none; } 50% { transform: scale(0.97, 1.05) skewX(-2.5deg); } 100% { transform: scale(1.03, 0.96) skewX(1.5deg); } }
+/* it sways as far one way as the other, about the upright */
+@keyframes sk-flick { 0%, 100% { transform: none; } 30% { transform: scale(0.97, 1.05) skewX(2deg); } 70% { transform: scale(1.03, 0.96) skewX(-2deg); } }
 /* one more in a row: the flame crouches and leaps, the new count springs up, embers fly off the top */
 html:not(.reduce-motion) .streak.pop .sk-icon { animation: sk-pop 640ms var(--ease-out); transform-origin: 50% 92%; }
 @keyframes sk-pop { 0% { transform: scale(0.72, 0.5); } 30% { transform: scale(0.9, 1.3); } 58% { transform: scale(1.06, 0.94); } 100% { transform: none; } }

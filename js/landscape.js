@@ -401,15 +401,16 @@
   function flame(n, cls) {
     const lv = Math.max(2, flameLevel(n)), [o, m, w] = FLAME[lv], g = lv - 2, gem = lv >= 7;
     // the gem's outer flame is bigger, so it still shows round the wide inner flame that holds the lion
-    const outer = gem ? tonguePath(0, 10.4, 26, 35, -0.2, 0.6) : tonguePath(0, 9.6, 21.5, 29 + 0.5 * g, -0.2, 0.58);
+    // the tips stand nearly over the middle: leaning a fifth of the width back, the flame read as tipping left (user)
+    const outer = gem ? tonguePath(0, 10.4, 26, 35, -0.08, 0.6) : tonguePath(0, 9.6, 21.5, 29 + 0.5 * g, -0.07, 0.58);
     // from seven the inner flame is a wide teardrop: a tongue's notch would cut into the lion
-    const inner = gem ? dropPath(0.9, 9.8, 19.4, 25, -0.4) : tonguePath(0.4, 9.6, 14.2, 20 + 0.5 * g, -0.16, 0.52);
+    const inner = gem ? dropPath(0.9, 9.8, 19.4, 25, -0.15) : tonguePath(0.2, 9.6, 14.2, 20 + 0.5 * g, -0.06, 0.52);
     const shine = "M-7.4 -1.5C-7.8 -5.5 -6 -9.5 -3.6 -12.6C-5.2 -9 -6.2 -5.6 -5.9 -1.8Z";
     let core;
     if (gem) {
       const [mx, my, mr] = MARK.ball;
       core = `<g class="fl-core"><g transform="translate(${LION.x} ${LION.y}) scale(${LION.s})"><path d="${MARK.d}" fill="none" stroke="${COL.goldInk}" stroke-width="${LION.stroke}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${mx}" cy="${my}" r="${mr + 0.6}" fill="${COL.goldInk}"/></g></g>`;
-    } else core = `<path class="fl-core" fill="${w}" d="${dropPath(0.4, 9.2, 7.2, 11 + 0.4 * g, -0.6)}"/>`;
+    } else core = `<path class="fl-core" fill="${w}" d="${dropPath(0.2, 9.2, 7.2, 11 + 0.4 * g, -0.25)}"/>`;
     // the outer flame and its shine flicker as one (.fl-og), so the shine never slides off the flame
     return `<svg class="flame fl-${lv}${cls ? " " + cls : ""}" viewBox="-12 -22 24 31.6" aria-hidden="true" focusable="false">` +
       `<g class="fl-og"><path class="fl-out" fill="${o}" d="${outer}"/><path class="fl-shine" fill="#fff" opacity="0.22" d="${shine}"/></g>` +

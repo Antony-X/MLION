@@ -179,7 +179,7 @@ const exact = P.answers.filter((a) => E.matchAnswer(P, a.a).kind === "exact").sl
       for (let i = 0; i <= 90; i++) { const q = stroke.getPointAtLength((i / 90) * n); rings.push([...at(q.x, q.y), (s * stroke.getAttribute("stroke-width")) / 2]); }
       rings.push([...at(+ball.getAttribute("cx"), +ball.getAttribute("cy")), s * ball.getAttribute("r")]);
       const ctx = document.createElement("canvas").getContext("2d");
-      const poses = [[1, 1, 0], [0.97, 1.05, -2.5], [1.03, 0.96, 1.5]];
+      const poses = [[1, 1, 0], [0.97, 1.05, 2], [1.03, 0.96, -2]];
       // the least margin (viewBox units) by which the lion clears a flame's edge, over the poses
       const clear = (el) => {
         const P = new Path2D(el.getAttribute("d")), bb = el.getBBox(), ox = bb.x + bb.width / 2, oy = bb.y + bb.height;
