@@ -840,7 +840,9 @@ What Discord, Slack, X and iMessage show when someone pastes the site address.
 - **The match starts when everyone taps Ready**, after a 3-2-1 countdown. Rematch works the
   same way.
 - The host picks 5, 7 or 10 questions, **no-repeat questions** (on by default, tracked in
-  `mlion:liveUsed`), and **autocorrect help: Off / Typos / Full / Generous** (default Typos).
+  `mlion:liveUsed`), and **autocorrect help: Off / Typos / Full / Generous** (default Typos), a slider since
+  2026-11-06 (user: "a slider we can slide will be better"): `assistSlider`, `#lv-assist` (range 0-3), the words under it
+  update while dragging and the level is sent on release (`change`); the marks are buttons (`.lv-assist[data-a]`).
   - Typos rejects suggestion chips and corrections with confidence < 0.88.
   - Off accepts only exact answers.
   - Generous (added 2026-11-05) takes any correction, or the top suggestion with confidence >= 0.6, at once

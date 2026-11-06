@@ -832,7 +832,7 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .rv-tried s { margin-right: 6px; }
 .reduce-motion .rv-caret { animation: none; }
 .rv-mask { letter-spacing: 0.12em; color: var(--muted); }
-.vs-size.lv-assist { font-size: var(--s2); padding: 0 18px; }
+
 .rv-draft { color: var(--ink); overflow-wrap: anywhere; }
 
 /* ----------------------------------------------------------------- chat */
@@ -1071,7 +1071,7 @@ details.key.inline .body { padding: 8px 0 4px; }
 .vs-field { gap: 8px; }
 .vs-sizes { display: inline-flex; flex-wrap: nowrap; gap: 4px; padding: 4px; border-radius: var(--round); background: var(--raised); justify-self: start; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .vs-sizes::-webkit-scrollbar { display: none; }
-.vs-size, .vs-size.t-size, .vs-size.fmt-size, .vs-size.lv-fmt, .vs-size.lv-assist { min-height: 44px; min-width: 52px; padding: 0 14px; font-size: var(--s2); background: transparent; flex: none; }
+.vs-size, .vs-size.t-size, .vs-size.fmt-size, .vs-size.lv-fmt { min-height: 44px; min-width: 52px; padding: 0 14px; font-size: var(--s2); background: transparent; flex: none; }
 .vs-size:hover { background: var(--raised-2); }
 .vs-size.on, .vs-size.on:hover { background: var(--gold); color: var(--gold-ink); }
 .q-custom { width: 72px; height: 44px; background: transparent; font-size: var(--s2); flex: none; }
@@ -1359,3 +1359,40 @@ html.kb .live-sp .sp-round { display: none; }
 .lv-tpodium .nm-t { overflow-wrap: anywhere; }
 .lv-tpodium + .lv-note, .lv-tpodium + .block-title { margin-top: 4px; }
 .lv-ppodium li[class*="tm-"] .lv-av { box-shadow: 0 0 0 2px var(--tm); }
+
+/* ---------------------------------------- live rooms: the autocorrect slider */
+.lv-assist-field > span b { color: var(--ink); font-weight: 600; }
+.lv-range {
+  --thumb: 28px;
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; padding: 0;
+  background: transparent; cursor: pointer; touch-action: pan-y;
+}
+.lv-range::-webkit-slider-runnable-track {
+  height: 8px; border-radius: var(--round);
+  background: linear-gradient(to right, var(--gold) 0 var(--fill), var(--raised-2) var(--fill) 100%);
+}
+.lv-range::-moz-range-track { height: 8px; border-radius: var(--round); background: var(--raised-2); }
+.lv-range::-moz-range-progress { height: 8px; border-radius: var(--round); background: var(--gold); }
+.lv-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: var(--thumb); height: var(--thumb); margin-top: calc((8px - var(--thumb)) / 2);
+  border-radius: 50%; background: var(--gold); border: 4px solid var(--bg); box-shadow: 0 0 0 1px var(--gold);
+  transition: transform 120ms var(--ease-out);
+}
+.lv-range::-moz-range-thumb {
+  width: var(--thumb); height: var(--thumb); box-sizing: border-box; border-radius: 50%; background: var(--gold);
+  border: 4px solid var(--bg); box-shadow: 0 0 0 1px var(--gold);
+}
+.lv-range:active::-webkit-slider-thumb { transform: scale(1.12); }
+.lv-range:focus { outline: none; }
+.lv-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--gold), 0 0 0 5px rgba(242, 181, 60, 0.35); }
+.lv-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 1px var(--gold), 0 0 0 5px rgba(242, 181, 60, 0.35); }
+/* each mark sits under its stop: the thumb's centre runs from half a thumb in to half a thumb from the end */
+.lv-marks { position: relative; height: 32px; margin: -6px 0 0; }
+.lv-mark {
+  position: absolute; top: 0; left: calc(14px + (100% - 28px) * var(--at)); transform: translateX(-50%);
+  min-height: 32px; padding: 0 6px; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--s1); cursor: pointer;
+}
+.lv-mark:first-child { transform: translateX(-20px); }
+.lv-mark:last-child { left: auto; right: 0; transform: translateX(6px); }
+.lv-mark.on { color: var(--ink); }
+.lv-range-note { margin: 0; color: var(--muted); font-size: var(--s1); }

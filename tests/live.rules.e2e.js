@@ -80,7 +80,13 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   await tick(ana, "final");
   await tick(ana, "clash");
   check(await ana.$eval("#lv-more", (d) => d.open) && /5 on/.test(await ana.textContent("#lv-more > summary")), "the panel stays open as rules change and counts what's on");
-  await ana.click('.lv-assist[data-a="generous"]');
+  // autocorrect is a slider: two steps right from Typos is Generous, and focus stays on it through the redraw
+  await ana.focus("#lv-assist");
+  await ana.keyboard.press("ArrowRight");
+  await ana.waitForFunction(() => document.querySelector("#lv-assist-name").textContent === "Full" && document.activeElement && document.activeElement.id === "lv-assist", null, { timeout: 8000 });
+  await ana.keyboard.press("ArrowRight");
+  await ana.waitForFunction(() => document.querySelector("#lv-assist-name").textContent === "Generous" && /close guess counts/.test(document.querySelector("#lv-assist-note").textContent), null, { timeout: 8000 });
+  check(true, "the autocorrect slider moves Typos → Full → Generous by keyboard and says what each does");
   await ana.fill("#q-custom", "2");
   await ana.press("#q-custom", "Enter");
   await ben.waitForFunction(() => /2 questions · 25 s each · autocorrect generous\. .*Options: speed bonus up to ×2, hints for half points, one strike, final question ×2, clash\./.test(document.body.textContent), null, { timeout: 8000 });

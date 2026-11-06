@@ -1739,8 +1739,42 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.fmt = f;
     if (!init) { LS.set("liveFmt", f); broadcast(lobbyMsg()); }
   }
+  // Autocorrect help as a slider (user, 2026-11-06: "a slider we can slide will be better"), from strict to
+  // lenient. Dragging updates the words under it; letting go sets the room's level (a lobby redraw mid-drag would
+  // drop the thumb). The marks under it are buttons too, so a tap on "Full" jumps there.
+  const ASSIST_NAMES = { off: "Off", typos: "Typos", full: "Full", generous: "Generous" };
+  const ASSIST_NOTES = {
+    off: "Only exact answers count.",
+    typos: "Small typos are fixed. Near misses don't count.",
+    full: "Typos are fixed, and a near miss asks what you meant.",
+    generous: "Any close guess counts at once.",
+  };
+  function assistSlider() {
+    const a = ASSISTS.includes(LIVE.assist) ? LIVE.assist : "typos", v = ASSISTS.indexOf(a);
+    return `<div class="vs-field lv-assist-field"><span>Autocorrect help: <b id="lv-assist-name">${ASSIST_NAMES[a]}</b></span>
+      <input type="range" class="lv-range" id="lv-assist" min="0" max="${ASSISTS.length - 1}" step="1" value="${v}" style="--fill:${(100 * v) / (ASSISTS.length - 1)}%" aria-label="Autocorrect help" aria-valuetext="${ASSIST_NAMES[a]}: ${ASSIST_NOTES[a]}">
+      <div class="lv-marks">${ASSISTS.map((k, i) => `<button type="button" class="lv-mark lv-assist${k === a ? " on" : ""}" data-a="${k}" style="--at:${i / (ASSISTS.length - 1)}" tabindex="-1">${ASSIST_NAMES[k]}</button>`).join("")}</div>
+      <p class="lv-range-note" id="lv-assist-note">${ASSIST_NOTES[a]}</p></div>`;
+  }
+  function wireAssistSlider() {
+    const r = $("#lv-assist");
+    if (!r) return;
+    const show = () => {
+      const a = ASSISTS[+r.value] || "typos";
+      r.style.setProperty("--fill", `${(100 * +r.value) / (ASSISTS.length - 1)}%`);
+      r.setAttribute("aria-valuetext", `${ASSIST_NAMES[a]}: ${ASSIST_NOTES[a]}`);
+      $("#lv-assist-name").textContent = ASSIST_NAMES[a];
+      $("#lv-assist-note").textContent = ASSIST_NOTES[a];
+      $$(".lv-mark").forEach((b) => b.classList.toggle("on", b.dataset.a === a));
+      return a;
+    };
+    r.addEventListener("input", show);
+    r.addEventListener("change", () => { const a = show(); if (a !== LIVE.assist) { LIVE.assist = a; broadcast(lobbyMsg()); } });
+    $$(".lv-mark").forEach((b) => b.addEventListener("click", () => { r.value = ASSISTS.indexOf(b.dataset.a); r.dispatchEvent(new Event("change")); }));
+  }
   function renderLobby() {
     if (!LIVE.active) return;
+    const sliding = document.activeElement && document.activeElement.id === "lv-assist"; // keyboard users keep their place
     const typingN = document.activeElement && document.activeElement.id === "q-custom" ? document.activeElement.value : null;
     setMid(`Room ${LIVE.code}`);
     const ps = playerList();
@@ -1759,7 +1793,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${LIVE.isHost ? `<div class="vs-form">
         <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"], ["sprint", "Sprint"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         ${LIVE.isPublic ? "" : `<div class="vs-field"><span>Teams</span><div class="vs-sizes" role="radiogroup" aria-label="Teams">${TEAM_COUNTS.map((k) => `<button type="button" class="vs-size lv-teams${tk === k ? " on" : ""}" role="radio" aria-checked="${tk === k}" data-k="${k}" aria-label="${k ? `${k} teams` : "No teams"}">${k || "Off"}</button>`).join("")}</div></div>`}
-        ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : `<div class="vs-field"><span>Autocorrect help</span><div class="vs-sizes" role="radiogroup" aria-label="Autocorrect help">${[["off", "Off"], ["typos", "Typos"], ["full", "Full"], ["generous", "Generous"]].map(([k, l]) => `<button type="button" class="vs-size lv-assist${(LIVE.assist || "typos") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.assist || "typos") === k}" data-a="${k}">${l}</button>`).join("")}</div></div>`}
+        ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : assistSlider()}
         ${topicPicker()}
         ${qPicker(LIVE.n, LIVE.fmt === "sprint" ? "sprints" : "questions")}
         ${LIVE.fmt === "sprint" ? "" : timePicker(LIVE.secs || DEFAULT_SECS)}
@@ -1773,7 +1807,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     wireTimePicker((secs) => { LIVE.secs = secs; LS.set("liveSecs", secs); broadcast(lobbyMsg()); });
     const ll = $("#live-leave-lobby");
     if (ll) ll.addEventListener("click", () => leaveLive(false));
-    $$(".lv-assist").forEach((b) => b.addEventListener("click", () => { LIVE.assist = b.dataset.a; broadcast(lobbyMsg()); }));
+    wireAssistSlider();
     $$(".lv-topic").forEach((b) => b.addEventListener("click", () => {
       const id = b.dataset.p, t = liveTopics();
       LIVE.topics = !id ? [] : t.includes(id) ? t.filter((x) => x !== id) : t.concat(id);
@@ -1789,6 +1823,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const more = $("#lv-more");
     if (more) more.addEventListener("toggle", () => { LIVE.moreOpen = more.open; });
     if (typingN !== null && $("#q-custom")) { const box = $("#q-custom"); box.value = typingN; box.focus(); }
+    if (sliding && $("#lv-assist")) $("#lv-assist").focus();
     const nr = $("#live-norepeat");
     if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
     wireReady();
