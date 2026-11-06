@@ -2791,10 +2791,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     clearTimeout(el._out);
     el.classList.remove("out");
     if (mode === "out" && !el.hidden && !still) {
+      // the flame sinks into its ball and a puff of smoke rises off it, as on the stage
       el.classList.remove("pop");
       void el.offsetWidth;
       el.classList.add("out");
-      el.insertAdjacentHTML("beforeend", `<i class="sk-smoke"></i><i class="sk-smoke"></i><i class="sk-smoke"></i>`);
+      const icon = el.querySelector(".sk-icon");
+      if (icon) icon.insertAdjacentHTML("beforeend", `<i class="sk-smoke"></i><i class="sk-smoke"></i><i class="sk-smoke"></i>`);
       el._out = setTimeout(() => { el.hidden = true; el.classList.remove("out"); el.innerHTML = ""; if (descent) descent.layout(); }, 760);
       return;
     }
@@ -2802,25 +2804,28 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (!el.hidden) { el.hidden = true; el.innerHTML = ""; if (descent) descent.layout(); }
       return;
     }
-    const lv = V.flameLevel(n);
+    const lv = V.flameLevel(n), [o, m, c] = V.FLAME[lv];
     el.hidden = false;
     el.className = `streak sk-${lv}`;
     el.setAttribute("aria-label", `${n} in a row`);
-    el.innerHTML = `${V.flame(n)}<b>${n}</b>${lv >= 7 ? `<span class="sk-name">MLion</span>` : ""}`;
+    // the flame's outer colour, for the light round it (style.css); the count stays ink
+    el.style.setProperty("--sk-o", o);
+    el.innerHTML = `<span class="sk-icon">${V.flame(n)}</span><b class="sk-n">${n}</b>${lv >= 7 ? `<span class="sk-name">MLion</span>` : ""}`;
     if (mode === "up" && !still) {
       void el.offsetWidth;
       el.classList.add("pop");
-      const cols = V.FLAME[lv];
-      const k = Math.min(18, 4 + 2 * lv);
+      // embers fly up off the flame, the way the ball's fire sheds them
+      const k = Math.min(16, 5 + 2 * lv);
       let sparks = "";
       for (let i = 0; i < k; i++) {
-        const a = (-Math.PI / 2) + (i / k - 0.5) * Math.PI * 1.5, d = 26 + 6 * lv + (i % 3) * 8;
-        sparks += `<i class="sk-spark" style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d).toFixed(1)}px;--c:${cols[i % 3]};--d:${(i % 4) * 30}ms"></i>`;
+        const a = -Math.PI / 2 + (i / (k - 1) - 0.5) * Math.PI * 1.1, d = 22 + 4 * lv + (i % 3) * 7;
+        sparks += `<i class="sk-spark" style="--dx:${(Math.cos(a) * d * 0.8).toFixed(1)}px;--dy:${(Math.sin(a) * d - 8).toFixed(1)}px;--c:${[o, m, c][i % 3]};--d:${(i % 4) * 35}ms"></i>`;
       }
-      el.insertAdjacentHTML("beforeend", sparks);
+      el.querySelector(".sk-icon").insertAdjacentHTML("beforeend", sparks);
     }
     if (descent) descent.layout();
   }
+  if (window.MLION_TEST) window.MLION_STREAK = (n, mode) => showStreak(n, mode); // tests and screenshots drive the badge
   function flashQuick() {
     const q = $("#sk-quick");
     if (!q) return;

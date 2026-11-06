@@ -1,7 +1,7 @@
 /* MLion share card: a finished run as an image to post.
  *
- * The descent is the picture. The whole slope crosses the card from the rim (loss 7.00) to the
- * basin (0.00), painted by tier as far as the run went, the ball resting where it stopped. The
+ * The descent is the picture. The whole slope crosses the card from the rim (0 points) to the
+ * basin (a perfect run), painted by tier as far as the run went, the ball resting where it stopped. The
  * sky above the slope holds the result, the ground below it holds the hook (the rarest answer).
  * Two formats, drawn on a canvas at their real size:
  *   card   1200 x 630, the link-preview shape: wide enough for the slope, full width in a chat
@@ -67,7 +67,7 @@
     const quiz = quizMode(rec.mode);
     const steps = results.map((r) => ({ tier: r.tier && T[r.tier] ? r.tier : null, pts: Math.max(0, +r.score || 0) }));
     const spec = {
-      mode: rec.mode, quiz, n, max, score: rec.score, loss: ((max - rec.score) / 100).toFixed(2),
+      mode: rec.mode, quiz, n, max, score: rec.score,
       steps, marks: steps.map((s) => (quiz ? (s.tier ? "hit" : "miss") : s.tier || "miss")),
       url: shortUrl(o.url), title: "", sub: "", band: null, hook: null, duel: null,
     };
@@ -141,7 +141,7 @@
   async function fontsReady(spec) {
     if (!document.fonts || !document.fonts.load) return;
     const text = [spec.title, spec.sub, spec.url, spec.hook && (spec.hook.prompt || spec.hook.question), spec.hook && spec.hook.answer,
-      spec.duel && spec.duel.name, "MLion0123456789/., ofrightwinsdrawlossLongTail"].filter(Boolean).join(" ");
+      spec.duel && spec.duel.name, "MLion0123456789/., ofrightwinsdrawLongTail"].filter(Boolean).join(" ");
     const loads = ["300", "400", "500", "600", "700"].map((w) => document.fonts.load(`${w} 40px Geologica`, text).catch(() => null));
     await Promise.race([Promise.all(loads).then(() => document.fonts.ready), new Promise((r) => setTimeout(r, 2500))]);
   }
@@ -324,7 +324,7 @@
     pg.addColorStop(0, rgba(COLD.path, 0.7)); pg.addColorStop(0.75, rgba(WARM.path, 0.85)); pg.addColorStop(1, rgba(WARM.path, 0.85));
     c.strokeStyle = pg; c.lineWidth = o.path; c.lineCap = "round"; c.lineJoin = "round"; c.stroke(full);
 
-    // loss levels set into the ground, one per question, faint
+    // a mark set into the ground every 100 points, one per question, faint
     const lv = Math.round(END / 1000);
     if (lv <= 12) {
       c.fillStyle = rgba(COL.muted, 0.5);
@@ -488,18 +488,10 @@
     marksRow(c, spec, x, y, ms, mg, align);
     return y + ms;
   }
-  /** The run's final loss, beside the ball on the open (downhill) side. Returns its box. */
-  function lossLabel(c, spec, at, S) {
-    font(c, S.lossLbl, 500);
-    c.fillStyle = COL.ink; c.textBaseline = "alphabetic"; c.textAlign = "left";
-    const t = `loss ${spec.loss}`, w = c.measureText(t).width;
-    const right = at.x + at.R * 1.6 + w < c.canvas.width - 24;
-    const x = right ? at.x + at.R * 1.6 : at.x - at.R * 1.6 - w, y = at.y - at.R * 1.1;
-    c.fillText(t, x, y);
-    return { x0: x, x1: x + w, y0: y - S.lossLbl * 0.8, y1: y + S.lossLbl * 0.2 };
-  }
-  /** The friend's name over their hollow ball; under it when that would run into my ball or my loss. */
-  function friendLabel(c, spec, at, S, mine) {
+  // (The ball used to carry the run's final loss beside it. Players only see the score since 2026-11-06, and the
+  // score is already the card's headline.)
+  /** The friend's name over their hollow ball; under it when that would run into my ball. */
+  function friendLabel(c, spec, at, S) {
     const f = at.friend;
     if (!f) return;
     font(c, S.small, 500); c.fillStyle = COL.ink; c.textAlign = "center"; c.textBaseline = "alphabetic";
@@ -508,7 +500,7 @@
     const clash = (yy) => {
       const a = { x0: x - w / 2 - 8, x1: x + w / 2 + 8, y0: yy - S.small * 0.8 - 8, y1: yy + 8 };
       const ball = { x0: at.me.x - at.me.R, x1: at.me.x + at.me.R, y0: at.me.y - at.me.R, y1: at.me.y + at.me.R };
-      return [mine, ball].some((b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0);
+      return a.x0 < ball.x1 && a.x1 > ball.x0 && a.y0 < ball.y1 && a.y1 > ball.y0;
     };
     let y = f.y - f.R - S.small * 0.6;
     if (clash(y)) y = f.y + f.R + S.small * 1.5 + 8;
@@ -520,7 +512,7 @@
 
   function drawCard(c, spec) {
     const W = 1200, H = 630, M = 64;
-    const S = { score: 180, of: 36, band: 31, small: 24, answer: 60, tier: 28, lossLbl: 25, url: 21, mark: 31, markGap: 10, rowMax: 470 };
+    const S = { score: 180, of: 36, band: 31, small: 24, answer: 60, tier: 28, url: 21, mark: 31, markGap: 10, rowMax: 470 };
     const at = descent(c, spec, { x: 0, y: 204, w: W, h: 310 }, {
       lead: 0.06, tail: 0.12, smooth: 0.012, glow: 840, bands: 7, thin: 1.4, path: 2.6, run: 6.5, dot: 5.5, ball: 18, tick: 7, strata: [13, 28, 46],
     });
@@ -528,14 +520,14 @@
     font(c, S.small, 400); c.fillStyle = COL.muted; c.textAlign = "left"; c.textBaseline = "alphabetic";
     if (spec.sub) c.fillText(spec.sub, M, 50 + 48 + 38);
     scoreBlock(c, spec, W - M, 30, S, "right");
-    friendLabel(c, spec, at, S, lossLabel(c, spec, at.me, S));
+    friendLabel(c, spec, at, S);
     hookBlock(c, spec, M, H - 50, spec.quiz ? 540 : 580, S, ceilFrom(at), 30);
     font(c, S.url, 400); c.fillStyle = COL.muted; c.textAlign = "right"; c.fillText(spec.url, W - M, H - 30); c.textAlign = "left";
   }
 
   function drawStory(c, spec) {
     const W = 1080, H = 1920, M = 84;
-    const S = { score: 300, of: 54, band: 48, small: 35, answer: 88, tier: 40, lossLbl: 35, url: 31, mark: 48, markGap: 15, rowMax: W - 2 * M };
+    const S = { score: 300, of: 54, band: 48, small: 35, answer: 88, tier: 40, url: 31, mark: 48, markGap: 15, rowMax: W - 2 * M };
     const at = descent(c, spec, { x: 0, y: 980, w: W, h: 470 }, {
       lead: 0.05, tail: 0.14, smooth: 0.012, glow: 1350, bands: 7, thin: 2, path: 3.4, run: 9, dot: 8, ball: 27, tick: 10, strata: [18, 38, 62],
     });
@@ -543,7 +535,7 @@
     font(c, S.small, 400); c.fillStyle = COL.muted; c.textAlign = "left"; c.textBaseline = "alphabetic";
     if (spec.sub) c.fillText(spec.sub, M, 286 + 68 + 52);
     scoreBlock(c, spec, M, 480, S, "left");
-    friendLabel(c, spec, at, S, lossLabel(c, spec, at.me, S));
+    friendLabel(c, spec, at, S);
     hookBlock(c, spec, M, 1610, spec.quiz ? 700 : 720, S, ceilFrom(at), 44);
     font(c, S.url, 400); c.fillStyle = COL.muted; c.textAlign = "left"; c.fillText(spec.url, M, 1690);
   }
@@ -598,7 +590,7 @@
   function altText(spec) {
     const h = spec.hook || {};
     const hook = h.kind === "rarest" ? ` Rarest answer: ${h.answer} (${h.tierName}).` : h.kind === "quiz" ? ` Hardest question right: ${h.question}` : "";
-    return `MLion ${spec.title}: ${spec.score} of ${spec.max}, loss ${spec.loss}.${spec.band ? ` ${spec.band.name}.` : ""}${hook}`;
+    return `MLion ${spec.title}: ${spec.score} of ${spec.max}.${spec.band ? ` ${spec.band.name}.` : ""}${hook}`;
   }
   let urls = []; // object URLs of the last sheet's images, freed when the next sheet opens
 

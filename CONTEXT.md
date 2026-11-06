@@ -1382,23 +1382,28 @@ is the lit exhibit.
   stays clear of the top boxes and the ball stays above the bottom ones. If both can't hold, it
   flattens the slope.
   - The camera is eased, with a look-ahead from velocity and a zoom kick on landing.
-  - Ridges dip under the boxes, and tick labels fade near them.
+  - Ridges dip under the boxes, and the score marks set into the ground (100, 200 ... 700; the gold one at the
+    bottom is a perfect run; they read 7.00 ... 0.00 as loss before 2026-11-06) fade near them.
   - Call `descent.layout()` after a box changes size.
 - **Landing.** The size of the moment scales with the tier through the tables `RIPPLE`,
   `POWER`, `SPARKS` and `KICK`: squash, ripples, sparks, flash and camera kick. A miss dims the
   stage and makes the ball shiver.
   - The ball has a pool of light, an aura, a specular highlight, rim light and a tapered
-    trail. At a streak of 3 or more it has fire tongues in the flame colour.
+    trail. At a streak of 3 or more it burns with the badge's flame (`flameOutline`): the fire lights the
+    ball and the ground (cached glow sprites, no shadowBlur), leans with speed, sheds embers, flares at each
+    landing, catches at three, and goes out with smoke on a miss. It stays under the numbers at the top.
+  - A landing prints its points beside the ball (`+30`; it printed the loss drop, `−0.30`, before
+    2026-11-06). A miss prints `NaN`, kept as an ML joke: no number scored.
 - **Streak.** `streakOf(results)` counts trailing results that have a tier. That means
   accepted answers in Classic and right answers in the quiz formats.
-  - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` (`FLAME` colours) over the
-    stage:
-    - 2: orange
-    - 3: hotter
-    - 4: purple
-    - 5: blue
-    - 6: white-hot
-    - 7 and up: gold with the lion mark and "MLion"
+  - `showStreak(n, "set" | "up" | "out")` draws `V.flame(n)` over the stage: the ball on fire, the same
+    `flameOutline` the stage draws round the real ball from 3 in a row (redesigned 2026-11-06: the user found
+    the old badge "very low quality" and the ball's fire "synthetic, laid on top"). `FLAME` climbs through fire
+    colours only: 2 red-orange, 3 orange, 4 amber, 5 yellow, 6 white-hot, 7 and up the lion's gold with the
+    ink lion inside and "MLion". The count is ink (gold-ink on the gem's flood), one size at every level,
+    centred on the flame, weight 800 in `--font-num`. A new answer makes the flame crouch, leap and throw
+    embers; a miss sinks it into its ball, the ball greys and smoke rises. On the gem's flood the lion grows
+    only up to the boxes along the top, so it no longer covers the count.
   - `celebrate()` runs when the ball lands. It plays `Sound.streak(n)` (a chord that climbs
     each step, with a buzz), `Sound.quick()` with a "Quick" pill for answers under
     `QUICK_MS` (5 s), and `Sound.fizzle()` with smoke when a streak of 2 or more breaks.

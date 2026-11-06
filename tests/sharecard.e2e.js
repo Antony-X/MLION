@@ -144,7 +144,7 @@ function pageHelpers(records) {
     let img = await preview(page, 630);
     check(img.w === 1200 && img.h === 630 && img.nw === 1200 && img.nh === 630, `the preview is the wide card at full size (${img.nw}x${img.nh})`);
     check(img.bytes > 20 * 1024 && img.bytes < KB300, `the wide PNG is under 300 KB (${(img.bytes / 1024).toFixed(0)} KB)`);
-    check(/^MLion #12: \d+ of 700, loss \d\.\d\d\./.test(img.alt) && /Rarest answer: .+ \(One in a MLion\)/.test(img.alt), `the preview has alt text (${img.alt})`);
+    check(/^MLion #12: \d+ of 700\./.test(img.alt) && !/loss/i.test(img.alt) && /Rarest answer: .+ \(One in a MLion\)/.test(img.alt), `the preview has alt text (${img.alt})`);
     check(!(await page.$("#card-share")) && !!(await page.$("#card-copy:not([disabled])")), "desktop offers Copy image, not the phone share sheet");
     check((await page.textContent("#card-text")).trim() === "Copy text" && !!(await page.$("#card-save")), "Copy text and Save image are there too");
     await shot(page, { path: path.join(OUT, "60-share-sheet-desktop.png") });
@@ -193,7 +193,7 @@ function pageHelpers(records) {
     await page.waitForSelector("#share", { timeout: 10000 });
     await page.click("#share");
     img = await preview(page, 630);
-    check(new RegExp(`^MLion Daily Quiz #3: ${dquiz.score} of 700, loss ${((700 - dquiz.score) / 100).toFixed(2)}\\. 5 of 7 right\\. Hardest question right: `).test(img.alt), `the Daily Quiz card (${img.alt.slice(0, 80)}…)`);
+    check(new RegExp(`^MLion Daily Quiz #3: ${dquiz.score} of 700\\. 5 of 7 right\\. Hardest question right: `).test(img.alt), `the Daily Quiz card (${img.alt.slice(0, 80)}…)`);
     await page.click("#card-text");
     await toast(page, /Text copied/);
     check((await page.evaluate(() => navigator.clipboard.readText())).startsWith("MLion Daily Quiz #3"), "the Daily Quiz text grid is still one tap away");
