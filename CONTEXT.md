@@ -308,6 +308,19 @@ node tools/build-single.js <out.html> --fragment --url=https://claude.ai/artifac
   to be a near-spelling of the answer's word in the same place; (2) containment with an extra real
   word (not a size/version word, VERSION_WORDS) can only be offered, never taken; (3) a term that
   is itself an answer to any prompt (LEXICON) is never corrected or offered.
+- Long names and names typed in part (2026-11-07, after a player's "codex gpt 5.3 spark" was turned
+  down for GPT-5.3-Codex-Spark): (1) the word-order layer (`bag`) now takes names of up to six
+  content words (it stopped at four; "GPT-5.3-Codex-Spark" is five: gpt 5 3 codex spark);
+  (2) a new layer, `partOf` (via "words", confidence 0.9, or 0.86 for one word so live "typos only"
+  and Sprint don't take it), takes part of a MAIN name when the typed words are in that one answer
+  only, include a word only it has and the name's head (last non-number word, or the word before
+  "of"), and every word left out is shared by at least PART_SHARED (4) answers ("gpt 5.3 spark").
+  Guard (3) above still applies: a typed term that is an answer anywhere in the game is never taken
+  this way. A cross-check that typed every name in the game into every other prompt found that
+  letting such terms through gave about 500 wrong accepts ("LSTM" -> Vision-LSTM, "dropout" -> No
+  dropout, "tree" -> Tree of Thoughts) that no word rule can tell apart from "Spark" -> Codex-Spark.
+  So a one-word name that is also an answer elsewhere is added as an alias instead ("Spark" on
+  GPT-5.3-Codex-Spark). Bench unchanged (98.0 / 0.1 / 0.3; false accept 0.5%).
 
 ### Tier calibration rule (AUTHORING.md)
 

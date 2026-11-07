@@ -13,7 +13,7 @@
     { "a": "GPT-5.1-Codex-Max", "t": "longtail", "aka": ["Codex-Max", "Codex Max"] },
     { "a": "GPT-5.2-Codex", "t": "longtail" },
     { "a": "GPT-5.3-Codex", "t": "longtail" },
-    { "a": "GPT-5.3-Codex-Spark", "t": "longtail", "aka": ["Codex-Spark", "Codex Spark"], "q": "OpenAI's first model served on Cerebras wafer-scale chips, built for real-time coding at 1,000+ tokens a second." },
+    { "a": "GPT-5.3-Codex-Spark", "t": "longtail", "aka": ["Codex-Spark", "Codex Spark", "Spark", "GPT-5.3 Spark"], "q": "OpenAI's first model served on Cerebras wafer-scale chips, built for real-time coding at 1,000+ tokens a second." },
     { "a": "GPT-5.6-Cyber", "t": "longtail", "aka": ["GPT-5.5-Cyber", "GPT Cyber", "Daybreak", "Daybreak Red", "OpenAI Daybreak", "gpt-daybreak-red-latest"] },
     { "a": "GPT-Rosalind", "t": "longtail", "aka": ["Rosalind", "GPT-6 Rosalind", "GPT-5.5 Rosalind", "Rosalind Research", "Rosalind Discovery"], "q": "A gated life-sciences reasoning model named after Rosalind Franklin, whose X-ray work revealed DNA's helix." },
     { "a": "GPT-4b micro", "t": "longtail", "aka": ["GPT-4b"] },

@@ -64,6 +64,28 @@ E.setLexicon(DATA.prompts.concat(DATA.extras || []));
 assert.ok(E.whereElse("ReLU", "optimizer").includes("activation-function")); ok("whereElse: ReLU answers the activation prompt");
 assert.deepStrictEqual(E.whereElse("definitely not an answer", "optimizer"), []); ok("whereElse: nonsense belongs nowhere");
 
+// --- a long name out of order, or typed in part (a player, 2026-11-07: "codex gpt 5.3 spark" was turned down)
+{
+  const pick = (id) => DATA.prompts.concat(DATA.extras || []).find((p) => p.id === id);
+  const oa = pick("openai-model");
+  for (const t of ["codex gpt 5.3 spark", "spark", "gpt 5.3 spark", "Spark"]) {
+    const r = E.matchAnswer(oa, t);
+    assert.ok((r.kind === "correction" || r.kind === "exact") && r.answer.a === "GPT-5.3-Codex-Spark", `${t} -> ${JSON.stringify(r).slice(0, 120)}`);
+  }
+  assert.strictEqual(E.matchAnswer(oa, "codex gpt 5.3 spark").via, "order");
+  assert.strictEqual(E.matchAnswer(oa, "gpt 5 3 codex sprk").kind !== "none", true);
+  ok("part of a name: five words out of order, and Spark alone, find GPT-5.3-Codex-Spark");
+  // what was typed is an answer elsewhere: never taken as part of a name here ("LSTM" is not Vision-LSTM)
+  for (const [id, t] of [["vision-transformer", "LSTM"], ["overfit-cause", "dropout"], ["prompting", "tree"]]) {
+    assert.notStrictEqual(E.matchAnswer(pick(id), t).via, "words", `${id}: ${t}`);
+  }
+  for (const [id, t] of [["calculus-concept", "Softmax"], ["loss-function", "Precision"], ["weight-init", "Keras"], ["training-trick", "Uniform"]]) {
+    const r = E.matchAnswer(pick(id), t);
+    assert.ok(r.via !== "words", `${id}: ${t} -> ${JSON.stringify(r).slice(0, 120)}`);
+  }
+  ok("part of a name: a modifier or a word from a description is not the name");
+}
+
 // --- every answer and alias matches itself, in every prompt
 let names = 0;
 for (const p of DATA.prompts.concat(DATA.extras || [])) {

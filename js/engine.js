@@ -120,6 +120,16 @@
   function contentWords(s, strip) {
     return without(without(dropArticle(tokens(s)), strip), SOFT_FILLER).filter((w) => !STOP.has(w));
   }
+  /** The word a name is about: its last word that is not a number ("Spark" in GPT-5.3-Codex-Spark, "theorem" in
+   *  Squeeze theorem), or the word before "of" ("Jacobian" in Jacobian of softmax). `w` is the name's content words. */
+  function headWord(tk, w) {
+    const of = tk.indexOf("of");
+    if (of > 0 && w.includes(tk[of - 1])) return tk[of - 1];
+    for (let i = w.length - 1; i >= 0; i--) if (!/^\d+$/.test(w[i])) return w[i];
+    return w[w.length - 1];
+  }
+  // A word left out of a name typed in part must be one this many answers share (see partOf).
+  const PART_SHARED = 4;
   /** Words in a fixed order, so a name typed back to front finds its answer. */
   function bagKey(w) { return [...w].sort().join(" "); }
   function singular(k) {
@@ -219,7 +229,7 @@
         for (const ac of acronymsOf(base)) acPairs.push([ac, idx]);
         const seen = new Set();
         for (const w of [wordsStrip, wordsAll]) {
-          if (w.length >= 2 && !seen.has(w.join(" "))) { seen.add(w.join(" ")); words.push({ idx, w }); }
+          if (w.length >= 2 && !seen.has(w.join(" "))) { seen.add(w.join(" ")); words.push({ idx, w, head: headWord(base, w), main: n === ans.a }); }
         }
         if (++made % 24 === 0) yield;
       }
@@ -233,9 +243,15 @@
     yield;
     const acro = softMap(acPairs.filter(([k]) => !exact.has(k)));
     yield;
-    // Word order: "Knuth Donald", "Hastings Metropolis". Only names of two to four words, and only
-    // when no other answer has the same words.
-    const bag = softMap(words.filter(({ w }) => w.length <= 4).map(({ idx, w }) => [bagKey(w), idx]));
+    // Word order: "Knuth Donald", "Hastings Metropolis", "Codex GPT 5.3 Spark". Names of two to six
+    // words, and only when no other answer has the same words.
+    const bag = softMap(words.filter(({ w }) => w.length <= 6).map(({ idx, w }) => [bagKey(w), idx]));
+    // Which answers each word appears in, for a name typed in part ("Spark" for GPT-5.3-Codex-Spark).
+    const wordAns = new Map();
+    for (const { idx, w } of words) for (const x of w) {
+      if (!wordAns.has(x)) wordAns.set(x, new Set());
+      wordAns.get(x).add(idx);
+    }
     yield;
     // Character-trigram TF-IDF vectors: a small "embedding" for near-miss suggestions.
     const df = new Map(), grams = [];
@@ -256,7 +272,7 @@
       vecs.push({ w, norm: Math.sqrt(norm) || 1 });
       if (i % 96 === 95) yield;
     }
-    return { index: { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words, keyWords }, errors };
+    return { index: { strip, exact, loose, soft, acro, bag, wordAns, keys, vecs, idf, words, keyWords }, errors };
   }
 
   /**
@@ -311,9 +327,38 @@
       return false;
     };
   }
+  /** A name typed in part, "Spark" or "GPT 5.3 Spark" for GPT-5.3-Codex-Spark. Taken when the typed words are in
+   *  exactly one answer's names, one of them a real word only that answer has, and every word left out is one the
+   *  other answers share too (GPT, Codex, a number, "large"): the player typed the part that tells it apart.
+   *  "UMAP" is not "UMAP min_dist", "Uniform" is not "uniform soup": the missing word is the point. Returns the
+   *  answer's index, or -1. */
+  function partOf(typed, wordAns, words) {
+    const uniq = [...new Set(typed)];
+    if (!uniq.length || uniq.length > 6) return -1;
+    let cand = null;
+    for (const w of uniq) {
+      const s = wordAns.get(w);
+      if (!s) return -1;
+      cand = cand ? new Set([...cand].filter((i) => s.has(i))) : new Set(s);
+      if (!cand.size) return -1;
+    }
+    if (cand.size !== 1) return -1;
+    const idx = [...cand][0];
+    const own = (w) => /^[a-z]{4,}$/.test(w) && !VERSION_WORDS.has(w) && !SOFT_FILLER.has(w) && wordAns.get(w).size === 1;
+    if (!uniq.some(own)) return -1;
+    // left out: a number, a size, or a word at least PART_SHARED answers have (GPT in 44, Codex in 9), not one
+    // or two others ("average" in Average precision loss is part of what it is called)
+    const shared = (w) => /^\d+$/.test(w) || VERSION_WORDS.has(w) || SOFT_FILLER.has(w) || (wordAns.get(w) || new Set()).size >= PART_SHARED;
+    const typedSet = new Set(uniq);
+    // and the name's head is typed: "Softmax" is not the Softmax Jacobian, "Squeeze" is not the squeeze
+    // theorem, but "Spark" is GPT-5.3-Codex-Spark
+    const fits = words.some((e) => e.idx === idx && e.main && typedSet.has(e.head) && uniq.every((w) => e.w.includes(w)) &&
+      e.w.every((w) => typedSet.has(w) || shared(w)));
+    return fits ? idx : -1;
+  }
   function matchRaw(prompt, raw) {
     prepare(prompt);
-    const { strip, exact, loose, soft, acro, bag, keys, vecs, idf, words, keyWords } = prompt._index;
+    const { strip, exact, loose, soft, acro, bag, wordAns, keys, vecs, idf, words, keyWords } = prompt._index;
     const text = String(raw || "").slice(0, MAX_ANSWER_LENGTH);
     const kf = fullKey(text);
     if (!kf) return { kind: "none" };
@@ -330,8 +375,10 @@
     for (const k of [kso, singular(kso)]) if (soft.has(k)) return hit(soft.get(k));
     for (const k of [kf, ks]) if (acro.has(k)) return hit(acro.get(k));
     for (const w of [contentWords(text, strip), contentWords(text, null)]) {
-      if (w.length >= 2 && w.length <= 4 && bag.has(bagKey(w))) return { kind: "correction", answer: answers[bag.get(bagKey(w))], from: text, confidence: 0.92, via: "order" };
+      if (w.length >= 2 && w.length <= 6 && bag.has(bagKey(w))) return { kind: "correction", answer: answers[bag.get(bagKey(w))], from: text, confidence: 0.92, via: "order" };
     }
+    const part = partOf(contentWords(text, strip), wordAns, words);
+    if (part >= 0) return { kind: "correction", answer: answers[part], from: text, confidence: contentWords(text, strip).length > 1 ? 0.9 : 0.86, via: "words" };
     // The player typed the long form of an answer listed only as initials. Decided after the typo
     // check: "Binarized nural network" has the initials of BNN (Bayesian NN), but it is a typo.
     // Only for answers that have no long form of their own: "Prompt injection" is not PI when the
