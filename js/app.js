@@ -859,7 +859,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
     const n = LIVE.fmt === "sprint" || LIVE.mfmt === "sprint" ? (validQ(LIVE.nOther) ? LIVE.nOther : 7) : LIVE.n; // a Sprint room's count stays with Sprint
-    Object.assign(LIVE, { active: false, code: "", secret: "", key: null, hostId: "", knock: null, isHost: false, isPublic: false, flash: "", ep: 0, offset: null, countdownAt: 0, client: null, conns: new Map(), myId: "",
+    Object.assign(LIVE, { active: false, code: "", secret: "", key: null, hostId: "", knock: null, isHost: false, isPublic: false, flash: "", ep: 0, offset: null, clock: [], clockFrom: "", countdownAt: 0, client: null, conns: new Map(), myId: "",
       players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, moreOpen: false, quiz: null, gone: new Map(), spRec: null, teams: 0, mteams: 0, mteam: {}, n });
     liveSprintStop();
     chatRate.clear();
@@ -906,6 +906,20 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   /** Standing order: points, then (quiz) the faster total time. */
   const rankCmp = (a, b) => shownTotal(b) - shownTotal(a) || (liveQuiz() ? liveTotalMs(a) - liveTotalMs(b) : 0);
   const hostNow = () => Date.now() + (LIVE.isHost ? 0 : LIVE.offset || 0); // clocks synced to the host
+  /** One reading of the host's clock: its message says `now`, and it arrived just now. A message can arrive late
+   *  but never early, so each reading is the true offset minus that message's delay, and the true offset is the
+   *  highest recent reading. (It was a running average: after both players dropped (user, 2026-11-07), the
+   *  messages a page had queued while offline arrived stamped a minute and a half ago, dragged the average
+   *  back, and the next countdown said "Starting in 98".) Readings start over when another player hosts. */
+  function clockReading(sender, now) {
+    if (!Number.isFinite(+now)) return;
+    const t = Date.now();
+    if (LIVE.clockFrom !== sender) { LIVE.clockFrom = sender; LIVE.clock = []; }
+    LIVE.clock = (LIVE.clock || []).filter(([at]) => t - at < CLOCK_WINDOW_MS).slice(-40);
+    LIVE.clock.push([t, +now - t]);
+    LIVE.offset = Math.max(...LIVE.clock.map(([, o]) => o));
+  }
+  const CLOCK_WINDOW_MS = 60000; // heartbeats come every few seconds, so a minute holds plenty of readings
 
   // ---- teams (user, 2026-11-06: "not just 1v1 but also 2v2 and that kind of stuff"). Off by default. The host
   // picks 2 to 4 teams, newcomers join the smallest, anyone can switch sides before a match, and the host can
@@ -1095,7 +1109,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       renderLiveWait();
       if (LIVE.revealed >= m.i) renderReveal(m.i);
     } else if (m.t === "countdown" && Number.isFinite(+m.at)) {
-      LIVE.countdownAt = +m.at;
+      LIVE.countdownAt = Math.min(+m.at, hostNow() + COUNTDOWN_MS); // never longer than a countdown is, whatever the clocks say
       (LIVE.phase === "done" ? renderPodium : renderLobby)();
     } else if (m.t === "typing" && typeof m.id === "string" && Number.isInteger(m.i)) {
       const pl = LIVE.players.get(m.id);
@@ -1323,13 +1337,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** Start the countdown when two or more players are present and all of them are ready. Runs on every Ready tap and
    *  every roster change (a seat marked away, freed, or left), so a player who walks off can't hold the room in the lobby. */
+  const COUNTDOWN_MS = 3000;
   function hostReadyCheck() {
     if (!LIVE.isHost || !LIVE.active || LIVE.phase === "playing") return;
     const ps = playerList().filter((p) => !p.away);
     if (ps.length < 2 || !ps.every((p) => p.ready) || !teamsReady()) return;
     if (LIVE.countdownAt > Date.now()) return; // already counting down: its own check at the end still applies
-    broadcast({ t: "countdown", at: Date.now() + 3000 });
-    liveLater(() => { const all = playerList().filter((p) => !p.away); if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready) && teamsReady()) hostStart(); }, 3000);
+    broadcast({ t: "countdown", at: Date.now() + COUNTDOWN_MS });
+    liveLater(() => { const all = playerList().filter((p) => !p.away); if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready) && teamsReady()) hostStart(); }, COUNTDOWN_MS);
   }
   function hostStart() {
     if (!LIVE.isHost || LIVE.players.size < 2) return;
@@ -1849,7 +1864,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       }
       if (LIVE.active) LIVE.ep = ep;
       js.lastHost = Date.now(); js.warned = false;
-      if (Number.isFinite(+d.now)) { const o = +d.now - Date.now(); LIVE.offset = LIVE.offset == null ? o : LIVE.offset * 0.7 + o * 0.3; }
+      clockReading(s, d.now);
       if (d.t === "hb") return;
       if (d.t === "full") {
         leaveLive();
@@ -4919,7 +4934,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const S = SPR;
     clearInterval(S.loop); clearTimeout(S.beginTimer);
     S.phase = "reveal";
-    S.nextAt = Number.isFinite(+m.nextAt) ? +m.nextAt : 0;
+    S.nextAt = Number.isFinite(+m.nextAt) ? Math.min(+m.nextAt, hostNow() + 30000) : 0; // a pause between sprints, never minutes
     drawSprint();
     S.loop = setInterval(() => { const el = S === SPR && $("#sp-next"); if (el) el.textContent = spNextLine(S); }, 250);
   }
