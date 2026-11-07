@@ -1882,3 +1882,23 @@ halfway. Now seven even landings, no streak (a plain gold ball), resting in the 
 itself was fixed: terrain()'s far wall started at END, which put the bowl's lowest point 245 units before it
 (x = 6746), so a perfect 700 stopped up the far wall in the game too. The wall now starts WALL = 260 ln(1.5/0.42
 - 1) past END, where the floor's slope is exactly 0: the lowest point is at END for any number of rounds.
+
+### Quiz difficulty, no repeats, easy-to-hard 1v1s, first-answer bonus, clock fix (2026-11-07)
+
+- Practice Quiz: a Difficulty picker on #quiz (Mixed / Easy / Medium / Hard, `quizLevel` in storage).
+  A run is dealt by `E.freshDeal` from questions the player hasn't answered anywhere (`seen` holds every
+  quiz question answered: practice, Daily Quiz, live rooms); when a level runs out, the ones seen longest
+  ago come back. A dealt run is saved at once (`run:quiz:N`) and keeps its questions; one nobody has
+  answered yet is dealt again if the difficulty changed. Runs are no longer a fixed function of N.
+- Live quiz rooms: the host picks the difficulty (`LIVE.qlvl`, sent in lobby as `qlvl`). Guests send their
+  answered quiz ids as `qs` with hello and ready; with "Skip questions anyone here has already had" on, the
+  host deals around `roomSeen()` (room history + host's seen + every player's qs).
+- Mixed runs of any length go easy to hard without starting over: `E.rampPlan(n)` (7 is QUIZ_PATTERN).
+  Quiz challenge links: 11-character seeds use `E.rampDeal`; 10-character ones keep `mixedDeal`, older ones
+  the first bank, so the picks old links carry still line up.
+- Room option "First right/accepted answer scores x1.5" (`rules.first`, `FIRST_MULT`): applied at the
+  reveal in `roundPts` like Clash; a tie on the clock gives it to both. No e2e test covers it yet.
+- Clock fix: guests' host-clock offset was a running average of message stamps; messages queued while
+  offline arrive stamped long ago, so after both players dropped a countdown showed "Starting in 98".
+  Now `clockReading()` keeps the highest reading of the last minute (a message can be late, never early)
+  and starts over when another player hosts; the countdown is capped at COUNTDOWN_MS and a sprint pause at 30 s.
