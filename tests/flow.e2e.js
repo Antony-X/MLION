@@ -85,7 +85,7 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
   await p.waitForSelector(".score-hero", { timeout: 8000 });
   check(p.url().endsWith("#results-unlimited-1") && (await p.textContent(".tally-line")).includes("of 9"), "Stop ends the session on its results (9 prompts)");
   await p.screenshot({ path: path.join(OUT, "72-unlimited-results.png"), fullPage: true });
-  check((await p.textContent('a.btn[href="#unlimited-play"]')).trim() === "Keep going", "the results offer Keep going");
+  check((await p.textContent('a.btn[href="#unlimited-play"]')).trim() === "Start again", "the results offer Start again");
 
   // the next session picks up the deck: no prompt from session 1 comes back
   await p.click('a.btn[href="#unlimited-play"]');

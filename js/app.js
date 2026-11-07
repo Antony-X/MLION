@@ -4547,7 +4547,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       rec.mode === "quiz" || rec.mode === "dquiz" ? `#quiz-${nextQuiz()}` :
       rec.mode === "pack" ? `#pack-${rec.pack}-${nextPackRun(rec.pack) > E.packRunCount(DATA, rec.pack) ? 1 : nextPackRun(rec.pack)}` :
       rec.mode === "practice" ? "#library" : "#unlimited";
-    const nextLabel = picked ? "Play Unlimited" : rec.mode === "dquiz" ? "Play a practice quiz" : rec.mode === "unlimited" ? "Keep going" : rec.mode === "quiz" ? "Play another quiz" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
+    const nextLabel = picked ? "Play Unlimited" : rec.mode === "dquiz" ? "Play a practice quiz" : rec.mode === "unlimited" ? "Start again" : rec.mode === "quiz" ? "Play another quiz" : rec.mode === "pack" ? "Next pack run" : rec.mode === "practice" ? "Library" : "Play Unlimited";
     const accepted = rec.results.filter((r) => r.tier).length;
     const isVs = rec.mode === "vs" || rec.mode === "vq";
     const meQ = isQ ? { name: rec.name || "You", picks: rec.picks || [], tenths: rec.tenths || 0, you: true } : null;
@@ -4773,7 +4773,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const answered = runs.reduce((s, r) => s + r.results.length, 0);
     const points = runs.reduce((s, r) => s + r.score, 0);
     const deck = soloPool().prompts.length;
-    const label = inProg && inProg.results && inProg.results.length ? `Resume · ${inProg.results.length} answered` : runs.length ? "Keep going" : "Start";
+    const label = inProg && inProg.results && inProg.results.length ? `Resume · ${inProg.results.length} answered` : runs.length ? "Start again" : "Start";
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
         <div class="page-head"><h1>Unlimited</h1><p>Prompt after prompt from one shuffled deck of ${deck}${settings.extraQuestions ? ", extras included" : ""}. Nothing repeats until you've seen them all. Stop whenever you like; next time picks up where you left off.</p></div>
