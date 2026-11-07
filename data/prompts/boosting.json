@@ -69,7 +69,7 @@
     { "a": "Gentle AdaBoost", "t": "indist", "aka": ["GentleBoost", "gentle adaboost"] },
     { "a": "SAMME", "t": "indist", "aka": ["SAMME.R", "AdaBoost.SAMME", "stagewise additive modeling using a multi-class exponential loss"], "q": "Multiclass AdaBoost. If you've set algorithm= on sklearn's AdaBoostClassifier, you've used it." },
     { "a": "Stochastic gradient boosting", "t": "indist", "aka": ["stochastic gbm"], "q": "Friedman, 2002: fit each tree on a random subsample. Bagging's idea, borrowed." },
-    { "a": "HistGradientBoosting", "t": "indist", "aka": ["HistGradientBoostingClassifier", "HistGradientBoostingRegressor", "histogram-based gradient boosting", "histogram gradient boosting"] },
+    { "a": "HistGradientBoosting", "t": "indist", "aka": ["HistGradientBoostingClassifier","HistGradientBoostingRegressor","histogram-based gradient boosting","histogram gradient boosting","hist","HistGB","HistGBM","hist GBM","hist GBDT","hist boosting","HGBT"] },
     { "a": "NGBoost", "t": "indist", "aka": ["natural gradient boosting"], "q": "Stanford, 2019: boosting that predicts whole distributions, using the natural gradient." },
     { "a": "LambdaMART", "t": "indist", "aka": ["lambda mart", "LambdaRank"], "q": "Burges' boosted ranker. It won Yahoo!'s 2010 learning-to-rank challenge." },
     { "a": "DART", "t": "indist", "aka": ["dropouts meet multiple additive regression trees"], "q": "Dropout for boosted trees. A booster option in XGBoost and LightGBM." },

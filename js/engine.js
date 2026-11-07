@@ -162,6 +162,12 @@
     }
     return prev[lb];
   }
+  /** Two keys whose numbers differ name different things ("l2" is no typo of "l1", "gpt3" none of "gpt4"). Only when
+   *  both have numbers: "resnet" for "resnet50" can still be a version left off. */
+  function numsClash(a, b) {
+    const na = a.match(/[0-9]+/g), nb = b.match(/[0-9]+/g);
+    return !!(na && nb && na.join(",") !== nb.join(","));
+  }
   /** Typos allowed for a key of this length. */
   function fuzzyBudget(len) {
     if (len <= 3) return 0;
@@ -424,7 +430,7 @@
         const budget = Math.min(fuzzyBudget(q.p.length), fuzzyBudget(key.length));
         if (budget && Math.abs(key.length - q.p.length) <= budget) {
           const d = editDistance(q.p, key, budget);
-          if (d <= budget && (d <= 1 || wordsAgree(key))) {
+          if (d <= budget && !numsClash(q.p, key) && (d <= 1 || wordsAgree(key))) {
             const s = 1 - (0.6 * d) / Math.max(key.length, q.p.length);
             bump(typo, idx, s); bump(score, idx, s);
           }
@@ -447,7 +453,7 @@
     const iws = [contentWords(text, strip), contentWords(text, null)].filter((w, i, all) => w.length >= 2 && (i === 0 || w.join(" ") !== all[0].join(" ")));
     for (const iw of iws) {
       for (const { idx, w } of words) {
-        if (w.length !== iw.length) continue;
+        if (w.length !== iw.length || numsClash(iw.join(" "), w.join(" "))) continue;
         let edits = 0, okAll = true;
         for (let i = 0; i < w.length && okAll; i++) {
           const b = Math.min(fuzzyBudget(w[i].length), fuzzyBudget(iw[i].length));

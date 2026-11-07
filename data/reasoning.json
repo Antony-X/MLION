@@ -4532,6 +4532,66 @@
       "why": "log p(x) = ELBO + KL(q(z|x) ‖ p(z|x)). Direction matters: the gap is the KL from q to the true posterior, which is non-negative, hence the bound."
     },
     {
+      "id": "rq-403",
+      "cat": "Training",
+      "pack": "blocks",
+      "lvl": "easy",
+      "q": "Training loss keeps falling, but validation loss starts rising after epoch 12. What would you try first?",
+      "options": [
+        "Raise the learning rate so training converges faster",
+        "Add regularisation, or stop at the best epoch",
+        "Train for another 100 epochs until it settles",
+        "Switch to a larger model with more capacity"
+      ],
+      "answer": 1,
+      "why": "Rising validation loss with falling training loss is overfitting. Regularisation (dropout, weight decay, augmentation) or early stopping fights it; more epochs or a bigger model make it worse."
+    },
+    {
+      "id": "rq-404",
+      "cat": "Tools",
+      "pack": "stack",
+      "lvl": "medium",
+      "q": "You evaluate a BatchNorm network in PyTorch but forget to call model.eval(). What goes wrong?",
+      "options": [
+        "The weights keep updating with every evaluation batch",
+        "PyTorch raises an error that the model is in training mode",
+        "Nothing: BatchNorm behaves the same in both modes",
+        "Each prediction depends on the other examples in its batch"
+      ],
+      "answer": 3,
+      "why": "In training mode BatchNorm normalises with the current batch's mean and variance, so the same image can get different outputs in different batches. It also overwrites its running statistics with the test data."
+    },
+    {
+      "id": "rq-405",
+      "cat": "Training",
+      "pack": "blocks",
+      "lvl": "medium",
+      "q": "A 5-class classifier with a standard random init is trained with cross-entropy. Roughly what loss do you expect on the very first batch?",
+      "options": [
+        "About 0.2, which is 1/5",
+        "About 1.6, which is ln 5",
+        "About 5, one unit per class",
+        "About 0, before any learning"
+      ],
+      "answer": 1,
+      "why": "A sane init gives near-uniform predictions, so the true class gets probability about 1/5 and the loss is −ln(1/5) = ln 5 ≈ 1.61. A first loss far from this points at a bug or a bad init."
+    },
+    {
+      "id": "rq-406",
+      "cat": "Training",
+      "pack": "blocks",
+      "lvl": "easy",
+      "q": "At step 0, a balanced binary classifier's loss is about 0.69. What does that tell you?",
+      "options": [
+        "It has already learned about half of the task",
+        "Its labels are flipped for about half the rows",
+        "Its learning rate is far too high to train well",
+        "It predicts about 50/50, as expected before training"
+      ],
+      "answer": 3,
+      "why": "0.69 is ln 2, the cross-entropy of a 50/50 guess on two classes. It is the expected starting loss, not progress and not a bug."
+    },
+    {
       "id": "rq-01",
       "title": "Midnight Classification",
       "cat": "Data & validation",

@@ -208,6 +208,11 @@ async function mockRoute(route) {
     return json(200, ans.filter((r) => r.day === a.p_day && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day))
       .map((r) => ({ name: (db.profiles.get(r.user_id) || {}).name || "Player", answers: r.answers, mine: r.user_id === me })));
   }
+  if (u.pathname === "/rest/v1/rpc/daily_answers_board" && method === "POST") { // the board's view: by account, same rule
+    const a = JSON.parse(req.postData() || "{}");
+    if (!me || !db.scores.some((s) => s.user_id === me && s.day === a.p_day)) return json(200, []);
+    return json(200, ans.filter((r) => r.day === a.p_day && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day)).map((r) => ({ user_id: r.user_id, answers: r.answers })));
+  }
   return json(404, { message: "not mocked" });
 }
 
@@ -327,6 +332,25 @@ async function mockRoute(route) {
     ans.splice(ans.findIndex((r) => r.user_id === "lin"), 1);
     db.profiles.delete("lin");
     await page.goto(base + "#board"); // back where the next step expects to be
+    await page.waitForSelector(".board-list .list-item.me");
+
+    // the leaderboard folds each player's answers under their row, for players on that board
+    await page.waitForSelector(".board-list details.bd-g", { timeout: 10000 });
+    check((await page.$$(".board-list details.bd-g")).length === 2 && /Tap a player/.test(await page.textContent("#bd-g-note")), "on the board, every row folds its answers (you're on the board)");
+    await page.click(".board-list li:first-child details.bd-g summary");
+    const g = await page.$$eval(".board-list li:first-child .bd-ans li", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+    check(g.length === 7 && g[0].includes(real[0][0]) && g[2].includes(real[2][1]) && /No answer/.test(g[1]) && /No answer/.test(g[3]) && !(await page.$(".board-list img")), "tapping Grace shows her seven answers; junk and misses show as No answer");
+    await page.screenshot({ path: path.join(OUT, "board-02c-board-answers.png"), fullPage: true });
+
+    // a score an admin removed: the results say so, not "couldn't post"
+    const mineAt = db.scores.findIndex((x) => x.user_id === UID && x.day === today), mineRow = db.scores[mineAt];
+    db.scores.splice(mineAt, 1);
+    await page.waitForTimeout(1200); // past BOARD_FRESH_MS: the board rows kept a moment ago still hold the score
+    await page.goto(base + `#results-daily-${today}`);
+    await page.waitForFunction(() => /it was removed/.test(document.querySelector("#board-box")?.textContent || ""), null, { timeout: 10000 });
+    check(!/Couldn't/.test(await page.textContent("#board-box")), "a removed score says it was removed, not that posting failed");
+    db.scores.splice(mineAt, 0, mineRow);
+    await page.goto(base + "#board");
     await page.waitForSelector(".board-list .list-item.me");
   }
 

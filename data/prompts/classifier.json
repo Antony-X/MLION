@@ -113,7 +113,7 @@
     { "a": "ZeroR", "t": "outlier", "aka": ["0R","majority class classifier","dummy classifier","DummyClassifier","most frequent classifier","majority baseline","zero rule","baseline classifier"], "q": "Always predicts the majority class. The baseline your model must beat, and sometimes doesn't." },
     { "a": "CHAID", "t": "outlier", "aka": ["chi-square automatic interaction detection", "chi-squared automatic interaction detection"], "q": "Kass, 1980. The market researcher's tree, split by chi-square tests." },
     { "a": "Hoeffding tree", "t": "outlier", "aka": ["VFDT", "very fast decision tree"], "q": "Splits once the Hoeffding bound says it's safe. Built for endless data streams." },
-    { "a": "HistGradientBoosting", "t": "outlier", "aka": ["HistGradientBoostingClassifier","histogram-based gradient boosting","histogram gradient boosting"] },
+    { "a": "HistGradientBoosting", "t": "outlier", "aka": ["HistGradientBoostingClassifier","histogram-based gradient boosting","histogram gradient boosting","hist","HistGB","HistGBM","hist GBM","hist GBDT","hist boosting","HGBT","HGBC","HistGBC"] },
     { "a": "Voting classifier", "t": "outlier", "aka": ["voting","VotingClassifier","majority voting","hard voting","soft voting"] },
     { "a": "Gaussian process classification", "t": "outlier", "aka": ["GPC","gaussian process classifier","GaussianProcessClassifier","gaussian process"] },
     { "a": "Bayesian network classifier", "t": "outlier", "aka": ["bayesian network","bayes net","belief network","Bayesian classifier"] },

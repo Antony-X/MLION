@@ -75,7 +75,7 @@
     { "a": "Model soups", "t": "outlier", "aka": ["model soup", "model merging", "weight averaging", "weight-space ensembling"], "q": "Wortsman et al., 2022: average the weights of fine-tuned models, not their predictions." },
     { "a": "AutoGluon", "t": "outlier" },
 
-    { "a": "HistGradientBoosting", "t": "indist", "aka": ["histogram-based gradient boosting", "HistGradientBoostingClassifier", "HistGradientBoostingRegressor", "HGB"], "q": "scikit-learn's LightGBM-style booster: bins each feature (255 bins by default) and handles missing values itself." },
+    { "a": "HistGradientBoosting", "t": "indist", "aka": ["histogram-based gradient boosting","HistGradientBoostingClassifier","HistGradientBoostingRegressor","HGB","hist","HistGB","HistGBM","hist GBM","hist GBDT","hist boosting","HGBT"], "q": "scikit-learn's LightGBM-style booster: bins each feature (255 bins by default) and handles missing values itself." },
     { "a": "Isolation forest", "t": "indist", "aka": ["iForest", "IsolationForest", "extended isolation forest", "EIF"], "q": "Random trees isolate anomalies in very few splits. Liu, Ting & Zhou, 2008." },
     { "a": "Test-time augmentation", "t": "indist", "aka": ["TTA"], "q": "Predict on flipped and cropped copies of each test image, then average. Free accuracy." },
     { "a": "LightGBM", "t": "indist", "aka": ["LGBM", "light gradient boosting machine", "LGBMClassifier", "LGBMRegressor", "LGBMRanker"], "q": "Microsoft, 2017: histogram-based splits and leaf-wise growth. GOSS and EFB make it fast on big data." },

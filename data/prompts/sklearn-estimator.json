@@ -211,7 +211,7 @@
     { "a": "GridSearchCV", "t": "indist", "aka": ["grid search"], "q": "Every combination, cross-validated, while you go make coffee." },
     { "a": "RandomizedSearchCV", "t": "indist", "aka": ["random search", "randomized search"], "q": "Bergstra and Bengio showed random search beats grid search. Here it is." },
 
-    { "a": "HistGradientBoostingClassifier", "t": "overfit", "aka": ["HGB", "histgradientboosting", "hist gradient boosting"], "q": "LightGBM-style histogram boosting, native to scikit-learn since 0.21." },
+    { "a": "HistGradientBoostingClassifier", "t": "overfit", "aka": ["HGB","histgradientboosting","hist gradient boosting","HistGB","HistGBC","HGBC","hist GBM classifier","hist GBDT classifier"], "q": "LightGBM-style histogram boosting, native to scikit-learn since 0.21." },
     { "a": "DummyClassifier", "t": "overfit", "aka": ["dummy"], "q": "Predicts the most frequent class. Beat it, or your model is decoration." },
 
     { "a": "LinearRegression", "t": "baseline", "aka": ["OLS", "ordinary least squares"], "q": "Ordinary least squares via scipy's lstsq: the first fit() everyone writes." },

@@ -1902,3 +1902,44 @@ itself was fixed: terrain()'s far wall started at END, which put the bowl's lowe
   offline arrive stamped long ago, so after both players dropped a countdown showed "Starting in 98".
   Now `clockReading()` keeps the highest reading of the last minute (a message can be late, never early)
   and starts over when another player hosts; the countdown is capped at COUNTDOWN_MS and a sprint pause at 30 s.
+
+### Seats that survive drop-outs, host Remove, board answers, score-box messages (2026-11-07, evening)
+
+User reports: "people getting kicked in multiplayer, disconnected, ready button broken, when ready then you need to
+ready again, then you can't ready, then you get kicked, and a duplicate of yours is there"; "make it so host can
+kick people"; "everyone on lb can see other peoples guesses"; "why does it say Couldn't post your score".
+
+- Seats: a quiet player keeps the seat for `LOBBY_GRACE_MS` (45 s) in the lobby and on the podium, `AWAY_GRACE_MS`
+  (15 s) in a match (`graceTick` re-checks the phase each second). The room id a tab used is kept in sessionStorage
+  (`mlion:liveSeat`, `savedSeat`/`saveSeat`, 6 h), so a reload takes back the same seat. Per tab, not
+  localStorage: a first version shared it across tabs, and a second tab in the room (the host opening their own
+  link; live.takeover.e2e.js) joined with the host's id.
+  A page whose seat ran out still sends heartbeats and Ready that went nowhere: the host now answers an
+  unseated sender with the lobby (at most every 2 s), the page sees itself missing and says hello again,
+  and re-sends Ready if it was ready (`LIVE.wantReady`). The same name joining from another device while
+  the old seat is away replaces it (keeps its Ready and team) instead of making "Ben 2". Host and guest
+  answer each other's heartbeat at once when their own timer is late (hidden tabs fire timers rarely).
+- Host Remove: a Remove button on every other seat in the lobby (two taps: "Remove?" for 4 s). `hostKick` adds
+  the id to `LIVE.out`, sends `kicked` to that page (it leaves and says "The host removed you from this room."),
+  and refuses that id from then on (a reload keeps the same id). `out` travels in the lobby message, so a guest
+  who takes over keeps them out. tests/live.lobby.e2e.js covers all of it (6 scenarios).
+- Board answers: on the daily leaderboard each row folds that player's seven answers (tap the row), for
+  viewers who are on that day's board. Server: `daily_answers_board(p_day)` in supabase/daily_answers.sql
+  (applied 2026-11-07), same gate as `daily_answers_for`. Only real answers to the day's prompts are shown.
+- Score box under results: it used to say "Couldn't post your score. Check your connection and reload" for every
+  case without a rank, also when the post had worked and an admin had since removed the score in #admin (the
+  browser still knows it posted; two scores were removed at 16:37 UTC that day). Now: removed -> "it was removed";
+  posted but rank not loaded -> says so; post failed -> "Couldn't reach the leaderboard" with Try again (and a
+  retry when the browser comes back online). A login whose profile didn't load is loaded again before posting.
+  The server logs that day had no failed score posts at all (only 201s and 409s).
+- Matching: `numsClash` in engine.js: a typo never changes the numbers in a name ("L2 regularization" was
+  corrected to "L1 regularization"). matchbench: right 97.9% -> 98.2%, offered 1.6% -> 1.2%, false accept
+  unchanged at 0.8% (it was already 0.8% at the previous commit; data added since the 0.5% figure).
+- From suggestions: "hist", HistGB, hist GBM… for HistGradientBoosting (classifier, ensemble, boosting,
+  sklearn-estimator); "2D", "2D positional encoding" for 2D sinusoidal. HistGradientBoosting is one CamelCase
+  word, so "hist" was only a 4-letter prefix: too far for a typo and not a whole word for partOf.
+- Quiz: rq-403..406 (val loss rises -> what to try first; forgetting model.eval() with BatchNorm; first-batch
+  loss for 5 classes = ln 5; 0.69 = ln 2 at init). Right answers kept spread over the four slots (engine test).
+- Known flaky: tests/board.e2e.js step "a daily miss five others sent…" times out at some times of day, also on
+  the untouched previous commit (the first round's answer box doesn't open for the test before the round
+  ends; with a 5 s pause before it, it passes). Not caused by these changes; not fixed.

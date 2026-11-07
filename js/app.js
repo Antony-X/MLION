@@ -792,7 +792,20 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const ROOM_MAX = 12, PUB_MAX = 2; // a private room seats 12 (10 friends with room to spare); an open room is a duo
   const roomMax = () => (LIVE.isPublic ? PUB_MAX : ROOM_MAX);
   const HOST_QUIET_MS = 8000; // a guest accepts a new host only after the current one has been silent this long
-  const AWAY_GRACE_MS = 15000;
+  const AWAY_GRACE_MS = 15000; // a seat held for a player who went quiet, in a match
+  const LOBBY_GRACE_MS = 45000; // and in the lobby or on the podium, where nothing waits on them
+  // A player's id for a room is remembered by the tab, so a reload (or the link opened again in that tab) takes back
+  // the same seat instead of making a second one (the user, 2026-11-07: "a duplicate of yours is there"). Per tab
+  // (sessionStorage), not per device: a second tab in the same room is a second player, and must not take the
+  // first one's id (the host opening their own invite link would otherwise collide with themselves). A new tab of
+  // someone whose old seat went away is still matched by name (hostHandle "hello").
+  const SEAT_KEEP_MS = 6 * 3600 * 1000;
+  function savedSeat(code) {
+    let s = null;
+    try { s = JSON.parse(sessionStorage.getItem("mlion:liveSeat") || "null"); } catch { /* storage blocked */ }
+    return s && s.code === code && typeof s.id === "string" && /^[a-z0-9]{1,20}$/.test(s.id) && Date.now() - (+s.at || 0) < SEAT_KEEP_MS ? s.id : null;
+  }
+  const saveSeat = (code, id) => { try { sessionStorage.setItem("mlion:liveSeat", JSON.stringify({ code, id, at: Date.now() })); } catch { /* storage blocked */ } };
   const REVEAL_MS = 4500;
   const CODE_ABC = "abcdefghjkmnpqrstuvwxyz23456789";
   const liveBlocked = () => !!SHARE_BASE; // only the artifact build sets SHARE_BASE
@@ -859,7 +872,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       setTimeout(() => { try { c.end(true); } catch { /* ignore */ } }, 300);
     }
     const n = LIVE.fmt === "sprint" || LIVE.mfmt === "sprint" ? (validQ(LIVE.nOther) ? LIVE.nOther : 7) : LIVE.n; // a Sprint room's count stays with Sprint
-    Object.assign(LIVE, { active: false, code: "", secret: "", key: null, hostId: "", knock: null, isHost: false, isPublic: false, flash: "", ep: 0, offset: null, clock: [], clockFrom: "", countdownAt: 0, client: null, conns: new Map(), myId: "",
+    Object.assign(LIVE, { out: null, kickArm: null, active: false, code: "", secret: "", key: null, hostId: "", knock: null, isHost: false, isPublic: false, flash: "", ep: 0, offset: null, clock: [], clockFrom: "", countdownAt: 0, client: null, conns: new Map(), myId: "",
       players: new Map(), seed: "", ids: [], phase: "lobby", revealed: -1, status: "", skip: null, fmt: "rarity", mfmt: "rarity", rules: { ...RULES_DEFAULT }, mrules: { ...RULES_DEFAULT }, moreOpen: false, quiz: null, gone: new Map(), spRec: null, teams: 0, mteams: 0, mteam: {}, n });
     liveSprintStop();
     chatRate.clear();
@@ -1016,6 +1029,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!m || typeof m !== "object") return;
     if (m.t === "lobby" && Array.isArray(m.topics)) LIVE.topics = m.topics.filter((id) => PACKS.has(id));
     if (m.t === "lobby") LIVE.qlvl = validQuizLevel(m.qlvl) ? m.qlvl : "mixed";
+    if (m.t === "lobby" && !LIVE.isHost) LIVE.out = new Set(Array.isArray(m.out) ? m.out.filter((x) => typeof x === "string").slice(0, 50) : []); // who the host removed: kept out after a takeover too
     if (m.t === "lobby" && Array.isArray(m.players)) {
       const before = new Set(LIVE.players.keys());
       const next = new Map();
@@ -1048,6 +1062,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (LIVE.phase === "lobby" || LIVE.phase === "done") (LIVE.phase === "done" ? renderPodium : renderLobby)();
       else renderStrip();
     } else if (m.t === "start" && /^[a-z0-9]{4,12}$/.test(m.seed) && validQ(+m.n)) {
+      LIVE.wantReady = false; // the next match takes a new Ready
       LIVE.seed = m.seed; LIVE.n = +m.n; LIVE.phase = "playing"; LIVE.revealed = -1; LIVE.countdownAt = 0; LIVE.spRec = null;
       for (const pl of LIVE.players.values()) { pl.ans = {}; pl.late = false; pl.ready = false; pl.typing = null; }
       stopRun();
@@ -1162,6 +1177,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function broadcast(m) {
     m.ep = LIVE.ep || 0; m.hid = LIVE.myId; m.now = Date.now();
+    if (m.t === "hb") LIVE.hbAt = m.now;
     if (LIVE.client) sendSealed(LIVE.client, LIVE.key, LIVE.myId, `${roomTopic(LIVE.code)}/down`, m);
     if (m.t === "lobby") publishInfo();
     apply(m);
@@ -1187,7 +1203,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return `<div class="vs-field"><span>Topics</span><div class="chips" role="group" aria-label="Topics">${chip("", "All topics", !t.length)}${DATA.packs.map((pk) => chip(pk.id, pk.name, t.includes(pk.id))).join("")}</div></div>`;
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, qlvl: LIVE.qlvl || "mixed", secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, teams: teamsOn(), mteams: LIVE.mteams || 0, ...(LIVE.mteams ? { mt: LIVE.mteam } : {}),
+    return { t: "lobby", n: LIVE.n, qlvl: LIVE.qlvl || "mixed", secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, teams: teamsOn(), mteams: LIVE.mteams || 0, ...(LIVE.mteams ? { mt: LIVE.mteam } : {}), ...(LIVE.out && LIVE.out.size ? { out: [...LIVE.out].slice(-50) } : {}),
       players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, ...(teamsOn() && validTeam(p.team, teamsOn()) ? { team: p.team } : {}), ...(cleanLvl(p.lvl) ? { lvl: p.lvl } : {}) })) };
   }
   /** The quiz questions a player says they've had (hello and ready carry them): bank ids only, at most the bank's size. */
@@ -1211,12 +1227,16 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       return;
     }
     if (m.t === "hello") {
+      // the same name as a seat that went away, outside a match: the same player on another device or tab. They take
+      // that seat's place (and its Ready and team), so the lobby doesn't show them twice
+      const was = LIVE.phase !== "playing" && playerList().find((p) => p.away && !p.host && p.name === (cleanName(m.name) || "Player"));
+      if (was) { clearTimeout(was.awayTimer); LIVE.conns.delete(was.id); LIVE.players.delete(was.id); }
       if (LIVE.players.size >= roomMax()) { try { conn.send({ t: "full", max: roomMax() }); } catch { /* ignore */ } return; }
       let name = cleanName(m.name) || "Player";
       const taken = new Set(playerList().map((p) => p.name));
       for (let k = 2; taken.has(name); k++) name = `${cleanName(m.name) || "Player"} ${k}`;
       LIVE.conns.set(conn.peer, conn);
-      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: teamsOn() ? smallestTeam(conn.peer) : undefined, lvl: cleanLvl(m.lvl) || undefined, qs: cleanSeen(m.qs) || [] });
+      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: was && validTeam(was.team, teamsOn()) ? was.team : teamsOn() ? smallestTeam(conn.peer) : undefined, ready: !!(was && was.ready), lvl: cleanLvl(m.lvl) || undefined, qs: cleanSeen(m.qs) || [] });
       LIVE.knock = null; // an open room's seat is taken: the next knock hears "full"
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
@@ -1293,10 +1313,22 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     pl.away = true; // keep their seat for a while: phones pause pages when you switch apps
     broadcast(lobbyMsg());
     hostReadyCheck(); // everyone still here may already be ready
-    pl.awayTimer = setTimeout(() => {
+    const graceTick = () => {
       if (!pl.away || !LIVE.isHost || LIVE.players.get(id) !== pl) return; // this page may have been taken over since
+      if (Date.now() - pl.awayAt < (LIVE.phase === "playing" ? AWAY_GRACE_MS : LOBBY_GRACE_MS)) { pl.awayTimer = setTimeout(graceTick, 1000); return; }
       hostRemove(id);
-    }, AWAY_GRACE_MS);
+    };
+    pl.awayAt = Date.now();
+    pl.awayTimer = setTimeout(graceTick, AWAY_GRACE_MS);
+  }
+  /** The host removes a player: their page is told, and their id stays out of this room (a reload keeps the same id). */
+  function hostKick(id) {
+    const pl = LIVE.players.get(id);
+    if (!LIVE.isHost || !pl || pl.host || id === LIVE.myId) return;
+    (LIVE.out || (LIVE.out = new Set())).add(id);
+    hostSendTo(id, { t: "kicked" });
+    hostRemove(id);
+    toast(`Removed ${pl.name}`);
   }
   /** Free a seat for good (its grace ran out, or the player tapped Leave), then re-check what was waiting on them. */
   function hostRemove(id) {
@@ -1655,11 +1687,33 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (topic !== `${room}/up` || !LIVE.isHost) return;
     if (m.from !== undefined && m.from !== s) return; // a message naming anyone but its sealed sender is forged
+    if (LIVE.out && LIVE.out.has(s)) { // the host removed them: say so (again), at most every 2 s
+      const at = LIVE.unseatedAt || (LIVE.unseatedAt = new Map());
+      if (m.t !== "leave" && Date.now() - (at.get(s) || 0) > 2000) { at.set(s, Date.now()); hostSendTo(s, { t: "kicked" }); }
+      return;
+    }
     const pl = LIVE.players.get(s);
     if (pl) pl.seen = Date.now();
-    if (m.t === "hb") { if (pl && pl.away) hostHandle(fakeConn(s), { t: "hello" }); return; }
+    if (!pl && m.t !== "hello" && m.t !== "leave" && m.t !== "info") {
+      // Their seat ran out while they were away (a phone in another app), but their page still thinks it's seated:
+      // its heartbeats and Ready went nowhere. Tell it now; it sees itself missing from the lobby and asks in again.
+      const at = LIVE.unseatedAt || (LIVE.unseatedAt = new Map());
+      if (Date.now() - (at.get(s) || 0) > 2000) { at.set(s, Date.now()); hostSendTo(s, lobbyMsg()); }
+      return;
+    }
+    if (m.t === "hb") {
+      if (pl && pl.away) hostHandle(fakeConn(s), { t: "hello" });
+      else if (Date.now() - (LIVE.hbAt || 0) > 2500) broadcast({ t: "hb" }); // answer at once: a hidden tab's own timer may only fire once a minute
+      return;
+    }
     hostHandle(fakeConn(s), m);
   }
+  // Back on screen (a phone back from another app, a tab brought forward): say so at once rather than on the next
+  // tick, so the seat isn't marked away and the host doesn't look gone.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !LIVE.active || !LIVE.client) return;
+    if (LIVE.isHost) broadcast({ t: "hb" }); else guestSend({ t: "hb" });
+  });
   /** The host vanished: the remaining player with the smallest id takes over. */
   function maybeTakeOver() {
     if (LIVE.isHost || !LIVE.active) return;
@@ -1802,6 +1856,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ready = true; clearTimeout(fail);
         Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, qlvl: validQuizLevel(LS.get("liveQuizLevel", "mixed")) ? LS.get("liveQuizLevel", "mixed") : "mixed", rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)), teams: !isPublic && TEAM_COUNTS.includes(LS.get("liveTeams", 0)) ? LS.get("liveTeams", 0) : 0 });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now(), team: LIVE.teams ? 0 : undefined, lvl: myLevel() });
+        saveSeat(code, id);
         if (LIVE.fmt === "sprint") liveSetFmt("sprint", true);
         becomeHost();
         go(liveHash());
@@ -1821,7 +1876,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     renderJoinWait(code, "Connecting to the live server…");
     let client, key;
     try { key = await roomKey(code, secret); client = await liveConnect(); } catch { return renderLiveStatus("Couldn't load live play. Check your connection and try again.", true); }
-    const id = keepId || "g" + rid(8);
+    const id = keepId || savedSeat(code) || "g" + rid(8);
     const js = joinState = { code, name, client, id, secret, key, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
     const up = `${roomTopic(code)}/up`, down = `${roomTopic(code)}/down`, mine = `${roomTopic(code)}/to/${id}`;
     const hello = () => sendSealed(client, key, id, up, { t: "hello", name, v: 3, lvl: myLevel(), qs: seenQuiz() }); // lvl: shown in the lobby; old hosts ignore it
@@ -1834,6 +1889,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     js.helloTimer = setInterval(() => {
       if (joinState !== js) return clearInterval(js.helloTimer);
       if (js.joined) {
+        js.hbAt = Date.now();
         sendSealed(client, key, id, up, { t: "hb" });
         const quiet = Date.now() - js.lastHost;
         if (quiet > 11000 && client.connected) maybeTakeOver();
@@ -1866,6 +1922,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       js.lastHost = Date.now(); js.warned = false;
       clockReading(s, d.now);
       if (d.t === "hb") return;
+      if (d.t === "kicked") {
+        if (LIVE.active && s !== LIVE.hostId) return;
+        leaveLive();
+        return renderLiveStatus("The host removed you from this room.", true);
+      }
       if (d.t === "full") {
         leaveLive();
         return renderLiveStatus(+d.max === PUB_MAX ? "That open room is full: open rooms are for two players. Make your own room, or join another one." : `That room is full: it holds ${+d.max || ROOM_MAX} players. Make your own room, or join another one.`, true);
@@ -1873,12 +1934,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (!LIVE.active) {
         if (d.t !== "lobby" || !Array.isArray(d.players) || !d.players.some((p) => p && p.id === id)) return;
         js.joined = true;
+        saveSeat(code, id);
         const me = d.players.find((p) => p.id === id);
         Object.assign(LIVE, { active: true, code, secret: js.secret, key: js.key, hostId: s, ep, isHost: false, client, myId: id, phase: me.late && d.phase === "playing" ? "waiting" : "lobby" });
         syncChat();
         if (LIVE.phase === "waiting") { renderLiveStatus("You're in. A match is in progress, so you'll play the next one.", false); return; }
       }
-      if (d.t === "lobby" && Array.isArray(d.players) && !d.players.some((p) => p && p.id === id)) { hello(); return; } // our seat expired: ask again
+      if (d.t === "lobby" && Array.isArray(d.players) && !d.players.some((p) => p && p.id === id)) { js.reseat = true; hello(); return; } // our seat expired: ask again
+      if (js.reseat && d.t === "lobby" && Array.isArray(d.players)) { // seated again: if we were ready, say so again
+        js.reseat = false;
+        const me = d.players.find((p) => p && p.id === id);
+        if (me && !me.ready && LIVE.wantReady && d.phase !== "playing") setTimeout(() => { if (joinState === js && LIVE.wantReady) guestSend({ t: "ready", v: true, lvl: myLevel(), qs: seenQuiz() }); }, 0);
+      }
+      if (d.t === "hb" && js.joined && Date.now() - (js.hbAt || 0) > 2500) { js.hbAt = Date.now(); sendSealed(client, key, id, up, { t: "hb" }); } // answer at once: our own timer may be slowed in a hidden tab
       if (d.t === "busy") { LIVE.phase = "waiting"; renderLiveStatus("You're in. A match is in progress, so you'll play the next one.", false); return; }
       if (d.t === "resume") {
         LIVE.phase = "playing";
@@ -1956,6 +2024,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function avatar(name) { return `<span class="lv-av" aria-hidden="true">${esc((name || "?").slice(0, 1).toUpperCase())}</span>`; }
   function sendReady(v) {
+    LIVE.wantReady = !!v; // a seat that runs out and comes back keeps this
     if (LIVE.isHost) { const me = LIVE.players.get(LIVE.myId); if (me) me.lvl = myLevel(); hostReady(LIVE.myId, v); } else guestSend({ t: "ready", v, lvl: myLevel(), qs: seenQuiz() });
   }
   function readyBlock(label) {
@@ -2031,7 +2100,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
       <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#live" id="live-leave-lobby">Leave</a></div>
       <ul class="lv-players${tk ? " teamed" : ""}" aria-live="polite">${(tk ? Array.from({ length: tk }, (_, t) => [t, ps.filter((p) => p.team === t)]).concat([[-1, ps.filter((p) => !validTeam(p.team, tk))]]) : [[-1, ps]]).map(([t, list]) =>
-        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span>${p.away ? "Reconnecting…" : `${cleanLvl(p.lvl) ? `Level ${p.lvl} · ` : ""}${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span></li>`).join("")}`).join("")}
+        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span class="lv-st">${p.away ? "Reconnecting…" : `${cleanLvl(p.lvl) ? `Level ${p.lvl} · ` : ""}${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span>${LIVE.isHost && !p.host && p.id !== LIVE.myId ? kickButton(p) : ""}</li>`).join("")}`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${teamPicker()}
       ${LIVE.isHost ? `<div class="vs-form">
@@ -2073,6 +2142,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const nr = $("#live-norepeat");
     if (nr) nr.addEventListener("change", () => { LIVE.noRepeat = nr.checked; LS.set("liveNoRepeat", nr.checked); });
     wireReady();
+    $$(".lv-kick").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.id, arm = LIVE.kickArm;
+      if (arm && arm.id === id && Date.now() < arm.until) { LIVE.kickArm = null; return hostKick(id); }
+      LIVE.kickArm = { id, until: Date.now() + KICK_ARM_MS };
+      renderLobby();
+      const again = $(`.lv-kick[data-id="${id}"]`);
+      if (again) again.focus();
+      setTimeout(() => { if (LIVE.kickArm && LIVE.kickArm.id === id && Date.now() >= LIVE.kickArm.until) { LIVE.kickArm = null; if (LIVE.active && LIVE.phase === "lobby") renderLobby(); } }, KICK_ARM_MS + 100);
+    }));
+  }
+  /** A seat's Remove button: the first tap asks, a second within KICK_ARM_MS removes. */
+  const KICK_ARM_MS = 4000;
+  function kickButton(p) {
+    const armed = LIVE.kickArm && LIVE.kickArm.id === p.id && Date.now() < LIVE.kickArm.until;
+    return `<button type="button" class="lv-kick${armed ? " armed" : ""}" data-id="${esc(p.id)}" aria-label="${armed ? `Tap again to remove ${esc(p.name)}` : `Remove ${esc(p.name)}`}">${armed ? "Remove?" : "Remove"}</button>`;
   }
   /** The host's More options: closed by default, so the lobby stays short; the summary counts what's on. */
   function rulesPanel() {
@@ -4036,7 +4120,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   async function rankFor(day, uid, kind = "daily") {
     const table = BOARDS[kind].table, quiz = kind === "quiz";
     const mine = await sbClient.from(table).select(quiz ? "score,tenths" : "score").eq("day", day).eq("user_id", uid).maybeSingle();
-    if (!mine.data) return null;
+    if (!mine.data) return mine.error ? null : { gone: true }; // no row, no error: an admin took the score off this board
     const head = { count: "exact", head: true };
     const [above, tied, all] = await Promise.all([
       sbClient.from(table).select("user_id", head).eq("day", day).gt("score", mine.data.score),
@@ -4204,19 +4288,32 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       return drawMini();
     }
     box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
+    if (!AUTH.profile) { // the login's profile didn't load (a slow or dropped connection): ask again before posting
+      try { await AUTH.loading; } catch { /* ignore */ }
+      if (AUTH.user && !AUTH.profile) AUTH.profile = await loadProfile(AUTH.user).catch(() => null);
+    }
     const ok = await postDaily(rec).catch(() => false);
     if (!ok && await accountGone()) return;
-    let r = null;
+    let r = null, gone = false;
     if (ok) { // the board's rows (read fresh after the post) give the rank in one call when they hold the whole board
       const kept = boardCached(rec.date, kind);
       const got = boardStale(kept, rec.date) ? await boardFetch(rec.date, kind).catch(() => null) : kept;
       r = (got && got.rows && rankFromRows(got.rows, AUTH.user.id, kind)) || await rankFor(rec.date, AUTH.user.id, kind).catch(() => null);
+      if (r && r.gone) { gone = true; r = null; }
     }
     if (!box.isConnected) return;
+    // Before 2026-11-07 every case without a rank said "Couldn't post your score. Check your connection and reload",
+    // also when the post had worked and an admin had since removed the score (the browser still knows it posted).
     box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} ${dayWord(rec.date)} as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
+      : gone ? `<p class="muted small">Your score isn't on ${dayWord(rec.date)}'s leaderboard: it was removed. <a href="${href}">Leaderboard</a></p>`
+      : ok ? `<p class="muted small">Your score is posted. Your place on the board didn't load. <a href="${href}">Leaderboard</a></p>`
       : justLimited() ? `<p class="muted small">${TOO_MANY} <a href="${href}">Leaderboard</a></p>`
-      : kind === "quiz" ? "" // the quiz board isn't open on this server yet
-      : `<p class="muted small">Couldn't post your score. Check your connection and reload this page. <a href="${href}">Leaderboard</a></p>`) + mini;
+      : `<p class="muted small">Couldn't reach the leaderboard to post your score. <button class="linkish" type="button" id="pub-retry">Try again</button> · <a href="${href}">Leaderboard</a></p>`) + mini;
+    const retry = $("#pub-retry", box);
+    if (retry) {
+      retry.addEventListener("click", () => fillBoardBox(box, rec));
+      window.addEventListener("online", () => { if (box.isConnected && $("#pub-retry", box)) fillBoardBox(box, rec); }, { once: true }); // back online: try by itself
+    }
     drawMini();
   }
 
@@ -4248,15 +4345,17 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${day === today() && !played ? `<div><a class="btn primary big" href="#${quizBoard ? "daily-quiz" : "daily"}">Play today's ${quizBoard ? "quiz" : "daily"}</a></div>` : ""}
       </div>
       <div class="main"><ol class="list big board-list" id="board-list"><li class="muted">Loading…</li></ol>
-        <div class="board-side">${acct}<p class="muted small">One score per person per day: the first ${quizBoard ? "daily quiz" : "daily"} you publish. Everyone plays it on the same clock. If you're logged in, your score posts by itself.${quizBoard ? " Equal scores rank by total time, faster first." : ""}</p></div>
+        <div class="board-side">${acct}${quizBoard ? "" : `<p class="muted small" id="bd-g-note"></p>`}<p class="muted small">One score per person per day: the first ${quizBoard ? "daily quiz" : "daily"} you publish. Everyone plays it on the same clock. If you're logged in, your score posts by itself.${quizBoard ? " Equal scores rank by total time, faster first." : ""}</p></div>
       </div>
     </section>`;
     wireLogin(app);
     const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
     const pub = $("#pub-btn"); if (pub) pub.addEventListener("click", () => publishModal(played));
     const list = $("#board-list");
+    let guesses = null, guessing = false, lastGot = null;
     const draw = (got) => {
       if (!list.isConnected) return;
+      lastGot = got;
       if (got.missing) { list.innerHTML = `<li class="muted">The quiz leaderboard opens soon.</li>`; return; }
       if (!got.rows.length) { list.innerHTML = `<li class="muted">No scores yet${day === today() ? ". Be the first" : ""}.</li>`; return; }
       let rank = 0, last = null;
@@ -4264,11 +4363,23 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         const tie = quizBoard ? `${row.score}|${row.tenths}` : row.score; // the quiz board breaks ties on time
         if (tie !== last) { rank = i + 1; last = tie; }
         const me = AUTH.user && row.user_id === AUTH.user.id;
-        return `<li><div class="list-item${me ? " me" : ""}">
+        const item = `<div class="list-item${me ? " me" : ""}">
           <span class="rank">${rank}</span>
           <span class="main"><span class="title">${esc((row.profiles && row.profiles.name) || "Player")}${me ? " · you" : ""}</span><span class="sub">${quizBoard ? `${qmarksRow(String(row.marks || "").split("").map((c) => c === "1"))}<span class="nm-t">${fmtSecs(row.tenths || 0)}</span>` : tiersRow(decTiers(row.tiers))}</span></span>
-          <span class="right"><b>${row.score}</b>/700</span></div></li>`;
+          <span class="right"><b>${row.score}</b>/700</span></div>`;
+        const g = guesses && guesses.get(row.user_id);
+        return `<li>${g ? `<details class="bd-g"><summary aria-label="${esc((row.profiles && row.profiles.name) || "Player")}'s answers">${item}</summary>${guessList(day, g)}</details>` : item}</li>`;
       }).join("");
+      if (!quizBoard && !guesses && !guessing) { // anyone on this day's board sees everyone's answers (supabase/daily_answers.sql)
+        guessing = true;
+        boardGuesses(day, got.rows).then((g) => {
+          const note = $("#bd-g-note");
+          const onBoard = AUTH.user && got.rows.some((r) => r.user_id === AUTH.user.id);
+          if (note) note.textContent = g ? "Tap a player to see their answers." : onBoard ? "" : "Players on this board can see each other's answers. Post your score for this day to join them.";
+          if (g) { guesses = g; draw(lastGot); }
+          else guessing = false; // our own row may come in with the next read
+        });
+      }
     };
     // The rows never wait for the login library or a post: the kept copy at once, a fresh read alongside any post,
     // and one more read if a post of ours lands, so the player sees themselves.
@@ -4283,6 +4394,29 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (post && await post) { try { draw(await boardFetch(day, kind)); } catch { /* the rows already drawn stay */ } }
     if (list.isConnected) boardWarm(day, quizBoard ? "daily" : "quiz"); // the other tab, so switching is instant
+  }
+
+  /** Everyone's seven daily answers for a day, by account, when this account is on that day's board; else null. */
+  const guessKept = new Map();
+  async function boardGuesses(day, rows) {
+    if (!sbClient || !AUTH.user || !rows.some((r) => r.user_id === AUTH.user.id)) return null;
+    const k = `${day}:${AUTH.user.id}`, kept = guessKept.get(k);
+    if (kept && Date.now() - kept.at < 30000 && rows.every((r) => kept.map.has(r.user_id))) return kept.map;
+    let data = null;
+    try { const res = await sbClient.rpc("daily_answers_board", { p_day: day }); if (!res.error && Array.isArray(res.data)) data = res.data; } catch { /* offline */ }
+    if (!data) return null;
+    const map = new Map(data.filter((r) => r && typeof r.user_id === "string" && Array.isArray(r.answers)).map((r) => [r.user_id, r.answers]));
+    guessKept.set(k, { at: Date.now(), map });
+    return map;
+  }
+  /** One player's seven answers under their board row. Only real answers to that day's prompts are shown. */
+  function guessList(day, answers) {
+    return `<ol class="bd-ans">${dailyIds(day).map((pid, i) => {
+      const p = PROMPTS.get(pid);
+      if (!p) return "";
+      const x = answers[i], a = typeof x === "string" && x ? p.answers.find((z) => z.a === x) : null;
+      return `<li class="t-${a ? a.t : "miss"}">${G(a ? a.t : null)}<span><span class="bd-q">${esc(p.text)}</span><span class="bd-a">${a ? esc(a.a) : "No answer"}</span></span></li>`;
+    }).join("")}</ol>`;
   }
 
   // ============================================================ results

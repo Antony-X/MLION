@@ -48,3 +48,18 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke execute on function public.daily_answers_for(date) from public, anon;
 grant execute on function public.daily_answers_for(date) to authenticated;
+
+-- The leaderboard's view (user, 2026-11-07: "make it so everyone on lb can see other peoples guesses"): the same
+-- answers by account, so the board can fold each row's seven answers under it. The same rule as above: only for a
+-- player who has a score on that day, and only players whose score is still on the board.
+create or replace function public.daily_answers_board(p_day date) returns table (user_id uuid, answers text[])
+language sql stable security definer set search_path = '' as $$
+  select a.user_id, a.answers
+  from public.daily_answers a
+  join public.daily_scores s on s.user_id = a.user_id and s.day = a.day
+  where a.day = p_day
+    and exists (select 1 from public.daily_scores me where me.user_id = (select auth.uid()) and me.day = p_day)
+  limit 500;
+$$;
+revoke execute on function public.daily_answers_board(date) from public, anon;
+grant execute on function public.daily_answers_board(date) to authenticated;
