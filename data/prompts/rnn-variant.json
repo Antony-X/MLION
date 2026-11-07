@@ -29,6 +29,7 @@
     { "a": "ODE-RNN", "t": "longtail" },
     { "a": "CfC", "t": "longtail", "aka": ["Closed-form Continuous-time"] },
     { "a": "S4", "t": "outlier", "aka": ["Structured State Space", "Structured State Space sequence model", "S4D", "S5", "DSS", "Diagonal State Space", "S4ND", "Simplified State Space Layers"] },
+    { "a": "Linear RNN", "t": "longtail", "aka": ["linear recurrent network", "linear recurrent neural network", "linear recurrence", "LinRNN"], "q": "No squashing in the recurrence, so it unrolls into a parallel scan: the family LRU, S4 and Mamba come from." },
     { "a": "LRU", "t": "longtail", "aka": ["Linear Recurrent Unit"], "q": "'Resurrecting Recurrent Neural Networks for Long Sequences.' Linear, diagonal, and back." },
     { "a": "Griffin", "t": "longtail", "aka": ["Hawk", "RG-LRU", "Real-Gated Linear Recurrent Unit", "RecurrentGemma"] },
     { "a": "HGRN", "t": "longtail", "aka": ["Hierarchically Gated Recurrent Neural Network", "HGRN2"] },
