@@ -4672,9 +4672,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       sprintAddTime(S, r.a.t);
       S.chain = (S.chain || 0) + 1;
       Sound.coin(S.chain, r.a.t);
-      setStatus(r.corrected ? `Counted as ${r.a.a}` : "");
+      setStatus(r.corrected ? `Autocorrected “${raw}” to ${r.a.a}` : "", r.corrected ? "fixed" : "");
       $("#sp-n").textContent = S.found.length; $("#sp-pts").textContent = S.pts;
-      $("#sp-found").insertAdjacentHTML("afterbegin", `<li class="t-${r.a.t} pop">${G(r.a.t)}<span>${esc(r.a.a)}</span><b>+${T[r.a.t].score}</b></li>`);
+      $("#sp-found").insertAdjacentHTML("afterbegin", `<li class="t-${r.a.t} pop">${G(r.a.t)}<span>${esc(r.a.a)}${r.corrected ? `<small class="sp-from">from “${esc(raw)}”</small>` : ""}</span><b>+${T[r.a.t].score}</b></li>`);
       return true;
     }
     if (r.kind === "close") {

@@ -471,6 +471,9 @@ html .answer-input.corrected, html:not(.reduce-motion) .answer-input.corrected.s
 .status.bad::before { content: "×"; background: var(--negative); color: var(--bg); font-size: 19px; }
 .status.info { color: var(--ink); }
 .status.info::before { content: "?"; background: var(--ink); color: var(--bg); }
+/* autocorrected and counted (Sprint): an ink tick */
+.status.fixed { color: var(--ink); }
+.status.fixed::before { content: "✓"; background: var(--ink); color: var(--bg); font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .chips:empty { display: none; }
 .chips-label { color: var(--muted); font-size: var(--s1); margin-right: 4px; }
@@ -1213,6 +1216,7 @@ body.hero3d .home-rest { margin-bottom: calc(-64px - env(safe-area-inset-bottom,
 .sp-found li, .sp-missed li { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--raised); }
 .sp-missed li { grid-template-columns: 22px 1fr; color: var(--muted); }
 .sp-found .glyph, .sp-missed .glyph { font-size: 18px; color: var(--tc); }
+.sp-found .sp-from { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
 .sp-found b { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sp-found li.t-mlion b, .sp-found li.t-mlion span { color: var(--gold); }
 html:not(.reduce-motion) .sp-found li.pop { animation: sp-pop 420ms var(--ease-out); }

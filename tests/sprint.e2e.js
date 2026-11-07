@@ -64,7 +64,7 @@ const elsewhere = ["ReLU", "Adam", "GELU", "XGBoost", "K-means"].find((s) => E.m
   await send(elsewhere);
   check((await p.textContent("#sp-n")) === "1" && /answers “Name an? /.test(await p.textContent("#status")), `"${elsewhere}" is turned down with the prompt it does answer`);
   await send(typo);
-  check((await p.textContent("#sp-n")) === "2" && (await p.textContent("#status")).includes(`Counted as ${typoOf.a}`), `a typo "${typo}" counts as ${typoOf.a} and says so`);
+  check((await p.textContent("#sp-n")) === "2" && (await p.textContent("#status")).includes(`Autocorrected “${typo}” to ${typoOf.a}`) && (await p.textContent("#sp-found li")).includes(`from “${typo}”`), `a typo "${typo}" counts as ${typoOf.a} and says so, in the status and in the list`);
   const pts = E.TIERS[first.t].score + E.TIERS[typoOf.t].score;
   check((await p.$$("#sp-found li")).length === 2, "both answers are listed");
   // every accepted answer adds time, more for a rarer tier
