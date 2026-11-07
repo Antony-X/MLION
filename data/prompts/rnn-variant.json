@@ -149,6 +149,20 @@
     { "a": "RIM", "t": "longtail", "aka": ["RIMs", "Recurrent Independent Mechanisms"] },
     { "a": "Gated Graph Neural Network", "t": "longtail", "aka": ["GGNN", "GG-NN", "Gated Graph Sequence Neural Networks"] },
     { "a": "Transformer-XL", "t": "longtail", "aka": ["Transformer XL", "TXL"] },
-    { "a": "Time-aware LSTM", "t": "longtail", "aka": ["T-LSTM"] }
+    { "a": "Time-aware LSTM", "t": "longtail", "aka": ["T-LSTM"] },
+    { "a": "VRNN", "t": "outlier", "aka": ["Variational RNN", "variational recurrent neural network", "variational recurrent network"] },
+    { "a": "DCRNN", "t": "longtail", "aka": ["Diffusion Convolutional Recurrent Neural Network", "diffusion convolutional RNN"] },
+    { "a": "DPRNN", "t": "longtail", "aka": ["Dual-Path RNN", "dual path RNN", "dual-path recurrent neural network"] },
+    { "a": "LRCN", "t": "longtail", "aka": ["Long-term Recurrent Convolutional Network", "Long-term Recurrent Convolutional Networks"] },
+    { "a": "Vision-LSTM", "t": "longtail", "aka": ["ViL", "Vision LSTM", "xLSTM Vision"] },
+    { "a": "MQ-RNN", "t": "longtail", "aka": ["MQRNN", "multi-horizon quantile recurrent forecaster"] },
+    { "a": "SegRNN", "t": "longtail", "aka": ["Segment RNN", "segment recurrent neural network"] },
+    { "a": "GraphRNN", "t": "longtail", "aka": ["Graph RNN"] },
+    { "a": "Sketch-RNN", "t": "outlier", "aka": ["SketchRNN", "Sketch RNN"] },
+    { "a": "C-RNN-GAN", "t": "longtail", "aka": ["CRNNGAN", "continuous recurrent GAN", "continuous RNN-GAN"] },
+    { "a": "RCGAN", "t": "longtail", "aka": ["Recurrent Conditional GAN", "recurrent conditional generative adversarial network"] },
+    { "a": "CRF-RNN", "t": "longtail", "aka": ["CRF as RNN", "CRFasRNN", "conditional random fields as recurrent neural networks"] },
+    { "a": "Recurrent convolutional network", "t": "longtail", "aka": ["RCL", "recurrent convolutional layer", "recurrent convolutional neural network", "recurrent CNN"] },
+    { "a": "BRITS", "t": "longtail", "aka": ["bidirectional recurrent imputation for time series"] }
   ]
 }
