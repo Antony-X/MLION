@@ -191,6 +191,34 @@ const check = (c, msg) => { if (!c) throw new Error("FAIL: " + msg); console.log
   const used = await ana.evaluate(() => JSON.parse(localStorage.getItem("mlion:liveUsed")));
   check(s1.ids.every((id) => used.includes(id)), "no-repeat questions: the match's prompts are remembered for next time");
 
+  // ---- no repeats across modes (the user, 2026-11-07: "u sure questions dont repeat even if they are played in
+  // multiplayer?"): a question answered in a live room counts as seen in practice runs, and a rematch skips what
+  // any player has had anywhere, practice included.
+  const played = (await state(ana)).ids.slice(); // the match's questions after the skip
+  for (const [pg, who] of [[ana, "Ana"], [ben, "Ben"]]) {
+    const had = await pg.evaluate(() => JSON.parse(localStorage.getItem("mlion:seen") || "[]"));
+    check(played.every((id) => had.includes(id)), `${who}'s device records every question of the match as seen`);
+  }
+  const tab = await ben.context().newPage(); // Ben's second tab: the same device and storage
+  await tab.goto(base + "#quiz-1");
+  await tab.waitForFunction(() => !!localStorage.getItem("mlion:run:quiz:1"));
+  const practice = await tab.evaluate(() => JSON.parse(localStorage.getItem("mlion:run:quiz:1")).promptIds);
+  check(practice.length === 7 && !practice.some((id) => played.includes(id)), "Ben's next practice run asks none of the live match's questions");
+  // Ben has now had every question but seven (3 easy, 2 medium, 2 hard that neither player had): a rematch of four
+  // (easy, easy, medium, hard) can only come from those seven if the room skips what Ben had outside it
+  const anaHad = new Set(await ana.evaluate(() => JSON.parse(localStorage.getItem("mlion:seen") || "[]")));
+  const bank = E.quizBank(CORE).filter((r) => !played.includes(r.id) && !anaHad.has(r.id) && !practice.includes(r.id));
+  const free = [...bank.filter((r) => r.lvl === "easy").slice(0, 3), ...bank.filter((r) => (r.lvl || "medium") === "medium").slice(0, 2), ...bank.filter((r) => r.lvl === "hard").slice(0, 2)].map((r) => r.id);
+  assert.strictEqual(free.length, 7);
+  const benHad = E.quizBank(CORE).map((r) => r.id).filter((id) => !free.includes(id));
+  await tab.evaluate((ids) => localStorage.setItem("mlion:seen", JSON.stringify(ids)), benHad); // the room tab hears it as a storage event
+  await tab.close();
+  await ben.waitForTimeout(300);
+  for (const pg of [ana, ben]) { await pg.waitForSelector("#live-ready:not([disabled])"); await pg.click("#live-ready"); }
+  await Promise.all([unlocked(ana), unlocked(ben)]);
+  const rematch = (await state(ana)).ids;
+  check(rematch.length === 4 && rematch.every((id) => free.includes(id)), `the rematch deals only questions nobody in the room has had (${rematch.join(", ")})`);
+
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
   await browser.close();
   server.close();
