@@ -1118,8 +1118,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const tier = T[m.tier] ? m.tier : null;
       const ms = Number.isFinite(+m.ms) ? Math.max(0, Math.min(Math.round(+m.ms), liveMs(m.i))) : liveMs(m.i); // no time sent: no speed bonus
       const miss = Math.max(0, Math.min(99, Math.round(+m.miss) || 0)), hint = m.hint === true;
-      pl.ans[m.i] = { answer: tier ? String(m.answer || "").slice(0, 80) : null, tier, ms, miss, hint,
-        score: tier ? E.liveScore(LIVE.mrules, { base: T[tier].score, ms, total: liveMs(m.i), misses: miss, hinted: hint, last: m.i === LIVE.n - 1 }) : 0 };
+      const egg = tier === "mlion" ? eggFor(PROMPTS.get(LIVE.ids && LIVE.ids[m.i]), m.answer) : null;
+      pl.ans[m.i] = { answer: tier ? String(m.answer || "").slice(0, 80) : null, tier, ms, miss, hint, ...(egg ? { egg: egg.kind } : {}),
+        score: tier ? E.liveScore(LIVE.mrules, { base: egg ? EGG_PTS : T[tier].score, ms, total: liveMs(m.i), misses: miss, hinted: hint, last: m.i === LIVE.n - 1 }) : 0 };
       renderStrip();
       renderLiveWait();
       if (LIVE.revealed >= m.i) renderReveal(m.i);
@@ -1288,12 +1289,45 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const everyone = inMatch().every((p) => p.ans[m.i]);
     if (everyone) liveLater(() => hostReveal(m.i), 700);
   }
+  // A private joke, asked for by the owner: on one prompt, two names nobody will find in a list.
+  const EGG_PID = "ai-researcher", EGG_PTS = 500;
+  const EGGS = {"1147786292":"shit","1399048210":"tuff","1702781393":"tuff","1831252576":"shit","2266992058":"tuff","2303574819":"tuff","2382920563":"tuff","2605591379":"shit","3345537367":"tuff","3730676304":"shit","3834231402":"tuff","3977411453":"shit","4007636237":"shit","4075626058":"shit","4204209486":"tuff"};
+  const EGG_NAMES = { shit: "SHITIII", tuff: "TUFF" };
+  /** { answer, kind } when this text is one of them on that prompt, else null. */
+  function eggFor(p, raw) {
+    if (!p || p.id !== EGG_PID || !raw) return null;
+    const key = String(raw).slice(0, 60).normalize("NFKC").toLowerCase().replace(/[^\p{L}]/gu, "");
+    const kind = key && EGGS[E.hashString("egg:" + key)];
+    if (!kind) return null;
+    const a = String(raw).trim().replace(/\s+/g, " ").slice(0, 40).replace(/(^|\s)(\S)/g, (m, sp, c) => sp + c.toUpperCase());
+    return { kind, answer: { a, t: "mlion", egg: kind } };
+  }
+  /** Points for it: the Daily's leaderboard only takes the usual tiers, so there it is worth what a gem is. */
+  const eggPts = () => (RUN && RUN.mode === "daily" ? T.mlion.score : EGG_PTS);
+  /** The show. "shit": a cheap one on purpose. "tuff": the opposite. Never blocks the page. */
+  function eggFx(kind) {
+    const old = $(".egg-fx"); if (old) old.remove();
+    const fx = document.createElement("div");
+    fx.className = `egg-fx egg-${kind}`;
+    fx.setAttribute("aria-hidden", "true");
+    if (kind === "shit") {
+      fx.innerHTML = `<div class="egg-word">SHITIII</div>${Array.from({ length: 28 }, (_, i) => `<span class="egg-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(Math.random() * 1.2).toFixed(2)}s;--t:${(1.4 + Math.random() * 1.4).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">💩</span>`).join("")}`;
+    } else {
+      fx.innerHTML = `<div class="egg-flash"></div><div class="egg-ring"></div><div class="egg-word"><span>TUFF</span></div>${Array.from({ length: 32 }, (_, i) => `<span class="egg-spark" style="--a:${Math.round((360 / 32) * i + Math.random() * 8)}deg;--l:${Math.round(28 + Math.random() * 22)}vmin;--d:${(0.15 + Math.random() * 0.2).toFixed(2)}s"></span>`).join("")}`;
+      document.body.classList.remove("egg-quake"); void document.body.offsetWidth; document.body.classList.add("egg-quake");
+      setTimeout(() => document.body.classList.remove("egg-quake"), 900);
+    }
+    document.documentElement.appendChild(fx); // not body: the quake transforms body, which would pin a fixed overlay to it
+    setTimeout(() => fx.remove(), kind === "shit" ? 3800 : 2600);
+  }
   /** What a typed answer counts as under the room's autocorrect help, judged from the raw text alone (the same
    *  rules submit() applies). `named` is the answer the player settled on: it decides only between the
    *  suggestions their text really offered (a tapped chip). Anything the text can't reach is a miss. */
   function liveJudge(p, raw, named, assist) {
     const text = String(raw == null ? "" : raw).slice(0, E.MAX_ANSWER_LENGTH);
     if (!p || !text.trim()) return null;
+    const egg = eggFor(p, text);
+    if (egg) return egg.answer;
     const m = E.matchAnswer(p, text);
     if (m.kind === "exact") return m.answer;
     if (assist === "off") return null;
@@ -2296,6 +2330,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (liveQuiz()) return renderQuizReveal(i);
     const p = PROMPTS.get(RUN.promptIds[i]);
     const ps = inMatch().sort((a, b) => roundPts(b, i) - roundPts(a, i));
+    const hit = ps.find((pl) => pl.id !== LIVE.myId && pl.ans[i] && pl.ans[i].egg);
+    RUN.eggSeen = RUN.eggSeen || {};
+    if (hit && !RUN.eggSeen[i]) { RUN.eggSeen[i] = 1; setTimeout(() => eggFx(hit.ans[i].egg), 0); }
     const standings = inMatch().sort((a, b) => shownTotal(b) - shownTotal(a));
     const last = i + 1 >= LIVE.n;
     $("#card").innerHTML = `<div class="lv-reveal">
@@ -2303,7 +2340,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <ul class="lv-answers">${ps.map((pl) => {
         const a = pl.ans[i];
         const x = a && explainOf(p.id, a.answer);
-        return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span>${x ? `<span class="lx">${esc(x)}</span>` : ""}${liveTags(pl, i)}</span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
+        return `<li class="t-${tierOf(a && a.tier)}${pl.id === LIVE.myId ? " me" : ""}">${avatar(pl.name)}<span><b>${esc(pl.name)}</b><span class="la">${a && a.answer ? esc(a.answer) : "No answer"}</span>${a && a.egg ? `<span class="egg-tag egg-${a.egg}">${EGG_NAMES[a.egg]}</span>` : x ? `<span class="lx">${esc(x)}</span>` : ""}${liveTags(pl, i)}</span>${G(a && a.tier)}<em>+${roundPts(pl, i)}</em></li>`;
       }).join("")}</ul>
       ${teamStandHtml(inMatch())}
       <ol class="lv-standings">${standings.map((pl) => `<li class="${pl.id === LIVE.myId ? "me" : ""}${teamCls(pl)}"><b>${esc(pl.name)}</b><em>${shownTotal(pl)}</em></li>`).join("")}</ol>
@@ -3474,6 +3511,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       else if (RUN.mode !== "live") finishRound(null, "", { skipped: true });
       return;
     }
+    const egg = eggFor(p, raw);
+    if (egg) { showChips([]); return finishRound(egg.answer, raw, {}); }
     let m = E.matchAnswer(p, raw);
     // Live matches: the host decides how much autocorrect may help.
     const assist = RUN.mode === "live" ? RUN.assist || "typos" : "full";
@@ -3566,13 +3605,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const res = {
       promptId: p.id, promptText: p.text, raw: raw || null,
       answer: answer ? answer.a : null, tier: answer ? answer.t : null,
-      score: answer ? T[answer.t].score : 0, quip: answer && answer.q ? answer.q : null,
+      score: answer ? (answer.egg ? eggPts() : T[answer.t].score) : 0, quip: answer && answer.q ? answer.q : null,
       corrected: !!corrected, timeout: !answer && timeout, skipped: !answer && skipped,
+      ...(answer && answer.egg ? { egg: answer.egg } : {}),
     };
     if (RUN.mode === "live") { // the facts the room scores by (E.liveScore), sent with the answer
       res.ms = answer ? Math.round(Math.max(0, Math.min(answerMs(), Date.now() - RUN.previewEndsAt))) : answerMs();
       res.misses = RUN.misses || 0; res.hinted = !!RUN.hinted; res.struck = !!struck;
-      if (answer && RUN.rules) res.score = E.liveScore(RUN.rules, { base: T[answer.t].score, ms: res.ms, total: answerMs(), misses: res.misses, hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
+      if (answer && RUN.rules) res.score = E.liveScore(RUN.rules, { base: answer.egg ? EGG_PTS : T[answer.t].score, ms: res.ms, total: answerMs(), misses: res.misses, hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
     }
     RUN.results.push(res);
     RUN.phase = "feedback";
@@ -3652,7 +3692,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div class="feedback ${res.tier || "miss"} t-${tierOf(res.tier)}${animate ? "" : " landed"}" id="fb" aria-live="polite">
         <p class="fb-q">${esc(p.text)}</p>
         <div class="fb-answer">${res.answer ? esc(res.answer) : res.raw ? `“${esc(res.raw)}” <span class="muted">isn't an accepted answer</span>` : `<span class="muted">No answer</span>`}</div>
-        <div class="fb-tier">${G(res.tier)}<span class="fb-name">${t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
+        <div class="fb-tier${res.egg ? ` egg-tier egg-${res.egg}` : ""}">${res.egg === "shit" ? `<span class="egg-glyph">💩</span>` : G(res.tier)}<span class="fb-name">${res.egg ? EGG_NAMES[res.egg] : t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
         ${ruleNote(res)}
         ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.struck ? "One strike: a wrong answer ends your round." : res.timeout ? "Out of time." : res.skipped ? "Skipped." : "No points, so the ball stays put."}</p>` : ""}
         ${res.corrected && res.raw ? `<p class="fb-note">Autocorrected from “${esc(res.raw)}”</p>`
@@ -3677,6 +3717,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (animate && descent) {
       hudRange = [total - res.score, total];
       if (res.tier) Sound.tier(res.tier); else Sound.miss();
+      if (res.egg) eggFx(res.egg);
       const upTo = RUN.results.slice(), ms = Number.isFinite(res.ms) ? res.ms : Date.now() - RUN.previewEndsAt;
       descent.roll(res.tier, res.score, () => { const el = $("#hud-score"); if (el) { el.classList.remove("crank"); void el.offsetWidth; el.classList.add("crank"); } celebrate(upTo, ms); done(); });
       // never hold the player behind the animation

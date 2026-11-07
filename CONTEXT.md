@@ -1955,3 +1955,10 @@ kick people"; "everyone on lb can see other peoples guesses"; "why does it say C
   (`countdown` with `at: 0`, a token `LIVE.cdTok` so an old timer can't start a later countdown early); before,
   it ran out with no start and left "Starting in 1…" with no Ready button. The countdown banner has a Wait
   button, and the host's settings are `inert` during it. tests/live.lobby.e2e.js scenario 1b.
+
+## Private joke on the researcher prompt (2026-11-07)
+At the owner's request, two specific names typed on `ai-researcher` (and only there) score 500 (100 in the Daily, which
+counts it as a gem because the leaderboard only takes tier digits) and play a full-screen show: "shit" (cheap on purpose)
+or "tuff" (gold slam, ring, sparks, screen shake). The names exist only as hashes in `EGGS` in js/app.js (`eggFor`,
+`eggFx`); they are not in any answer list and are never shown as hints. Live rooms: the host's `liveJudge` returns it as
+a gem, receivers re-check the name with `eggFor` to score 500 and tag it in the reveal. Don't list the names anywhere.
