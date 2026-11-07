@@ -1943,3 +1943,10 @@ kick people"; "everyone on lb can see other peoples guesses"; "why does it say C
 - Known flaky: tests/board.e2e.js step "a daily miss five others sent…" times out at some times of day, also on
   the untouched previous commit (the first round's answer box doesn't open for the test before the round
   ends; with a 5 s pause before it, it passes). Not caused by these changes; not fixed.
+- Ready glitches (user: "if 1 teammate pressed ready and when settings were set ready again it glitched"):
+  the ready button read "Not ready" when you were ready, which looks like a status, so players tapped it to get
+  ready and un-readied themselves; now it reads "Cancel Ready" and the note starts "You're ready.". A countdown
+  whose conditions stop holding (someone taps Wait, goes away, changes team) is cancelled for everyone
+  (`countdown` with `at: 0`, a token `LIVE.cdTok` so an old timer can't start a later countdown early); before,
+  it ran out with no start and left "Starting in 1…" with no Ready button. The countdown banner has a Wait
+  button, and the host's settings are `inert` during it. tests/live.lobby.e2e.js scenario 1b.

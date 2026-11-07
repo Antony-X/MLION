@@ -12,7 +12,7 @@
  * new name. A new worker installs everything fresh (bypassing the HTTP cache), then waits: the page tells
  * it to take over when no game is running, and reloads once onto the new version (app.js, "updates"). */
 "use strict";
-const ASSETS = /*ASSETS*/["./","css/style.css?v=g2xzcp","js/engine.js?v=d5xtya","js/data.js?v=1kg3ubj","js/landscape.js?v=1qbt42","js/hero3d.js?v=1rjyu6z","js/sharecard.js?v=1dbmvj5","js/app.js?v=bxxmct","js/explain.js?v=15sszxj","manifest.webmanifest","img/favicon.svg","img/icon-192.png","img/apple-touch-icon.png"]/*END*/;
+const ASSETS = /*ASSETS*/["./","css/style.css?v=1gthxin","js/engine.js?v=d5xtya","js/data.js?v=1kg3ubj","js/landscape.js?v=1qbt42","js/hero3d.js?v=1rjyu6z","js/sharecard.js?v=1dbmvj5","js/app.js?v=xjq6y4","js/explain.js?v=15sszxj","manifest.webmanifest","img/favicon.svg","img/icon-192.png","img/apple-touch-icon.png"]/*END*/;
 const CACHE = "mlion-" + ASSETS.join("|").split("").reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7).toString(36);
 
 // The build's content hash (E.hashString in js/engine.js: 32-bit FNV-1a over the text, base 36).

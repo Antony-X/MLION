@@ -2,7 +2,8 @@
 /* Live lobby: seats survive the ways people really drop out (the user, 2026-11-07: "lot of bugs with people getting
  * kicked in multiplayer, disconnected, ready button broken, when ready then you need to ready again then you can't
  * ready then you get kicked, and a duplicate of yours is there").
- *   1. Ready, unready and ready again each reach the host.
+ *   1. Ready, unready and ready again each reach the host. 1b: when ready the button reads Cancel Ready; a countdown
+ *      locks the host's settings and anyone can stop it with Wait, on every screen.
  *   2. A guest silent for longer than the grace (a phone in another app) loses the seat; when he is back, he is
  *      seated again by himself, once, with the same id, and still ready.
  *   3. A guest who reloads the page and rejoins gets his own seat back (no "Ben 2"), still ready.
@@ -74,6 +75,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await ben.waitForFunction(() => /Not ready|Ready/.test(document.querySelector("#live-ready").textContent)); await ben.click("#live-ready"); await benReady(false);
   await ben.click("#live-ready"); await benReady(true);
   check(true, "1. Ready, unready and ready again each reach the host");
+
+  // ---- 1b. the button says what a tap does, and anyone can stop a countdown
+  const benSays = await ben.waitForFunction(() => /Cancel Ready/.test(document.querySelector("#live-ready")?.textContent || "") && document.body.textContent.includes("You're ready."), null, { timeout: 8000 }).then(() => true, () => false);
+  if (!benSays) console.log("     Ben sees:", JSON.stringify(await ben.textContent("#live-ready")));
+  check(benSays, "1b. when ready, the button reads Cancel Ready and the page says you're ready");
+  await ana.click("#live-ready");
+  await ben.waitForSelector("#lv-cd", { timeout: 8000 }); await ana.waitForSelector("#lv-cd", { timeout: 8000 });
+  check(await ana.evaluate(() => { const f = document.querySelector(".vs-form"); return !!f && f.hasAttribute("inert"); }), "1b. during the countdown the host's settings are locked");
+  await ben.click("#live-wait");
+  await ana.waitForFunction(() => !document.querySelector("#lv-cd"), null, { timeout: 8000 });
+  await ben.waitForFunction(() => !document.querySelector("#lv-cd") && !!document.querySelector("#live-ready"), null, { timeout: 8000 });
+  await sleep(4000);
+  check(await ana.evaluate(() => window.MLION_LIVE_STATE.phase === "lobby") && !(await seats(ana)).find((p) => p.id === benId).ready, "1b. Wait stops the countdown on every screen; no match starts");
+  await ana.click("#live-ready"); // Ana not ready again, Ben ready again: where the next step starts
+  await waitSeat(ana, () => !window.MLION_LIVE_STATE.players.get(window.MLION_LIVE_STATE.myId).ready, null, 8000);
+  await ben.click("#live-ready"); await benReady(true);
 
   // ---- 2. silent past the grace: the seat goes, and comes back by itself when he does
   await quiet(ben);

@@ -1599,3 +1599,7 @@ html:not(.reduce-motion) .arrive .xp-chip { animation: rise-in 600ms var(--ease-
 .bd-q { color: var(--muted); font-size: var(--s1); }
 .bd-a { font-size: var(--s2); overflow-wrap: anywhere; }
 .bd-ans li.t-miss .bd-a { color: var(--faint); }
+
+/* live: the countdown has a Wait button; the host's settings rest while it runs */
+.lv-cd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vs-form.lv-locked { opacity: 0.5; }

@@ -1124,7 +1124,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       renderLiveWait();
       if (LIVE.revealed >= m.i) renderReveal(m.i);
     } else if (m.t === "countdown" && Number.isFinite(+m.at)) {
-      LIVE.countdownAt = Math.min(+m.at, hostNow() + COUNTDOWN_MS); // never longer than a countdown is, whatever the clocks say
+      LIVE.countdownAt = +m.at > 0 ? Math.min(+m.at, hostNow() + COUNTDOWN_MS) : 0; // never longer than a countdown is, whatever the clocks say; 0: stopped
       (LIVE.phase === "done" ? renderPodium : renderLobby)();
     } else if (m.t === "typing" && typeof m.id === "string" && Number.isInteger(m.i)) {
       const pl = LIVE.players.get(m.id);
@@ -1373,10 +1373,21 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function hostReadyCheck() {
     if (!LIVE.isHost || !LIVE.active || LIVE.phase === "playing") return;
     const ps = playerList().filter((p) => !p.away);
-    if (ps.length < 2 || !ps.every((p) => p.ready) || !teamsReady()) return;
+    if (ps.length < 2 || !ps.every((p) => p.ready) || !teamsReady()) {
+      // Someone tapped Wait, went away or changed team mid-countdown: stop it for everyone. Before 2026-11-07 it ran
+      // out without a start and left "Starting in 1…" on every screen, with no Ready button, until the next change.
+      if (LIVE.countdownAt) { LIVE.cdTok = (LIVE.cdTok || 0) + 1; broadcast({ t: "countdown", at: 0 }); }
+      return;
+    }
     if (LIVE.countdownAt > Date.now()) return; // already counting down: its own check at the end still applies
+    const tok = LIVE.cdTok = (LIVE.cdTok || 0) + 1;
     broadcast({ t: "countdown", at: Date.now() + COUNTDOWN_MS });
-    liveLater(() => { const all = playerList().filter((p) => !p.away); if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready) && teamsReady()) hostStart(); }, COUNTDOWN_MS);
+    liveLater(() => {
+      if (LIVE.cdTok !== tok) return; // cancelled since (a new countdown has its own timer)
+      const all = playerList().filter((p) => !p.away);
+      if (LIVE.phase !== "playing" && all.length >= 2 && all.every((p) => p.ready) && teamsReady()) hostStart();
+      else if (LIVE.phase !== "playing") { LIVE.cdTok++; broadcast({ t: "countdown", at: 0 }); }
+    }, COUNTDOWN_MS);
   }
   function hostStart() {
     if (!LIVE.isHost || LIVE.players.size < 2) return;
@@ -2031,16 +2042,27 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const me = LIVE.players.get(LIVE.myId);
     const ps = playerList();
     const cd = LIVE.countdownAt && LIVE.countdownAt > hostNow() ? Math.ceil((LIVE.countdownAt - hostNow()) / 1000) : 0;
-    if (cd) return `<div class="lv-banner" role="status">Starting in <b id="lv-cd">${cd}</b>…</div>`;
+    if (cd) return `<div class="lv-banner lv-cd-row" role="status"><span>Starting in <b id="lv-cd">${cd}</b>…</span><button type="button" class="btn sm" id="live-wait">Wait</button></div>`;
     const waiting = ps.filter((p) => !p.ready).map((p) => (p.id === LIVE.myId ? "you" : p.name));
-    return `<div class="btn-row"><button class="btn ${me && me.ready ? "" : "primary "}big" id="live-ready" ${ps.length < 2 ? "disabled" : ""}>${me && me.ready ? "Not ready" : label}</button></div>
-      <p class="lv-note">${ps.length < 2 ? "The match starts when at least two players are here and everyone taps Ready." : !teamsReady() ? "Everyone is on one team. Someone needs to switch so at least two teams have players." : waiting.length ? `Waiting for ${esc(waiting.join(" and "))} to tap Ready.` : "Everyone's ready…"}</p>`;
+    // When ready, the button used to read "Not ready", which looks like a status: players tapped it to get ready and
+    // un-readied themselves (the user, 2026-11-07). Now it names the action, and the line under it says where you are.
+    const ready = !!(me && me.ready);
+    return `<div class="btn-row"><button class="btn ${ready ? "" : "primary "}big" id="live-ready" ${ps.length < 2 ? "disabled" : ""}>${ready ? "Cancel Ready" : label}</button></div>
+      <p class="lv-note">${ready ? "You're ready. " : ""}${ps.length < 2 ? "The match starts when at least two players are here and everyone taps Ready." : !teamsReady() ? "Everyone is on one team. Someone needs to switch so at least two teams have players." : waiting.length ? `Waiting for ${esc(waiting.join(" and "))} to tap Ready.` : "Everyone's ready…"}</p>`;
   }
   function wireReady() {
     const b = $("#live-ready");
     if (b) b.addEventListener("click", () => { const me = LIVE.players.get(LIVE.myId); sendReady(!(me && me.ready)); });
+    const w = $("#live-wait");
+    if (w) w.addEventListener("click", () => sendReady(false)); // stops the countdown for everyone
     if (LIVE.countdownAt && LIVE.countdownAt > hostNow()) {
-      const tick = () => { const el = $("#lv-cd"); if (!el) return; const left = Math.ceil((LIVE.countdownAt - hostNow()) / 1000); if (left > 0) { el.textContent = left; setTimeout(tick, 200); } };
+      const tick = () => {
+        const el = $("#lv-cd"); if (!el) return;
+        const left = Math.ceil((LIVE.countdownAt - hostNow()) / 1000);
+        if (left > 0) { el.textContent = left; setTimeout(tick, 200); return; }
+        // ran out and no match came (an old host's page, a lost message): show the Ready button again
+        setTimeout(() => { if (LIVE.active && (LIVE.phase === "lobby" || LIVE.phase === "done") && $("#lv-cd") && !(LIVE.countdownAt > hostNow())) (LIVE.phase === "done" ? renderPodium : renderLobby)(); }, 2500);
+      };
       tick();
     }
   }
@@ -2103,7 +2125,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span class="lv-st">${p.away ? "Reconnecting…" : `${cleanLvl(p.lvl) ? `Level ${p.lvl} · ` : ""}${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span>${LIVE.isHost && !p.host && p.id !== LIVE.myId ? kickButton(p) : ""}</li>`).join("")}`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${teamPicker()}
-      ${LIVE.isHost ? `<div class="vs-form">
+      ${LIVE.isHost ? `<div class="vs-form${LIVE.countdownAt > hostNow() ? " lv-locked" : ""}"${LIVE.countdownAt > hostNow() ? " inert" : ""}>
         <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"], ["sprint", "Sprint"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         ${LIVE.isPublic ? "" : `<div class="vs-field"><span>Teams</span><div class="vs-sizes" role="radiogroup" aria-label="Teams">${TEAM_COUNTS.map((k) => `<button type="button" class="vs-size lv-teams${tk === k ? " on" : ""}" role="radio" aria-checked="${tk === k}" data-k="${k}" aria-label="${k ? `${k} teams` : "No teams"}">${k || "Off"}</button>`).join("")}</div></div>`}
         ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : assistSlider()}
