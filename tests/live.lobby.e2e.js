@@ -88,6 +88,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await ben.waitForFunction(() => !document.querySelector("#lv-cd") && !!document.querySelector("#live-ready"), null, { timeout: 8000 });
   await sleep(4000);
   check(await ana.evaluate(() => window.MLION_LIVE_STATE.phase === "lobby") && !(await seats(ana)).find((p) => p.id === benId).ready, "1b. Wait stops the countdown on every screen; no match starts");
+  // the last second: Ben (ready again) taps Wait about 0.3 s before the countdown ends
+  await ben.click("#live-ready"); await benReady(true);
+  await ben.waitForSelector("#lv-cd", { timeout: 8000 });
+  const cdLeft = await ben.evaluate(() => window.MLION_LIVE_STATE.countdownAt - Date.now());
+  await sleep(Math.max(0, cdLeft - 300));
+  await ben.click("#live-wait");
+  await sleep(4000);
+  const both = await Promise.all([ana, ben].map((p) => p.evaluate(() => ({ phase: window.MLION_LIVE_STATE.phase, cd: !!document.querySelector("#lv-cd"), btn: !!document.querySelector("#live-ready") }))));
+  console.log("     after a Wait " + Math.max(0, cdLeft - 300) + " ms into the countdown: " + JSON.stringify(both));
+  check(both.every((x) => x.phase === "lobby" && !x.cd && x.btn), "1b. a Wait in the last second still stops it: both pages in the lobby with Ready buttons, no frozen countdown");
   await ana.click("#live-ready"); // Ana not ready again, Ben ready again: where the next step starts
   await waitSeat(ana, () => !window.MLION_LIVE_STATE.players.get(window.MLION_LIVE_STATE.myId).ready, null, 8000);
   await ben.click("#live-ready"); await benReady(true);
