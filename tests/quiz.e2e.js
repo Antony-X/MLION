@@ -74,10 +74,16 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.screenshot({ path: path.join(OUT, "40-quiz-hub.png") });
 
   // ---- a solo run: 7 questions, key / tap / wrong / timeout
-  const run1 = E.quizRun(CORE, 1);
-  assert.strictEqual(run1.length, 7);
   check(!!(await page.$('.dq-card a.btn.primary[href="#daily-quiz"]')), "the hub leads with today's quiz");
+  check(!!(await page.$('.qz-lvl.on[data-l="mixed"]')) && (await page.$$(".qz-lvl")).length === 4, "the hub offers four difficulties, Mixed picked");
   await page.click('a.btn[href="#quiz-1"]');
+  // a run is dealt from the questions this player hasn't had, so it is read from the page, then rebuilt here
+  await page.waitForFunction(() => !!localStorage.getItem("mlion:run:quiz:1"));
+  const saved1 = await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:run:quiz:1")));
+  const run1 = E.quizFor(CORE, "quiz-v4:1", saved1.promptIds.length, { promptIds: saved1.promptIds });
+  assert.strictEqual(run1.length, 7);
+  const LVL = new Map(E.quizBank(CORE).map((r) => [r.id, r.lvl || "medium"]));
+  check(saved1.promptIds.map((id) => LVL.get(id)).join() === E.QUIZ_PATTERN.join() && saved1.level === "mixed", "a Mixed run goes easy, easy, medium, medium, hard, hard, hard");
   await page.waitForSelector("#veil:not(.hidden)");
   check(!(await page.$("#begin")) && (await page.textContent("#topbar-mid")).includes("Quiz #1") && (await page.textContent("#play-meta")).includes("of 7"), "run 1 starts straight away: seven questions, no intro page");
   check(await page.$$eval(".mcq-opt", (els) => els.length === 4 && els.every((e) => e.disabled)), "the four options are locked while the question is being read");
@@ -161,6 +167,10 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.goto(base + "#quiz");
   await page.waitForSelector('.btn-row a.btn[href="#quiz-2"]');
   check((await page.textContent(".main .list")).includes(String(hits * 100)), "the hub lists the finished run");
+  const hardLeft = E.quizBank(CORE).filter((r) => r.lvl === "hard" && !saved1.promptIds.includes(r.id)).length;
+  await page.click('.qz-lvl[data-l="hard"]');
+  await page.waitForSelector('.qz-lvl.on[data-l="hard"]');
+  check((await page.textContent(".qz-left")).includes(`${hardLeft} questions you haven't had yet at hard`), `picking Hard says how many hard ones are new (${hardLeft})`);
   await page.goto(base + "#quiz-1");
   await page.waitForSelector(".score-big");
   check(true, "a finished run opens on its results");
@@ -171,7 +181,10 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   check(true, "Quiz can't jump ahead to a later run");
 
   // ---- resume after a reload: same options, the clock keeps running
-  const run2 = E.quizRun(CORE, 2);
+  const saved2 = await page.evaluate(() => JSON.parse(localStorage.getItem("mlion:run:quiz:2")));
+  const run2 = E.quizFor(CORE, "quiz-v4:2", saved2.promptIds.length, { promptIds: saved2.promptIds });
+  check(saved2.level === "hard" && saved2.promptIds.every((id) => LVL.get(id) === "hard"), "a Hard run is all hard questions");
+  check(!saved2.promptIds.some((id) => saved1.promptIds.includes(id)), "and none of them is a question run 1 already asked");
   const before = await readQuestion(page);
   await page.waitForTimeout(2000); // let the clock run (a bank question gets 14 s on the 10 s setting)
   await page.reload();
@@ -205,10 +218,10 @@ const hexName = (s) => Buffer.from(s).toString("hex");
   await page.waitForSelector("#vs-send-now");
   const seed = (await page.evaluate(() => location.hash)).match(/^#vq-([a-z0-9]+)-3t10$/)[1];
   check(!!seed, "a quiz challenge gets a #vq- link with the count and clock");
-  check(seed.length === 10, "new quiz links carry a 10-character seed, so they deal the easy-to-hard mix");
-  const vq = E.quizFor(CORE, `vq-${seed}`, 3, { promptIds: [], reasoningIds: E.mixedDeal(CORE, `vq-${seed}`, 3) });
-  const LVL = new Map(E.quizBank(DATA).map((r) => [r.id, r.lvl]));
-  check(vq.map((q) => LVL.get(q.promptId)).join() === "easy,easy,medium", "a three-question link deals easy, easy, medium");
+  check(seed.length === 11, "new quiz links carry an 11-character seed, so they go easy to hard all the way");
+  const vq = E.quizFor(CORE, `vq-${seed}`, 3, { promptIds: [], reasoningIds: E.rampDeal(CORE, `vq-${seed}`, 3) });
+  check(vq.map((q) => LVL.get(q.promptId)).join() === "easy,medium,hard", "a three-question link deals easy, medium, hard");
+  check(E.rampPlan(10).join() === "easy,easy,easy,medium,medium,medium,hard,hard,hard,hard", "a ten-question link never goes back to easy");
   await page.fill("#vs-name", "Ana");
   await page.click("#vs-send-now");
   const early = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop();

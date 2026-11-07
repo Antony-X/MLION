@@ -653,6 +653,10 @@
   // easy"): seven questions go easy, easy, medium, medium, hard, hard, hard. Longer runs repeat the pattern.
   const QUIZ_PATTERN = ["easy", "easy", "medium", "medium", "hard", "hard", "hard"];
   const QUIZ_LEVELS = ["easy", "medium", "hard"];
+  /** The levels of a mixed run of `n`, easy to hard all the way (the user, 2026-11-07: "make all quiz 1v1s
+   *  questions increasing in difficulty"): QUIZ_PATTERN stretched or squeezed to n, never starting over.
+   *  Seven gives QUIZ_PATTERN itself; ten gives 3 easy, 3 medium, 4 hard; three gives easy, medium, hard. */
+  const rampPlan = (n) => Array.from({ length: n }, (_, k) => QUIZ_PATTERN[Math.floor((k * QUIZ_PATTERN.length) / n)]);
   /** One seeded stream per level over the bank. */
   function levelStreams(data, label) {
     const bank = quizBank(data), out = {};
@@ -663,10 +667,10 @@
     return out;
   }
   /** The next `per` ids from level streams, laid out in the pattern; a level the bank lacks borrows from medium, then any. */
-  function takeMixed(streams, per) {
+  function takeMixed(streams, per, plan) {
     const have = Object.keys(streams);
     if (!have.length) return [];
-    const lv = Array.from({ length: per }, (_, k) => QUIZ_PATTERN[k % QUIZ_PATTERN.length]).map((l) => (streams[l] ? l : streams.medium ? "medium" : have[0]));
+    const lv = (plan || Array.from({ length: per }, (_, k) => QUIZ_PATTERN[k % QUIZ_PATTERN.length])).map((l) => (streams[l] ? l : streams.medium ? "medium" : have[0]));
     const got = {};
     for (const l of new Set(lv)) got[l] = streams[l].take(lv.filter((x) => x === l).length);
     return lv.map((l) => got[l].shift()).filter(Boolean);
@@ -680,8 +684,33 @@
     while (c.runs.length < n) c.runs.push(takeMixed(c.streams, per));
     return c.runs[n - 1];
   }
-  /** A one-off mixed deal for a seed label (quiz challenge links). */
+  /** A deal that skips what the player has already seen, in any mode (the user, 2026-11-07: "make sure not
+   *  repeat questions works even if question is in multiplayer played"). `level`: "mixed" lays the run out in
+   *  QUIZ_PATTERN, or "easy" / "medium" / "hard" for every question. Unseen questions come first, in `rng` order;
+   *  when a level has none left, the ones seen longest ago (earliest in `seen`) come back; a level the bank lacks
+   *  borrows from medium, then any. `only`: the ids allowed (a live room's topics). Returns bank ids. */
+  function freshDeal(data, { n = QUIZ_ROUNDS, level = "mixed", seen = [], rng = Math.random, only = null } = {}) {
+    const order = new Map();
+    for (const id of seen) if (!order.has(id)) order.set(id, order.size);
+    const allow = only ? new Set(only) : null;
+    const left = {};
+    for (const l of QUIZ_LEVELS) {
+      const ids = quizBank(data).filter((r) => (r.lvl || "medium") === l && (!allow || allow.has(r.id))).map((r) => r.id);
+      left[l] = shuffled(ids.filter((id) => !order.has(id)), rng).concat(ids.filter((id) => order.has(id)).sort((a, b) => order.get(a) - order.get(b)));
+    }
+    const out = [], plan = rampPlan(n);
+    for (let k = 0; k < n; k++) {
+      const want = QUIZ_LEVELS.includes(level) ? level : plan[k];
+      const from = left[want].length ? left[want] : left.medium.length ? left.medium : QUIZ_LEVELS.map((l) => left[l]).find((a) => a.length);
+      if (!from) break;
+      out.push(from.shift());
+    }
+    return out;
+  }
+  /** A one-off mixed deal for a seed label (quiz challenge links of 10-character seeds; the pattern starts over
+   *  after seven). rampDeal: the same, easy to hard all the way (11-character seeds, from 2026-11-07). */
   const mixedDeal = (data, label, per) => takeMixed(levelStreams(data, label), per);
+  const rampDeal = (data, label, per) => takeMixed(levelStreams(data, label), per, rampPlan(per));
   const _quizCtx = new WeakMap();
   /** On-topic prompts of a data bundle (never an `offtopic` one), indexed once. */
   function quizContext(data) {
@@ -1010,7 +1039,7 @@
     mulberry32, hashString, shuffled,
     LAUNCH_DATE, isDay, setLaunch, epoch, localDateString, dayNumberFor, dateForDay, daysBetween, addDays, msUntilLocalMidnight,
     makeStream, runFor, streamIds, dailyPromptIds, unlimitedPromptIds, packPromptIds, packRunCount,
-    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, QUIZ_PATTERN, quizPoints, speedMult, liveScore,
+    QUIZ_TIERS, QUIZ_OPTIONS, QUIZ_POINTS, QUIZ_ROUNDS, quizQuestion, quizFor, quizRun, quizBank, mixedDeal, rampDeal, rampPlan, freshDeal, QUIZ_LEVELS, QUIZ_PATTERN, quizPoints, speedMult, liveScore,
     REASONING_CLOCK, isReasoningId, reasoningQuestion, dailyQuiz,
     tierEmoji, shareText,
     XP, xpTier, xpSprint, xpQuiz, practiceXp, levelCost, levelFor, levelStart, levelTier, recordXp, xpTotal,

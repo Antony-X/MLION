@@ -595,9 +595,24 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return date === t || (date === E.addDays(t, -1) && date >= E.addDays(new Date().toISOString().slice(0, 10), -1));
   }
   const dayWord = (date) => (date === today() ? "today" : "yesterday"); // for a postable day
+  // Quiz difficulty (the user, 2026-11-07: "in quiz u can select difficulty of questions"): Mixed goes easy to
+  // hard (E.QUIZ_PATTERN), or every question at one level. Practice runs and live quiz rooms deal questions the
+  // player hasn't answered anywhere yet (`seen` holds every quiz question answered, live rooms included).
+  const QUIZ_LEVEL_NAMES = { mixed: "Mixed", easy: "Easy", medium: "Medium", hard: "Hard" };
+  const validQuizLevel = (l) => Object.prototype.hasOwnProperty.call(QUIZ_LEVEL_NAMES, l);
+  const quizLevel = () => (validQuizLevel(LS.get("quizLevel", "mixed")) ? LS.get("quizLevel", "mixed") : "mixed");
+  /** Quiz questions this player has answered, oldest first. */
+  const seenQuiz = () => [...seen].filter((id) => id.startsWith("rq-"));
   function quizSpec(n) {
-    const quiz = E.quizRun(soloPool(), n);
-    return { key: `quiz:${n}`, mode: "quiz", fmt: "quiz", number: n, label: `Quiz #${n}`, promptIds: quiz.map((q) => q.promptId), quiz };
+    const spec = { key: `quiz:${n}`, mode: "quiz", fmt: "quiz", number: n, label: `Quiz #${n}` };
+    // a run already dealt keeps its questions; one not yet started is dealt again if the difficulty changed
+    const saved = LS.get(`run:quiz:${n}`);
+    if (saved && Array.isArray(saved.quiz) && saved.quiz.length && Array.isArray(saved.promptIds) && saved.promptIds.every((id) => PROMPTS.has(id)) &&
+      ((saved.results && saved.results.length) || saved.level === quizLevel())) return { ...spec, level: saved.level, promptIds: saved.promptIds, quiz: saved.quiz };
+    const level = quizLevel();
+    const ids = E.freshDeal(soloPool(), { n: E.QUIZ_ROUNDS, level, seen: seenQuiz() });
+    const quiz = E.quizFor(soloPool(), `quiz-v4:${n}`, ids.length, { promptIds: ids });
+    return { ...spec, level, promptIds: quiz.map((q) => q.promptId), quiz };
   }
   function nextPackRun(packId) { let n = 1; while (records[`pack:${packId}:${n}`]) n++; return n; }
 
@@ -703,10 +718,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // ---- quiz challenges: #vq-<seed>-<n>[tNN][-<picks>-<tenths>-<nameHex>]x2. Picks are one digit per
   // question (0 none, 1 to 4 the option chosen), so the score is recomputed from the seed; tenths is
   // the total answer time in tenths of a second, which breaks a tie on points.
-  // Links made since the hard questions arrived (2026-11-05) have 10-character seeds and deal the level mix;
-  // older links (6-7 characters) rebuild from the bank as it was then, so the picks they carry still line up.
+  // Links made from 2026-11-07 have 11-character seeds and go easy to hard all the way (rampDeal); links from
+  // 2026-11-05 have 10 and deal the level mix that starts over after seven; older links (6-7 characters) rebuild
+  // from the bank as it was then. Each keeps its own deal, so the picks it carries still line up.
   const CORE_BANK1 = { ...CORE, reasoning: CORE.reasoning.filter((r) => r.retired || +r.id.slice(3) <= 247) };
-  const quizChallengeQuiz = (seed, n) => (seed.length >= 10
+  const quizChallengeQuiz = (seed, n) => (seed.length >= 11
+    ? E.quizFor(CORE, `vq-${seed}`, n, { promptIds: [], reasoningIds: E.rampDeal(CORE, `vq-${seed}`, n) })
+    : seed.length >= 10
     ? E.quizFor(CORE, `vq-${seed}`, n, { promptIds: [], reasoningIds: E.mixedDeal(CORE, `vq-${seed}`, n) })
     : E.quizFor(CORE_BANK1, `vq-${seed}`, n));
   function vqLink(seed, n, players, secs) {
@@ -780,8 +798,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const liveBlocked = () => !!SHARE_BASE; // only the artifact build sets SHARE_BASE
   // Room rules: the host's "More options" for Classic and Quiz rooms (user, 2026-11-05: hints and first letters,
   // wrong-answer penalties, a speed multiplier, more fun options, tucked away so the lobby isn't crowded).
-  // Scoring is E.liveScore; clash is applied at the reveal (it needs everyone's answers).
-  const RULES_DEFAULT = { hints: "off", miss: "free", speed: "off", final: false, clash: false };
+  // Scoring is E.liveScore; clash and first are applied at the reveal (they need everyone's answers).
+  // first (the user, 2026-11-07: "if one answers before another they get score boost if they enable"): the
+  // fastest right answer of a round scores FIRST_MULT; a tie on the clock gives it to both.
+  const RULES_DEFAULT = { hints: "off", miss: "free", speed: "off", final: false, clash: false, first: false };
+  const FIRST_MULT = 1.5;
   const RULE_CHOICES = {
     speed: [["off", "Off"], ["1.5", "Up to ×1.5"], ["2", "Up to ×2"]],
     hints: [["off", "Off"], ["half", "Half points"], ["free", "Free"]],
@@ -792,7 +813,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const o = { ...RULES_DEFAULT };
     if (r && typeof r === "object") {
       for (const k of Object.keys(RULE_CHOICES)) if (RULE_CHOICES[k].some(([v]) => v === r[k])) o[k] = r[k];
-      o.final = r.final === true; o.clash = r.clash === true;
+      o.final = r.final === true; o.clash = r.clash === true; o.first = r.first === true;
     }
     return o;
   }
@@ -805,6 +826,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!quiz && r.miss !== "free") out.push(r.miss === "strike" ? "one strike" : `−${r.miss} a wrong answer`);
     if (r.final) out.push("final question ×2");
     if (!quiz && r.clash) out.push("clash");
+    if (r.first) out.push(`first right answer ×${FIRST_MULT}`);
     return out;
   }
   const LIVE = { active: false, code: "", isHost: false, client: null, conns: new Map(), myId: "",
@@ -866,7 +888,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   /** Clash (a room rule): once a Classic round is revealed, an answer someone else in the match also gave scores half. */
   const clashed = (pl, i) => !!(LIVE.mrules && LIVE.mrules.clash && LIVE.mfmt === "rarity" && i <= LIVE.revealed && pl.ans[i] && pl.ans[i].tier
     && inMatch().some((o) => o !== pl && o.ans[i] && o.ans[i].tier && o.ans[i].answer === pl.ans[i].answer));
-  const roundPts = (pl, i) => (pl.ans[i] ? (clashed(pl, i) ? Math.round(pl.ans[i].score / 2) : pl.ans[i].score) : 0);
+  /** First (a room rule): once a round is revealed, the fastest right answer in the match (Classic: accepted) scores ×FIRST_MULT. */
+  const firstIn = (pl, i) => !!(LIVE.mrules && LIVE.mrules.first && LIVE.mfmt !== "sprint" && i <= LIVE.revealed && pl.ans[i] && pl.ans[i].tier && pl.ans[i].score > 0
+    && !inMatch().some((o) => o !== pl && o.ans[i] && o.ans[i].tier && o.ans[i].score > 0 && o.ans[i].ms < pl.ans[i].ms));
+  const roundPts = (pl, i) => {
+    const a = pl.ans[i];
+    if (!a) return 0;
+    const s = clashed(pl, i) ? a.score / 2 : a.score;
+    return Math.round(firstIn(pl, i) ? s * FIRST_MULT : s);
+  };
   const liveQuiz = () => LIVE.mfmt === "quiz";
   const liveSprint = () => LIVE.mfmt === "sprint";
   // quiz and sprint matches keep a round's points back until its reveal, so a total counts revealed rounds only
@@ -971,6 +1001,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function apply(m) {
     if (!m || typeof m !== "object") return;
     if (m.t === "lobby" && Array.isArray(m.topics)) LIVE.topics = m.topics.filter((id) => PACKS.has(id));
+    if (m.t === "lobby") LIVE.qlvl = validQuizLevel(m.qlvl) ? m.qlvl : "mixed";
     if (m.t === "lobby" && Array.isArray(m.players)) {
       const before = new Set(LIVE.players.keys());
       const next = new Map();
@@ -1123,16 +1154,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** The packs a room plays (empty: every topic), and the prompt ids they hold. */
   const liveTopics = () => (Array.isArray(LIVE.topics) ? LIVE.topics.filter((id) => PACKS.has(id)) : []);
-  /** A live quiz's questions laid out like a solo run (E.QUIZ_PATTERN: easy, easy, medium, medium, hard, hard, hard),
-   *  taken from the host's candidates in order; when a level runs out, the next candidate fills the slot. */
-  function mixByLevel(cand, n) {
-    const lvl = new Map(QUIZ_BANK.map((r) => [r.id, r.lvl || "medium"]));
-    const left = cand.slice(), out = [];
-    for (let k = 0; k < n && left.length; k++) {
-      const j = left.findIndex((id) => lvl.get(id) === E.QUIZ_PATTERN[k % E.QUIZ_PATTERN.length]);
-      out.push(left.splice(Math.max(0, j), 1)[0]);
-    }
-    return out;
+  const lvlOfQ = (id) => { const r = QUIZ_BANK.find((x) => x.id === id); return r ? r.lvl || "medium" : null; };
+  /** Every quiz question someone in the room has had: what this room dealt before, the host's own, and what each
+   *  player sent with hello and ready. Oldest first, so when a level runs out the longest-ago ones return. */
+  function roomSeen() {
+    const out = [...LS.get("liveUsed", []).filter((id) => typeof id === "string" && id.startsWith("rq-")), ...seenQuiz()];
+    for (const p of LIVE.players.values()) if (Array.isArray(p.qs)) out.push(...p.qs);
+    return [...new Set(out)];
   }
   function livePool(sprint, quiz) { // a sprint needs prompts with enough answers to fill its minute
     const t = liveTopics();
@@ -1145,9 +1173,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return `<div class="vs-field"><span>Topics</span><div class="chips" role="group" aria-label="Topics">${chip("", "All topics", !t.length)}${DATA.packs.map((pk) => chip(pk.id, pk.name, t.includes(pk.id))).join("")}</div></div>`;
   }
   function lobbyMsg() {
-    return { t: "lobby", n: LIVE.n, secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, teams: teamsOn(), mteams: LIVE.mteams || 0, ...(LIVE.mteams ? { mt: LIVE.mteam } : {}),
+    return { t: "lobby", n: LIVE.n, qlvl: LIVE.qlvl || "mixed", secs: LIVE.secs || DEFAULT_SECS, assist: LIVE.assist || "typos", rules: LIVE.rules || RULES_DEFAULT, fmt: LIVE.fmt || "rarity", topics: liveTopics(), phase: LIVE.phase, pub: !!LIVE.isPublic, teams: teamsOn(), mteams: LIVE.mteams || 0, ...(LIVE.mteams ? { mt: LIVE.mteam } : {}),
       players: playerList().map((p) => ({ id: p.id, name: p.name, host: p.host, late: !!p.late, away: !!p.away, ready: !!p.ready, ...(teamsOn() && validTeam(p.team, teamsOn()) ? { team: p.team } : {}), ...(cleanLvl(p.lvl) ? { lvl: p.lvl } : {}) })) };
   }
+  /** The quiz questions a player says they've had (hello and ready carry them): bank ids only, at most the bank's size. */
+  const cleanSeen = (a) => (Array.isArray(a) ? [...new Set(a.slice(0, 2000).filter((id) => typeof id === "string" && /^rq-\d{1,6}$/.test(id)))] : null);
   function hostHandle(conn, m) {
     if (!m || typeof m !== "object") return;
     if (m.t === "info") {
@@ -1160,6 +1190,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const pl = LIVE.players.get(conn.peer);
       clearTimeout(pl.awayTimer); pl.awayTimer = 0; pl.away = false;
       if (cleanLvl(m.lvl)) pl.lvl = m.lvl;
+      if (cleanSeen(m.qs)) pl.qs = cleanSeen(m.qs);
       LIVE.conns.set(conn.peer, conn);
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "resume", seed: LIVE.seed, n: LIVE.n, ...(liveSprint() ? { fmt: "sprint", ids: LIVE.ids, i: SPR ? SPR.i : 0, revealed: LIVE.revealed } : {}) }); } catch { /* ignore */ }
@@ -1171,7 +1202,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const taken = new Set(playerList().map((p) => p.name));
       for (let k = 2; taken.has(name); k++) name = `${cleanName(m.name) || "Player"} ${k}`;
       LIVE.conns.set(conn.peer, conn);
-      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: teamsOn() ? smallestTeam(conn.peer) : undefined, lvl: cleanLvl(m.lvl) || undefined });
+      LIVE.players.set(conn.peer, { id: conn.peer, name, host: false, late: LIVE.phase === "playing", ans: {}, seen: Date.now(), team: teamsOn() ? smallestTeam(conn.peer) : undefined, lvl: cleanLvl(m.lvl) || undefined, qs: cleanSeen(m.qs) || [] });
       LIVE.knock = null; // an open room's seat is taken: the next knock hears "full"
       broadcast(lobbyMsg());
       if (LIVE.phase === "playing") try { conn.send({ t: "busy" }); } catch { /* ignore */ }
@@ -1179,6 +1210,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       hostRemove(conn.peer);
     } else if (m.t === "ready" && LIVE.players.has(conn.peer)) {
       if (cleanLvl(m.lvl)) LIVE.players.get(conn.peer).lvl = m.lvl; // a level gained in the last match shows for the rematch
+      if (cleanSeen(m.qs)) LIVE.players.get(conn.peer).qs = cleanSeen(m.qs); // and the questions they had since
       hostReady(conn.peer, !!m.v);
     } else if (m.t === "team" && LIVE.players.has(conn.peer)) {
       hostTeam(conn.peer, m.v);
@@ -1318,8 +1350,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
     if (LIVE.fmt === "quiz") { // the host fixes which prompts get a question, so every page builds the same ones
       // the dealt ids are all bank questions (of the match's topics, if any), so every page builds exactly them
-      const cand = fresh.length >= LIVE.n ? fresh : E.shuffled(pool, E.mulberry32(E.hashString(seed)));
-      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: mixByLevel(cand, LIVE.n), ...(topics.length ? { reasoningIds: [] } : {}) });
+      // questions nobody in the room has had (here, in practice runs or the Daily Quiz) come first, at the room's level
+      const had = LIVE.noRepeat !== false ? roomSeen() : [];
+      const deal = E.freshDeal(CORE, { n: LIVE.n, level: LIVE.qlvl || "mixed", seen: had, rng: E.mulberry32(E.hashString(seed)), only: pool });
+      const quiz = E.quizFor(CORE, seed, LIVE.n, { promptIds: deal, ...(topics.length ? { reasoningIds: [] } : {}) });
       if (!quiz.length) { LIVE.phase = "lobby"; toast("Couldn't make a quiz from these settings. Pick more topics and try again"); return; }
       ids = quiz.map((q) => q.promptId);
       LIVE.n = ids.length;
@@ -1364,8 +1398,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     LIVE.timers.forEach(clearTimeout); LIVE.timers = []; // this question's time cap and any pending reveal
     const inMatchIds = new Set(RUN.promptIds);
     const used = new Set(LS.get("liveUsed", []));
-    const pool = livePool(false, liveQuiz()).filter((id) => !inMatchIds.has(id));
-    const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !used.has(id)) : pool;
+    const pool = livePool(false, liveQuiz()).filter((id) => !inMatchIds.has(id) && (!liveQuiz() || !LIVE.qlvl || LIVE.qlvl === "mixed" || lvlOfQ(id) === LIVE.qlvl));
+    const skip = new Set(used); // this room's history, and for a quiz what anyone here has had
+    if (liveQuiz() && LIVE.noRepeat !== false) roomSeen().forEach((id) => skip.add(id));
+    const fresh = LIVE.noRepeat !== false ? pool.filter((id) => !skip.has(id)) : pool;
     const from = fresh.length ? fresh : pool;
     if (!from.length) return;
     // a quiz needs a prompt that can make a fair question; try them in random order until one does
@@ -1749,7 +1785,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         client.subscribe([`${roomTopic(code)}/up`, `${roomTopic(code)}/down`, ...(isPublic ? [knockTopic(code)] : [])]);
         if (ready) { broadcast(lobbyMsg()); return; } // reconnected after a blip
         ready = true; clearTimeout(fail);
-        Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)), teams: !isPublic && TEAM_COUNTS.includes(LS.get("liveTeams", 0)) ? LS.get("liveTeams", 0) : 0 });
+        Object.assign(LIVE, { active: true, code, secret, key, isHost: false, isPublic: !!isPublic, client, myId: id, phase: "lobby", ep: 0, noRepeat: LS.get("liveNoRepeat", true) !== false, qlvl: validQuizLevel(LS.get("liveQuizLevel", "mixed")) ? LS.get("liveQuizLevel", "mixed") : "mixed", rules: cleanRules(LS.get("liveRules", null)), secs: validSecs(LS.get("liveSecs", DEFAULT_SECS)) ? LS.get("liveSecs", DEFAULT_SECS) : DEFAULT_SECS, fmt: ["quiz", "sprint"].includes(LS.get("liveFmt", "rarity")) ? LS.get("liveFmt") : "rarity", topics: (LS.get("liveTopics", []) || []).filter((id) => PACKS.has(id)), teams: !isPublic && TEAM_COUNTS.includes(LS.get("liveTeams", 0)) ? LS.get("liveTeams", 0) : 0 });
         LIVE.players.set(id, { id, name, host: true, ans: {}, seen: Date.now(), team: LIVE.teams ? 0 : undefined, lvl: myLevel() });
         if (LIVE.fmt === "sprint") liveSetFmt("sprint", true);
         becomeHost();
@@ -1773,7 +1809,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const id = keepId || "g" + rid(8);
     const js = joinState = { code, name, client, id, secret, key, started: Date.now(), joined: false, lastHost: 0, tries: 0 };
     const up = `${roomTopic(code)}/up`, down = `${roomTopic(code)}/down`, mine = `${roomTopic(code)}/to/${id}`;
-    const hello = () => sendSealed(client, key, id, up, { t: "hello", name, v: 3, lvl: myLevel() }); // lvl: shown in the lobby; old hosts ignore it
+    const hello = () => sendSealed(client, key, id, up, { t: "hello", name, v: 3, lvl: myLevel(), qs: seenQuiz() }); // lvl: shown in the lobby; old hosts ignore it
     client.on("connect", () => {
       client.subscribe([down, mine]);
       if (LIVE.isHost && LIVE.client === client) { client.subscribe([up, ...(LIVE.isPublic ? [knockTopic(code)] : [])]); broadcast(lobbyMsg()); return; }
@@ -1905,7 +1941,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   function avatar(name) { return `<span class="lv-av" aria-hidden="true">${esc((name || "?").slice(0, 1).toUpperCase())}</span>`; }
   function sendReady(v) {
-    if (LIVE.isHost) { const me = LIVE.players.get(LIVE.myId); if (me) me.lvl = myLevel(); hostReady(LIVE.myId, v); } else guestSend({ t: "ready", v, lvl: myLevel() });
+    if (LIVE.isHost) { const me = LIVE.players.get(LIVE.myId); if (me) me.lvl = myLevel(); hostReady(LIVE.myId, v); } else guestSend({ t: "ready", v, lvl: myLevel(), qs: seenQuiz() });
   }
   function readyBlock(label) {
     const me = LIVE.players.get(LIVE.myId);
@@ -1987,12 +2023,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="vs-field"><span>Format</span><div class="vs-sizes" role="radiogroup" aria-label="Format">${[["rarity", "Classic"], ["quiz", "Quiz"], ["sprint", "Sprint"]].map(([k, l]) => `<button type="button" class="vs-size lv-fmt${(LIVE.fmt || "rarity") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.fmt || "rarity") === k}" data-f="${k}">${l}</button>`).join("")}</div></div>
         ${LIVE.isPublic ? "" : `<div class="vs-field"><span>Teams</span><div class="vs-sizes" role="radiogroup" aria-label="Teams">${TEAM_COUNTS.map((k) => `<button type="button" class="vs-size lv-teams${tk === k ? " on" : ""}" role="radio" aria-checked="${tk === k}" data-k="${k}" aria-label="${k ? `${k} teams` : "No teams"}">${k || "Off"}</button>`).join("")}</div></div>`}
         ${LIVE.fmt === "quiz" || LIVE.fmt === "sprint" ? "" : assistSlider()}
+        ${LIVE.fmt === "quiz" ? `<div class="vs-field"><span>Difficulty</span><div class="vs-sizes" role="radiogroup" aria-label="Difficulty">${Object.entries(QUIZ_LEVEL_NAMES).map(([k, l]) => `<button type="button" class="vs-size lv-qlvl${(LIVE.qlvl || "mixed") === k ? " on" : ""}" role="radio" aria-checked="${(LIVE.qlvl || "mixed") === k}" data-l="${k}">${l}</button>`).join("")}</div></div>` : ""}
         ${topicPicker()}
         ${qPicker(LIVE.n, LIVE.fmt === "sprint" ? "sprints" : "questions")}
         ${LIVE.fmt === "sprint" ? "" : timePicker(LIVE.secs || DEFAULT_SECS)}
         ${LIVE.fmt === "sprint" ? "" : rulesPanel()}
-        <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>Skip questions this room already played</span></label>
-      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many answers as you can. Rarer ones score more and add more time." : LIVE.fmt === "quiz" ? "Quiz format: pick one of four answers." : `autocorrect ${({ off: "off", typos: "typos only", full: "full", generous: "generous" })[LIVE.assist || "typos"]}. Classic format: type an answer, rarer answers score more.`}${activeRules(LIVE.rules, LIVE.fmt).length ? ` Options: ${esc(activeRules(LIVE.rules, LIVE.fmt).join(", "))}.` : ""}${tk ? ` ${tk} teams: a team scores its players' points added up.` : ""}</p>`}
+        <label class="lv-check"><input type="checkbox" id="live-norepeat" ${LIVE.noRepeat !== false ? "checked" : ""}><span>${LIVE.fmt === "quiz" ? "Skip questions anyone here has already had" : "Skip questions this room already played"}</span></label>
+      </div>` : `<p class="lv-note">${esc(host ? host.name : "The host")} picks the settings. ${LIVE.fmt === "sprint" ? `${LIVE.n} ${LIVE.n === 1 ? "sprint" : "sprints"} of ${SPRINT_SECS} s` : `${LIVE.n} ${LIVE.n === 1 ? "question" : "questions"} · ${LIVE.secs || DEFAULT_SECS} s each`} · ${liveTopics().length ? `${liveTopics().map((id) => PACKS.get(id).name).join(", ")} · ` : ""}${LIVE.fmt === "sprint" ? "Sprint format: name as many answers as you can. Rarer ones score more and add more time." : LIVE.fmt === "quiz" ? `Quiz format: pick one of four answers${LIVE.qlvl && LIVE.qlvl !== "mixed" ? `, all ${QUIZ_LEVEL_NAMES[LIVE.qlvl].toLowerCase()}` : ", easy to hard"}.` : `autocorrect ${({ off: "off", typos: "typos only", full: "full", generous: "generous" })[LIVE.assist || "typos"]}. Classic format: type an answer, rarer answers score more.`}${activeRules(LIVE.rules, LIVE.fmt).length ? ` Options: ${esc(activeRules(LIVE.rules, LIVE.fmt).join(", "))}.` : ""}${tk ? ` ${tk} teams: a team scores its players' points added up.` : ""}</p>`}
       ${readyBlock("Ready")}
     </section>`;
     $("#live-invite").addEventListener("click", () => shareLink(`Play MLion live with me. Room ${LIVE.code}:\n${(SHARE_BASE ? WEB_URL : siteUrl() || WEB_URL)}#${liveHash()}`));
@@ -2009,6 +2046,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       broadcast(lobbyMsg());
     }));
     $$(".lv-fmt").forEach((b) => b.addEventListener("click", () => liveSetFmt(b.dataset.f)));
+    $$(".lv-qlvl").forEach((b) => b.addEventListener("click", () => { LIVE.qlvl = validQuizLevel(b.dataset.l) ? b.dataset.l : "mixed"; LS.set("liveQuizLevel", LIVE.qlvl); broadcast(lobbyMsg()); }));
     $$(".lv-teams").forEach((b) => b.addEventListener("click", () => hostSetTeams(+b.dataset.k)));
     wireTeamPicker();
     $$(".lv-rule").forEach((b) => b.addEventListener("click", () => setRule(b.dataset.k, b.dataset.v)));
@@ -2033,6 +2071,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         ${seg("hints", quiz ? "50:50: remove two wrong answers" : "Hints: first letter and a clue", RULE_CHOICES.hints)}
         ${quiz ? "" : seg("miss", "Wrong answers", RULE_CHOICES.miss)}
         ${tog("final", "Final question counts double")}
+        ${tog("first", `First ${quiz ? "right" : "accepted"} answer scores ×${FIRST_MULT}`)}
         ${quiz ? "" : tog("clash", "Clash: an answer someone else also gave scores half")}
       </div></details>`;
   }
@@ -2160,6 +2199,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if ((r.miss === "5" || r.miss === "10") && a.miss) t.push(`−${+r.miss * a.miss}`);
     if (r.final && i === LIVE.n - 1) t.push("×2 final");
     if (clashed(pl, i)) t.push("clash: half");
+    if (firstIn(pl, i)) t.push(`×${FIRST_MULT} first`);
     return t.length ? `<span class="lv-tags">${t.join(" · ")}</span>` : "";
   }
   /** The reveal of a quiz question: the four options, who picked which, the right one lit, standings underneath. */
@@ -2697,6 +2737,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   function openQuiz(n) {
     const spec = quizSpec(n);
+    const had = LS.get(`run:${spec.key}`);
+    if (spec.quiz.length && !records[spec.key] && (!had || !Array.isArray(had.promptIds) || had.promptIds.join() !== spec.promptIds.join())) LS.set(`run:${spec.key}`, { ...spec, answerMs: (validSecs(settings.answerSecs) ? settings.answerSecs : DEFAULT_SECS) * 1000, round: 0, phase: "intro", results: [], tried: [], startedAt: Date.now() });
     if (!spec.quiz.length) {
       setMid("Quiz");
       app.innerHTML = `<section class="screen"><div class="page-head"><h1>Quiz</h1><p>The game can't make quiz questions from this question set.</p></div><a class="btn big" href="#home">Home</a></section>`;
@@ -4505,7 +4547,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LS.set("name", $("#vs-name").value.trim().slice(0, 16));
       LS.set("vsSize", size);
       LS.set("vsSecs", secs);
-      const seed = fmt === "quiz" ? Math.random().toString(36).slice(2, 12).padEnd(10, "0") : Math.random().toString(36).slice(2, 9).padEnd(6, "0");
+      const seed = fmt === "quiz" ? (Math.random().toString(36).slice(2, 9) + Math.random().toString(36).slice(2, 6)).padEnd(11, "0") : Math.random().toString(36).slice(2, 9).padEnd(6, "0");
       LS.set("vsFormat", fmt);
       go(`${fmt === "quiz" ? "vq" : "vs"}-${seed}-${size}${secs !== DEFAULT_SECS ? `t${secs}` : ""}`);
     });
@@ -5137,19 +5179,34 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const runs = Object.values(records).filter((r) => r.mode === "quiz").sort((a, b) => b.number - a.number);
     const next = nextQuiz();
     const inProg = LS.get(`run:quiz:${next}`);
+    const started = !!(inProg && inProg.results && inProg.results.length); // a dealt run nobody has answered yet takes a new difficulty
     const avg = runs.length ? Math.round(runs.reduce((s, r) => s + r.score, 0) / runs.length) : 0;
     const best = runs.reduce((m, r) => Math.max(m, r.score), 0);
     app.innerHTML = `<section class="screen ${runs.length ? "split" : ""}">
       <div class="side">
-        <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run, from easy to hard. Pick one of four answers, then read a short explanation. ${E.QUIZ_POINTS} points for each right answer.</p></div>
+        <div class="page-head"><h1>Quiz</h1><p>Seven hand-written questions a run. Pick one of four answers, then read a short explanation. ${E.QUIZ_POINTS} points for each right answer.</p></div>
         ${(() => { const d = records[`dquiz:${today()}`]; return `<div class="dq-card"><p><b>Today's quiz</b><span>The same seven questions for everyone${BOARD_ON ? ", with a leaderboard" : ""}. They start easy and get harder as you go. Answer fast: a right answer is worth 100 points in the first 3 seconds, dropping to 50 when time runs out.</span></p>${d ? `<a class="btn big" href="#results-dquiz-${today()}">Your score · ${d.score}</a>` : `<a class="btn primary big" href="#daily-quiz">Play today's quiz</a>`}</div>`; })()}
         <h2 class="block-title dq-practice">Practice runs</h2>
         ${runs.length ? `<div class="figures"><div class="figure"><b>${runs.length}</b><span>Runs</span></div><div class="figure"><b>${avg}</b><span>Average</span></div><div class="figure"><b>${best}</b><span>Best</span></div></div>` : ""}
-        <div class="btn-row"><a class="btn big" href="#quiz-${next}">${inProg ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
+        ${quizLevelPicker()}
+        <div class="btn-row"><a class="btn big" href="#quiz-${next}">${started ? `Resume run ${next}` : `Start run ${next}`}</a><a class="btn big" href="#challenge">Challenge a friend</a></div>
       </div>
       ${runs.length ? `<div class="main"><ul class="list">${runs.slice(0, 50).map((r) => `
         <li><a class="list-item" href="#results-${slugFor(r.key)}"><span class="main"><span class="title">Run ${r.number}</span><span class="sub">${qmarksRow(r.results.map((x) => x.score > 0))}</span></span><span class="right"><b>${r.score}</b></span></a></li>`).join("")}</ul></div>` : ""}
     </section>`;
+    wireQuizLevel();
+  }
+
+  /** The practice quiz's difficulty: four buttons, and how many questions at that level the player hasn't had. */
+  function quizLevelPicker() {
+    const cur = quizLevel(), had = new Set(seenQuiz()), bank = QUIZ_BANK;
+    const fresh = (l) => bank.filter((r) => (l === "mixed" || (r.lvl || "medium") === l) && !had.has(r.id)).length;
+    const left = fresh(cur);
+    return `<div class="vs-field qz-level"><span>Difficulty</span><div class="vs-sizes" role="radiogroup" aria-label="Difficulty">${Object.entries(QUIZ_LEVEL_NAMES).map(([k, l]) => `<button type="button" class="vs-size qz-lvl${k === cur ? " on" : ""}" role="radio" aria-checked="${k === cur}" data-l="${k}">${l}</button>`).join("")}</div>
+      <p class="qz-left">${cur === "mixed" ? "Two easy, two medium, three hard. " : ""}${left ? `${left} ${left === 1 ? "question" : "questions"} you haven't had yet${cur === "mixed" ? "" : ` at ${QUIZ_LEVEL_NAMES[cur].toLowerCase()}`}.` : "You've had every question at this level, so the ones you saw longest ago come back."}</p></div>`;
+  }
+  function wireQuizLevel() {
+    $$(".qz-lvl").forEach((b) => b.addEventListener("click", () => { LS.set("quizLevel", b.dataset.l); renderQuizHub(); }));
   }
 
   // =============================================================== packs

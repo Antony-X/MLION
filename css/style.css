@@ -752,6 +752,8 @@ html:not(.reduce-motion) .arrive .figures { animation-delay: 460ms; }
 .vs-form { display: grid; gap: 24px; }
 .vs-field { display: grid; gap: 10px; }
 .vs-field > span { color: var(--muted); font-size: var(--s1); }
+.qz-level { margin: 20px 0 4px; }
+.qz-level .qz-left { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
 .vs-sizes { display: flex; gap: 10px; }
 .vs-size {
   min-width: 64px; min-height: 56px; border-radius: var(--round); border: 0; cursor: pointer;
