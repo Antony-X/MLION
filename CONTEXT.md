@@ -1675,6 +1675,11 @@ is the lit exhibit.
 
 ## 11. Open items and next steps
 
+**Status check 2026-11-07:** every SQL file below is applied in production (daily_quiz, quiz_speed, suggestions,
+rate_limits, security_v1, names_v2, daily_answers incl. daily_answers_board), and the overnight branch is live.
+Items 0, 13 and 14 are done except their real-phone checks. The host can go back to the lobby from the podium
+(hostToLobby), so that part of item 11 is done too.
+
 - **Pre-launch fixes (2026-11-05, audit items B1, S7, S10, N7, S15, S14, S16/S5 behaviour, S12):** done in
   code; the owner still has to run `supabase/names_v2.sql` in the SQL editor (after `names.sql`), and
   follow "Launch-day steps" in §3. Not changed on purpose: the daily prompt pool (audit S6: with 71
