@@ -60,7 +60,8 @@ language sql stable security definer set search_path = '' as $$
   join public.daily_scores s on s.user_id = a.user_id and s.day = a.day
   join public.profiles p on p.id = a.user_id
   where a.day = p_day and not p.off_board
-    and exists (select 1 from public.daily_scores me where me.user_id = (select auth.uid()) and me.day = p_day)
+    and (exists (select 1 from public.daily_scores me where me.user_id = (select auth.uid()) and me.day = p_day)
+      or public.is_admin()) -- an admin sees them without playing (2026-11-08)
   limit 500;
 $$;
 

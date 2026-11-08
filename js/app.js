@@ -4698,10 +4698,11 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (list.isConnected) boardWarm(day, quizBoard ? "daily" : "quiz"); // the other tab, so switching is instant
   }
 
-  /** Everyone's seven daily answers for a day, by account, when this account is on that day's board; else null. */
+  /** Everyone's seven daily answers for a day, by account, when this account is on that day's board (or is an admin,
+   *  who sees them without playing: user, 2026-11-08); else null. */
   const guessKept = new Map();
   async function boardGuesses(day, rows) {
-    if (!sbClient || !AUTH.user || !rows.some((r) => r.user_id === AUTH.user.id)) return null;
+    if (!sbClient || !AUTH.user || !(AUTH.admin || rows.some((r) => r.user_id === AUTH.user.id))) return null;
     const k = `${day}:${AUTH.user.id}`, kept = guessKept.get(k);
     if (kept && Date.now() - kept.at < 30000 && rows.every((r) => kept.map.has(r.user_id))) return kept.map;
     let data = null;
