@@ -624,9 +624,15 @@ async function mockRoute(route) {
   const seed = (pid, raw, users) => users.forEach((u) => { if (!sugg.rows.some((r) => r.user_id === u && r.prompt_id === pid && r.answer_key === E.fullKey(raw))) sugg.rows.push({ user_id: u, prompt_id: pid, answer_key: E.fullKey(raw), raw, source: "tap" }); });
   /** The prompt now open in the run stored under mlion:run:<prefix>…, after waiting for the answer box to open. */
   const openPid = async (prefix) => {
-    for (let i = 0; i < 3; i++) { // a round that ran out while we were away shows Next first
+    for (let i = 0; i < 4; i++) { // a round that ran out while we were away shows Next first
       await p3.waitForSelector("#answer:not([disabled]), #next:not([disabled])", { timeout: 15000 });
-      if (await p3.$("#answer:not([disabled])")) break;
+      if (await p3.$("#answer:not([disabled])")) {
+        // a resumed round may be about to run out: typing into it raced its end and the miss landed in the next round's
+        // preview (the old "daily miss" flake). Use a round with time to spare; let a nearly spent one end first.
+        const left = await p3.evaluate(() => parseFloat((document.querySelector("#timer-num") || {}).textContent) || 0);
+        if (left >= 12) break;
+        await p3.waitForSelector("#next:not([disabled])", { timeout: 30000 });
+      }
       await p3.click("#next");
     }
     return p3.evaluate((pre) => { const k = Object.keys(localStorage).find((x) => x.startsWith("mlion:run:" + pre)); const r = JSON.parse(localStorage.getItem(k)); return r.promptIds[r.round]; }, prefix);

@@ -3340,8 +3340,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         </div>
         <div class="input-zone">
           <form class="answer-form" id="answer-form" autocomplete="off">
-            <input class="answer-input" id="answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer" placeholder="Type an answer">
-            <button class="btn primary step-btn" id="step" type="submit">Submit</button>
+            <input class="answer-input" id="answer" maxlength="${E.MAX_ANSWER_LENGTH}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer" placeholder="Type an answer"${RUN.phase === "preview" ? " disabled" : ""}>
+            <button class="btn primary step-btn" id="step" type="submit"${RUN.phase === "preview" ? " disabled" : ""}>Submit</button>
           </form>
           <div class="preview-veil" id="veil"><span>Read the prompt</span><b id="veil-n">3</b></div>
         </div>
