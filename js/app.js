@@ -877,6 +877,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     liveSprintStop();
     chatRate.clear();
     syncChat();
+    LIVE.quietSig = ""; LIVE.dropArm = 0;
+    hostDropBar(); // the room is gone: so is its bar
   }
   function leaveLive(quiet) {
     LIVE.quietLeave = quiet !== false;
@@ -1174,6 +1176,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       LIVE.revealed = LIVE.n - 1;
       stopRun();
       renderPodium();
+      hostDropBar();
+      if (m.early && !LIVE.isHost) toast("The host ended the match");
     }
   }
   function broadcast(m) {
@@ -1361,13 +1365,75 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!LIVE.isHost || !pl || pl.host || id === LIVE.myId) return;
     (LIVE.out || (LIVE.out = new Set())).add(id);
     hostSendTo(id, { t: "kicked" });
-    hostRemove(id);
+    hostRemove(id, true);
     toast(`Removed ${pl.name}`);
   }
-  /** Free a seat for good (its grace ran out, or the player tapped Leave), then re-check what was waiting on them. */
-  function hostRemove(id) {
+  // A player the host hasn't heard from for more than five seconds (guests say something every 3 s): the host is told
+  // who, can remove them, and mid-match can end the game for everyone (user, 2026-11-08). Their seat is still marked
+  // away after 9 s and freed after the grace period, as before; this only tells the host and gives them the choice.
+  const QUIET_MS = 6000; // two heartbeats missed
+  const hostQuiet = (p) => LIVE.isHost && !p.host && p.id !== LIVE.myId && (p.away || Date.now() - (p.seen || Date.now()) > QUIET_MS);
+  const nameList = (ns) => (ns.length < 2 ? ns.join("") : `${ns.slice(0, -1).join(", ")} and ${ns[ns.length - 1]}`);
+  /** Runs with the host's presence check (every 2 s): toast whoever just went quiet, refresh the lobby rows and the bar. */
+  function hostQuietCheck() {
+    if (!LIVE.active || !LIVE.isHost) return hostDropBar();
+    const quiet = playerList().filter(hostQuiet);
+    const sig = quiet.map((p) => p.id).sort().join(",");
+    if (sig !== (LIVE.quietSig || "")) {
+      const before = new Set((LIVE.quietSig || "").split(",").filter(Boolean));
+      const fresh = quiet.filter((p) => !before.has(p.id));
+      LIVE.quietSig = sig;
+      if (fresh.length) toast(`${nameList(fresh.map((p) => p.name))} lost connection`);
+      if (LIVE.phase === "lobby") renderLobby();
+    }
+    hostDropBar();
+  }
+  /** The host's bar during a match: who lost connection (Remove each), who dropped out, and End game (tap twice). */
+  function hostDropBar() {
+    let el = document.getElementById("lv-drop");
+    const on = LIVE.active && LIVE.isHost && LIVE.phase === "playing";
+    if (!on) LIVE.dropGone = null;
+    const quiet = on ? inMatch().filter(hostQuiet) : [];
+    const gone = on && LIVE.dropGone ? [...LIVE.dropGone.values()] : [];
+    if (!quiet.length && !gone.length) { if (el) el.remove(); LIVE.dropArm = 0; return; }
+    const armed = LIVE.dropArm > Date.now();
+    const html = `<div class="lv-drop-msg">${quiet.length ? `<p><b>${esc(nameList(quiet.map((p) => p.name)))}</b> lost connection</p>` : ""}${gone.length ? `<p><b>${esc(nameList(gone))}</b> left the match</p>` : ""}</div>
+      <div class="lv-drop-acts">${quiet.map((p) => `<button type="button" class="lv-drop-rm" data-id="${esc(p.id)}">Remove${quiet.length > 1 ? ` ${esc(p.name)}` : ""}</button>`).join("")}<button type="button" class="lv-drop-end${armed ? " armed" : ""}">${armed ? "End for everyone?" : "End game"}</button></div>`;
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "lv-drop"; el.className = "lv-drop"; el.setAttribute("role", "alert");
+      el.addEventListener("click", (e) => {
+        const rm = e.target.closest(".lv-drop-rm");
+        if (rm) {
+          const pl = LIVE.players.get(rm.dataset.id);
+          if (pl && LIVE.isHost && LIVE.phase === "playing") { hostRemove(pl.id, true); toast(`Removed ${pl.name}`); }
+          return hostQuietCheck();
+        }
+        if (!e.target.closest(".lv-drop-end")) return;
+        if (LIVE.dropArm > Date.now()) return hostEndMatch();
+        LIVE.dropArm = Date.now() + KICK_ARM_MS;
+        hostDropBar();
+        setTimeout(hostDropBar, KICK_ARM_MS + 100);
+      });
+      document.body.appendChild(el);
+    }
+    if (el._html !== html) { el.innerHTML = html; el._html = html; }
+  }
+  /** The host ends the match now: everyone goes to the podium with the points they have. */
+  function hostEndMatch() {
+    if (!LIVE.isHost || LIVE.phase !== "playing") return;
+    LIVE.timers.forEach(clearTimeout); LIVE.timers = []; // the question's time cap and any pending reveal or next round
+    LIVE.dropArm = 0;
+    broadcast({ t: "end", early: 1 });
+    LIVE.phase = "done";
+    broadcast(lobbyMsg());
+  }
+  /** Free a seat for good (its grace ran out, the player tapped Leave, or the host removed them: `chosen`), then
+   *  re-check what was waiting on them. One who dropped out of a match on their own stays named on the host's bar. */
+  function hostRemove(id, chosen) {
     const pl = LIVE.players.get(id);
     if (!pl || pl.host) return;
+    if (!chosen && LIVE.phase === "playing" && !pl.late) (LIVE.dropGone || (LIVE.dropGone = new Map())).set(id, pl.name);
     clearTimeout(pl.awayTimer);
     LIVE.conns.delete(id);
     liveSprintKeep([id], new Map()); // before the seat goes, so a sprint match keeps their score
@@ -1710,6 +1776,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     liveEvery(() => { // a player who went quiet: hold the seat, then free it
       const now = Date.now();
       for (const p of LIVE.players.values()) if (!p.host && !p.away && now - (p.seen || now) > 9000) hostDrop(p.id);
+      hostQuietCheck();
     }, 2000);
   }
   /** A sealed message reached the host page. `s` is the sender sealed inside it: the only identity the host trusts. */
@@ -2156,7 +2223,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       ${LIVE.flash ? `<div class="lv-banner" id="lv-banner" role="alert">${esc(LIVE.flash)}</div>` : ""}
       <div class="btn-row"><button class="btn ${ps.length < 2 ? "primary " : ""}big" id="live-invite">Invite friends</button><a class="btn big" href="#live" id="live-leave-lobby">Leave</a></div>
       <ul class="lv-players${tk ? " teamed" : ""}" aria-live="polite">${(tk ? Array.from({ length: tk }, (_, t) => [t, ps.filter((p) => p.team === t)]).concat([[-1, ps.filter((p) => !validTeam(p.team, tk))]]) : [[-1, ps]]).map(([t, list]) =>
-        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span class="lv-st">${p.away ? "Reconnecting…" : `${cleanLvl(p.lvl) ? `Level ${p.lvl} · ` : ""}${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span>${LIVE.isHost && !p.host && p.id !== LIVE.myId ? kickButton(p) : ""}</li>`).join("")}`).join("")}
+        `${t >= 0 ? `<li class="lv-tm-head tm-${t}">${teamDot(t)}<b>${TEAM_NAMES[t]}</b><span>${list.length} ${list.length === 1 ? "player" : "players"}</span></li>` : ""}${list.map((p) => `<li class="${p.id === LIVE.myId ? "me" : ""}${t >= 0 ? ` tm-${t}` : ""}${p.away || hostQuiet(p) ? " off" : ""}">${avatar(p.name)}<b>${esc(p.name)}</b><span class="lv-st">${p.away || hostQuiet(p) ? "Disconnected" : `${cleanLvl(p.lvl) ? `Level ${p.lvl} · ` : ""}${p.ready ? "Ready ✓" : "Not ready"}${p.id === LIVE.myId ? " · You" : ""}`}</span>${LIVE.isHost && !p.host && p.id !== LIVE.myId ? kickButton(p) : ""}</li>`).join("")}`).join("")}
         ${ps.length < 2 ? `<li class="lv-wait"><span class="lv-av lv-pulse"></span><span>Waiting for a friend…</span></li>` : ""}</ul>
       ${teamPicker()}
       ${LIVE.isHost ? `<div class="vs-form${LIVE.countdownAt > hostNow() ? " lv-locked" : ""}"${LIVE.countdownAt > hostNow() ? " inert" : ""}>

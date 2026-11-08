@@ -1691,3 +1691,22 @@ html:not(.reduce-motion) .name-ask { animation: rt-in 500ms var(--ease-expo) bot
 /* the drawer: Change name and the login buttons sat on top of each other */
 .drawer-acct .btn-row + .btn-row { margin-top: 10px; }
 .drawer-acct .btn-row { flex-wrap: wrap; gap: 10px; }
+
+/* the host's disconnect bar during a live match (2026-11-08): who lost connection, Remove, End game */
+.lv-drop {
+  position: fixed; z-index: 35; left: var(--side-l); right: var(--side-r); margin: 0 auto; max-width: 520px;
+  top: calc(var(--vv-top, 0px) + env(safe-area-inset-top, 0px) + 68px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 12px 12px 16px;
+  border-radius: 18px; background: var(--raised-2); border: 1px solid var(--negative); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  animation: lv-in 260ms var(--ease-out) both;
+}
+.lv-drop-msg { flex: 1 1 180px; font-size: var(--s1); line-height: 1.35; }
+.lv-drop-msg p { margin: 0; }
+.lv-drop-msg b { color: var(--negative); }
+.lv-drop-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.lv-drop-acts button { min-height: 38px; padding: 0 14px; border-radius: var(--round); font: inherit; font-size: var(--s1); cursor: pointer; }
+.lv-drop-rm { border: 0; background: var(--raised); color: var(--ink); }
+.lv-drop-end { border: 1px solid var(--negative); background: transparent; color: var(--negative); }
+.lv-drop-end.armed { background: var(--negative); color: var(--bg); }
+.lv-drop-acts button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+li.off > .lv-st { color: var(--negative); }
