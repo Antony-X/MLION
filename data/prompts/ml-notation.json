@@ -74,6 +74,7 @@
     { "a": "Einstein summation", "t": "outlier", "aka": ["einsum", "einstein notation", "summation convention", "einstein summation convention"], "q": "Repeated indices are summed. torch.einsum turns it into code." },
     { "a": "Hidden state (h)", "t": "outlier", "aka": ["h", "hidden state"] },
     { "a": "Latent (z)", "t": "outlier", "aka": ["z", "latent", "latent z", "latent variable"], "q": "z: the latent code a VAE or GAN samples before decoding." },
+    { "a": "Hypothesis class (ℋ)", "t": "outlier", "aka": ["\\mathcal{H}", "\\mathcal H", "mathcal{H}", "mathcal H", "mathcal", "calligraphic H", "hypothesis class", "hypothesis space", "hypothesis set", "function class"], "q": "ℋ: every function the learner is allowed to pick. Generalisation bounds are statements about how rich it is." },
 
     { "a": "Psi (ψ)", "t": "longtail", "aka": ["psi"] },
     { "a": "Xi (ξ)", "t": "longtail", "aka": ["xi", "ksi"], "q": "ξ: the slack variables of a soft-margin SVM. Famously hard to write by hand." },

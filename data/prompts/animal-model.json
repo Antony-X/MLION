@@ -99,6 +99,7 @@
     { "a": "OpenLLaMA", "t": "longtail", "aka": ["Open LLaMA"], "q": "Berkeley's permissively licensed reproduction of LLaMA, trained on RedPajama (2023)." },
     { "a": "llamafile", "t": "longtail", "q": "Mozilla's single-file executable LLMs, built on llama.cpp (2023)." },
     { "a": "LLaMA-Factory", "t": "longtail", "aka": ["LlamaFactory", "LLaMA Factory"] },
+    { "a": "Le Chat", "t": "longtail", "aka": ["lechat", "mistral le chat", "le chat mistral"], "q": "Mistral's assistant. Chat is French for cat." },
     { "a": "HiPPO", "t": "longtail", "aka": ["HiPPO-LegS", "HiPPO matrix", "Hippo"], "q": "Gu et al. (2020): the polynomial-projection memory under S4 and Mamba. Its name spells hippo." }
   ]
 }
