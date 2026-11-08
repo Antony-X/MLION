@@ -285,6 +285,8 @@
     {"a": "ModelNet", "t": "outlier", "aka": ["ModelNet40", "ModelNet10"], "q": "A 3D CAD dataset, not a model; every point cloud paper reports it."},
     {"a": "ScanNet", "t": "longtail", "q": "A dataset of annotated RGB-D indoor scans, not a model."},
     {"a": "ConceptNet", "t": "outlier", "q": "A commonsense knowledge graph, not a model."},
-    {"a": "ActivityNet", "t": "longtail", "q": "A video benchmark of untrimmed human activities, not a model."}
+    {"a": "ActivityNet", "t": "longtail", "q": "A video benchmark of untrimmed human activities, not a model."},
+    { "a": "DeltaNet", "t": "longtail", "aka": ["Delta Net"], "q": "Linear attention whose memory is updated with the delta rule; Yang et al. (2024) made it train in parallel." },
+    { "a": "Gated DeltaNet", "t": "longtail", "aka": ["GatedDeltaNet", "Gated Delta Net", "Gated Delta Networks"], "q": "Yang, Kautz & Hatamizadeh (2024): DeltaNet plus Mamba2-style gating, so the memory can forget as well as overwrite." }
   ]
 }

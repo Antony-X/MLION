@@ -260,6 +260,7 @@
     { "a": "Logit adjustment", "t": "longtail", "aka": ["logit-adjusted loss", "balanced softmax", "prior correction"] },
     { "a": "Temperature scaling", "t": "longtail", "aka": ["post-hoc calibration", "temperature calibration"] },
     { "a": "Fill-in-the-middle", "t": "longtail", "aka": ["FIM", "fill in the middle", "FIM training"] },
-    { "a": "Document masking", "t": "longtail", "aka": ["intra-document masking", "intra-document attention masking", "cross-document attention masking"] }
+    { "a": "Document masking", "t": "longtail", "aka": ["intra-document masking", "intra-document attention masking", "cross-document attention masking"] },
+    { "a": "Selective backprop", "t": "longtail", "aka": ["Selective-Backprop", "Selective backpropagation", "Biggest losers"], "q": "Jiang et al. (2019): forward every example, but backpropagate only the ones with high loss." }
   ]
 }

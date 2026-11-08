@@ -82,6 +82,7 @@
     { "a": "Inflated filters", "t": "longtail", "aka": ["I3D inflation", "filter inflation", "weight inflation", "2D to 3D inflation"] },
     { "a": "Complex weight initialization", "t": "longtail", "aka": ["complex initialization", "Rayleigh initialization", "Deep Complex Networks init"] },
     { "a": "Reservoir initialization", "t": "longtail", "aka": ["echo state initialization", "spectral radius scaling", "echo state network"] },
-    { "a": "LoftQ", "t": "longtail", "aka": ["LoftQ initialization"] }
+    { "a": "LoftQ", "t": "longtail", "aka": ["LoftQ initialization"] },
+    { "a": "Patch whitening", "t": "longtail", "aka": ["Whitening", "Whitening initialization", "Patch-whitening initialization", "ZCA initialization"], "q": "Fast CIFAR-10 training's trick: the first conv layer starts as a whitening transform of image patches, not random noise." }
   ]
 }
