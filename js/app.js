@@ -3998,6 +3998,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return again.data || null;
   }
 
+  /** Whether anyone played this run: an answer, a typed miss or a quiz pick in at least one round. */
+  const played = (rec) => !!(rec && Array.isArray(rec.results) && rec.results.some((r) => r && (r.answer || r.raw || r.picked >= 0)));
   // Post today's daily once per account. 23505 means it's already there (the first post counts).
   const BOARDS = { daily: { table: "daily_scores", mode: "daily" }, quiz: { table: "daily_quiz_scores", mode: "dquiz" } };
   const missingTable = (error) => !!error && (error.code === "PGRST205" || error.code === "42P01" || /schema cache|does not exist/i.test(error.message || ""));
@@ -4016,6 +4018,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!sbClient || !AUTH.user || !AUTH.profile || !rec || !postableDay(rec.date) || rec.tiers.length !== E.ROUNDS) return false;
     if (rec.mode !== "daily" && rec.mode !== "dquiz") return false;
     if (!dealtNow(rec)) return false; // dealt from another set (before the launch day reached this browser)
+    if (!played(rec)) return false; // nothing answered or typed in any round: the player left, not played
     const quiz = rec.mode === "dquiz", mark = postMark(rec);
     if (boardPosted[mark] === AUTH.user.id) { await postAnswers(rec).catch(() => {}); return true; }
     const quizRow = quiz && { user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)),
@@ -4142,11 +4145,13 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // anonymous sign-in) under the name you type; later days ask again with that name filled in.
   // A finished daily goes on the board by itself under a name like this; the results then ask for a real one.
   const AUTO_NAME = /^Player \d{4}$/;
-  const AUTOPOST = !window.MLION_NO_AUTOPOST; // tests of the Publish button turn it off
+  // Tests of the Publish button turn it off. A test browser (navigator.webdriver) without a fake project of its own
+  // never posts by itself: before this, the e2e suites put "Player 1234" scores on the real board (2026-11-08).
+  const AUTOPOST = !window.MLION_NO_AUTOPOST && !(navigator.webdriver && !window.MLION_BOARD);
   const autoName = () => `Player ${1000 + Math.floor(Math.random() * 9000)}`;
   const needsName = () => !!(AUTH.anon && AUTH.profile && AUTO_NAME.test(AUTH.profile.name));
   /** Whether postDaily would take this run (so a guest account is only made for a run that can go up). */
-  const postable = (rec) => !!(rec && (rec.mode === "daily" || rec.mode === "dquiz") && postableDay(rec.date) && rec.tiers.length === E.ROUNDS && dealtNow(rec));
+  const postable = (rec) => !!(rec && (rec.mode === "daily" || rec.mode === "dquiz") && postableDay(rec.date) && rec.tiers.length === E.ROUNDS && dealtNow(rec) && played(rec));
   async function publishScore(rec, name, auto = false) {
     if (!name) return "Pick a name with letters or digits.";
     if (!E.nameOk(name)) return NAME_BAD;
@@ -4268,7 +4273,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!BOARD_ON || !AUTH.ready) { box.innerHTML = ""; return; }
     if (AUTH.user && AUTH.anon) {
       box.innerHTML = `<p class="acct-who">On the leaderboard as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. Log in to keep one name on every device.</p>
-        <div class="btn-row"><button class="btn sm" id="acct-name">Change name</button></div>${loginButtons()}`;
+        <div class="btn-row"><button class="btn sm${needsName() ? " primary" : ""}" id="acct-name">${needsName() ? "Enter your name" : "Change name"}</button></div>${loginButtons()}`;
       $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
       wireLogin(box);
     } else if (AUTH.user) {

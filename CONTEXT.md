@@ -1981,3 +1981,11 @@ a gem, receivers re-check the name with `eggFor` to score 500 and tag it in the 
   (`rareTipHtml`, `mlion:tipRare`).
 - launch.e2e's "Couldn't post your score" check was stale since 2026-11-07's wording change; fixed. board.e2e's
   "daily miss" step (suggestions block) still fails at random, also with auto-post off; it passes on its own.
+
+## Launched 2026-11-08
+- `LAUNCH_DATE = "2026-11-08"` in js/engine.js and app_config.launch = 2026-11-08 (tag launch-1). Day boundary: each player's local midnight.
+- Before the reset the board held e2e test scores: the new auto-post ran in test browsers pointed at the real project. Now
+  `AUTOPOST` is off in any navigator.webdriver browser without its own fake project (window.MLION_BOARD).
+- A daily where no round has an answer, a typed miss or a quiz pick (`played()`) is never posted (skipped or abandoned).
+- Backup of every leaderboard row before the reset: backups/leaderboard-before-launch-2026-11-08.json (not in git).
+- Drawer: Change name / login buttons no longer touch; a guest with an automatic name sees "Enter your name".

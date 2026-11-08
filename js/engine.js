@@ -524,7 +524,7 @@
   // stream that never touches the launch week.
   // ON LAUNCH DAY, set LAUNCH_DATE to that date ("YYYY-MM-DD"). It is in the code so a first visit
   // gets the right daily at once, without waiting for the database (CONTEXT.md, "Launch-day steps").
-  const LAUNCH_DATE = null;
+  const LAUNCH_DATE = "2026-11-08";
   const LAUNCH_HOOK = (typeof window !== "undefined" && window.MLION_LAUNCH) || null; // tests set window.MLION_LAUNCH
   /** A real calendar date written YYYY-MM-DD. */
   const isDay = (d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(parseDate(d)).toISOString().slice(0, 10) === d;

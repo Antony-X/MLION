@@ -309,8 +309,13 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
 
 // --- dates
 assert.strictEqual(E.dayNumberFor(E.epoch()), 1); ok("epoch is day 1");
-assert.strictEqual(E.LAUNCH, null); ok("not launched: every day is #1 until LAUNCH is set");
-assert.strictEqual(E.dayNumberFor(E.localDateString()), 1); ok("today is #1 before launch");
+if (E.LAUNCH_DATE === null) { // before launch
+  assert.strictEqual(E.LAUNCH, null); ok("not launched: every day is #1 until LAUNCH is set");
+  assert.strictEqual(E.dayNumberFor(E.localDateString()), 1); ok("today is #1 before launch");
+} else { // launched (2026-11-08): the launch day is #1, each day after it one more
+  assert.strictEqual(E.LAUNCH, E.LAUNCH_DATE); ok("launched: LAUNCH is the date in the code");
+  assert.strictEqual(E.dayNumberFor(E.LAUNCH_DATE), 1); assert.strictEqual(E.dayNumberFor(E.addDays(E.LAUNCH_DATE, 1)), 2); ok("launch day is #1, the next day #2");
+}
 assert.strictEqual(E.dateForDay(E.dayNumberFor("2027-03-14")), "2027-03-14"); ok("day <-> date roundtrip");
 
 // --- scoring bands

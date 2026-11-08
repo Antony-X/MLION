@@ -1687,3 +1687,7 @@ html:not(.reduce-motion) .feedback .rt-ladder li.t-mlion { animation: rt-step 40
 .na-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .na-row .search { flex: 1 1 160px; min-width: 0; }
 html:not(.reduce-motion) .name-ask { animation: rt-in 500ms var(--ease-expo) both; }
+
+/* the drawer: Change name and the login buttons sat on top of each other */
+.drawer-acct .btn-row + .btn-row { margin-top: 10px; }
+.drawer-acct .btn-row { flex-wrap: wrap; gap: 10px; }
