@@ -4633,7 +4633,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const played = records[`${quizBoard ? "dquiz" : "daily"}:${today()}`];
     const canPublish = day === today() && played && AUTH.ready && (!AUTH.user || ((AUTH.anon || offBoard()) && !isPosted(played)));
     const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
-      : (needsName() ? nameAsk() : AUTH.user && offBoard() ? `<p class="board-acct">You're not on the leaderboard. Publish a score to come back.</p>` : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>` : "")
+      : (needsName() ? nameAsk() : AUTH.user && offBoard() ? `<p class="board-acct">You're not on the leaderboard. Publish a score to come back.</p>` : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>${leaveLink()}` : "")
       + (canPublish ? `<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>` : "")
       + (!AUTH.user || AUTH.anon ? `<p class="board-acct">${AUTH.user ? "Log in" : "Publish your score under any name, or log in"} to keep one name on every device.</p>${loginButtons()}` : "");
     const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? base : `${base}-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
@@ -4650,6 +4650,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
     wireLogin(app);
     const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
+    wireLeave(app); // the same small "Remove me from the leaderboard" as in the menu (user, 2026-11-08: looked for it here)
     wireNameAsk(app, () => renderBoard(date, kind));
     const pub = $("#pub-btn"); if (pub) pub.addEventListener("click", () => publishModal(played));
     const list = $("#board-list");

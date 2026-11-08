@@ -824,6 +824,11 @@ async function mockRoute(route) {
   check(db.scores.some((r) => r.user_id === ANON3 && r.score === 210) && !(await p4.$("#name-ask")) && !(await p4.$("#pub-btn")), "after that, a daily posts by itself under the name, nothing to tap");
 
   // ---- Remove me from the leaderboard (2026-11-08): a small link in the menu, a confirm, then nothing posts by itself
+  await p4.goto(base + "#board");
+  await p4.waitForSelector("#app #acct-leave", { timeout: 15000 });
+  check(true, "the leaderboard page has the small Remove me link too, under your name");
+  await p4.goto(base + `#results-daily-${today}`);
+  await p4.waitForFunction(() => /today as Lovelace/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
   await p4.click("#menu-btn");
   await p4.waitForSelector("#acct-leave", { state: "visible", timeout: 5000 });
   const leaveSize = await p4.evaluate(() => parseFloat(getComputedStyle(document.querySelector("#acct-leave")).fontSize));
