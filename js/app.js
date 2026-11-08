@@ -2117,7 +2117,6 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <label class="vs-field"><span>Your name</span><input class="search" id="live-name" maxlength="16" autocomplete="nickname" placeholder="Shown to everyone" value="${esc(myName())}"></label>
         ${joining ? "" : `<label class="lv-check"><input type="checkbox" id="live-public"><span>List it under open rooms, so one other player can join you</span></label>`}
         <div class="btn-row"><button class="btn primary big" id="live-go">${joining ? "Join" : "Create room"}</button></div>
-        <p class="lv-note" id="live-relay">Chat and answers pass through MLion's relay, encrypted with the room's link.</p>
       </div>
       ${joining ? "" : `<section class="lv-open"><h2 class="block-title">Open rooms</h2><p id="rooms-status" role="status">Looking for rooms…</p>
         <ul class="lv-players" id="rooms-list"></ul>

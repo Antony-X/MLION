@@ -101,8 +101,8 @@ const FAKE_RELAY = () => {
   // ---------------------------------------------------------------- A. reading
   console.log("A. an outsider listening on the relay");
   const ana = await open("ana"), ben = await open("ben");
-  await ana.goto(base + "#live"); await ana.waitForSelector("#live-relay");
-  check(/MLion's relay, encrypted with the room's link/.test(await ana.textContent("#live-relay")), "the create page says chat and answers pass through MLion's relay, encrypted");
+  await ana.goto(base + "#live"); await ana.waitForSelector("#live-name");
+  check(!(await ana.$("#live-relay")), "the create page has no relay note (the owner removed it as redundant, 2026-11-08)");
   const link = await create(ana, "Ana");
   const A = await live(ana);
   check(link === `#live-${A.code}-${A.secret}`, "the invite link carries the room code and a 22-character secret in the #fragment");
