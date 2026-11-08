@@ -243,7 +243,9 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
     assert.ok(E.dailyQuiz(DATA, 3, "dquiz-x").every((q) => q.reasoning && live.has(q.promptId)), "the daily quiz deals the bank");
     assert.deepStrictEqual(E.dailyQuiz(DATA, 3, "dquiz-x").map((q) => lvlOf.get(q.promptId)), E.QUIZ_PATTERN, "and mixes its levels the same way");
     const days = (DATA.daily && DATA.daily.quiz) || [];
-    assert.ok(days.length >= 21 && days.every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(E.QUIZ_PATTERN)), "every hand-picked Daily Quiz day follows the pattern");
+    // day 1 (launch day) was rebuilt harder at the owner's request (2026-11-08): three medium, then four hard
+    assert.deepStrictEqual(days[0].map((id) => lvlOf.get(id)), ["medium", "medium", "medium", "hard", "hard", "hard", "hard"], "launch day's quiz: three medium, then four hard");
+    assert.ok(days.length >= 21 && days.slice(1).every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(E.QUIZ_PATTERN)), "every other hand-picked Daily Quiz day follows the pattern");
     ok(`quiz bank (${BANK.length}, ${R.length - BANK.length} retired): seven a run, rebuilt exactly, solo runs use the bank before repeating`);
   }
 

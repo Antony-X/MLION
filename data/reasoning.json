@@ -4131,7 +4131,7 @@
       "cat": "Language models",
       "pack": "llm",
       "lvl": "hard",
-      "q": "Why do labs train small models on far more tokens than compute-optimal scaling suggests?",
+      "q": "Why train a small model on far more tokens than compute-optimal scaling suggests?",
       "options": [
         "More tokens steadily reduce the tokeniser's error rate on rare words",
         "Compute-optimal ignores inference cost; a smaller model is cheaper to serve",
