@@ -3084,7 +3084,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       showStreak(0, "out");
       Sound.fizzle();
     }
-    if (res.tier && Number.isFinite(ms) && ms < QUICK_MS) { flashQuick(); if (!jp) Sound.quick(); }
+    // The "Quick" badge for an answer under 5 s was removed 2026-11-08: it scored nothing and players read it as a score (the owner).
   }
 
   // ---- jackpots: a rare answer gets one clear moment when the ball lands. The stage flashes in the
