@@ -1775,6 +1775,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     liveEvery(() => { broadcast({ t: "hb" }); publishInfo(); }, 3000);
     liveEvery(() => { // a player who went quiet: hold the seat, then free it
       const now = Date.now();
+      // While this page is cut off from the relay (a site update restarts it), nobody can reach us: their silence is
+      // ours, so their clocks wait until we're back.
+      if (!client.connected) { for (const p of LIVE.players.values()) p.seen = Math.max(p.seen || 0, now); return hostDropBar(); }
       for (const p of LIVE.players.values()) if (!p.host && !p.away && now - (p.seen || now) > 9000) hostDrop(p.id);
       hostQuietCheck();
     }, 2000);
@@ -2001,6 +2004,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     js.helloTimer = setInterval(() => {
       if (joinState !== js) return clearInterval(js.helloTimer);
       if (js.joined) {
+        // offline (a site update restarts the relay): the host's silence is ours, so its clock waits until we're back
+        if (!client.connected) { js.lastHost = Math.max(js.lastHost, Date.now() - 3000); return; }
         js.hbAt = Date.now();
         sendSealed(client, key, id, up, { t: "hb" });
         const quiet = Date.now() - js.lastHost;

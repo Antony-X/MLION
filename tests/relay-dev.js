@@ -51,8 +51,10 @@ async function startRelay() {
  *  the relay's own, which wrangler dev presents as https://mlion.lol: to the relay the page is the live site's. */
 function attachRelay(server, relay) {
   const target = new URL(relay.http);
+  const open = new Set(); let downUntil = 0;
   server.on("upgrade", (req, socket, head) => {
     if (!req.url.startsWith("/relay")) return socket.destroy();
+    if (Date.now() < downUntil) return socket.destroy(); // cut(): the relay is "restarting"
     const up = net.connect(+target.port, target.hostname, () => {
       const lines = [`${req.method} ${req.url} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) {
@@ -65,12 +67,15 @@ function attachRelay(server, relay) {
       up.pipe(socket);
       socket.pipe(up);
     });
-    const end = () => { up.destroy(); socket.destroy(); };
+    const pair = { up, socket }; open.add(pair);
+    const end = () => { open.delete(pair); up.destroy(); socket.destroy(); };
     up.on("error", end);
     socket.on("error", end);
-    up.on("close", () => socket.destroy());
-    socket.on("close", () => up.destroy());
+    up.on("close", () => { open.delete(pair); socket.destroy(); });
+    socket.on("close", () => { open.delete(pair); up.destroy(); });
   });
+  /** What a deploy does to the live relay: every connection drops at once and new ones fail for downMs. */
+  return { cut(downMs = 0) { downUntil = Date.now() + downMs; for (const p of [...open]) { p.up.destroy(); p.socket.destroy(); } open.clear(); }, count: () => open.size };
 }
 
 module.exports = { startRelay, attachRelay };
