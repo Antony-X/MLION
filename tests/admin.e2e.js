@@ -137,7 +137,7 @@ function mockFor(who, whoName) {
       }
       if (fn === "admin_scores") {
         const rows = a.p_kind === "quiz" ? db.quiz.filter((s) => s.day === a.p_day).map((s) => ({ user_id: s.user_id, name: nameOf(s.user_id), score: s.score, detail: s.marks, tenths: s.tenths, created_at: s.created_at }))
-          : db.scores.filter((s) => s.day === a.p_day).sort((x, y) => y.score - x.score).map((s) => ({ user_id: s.user_id, name: nameOf(s.user_id), score: s.score, detail: s.tiers, tenths: null, created_at: s.created_at }));
+          : db.scores.filter((s) => s.day === a.p_day).sort((x, y) => y.score - x.score).map((s) => ({ user_id: s.user_id, name: nameOf(s.user_id), score: s.score, detail: s.tiers, tenths: null, created_at: s.created_at, hidden: !!(db.profiles.get(s.user_id) || {}).off_board }));
         return json(200, rows);
       }
       if (fn === "admin_remove_score") {
@@ -281,9 +281,13 @@ function mockFor(who, whoName) {
   check(!db.profiles.has(CY) && !db.scores.some((s) => s.user_id === CY), "delete removes the player and their scores");
 
   // scores: remove one, read the quiz board
+  db.profiles.get(ROB).off_board = true; // took themselves off the board (supabase/leave_board.sql): only admins see the score
   await tab(ada, "scores");
   await ada.waitForSelector(".adm-rows.scores li");
   check((await rows(ada)).join() === "Robin,Ada", "today's daily board, best first");
+  check(!!(await ada.$('.adm-rows.scores li[data-name="Robin"] .adm-hidden')) && !(await ada.$('.adm-rows.scores li[data-name="Ada"] .adm-hidden')) && /1 hidden/.test(await ada.textContent("#adm-list")),
+    "a player who took themselves off the board still shows to the admin, tagged Hidden");
+  db.profiles.get(ROB).off_board = false;
   check((await ada.$$('.adm-rows.scores li[data-name="Robin"] .adm-tiers .glyph')).length === 7, "each score shows its seven tiers");
   await ada.click('.adm-rows.scores li[data-name="Robin"] [data-a="remove"]');
   await ada.click("#adm-rm");

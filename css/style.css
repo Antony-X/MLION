@@ -1710,3 +1710,11 @@ html:not(.reduce-motion) .name-ask { animation: rt-in 500ms var(--ease-expo) bot
 .lv-drop-end.armed { background: var(--negative); color: var(--bg); }
 .lv-drop-acts button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 li.off > .lv-st { color: var(--negative); }
+
+/* "Remove me from the leaderboard": small and quiet on purpose (2026-11-08) */
+.acct-leave { margin: 14px 0 0; }
+.acct-leave .linkish { font-size: 12px; color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
+.acct-leave .linkish:hover, .acct-leave .linkish:focus-visible { color: var(--muted); }
+
+.adm-tag.adm-hidden { background: transparent; border: 1px dashed var(--faint); color: var(--muted); }
+.adm-rows li:has(.adm-hidden) b.pts, .adm-rows li:has(.adm-hidden) .who > b { opacity: 0.6; }

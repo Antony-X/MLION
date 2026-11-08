@@ -4038,7 +4038,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           if (!AUTH.profile && await accountGone()) return;
           AUTH.admin = admin;
           if (AUTH.profile && !myName() && !AUTO_NAME.test(AUTH.profile.name)) LS.set("name", AUTH.profile.name); // rooms and challenges use it
-          if (!AUTH.anon || AUTOPOST) await Promise.all([today(), E.addDays(today(), -1)].map((d) => postDaily(records[`daily:${d}`]))); // every account posts by itself (yesterday's too, for a run that crossed midnight); a guest account too since 2026-11-08
+          if ((!AUTH.anon || AUTOPOST) && !offBoard()) await Promise.all([today(), E.addDays(today(), -1)].map((d) => postDaily(records[`daily:${d}`]))); // every account posts by itself (yesterday's too, for a run that crossed midnight); a guest account too since 2026-11-08
         } catch { /* offline: the board page retries */ }
       }
       boardRedraw();
@@ -4055,14 +4055,47 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const first = cleanName(String(raw).split(/\s+/)[0]); // first name only: the board is public
     return first && E.nameOk(first) ? first : "Player";
   }
+  let PROFILE_COLS = "id,name,off_board"; // off_board: supabase/leave_board.sql
   async function loadProfile(user) {
-    const got = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle();
+    let got = await sbClient.from("profiles").select(PROFILE_COLS).eq("id", user.id).maybeSingle();
+    if (got.error && PROFILE_COLS !== "id,name" && /off_board/.test(got.error.message || "")) { PROFILE_COLS = "id,name"; got = await sbClient.from("profiles").select(PROFILE_COLS).eq("id", user.id).maybeSingle(); }
     if (got.data) return got.data;
-    const ins = await sbClient.from("profiles").insert({ id: user.id, name: defaultBoardName(user) }).select("id,name").maybeSingle();
+    const ins = await sbClient.from("profiles").insert({ id: user.id, name: defaultBoardName(user) }).select(PROFILE_COLS).maybeSingle();
     limitedErr(ins.error);
     if (ins.data) return ins.data;
-    const again = await sbClient.from("profiles").select("id,name").eq("id", user.id).maybeSingle(); // another tab won the race
+    const again = await sbClient.from("profiles").select(PROFILE_COLS).eq("id", user.id).maybeSingle(); // another tab won the race
     return again.data || null;
+  }
+  /** The player took themselves off the leaderboard (menu, "Remove me from the leaderboard"). */
+  const offBoard = () => !!(AUTH.profile && AUTH.profile.off_board);
+  /** Off the board: every score, quiz score and posted answer of this account goes, and nothing posts by itself. */
+  async function leaveBoard() {
+    const { error } = await sbClient.rpc("leave_board");
+    if (error) throw error;
+    if (AUTH.profile) AUTH.profile.off_board = true;
+    const uid = AUTH.user && AUTH.user.id;
+    for (const k of Object.keys(boardPosted)) if (boardPosted[k] === uid) delete boardPosted[k];
+    LS.set("boardPosted", boardPosted);
+    const ans = LS.get("ansPosted", []);
+    if (Array.isArray(ans)) LS.set("ansPosted", ans.filter((m) => !String(m).endsWith(":" + uid)));
+    for (const d of [today(), E.addDays(today(), -1)]) { boardForget(d, "daily"); boardForget(d, "quiz"); }
+  }
+  /** Back on the board: Publish was tapped after leaving it. */
+  async function joinBoard() {
+    if (!offBoard()) return;
+    const { error } = await sbClient.rpc("join_board");
+    if (!error && AUTH.profile) AUTH.profile.off_board = false;
+  }
+  function leaveBoardAsk() {
+    closeDrawer();
+    showModal("Remove you from the leaderboard?", `<p class="muted">Your scores come off every leaderboard, and new ones won't be posted. You can come back any time: publish a score from its results page.</p>
+      <div class="btn-row"><button class="btn primary" id="lb-keep">Keep me on it</button><button class="btn" id="lb-go">Remove me</button></div>
+      <p class="pub-err" id="lb-err" role="alert"></p>`);
+    $("#lb-keep").addEventListener("click", closeModal);
+    $("#lb-go").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      try { await leaveBoard(); closeModal(); toast("You're off the leaderboard"); boardRedraw(); } catch { $("#lb-err").textContent = "Couldn't reach the leaderboard. Try again."; e.currentTarget.disabled = false; }
+    });
   }
 
   /** Whether anyone played this run: an answer, a typed miss or a quiz pick in at least one round. */
@@ -4216,7 +4249,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // never posts by itself: before this, the e2e suites put "Player 1234" scores on the real board (2026-11-08).
   const AUTOPOST = !window.MLION_NO_AUTOPOST && !(navigator.webdriver && !window.MLION_BOARD);
   const autoName = () => `Player ${1000 + Math.floor(Math.random() * 9000)}`;
-  const needsName = () => !!(AUTH.anon && AUTH.profile && AUTO_NAME.test(AUTH.profile.name));
+  const needsName = () => !!(AUTH.anon && AUTH.profile && AUTO_NAME.test(AUTH.profile.name) && !offBoard());
   /** Whether postDaily would take this run (so a guest account is only made for a run that can go up). */
   const postable = (rec) => !!(rec && (rec.mode === "daily" || rec.mode === "dquiz") && postableDay(rec.date) && rec.tiers.length === E.ROUNDS && dealtNow(rec) && played(rec));
   async function publishScore(rec, name, auto = false) {
@@ -4233,6 +4266,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         await onSession(data && data.session);
       } else await (AUTH.loading || Promise.resolve());
       if (!AUTH.profile) return justLimited() ? TOO_MANY : "Couldn't publish. Try again.";
+      await joinBoard();
       const bad = await saveBoardName(name);
       if (bad) return bad;
       if (!auto && (!myName() || AUTH.anon)) LS.set("name", name);
@@ -4339,13 +4373,15 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     box.hidden = !BOARD_ON;
     if (!BOARD_ON || !AUTH.ready) { box.innerHTML = ""; return; }
     if (AUTH.user && AUTH.anon) {
-      box.innerHTML = `<p class="acct-who">On the leaderboard as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. Log in to keep one name on every device.</p>
-        <div class="btn-row"><button class="btn sm${needsName() ? " primary" : ""}" id="acct-name">${needsName() ? "Enter your name" : "Change name"}</button></div>${loginButtons()}`;
+      box.innerHTML = `<p class="acct-who">${offBoard() ? "You're off the leaderboard. Publish a score to come back." : `On the leaderboard as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>.`} Log in to keep one name on every device.</p>
+        <div class="btn-row"><button class="btn sm${needsName() ? " primary" : ""}" id="acct-name">${needsName() ? "Enter your name" : "Change name"}</button></div>${loginButtons()}${leaveLink()}`;
+      wireLeave(box);
       $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
       wireLogin(box);
     } else if (AUTH.user) {
       box.innerHTML = `<p class="acct-who">Logged in as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b></p>
-        <div class="btn-row">${AUTH.admin ? `<a class="btn sm acct-admin" href="#admin">Admin panel</a>` : ""}<button class="btn sm" id="acct-name">Change name</button><button class="btn sm" id="acct-out">Log out</button></div>`;
+        <div class="btn-row">${AUTH.admin ? `<a class="btn sm acct-admin" href="#admin">Admin panel</a>` : ""}<button class="btn sm" id="acct-name">Change name</button><button class="btn sm" id="acct-out">Log out</button></div>${offBoard() ? `<p class="muted small">You're off the leaderboard. Publish a score to come back.</p>` : leaveLink()}`;
+      wireLeave(box);
       $("#acct-out", box).addEventListener("click", () => { closeDrawer(); boardLogout(); });
       $("#acct-name", box).addEventListener("click", () => { closeDrawer(); boardRename(); });
     } else {
@@ -4354,6 +4390,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     }
   }
   function loginButtons() { return `<div class="btn-row board-login"></div>`; }
+  // small and quiet on purpose (user, 2026-11-08: "so people don't do it")
+  const leaveLink = () => (offBoard() ? "" : `<p class="acct-leave"><button type="button" class="linkish" id="acct-leave">Remove me from the leaderboard</button></p>`);
+  function wireLeave(root) { const b = $("#acct-leave", root); if (b) b.addEventListener("click", leaveBoardAsk); }
   async function wireLogin(root) {
     const list = await loadProviders();
     $$(".board-login", root).forEach((row) => {
@@ -4534,6 +4573,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       drawMini();
     };
     if (!AUTOPOST && (!AUTH.user || (AUTH.anon && !isPosted(rec)))) return offer("");
+    if (AUTH.user && offBoard() && !isPosted(rec)) {
+      box.innerHTML = `<p class="muted small">You took yourself off the leaderboard, so this score wasn't posted.</p><div class="btn-row"><button class="btn" id="pub-btn">Publish my score</button></div>${mini}`;
+      $("#pub-btn", box).addEventListener("click", () => publishModal(rec));
+      drawMini();
+      return;
+    }
     if (!AUTH.user) {
       if (!postable(rec)) return offer("");
       box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
@@ -4586,9 +4631,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const prev = day > E.epoch() ? E.addDays(day, -1) : null;
     const next = day < today() ? E.addDays(day, 1) : null;
     const played = records[`${quizBoard ? "dquiz" : "daily"}:${today()}`];
-    const canPublish = day === today() && played && AUTH.ready && (!AUTH.user || (AUTH.anon && !isPosted(played)));
+    const canPublish = day === today() && played && AUTH.ready && (!AUTH.user || ((AUTH.anon || offBoard()) && !isPosted(played)));
     const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
-      : (needsName() ? nameAsk() : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>` : "")
+      : (needsName() ? nameAsk() : AUTH.user && offBoard() ? `<p class="board-acct">You're not on the leaderboard. Publish a score to come back.</p>` : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>` : "")
       + (canPublish ? `<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>` : "")
       + (!AUTH.user || AUTH.anon ? `<p class="board-acct">${AUTH.user ? "Log in" : "Publish your score under any name, or log in"} to keep one name on every device.</p>${loginButtons()}` : "");
     const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? base : `${base}-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
@@ -6069,7 +6114,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const list = $("#adm-list", b);
       list.innerHTML = rows.length ? `<p class="muted small">${rows.length === 200 ? "The newest 200" : rows.length} player${rows.length === 1 ? "" : "s"}${ADMIN.q ? ` matching “${esc(ADMIN.q)}”` : ""}</p>
         <ul class="adm-rows">${rows.map((r) => `<li data-id="${esc(r.id)}" data-name="${esc(r.name)}">
-          <div class="who"><b>${esc(r.name)}</b>${r.admin ? `<span class="adm-tag">Admin</span>` : ""}${r.account && r.account !== r.name ? `<span class="muted">${esc(r.account)} on Discord</span>` : ""}</div>
+          <div class="who"><b>${esc(r.name)}</b>${r.admin ? `<span class="adm-tag">Admin</span>` : ""}${r.hidden ? `<span class="adm-tag adm-hidden" title="Took themselves off the leaderboard: only admins see their scores">Hidden</span>` : ""}${r.account && r.account !== r.name ? `<span class="muted">${esc(r.account)} on Discord</span>` : ""}</div>
           <p class="meta">Joined ${whenTs(r.created_at)} · ${r.daily} ${r.daily === 1 ? "daily" : "dailies"} · ${r.quiz} ${r.quiz === 1 ? "quiz" : "quizzes"}${r.best != null ? ` · best ${r.best}` : ""} · last login ${agoTs(r.last_seen)}</p>
           <div class="acts"><button type="button" class="btn sm" data-a="rename">Rename</button>${r.admin ? "" : `<button type="button" class="btn sm danger" data-a="delete">Delete</button>`}</div>
         </li>`).join("")}</ul>` : `<p class="muted">${ADMIN.q ? "No player matches that name." : "No players yet."}</p>`;
@@ -6108,9 +6153,10 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const detail = (r) => (kind === "quiz"
         ? `<span class="adm-marks">${[...String(r.detail || "")].map((c) => (c === "1" ? "●" : "○")).join("")}</span> ${((r.tenths || 0) / 10).toFixed(1)} s`
         : `<span class="adm-tiers">${decTiers(String(r.detail || "")).map((t) => G(t === "miss" ? null : t)).join("")}</span>`);
-      list.innerHTML = rows.length ? `<p class="muted small">${rows.length} ${kind === "quiz" ? "quiz" : "daily"} score${rows.length === 1 ? "" : "s"} on ${esc(prettyDate(day))}</p>
+      const hid = rows.filter((r) => r.hidden).length;
+      list.innerHTML = rows.length ? `<p class="muted small">${rows.length} ${kind === "quiz" ? "quiz" : "daily"} score${rows.length === 1 ? "" : "s"} on ${esc(prettyDate(day))}${hid ? `, ${hid} hidden (players who took themselves off: only admins see them; ranks on the public board skip them)` : ""}</p>
         <ol class="adm-rows scores">${rows.map((r, i) => `<li data-id="${esc(r.user_id)}" data-name="${esc(r.name)}">
-          <span class="rank">${i + 1}</span><div class="who"><b>${esc(r.name)}</b><span class="muted">${detail(r)}</span></div><b class="pts">${r.score}</b>
+          <span class="rank">${i + 1}</span><div class="who"><b>${esc(r.name)}</b>${r.hidden ? `<span class="adm-tag adm-hidden" title="Took themselves off the leaderboard: only admins see this score">Hidden</span>` : ""}<span class="muted">${detail(r)}</span></div><b class="pts">${r.score}</b>
           <div class="acts"><button type="button" class="btn sm danger" data-a="remove">Remove</button></div></li>`).join("")}</ol>`
         : `<p class="muted">No ${kind === "quiz" ? "quiz" : "daily"} scores on ${esc(prettyDate(day))}.</p>`;
       $$(".adm-rows [data-a=remove]", list).forEach((btn) => btn.addEventListener("click", () => {

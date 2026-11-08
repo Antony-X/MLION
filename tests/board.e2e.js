@@ -66,6 +66,7 @@ function filters(u) {
 }
 const pass = (row, f) => Object.entries(f).every(([k, [op, v]]) => (op === "eq" ? String(row[k]) === v : op === "lt" ? Number(row[k]) < Number(v) : Number(row[k]) > Number(v)));
 
+const seen = (r) => !(db.profiles.get(r.user_id) || {}).off_board; // supabase/leave_board.sql: hidden players' rows aren't read
 async function mockRoute(route) {
   const req = route.request();
   const u = new URL(req.url());
@@ -137,14 +138,14 @@ async function mockRoute(route) {
       db.scores.push({ user_id: row.user_id, day: row.day, tiers: row.tiers, score: [...row.tiers].reduce((s, d) => s + PTS[+d], 0), created_at: new Date().toISOString() });
       return json(201);
     }
-    const rows = db.scores.filter((s) => pass(s, f));
+    const rows = db.scores.filter((s) => pass(s, f) && seen(s));
     if (method === "HEAD" || /count=exact/.test(hdr.prefer || "")) {
       return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "content-range", "content-range": `*/${rows.length}` }, body: method === "HEAD" ? "" : "[]" });
     }
     if (method === "GET") {
       boardGets.push(Date.now());
       if (slow.board) await sleep(slow.board);
-      const out = db.scores.filter((s) => pass(s, f)).sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)) // as the table is when the answer leaves
+      const out = db.scores.filter((s) => pass(s, f) && seen(s)).sort((a, b) => b.score - a.score || a.created_at.localeCompare(b.created_at)) // as the table is when the answer leaves
         .map((s) => ({ ...s, profiles: db.profiles.get(s.user_id) ? { name: db.profiles.get(s.user_id).name } : null }));
       return reply(out);
     }
@@ -184,7 +185,7 @@ async function mockRoute(route) {
       db.quiz.push({ user_id: row.user_id, day: row.day, marks: row.marks, tenths: row.tenths, times: row.times || null, score, created_at: new Date().toISOString() });
       return json(201);
     }
-    const rows = db.quiz.filter((s) => pass(s, f));
+    const rows = db.quiz.filter((s) => pass(s, f) && seen(s));
     if (method === "HEAD" || /count=exact/.test(hdr.prefer || "")) {
       return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "content-range", "content-range": `*/${rows.length}` }, body: method === "HEAD" ? "" : "[]" });
     }
@@ -206,13 +207,24 @@ async function mockRoute(route) {
   if (u.pathname === "/rest/v1/rpc/daily_answers_for" && method === "POST") {
     const a = JSON.parse(req.postData() || "{}");
     if (!me || !db.scores.some((s) => s.user_id === me && s.day === a.p_day)) return json(200, []);
-    return json(200, ans.filter((r) => r.day === a.p_day && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day))
+    return json(200, ans.filter((r) => r.day === a.p_day && seen(r) && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day))
       .map((r) => ({ name: (db.profiles.get(r.user_id) || {}).name || "Player", answers: r.answers, mine: r.user_id === me })));
   }
   if (u.pathname === "/rest/v1/rpc/daily_answers_board" && method === "POST") { // the board's view: by account, same rule
     const a = JSON.parse(req.postData() || "{}");
     if (!me || !db.scores.some((s) => s.user_id === me && s.day === a.p_day)) return json(200, []);
-    return json(200, ans.filter((r) => r.day === a.p_day && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day)).map((r) => ({ user_id: r.user_id, answers: r.answers })));
+    return json(200, ans.filter((r) => r.day === a.p_day && seen(r) && db.scores.some((s) => s.user_id === r.user_id && s.day === r.day)).map((r) => ({ user_id: r.user_id, answers: r.answers })));
+  }
+  // supabase/leave_board.sql: leave_board only sets off_board (the reads above then skip the player); join_board clears it
+  if (u.pathname === "/rest/v1/rpc/leave_board" && method === "POST") {
+    if (!me) return json(401, { message: "not signed in" });
+    if (db.profiles.has(me)) db.profiles.get(me).off_board = true;
+    return json(200, db.profiles.has(me));
+  }
+  if (u.pathname === "/rest/v1/rpc/join_board" && method === "POST") {
+    if (!me) return json(401, { message: "not signed in" });
+    if (db.profiles.has(me)) db.profiles.get(me).off_board = false;
+    return json(200, db.profiles.has(me));
   }
   return json(404, { message: "not mocked" });
 }
@@ -810,6 +822,43 @@ async function mockRoute(route) {
   await p4.goto(base + `#results-daily-${today}`);
   await p4.waitForFunction(() => /today as Lovelace/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
   check(db.scores.some((r) => r.user_id === ANON3 && r.score === 210) && !(await p4.$("#name-ask")) && !(await p4.$("#pub-btn")), "after that, a daily posts by itself under the name, nothing to tap");
+
+  // ---- Remove me from the leaderboard (2026-11-08): a small link in the menu, a confirm, then nothing posts by itself
+  await p4.click("#menu-btn");
+  await p4.waitForSelector("#acct-leave", { state: "visible", timeout: 5000 });
+  const leaveSize = await p4.evaluate(() => parseFloat(getComputedStyle(document.querySelector("#acct-leave")).fontSize));
+  check(leaveSize <= 13 && !(await p4.$("#acct-leave.btn")), `the menu has a small "Remove me from the leaderboard" link (${leaveSize}px, not a button)`);
+  await p4.click("#acct-leave");
+  await p4.waitForSelector("#lb-keep", { timeout: 5000 });
+  await p4.click("#lb-keep");
+  await sleep(200);
+  check(db.scores.some((r) => r.user_id === ANON3) && !db.profiles.get(ANON3).off_board, "Keep me on it changes nothing");
+  await p4.click("#menu-btn");
+  await p4.waitForSelector("#acct-leave", { state: "visible", timeout: 5000 });
+  await p4.click("#acct-leave");
+  await p4.waitForSelector("#lb-go", { timeout: 5000 });
+  await p4.click("#lb-go");
+  await p4.waitForFunction(() => /off the leaderboard/.test(document.querySelector("#toast")?.textContent || ""), null, { timeout: 8000 });
+  check(db.scores.some((r) => r.user_id === ANON3) && db.profiles.get(ANON3).off_board === true, "Remove me hides the account: its scores stay in the database, marked off the board");
+  await p4.goto("about:blank");
+  await p4.goto(base + `#results-daily-${today}`);
+  await p4.waitForFunction(() => /took yourself off the leaderboard/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
+  check(db.scores.filter((r) => r.user_id === ANON3).length === 1 && !!(await p4.$("#board-box #pub-btn")) && !(await p4.$("#name-ask")), "off the board, a finished daily doesn't post by itself; the results offer Publish");
+  await p4.goto(base + "#board");
+  await p4.waitForFunction(() => /You're not on the leaderboard/.test(document.querySelector("#app")?.textContent || "") && !/Lovelace/.test(document.querySelector(".board-list, ol")?.textContent || ""), null, { timeout: 15000 });
+  check(true, "the leaderboard page says you're not on it, and the board no longer lists them");
+  await p4.click("#menu-btn");
+  await sleep(300);
+  check(!(await p4.$("#acct-leave")) && /off the leaderboard/.test(await p4.textContent("#drawer-acct")), "the menu says you're off it, with no second Remove link");
+  await p4.keyboard.press("Escape");
+  await p4.goto(base + `#results-daily-${today}`);
+  await p4.waitForSelector("#board-box #pub-btn", { timeout: 15000 });
+  await p4.click("#board-box #pub-btn");
+  await p4.waitForSelector("#pub-go", { timeout: 5000 });
+  await p4.fill("#pub-name", "Lovelace");
+  await p4.click("#pub-go");
+  await p4.waitForFunction(() => /today as Lovelace/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
+  check(db.scores.some((r) => r.user_id === ANON3 && r.score === 210) && db.profiles.get(ANON3).off_board === false, "Publish puts them back on the board, and auto-posting resumes");
   await ctx4.close();
   }
 
