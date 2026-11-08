@@ -25,7 +25,7 @@
     ["transformer-component", "segmentation-model", "preprocessing", "pooling", "classic-nlp", "ml-course", "turing-award"]
   ],
   "quiz": [
-    ["rq-101", "rq-102", "rq-105", "rq-316", "rq-376", "rq-370", "rq-390"],
+    ["rq-101", "rq-102", "rq-316", "rq-105", "rq-370", "rq-376", "rq-390"],
     ["rq-108", "rq-109", "rq-113", "rq-274", "rq-388", "rq-392", "rq-336"],
     ["rq-115", "rq-116", "rq-118", "rq-289", "rq-323", "rq-371", "rq-382"],
     ["rq-122", "rq-123", "rq-125", "rq-249", "rq-393", "rq-395", "rq-391"],

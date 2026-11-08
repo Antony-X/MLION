@@ -249,7 +249,10 @@ function mockFor(who, whoName) {
   check((await ada.$$(".adm-chart .col")).length === 14, "a 14-day chart");
   const topD = await ada.$$eval(".adm-top", (ls) => ls[0].textContent);
   check(/Rob\s*700/.test(topD) && topD.indexOf("Rob") < topD.indexOf("Cy"), "today's top scores, best first");
-  check(/Not launched yet/.test(await ada.textContent(".adm-launch")), "the overview says the game hasn't launched");
+  { // the launch day in the code (null before launch, "2026-11-08" since)
+    const CODE_LAUNCH = require("../js/engine.js").LAUNCH_DATE;
+    check((CODE_LAUNCH ? /^Launched .*Today is MLion #\d+/ : /Not launched yet/).test(await ada.textContent(".adm-launch")), "the overview says whether the game has launched");
+  }
   await ada.screenshot({ path: path.join(OUT, "70-admin-overview.png"), fullPage: true });
 
   // players: search, rename, delete

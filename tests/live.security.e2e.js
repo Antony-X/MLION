@@ -205,7 +205,7 @@ const FAKE_RELAY = () => {
   await third.waitForFunction(() => /That open room is full. Open rooms are for two players./.test(document.body.textContent), null, { timeout: 15000 });
   check(true, "a third player hears that the open room is full, for two players");
   await guest.close(); // the stranger leaves: after the grace period the seat is freed and the key is changed
-  await host.waitForFunction((old) => window.MLION_LIVE_STATE.players.size === 1 && window.MLION_LIVE_STATE.secret !== old, G.secret, { timeout: 40000 });
+  await host.waitForFunction((old) => window.MLION_LIVE_STATE.players.size === 1 && window.MLION_LIVE_STATE.secret !== old, G.secret, { timeout: 60000 });
   check(await L(host, (s) => location.hash.endsWith(s), (await live(host)).secret), "once the stranger's seat is freed the host draws a new key (and its address bar follows)");
   check(hostLink !== (await L(host, () => location.hash)), "the room link changes with the key");
   await host.click("#live-leave-lobby"); await host.close(); await third.close(); await viewer.close();

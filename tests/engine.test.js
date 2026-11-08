@@ -209,7 +209,9 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
     assert.ok(BANK.length >= 140 && BANK.length < R.length, "the bundle carries the bank and the retired questions");
     for (const r of R) {
       const q = E.quizQuestion(DATA, "any", r.id);
-      assert.ok(q.reasoning && q.options.join("|") === r.options.join("|") && q.correct === r.answer, `${r.id} keeps its options and answer`);
+      assert.ok(q.reasoning && q.options.slice().sort().join("|") === r.options.slice().sort().join("|") && q.options[q.correct] === r.options[r.answer], `${r.id} deals its own options with the same right one`);
+      const v = E.quizQuestion(DATA, "vq-test", r.id);
+      assert.ok(v.options.join("|") === r.options.join("|") && v.correct === r.answer, `${r.id}: challenge links keep the stored order`);
     }
     const slots = [0, 0, 0, 0]; BANK.forEach((r) => slots[r.answer]++);
     assert.ok(Math.min(...slots) >= BANK.length / 4 - 2, "the right option is spread over the slots " + slots);

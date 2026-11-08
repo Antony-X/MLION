@@ -648,9 +648,37 @@
   const isReasoningId = (id) => typeof id === "string" && id.startsWith("rq-");
   const quizBank = (data) => (data.reasoning || []).filter((r) => !r.retired);
   const reasoningCount = (data, n) => Math.min(quizBank(data).length, Math.round(n * REASONING_SHARE));
-  function reasoningQuestion(data, id) {
+  // The bank's options are stored with the right one wherever its author put it, and that leaned on A: the
+  // Daily Quiz of 2026-11-08 went A A A A B A A (the owner noticed). So every deal shows them in an order seeded
+  // by the deal and the question: the same for everyone in that daily, room or run, different between questions.
+  // Kept as written: options that are all numbers (they read best in order), and challenge links (#vq-…), whose
+  // links carry the challenger's picks as option positions in the stored order.
+  const numericOptions = (opts) => opts.every((o) => /^-?[\d.,]+(e-?\d+)?\s*%?$/.test(String(o).trim()));
+  function reasoningQuestion(data, id, seedKey) {
     const r = (data.reasoning || []).find((x) => x.id === id);
-    return r ? { promptId: r.id, options: r.options.slice(), correct: r.answer, from: r.options.map(() => null), reasoning: true } : null;
+    if (!r) return null;
+    let order = r.options.map((_, i) => i);
+    if (seedKey && !String(seedKey).startsWith("vq-") && !numericOptions(r.options)) order = shuffled(order, mulberry32(hashString(`opts:${seedKey}:${r.id}`)));
+    return { promptId: r.id, options: order.map((i) => r.options[i]), correct: order.indexOf(r.answer), from: order.map(() => null), reasoning: true };
+  }
+  /** Spread one quiz's right answers over the slots: the bank questions whose order was shuffled get target slots
+   *  dealt from a seeded A A B B C C D D …, and the right option swaps places with whatever sits there. */
+  function balanceSlots(list, seedKey) {
+    if (!seedKey || String(seedKey).startsWith("vq-")) return list;
+    const movable = list.filter((q) => q && q.reasoning && q.options.length === 4 && !numericOptions(q.options));
+    if (movable.length < 2) return list;
+    const rng = mulberry32(hashString(`slots:${seedKey}`));
+    const pool = [];
+    while (pool.length < movable.length) pool.push(...shuffled([0, 1, 2, 3], rng));
+    const targets = shuffled(pool.slice(0, movable.length), rng);
+    movable.forEach((q, k) => {
+      const t = targets[k], c = q.correct;
+      if (t === c) return;
+      [q.options[t], q.options[c]] = [q.options[c], q.options[t]];
+      [q.from[t], q.from[c]] = [q.from[c], q.from[t]];
+      q.correct = t;
+    });
+    return list;
   }
   function reasoningStream(data, label) {
     return makeStream({ packs: [{ id: "rq" }], prompts: quizBank(data).map((r) => ({ id: r.id, pack: "rq" })) }, label, null, true);
@@ -742,7 +770,7 @@
    * as the right answer, 1 any familiar tier, 2 any tier).
    */
   function quizQuestion(data, seedKey, promptId, trace) {
-    if (isReasoningId(promptId)) return reasoningQuestion(data, promptId);
+    if (isReasoningId(promptId)) return reasoningQuestion(data, promptId, seedKey);
     const ctx = quizContext(data);
     const p = ctx.byId.get(promptId);
     if (!p) return null;
@@ -815,7 +843,7 @@
       const q = quizQuestion(data, seedKey, id);
       if (q) out.push(q);
     }
-    if (!rIds.length) return out;
+    if (!rIds.length) return balanceSlots(out, seedKey);
     // reasoning questions go into seeded slots, never two in a row when there's room
     const rng = mulberry32(hashString(`rq-slots:${seedKey}`));
     const total = out.length + rIds.length;
@@ -824,12 +852,12 @@
       slots = shuffled([...Array(total).keys()], rng).slice(0, rIds.length).sort((a, b) => a - b);
       if (slots.every((s, k) => k === 0 || s - slots[k - 1] > 1) || rIds.length * 2 > total) break;
     }
-    const mixed = [], rq = rIds.map((id) => reasoningQuestion(data, id)).filter(Boolean);
+    const mixed = [], rq = rIds.map((id) => reasoningQuestion(data, id, seedKey)).filter(Boolean);
     for (let i = 0, a = 0, b = 0; i < total; i++) {
       if (slots.includes(i) && b < rq.length) mixed.push(rq[b++]);
       else if (a < out.length) mixed.push(out[a++]);
     }
-    return mixed;
+    return balanceSlots(mixed, seedKey);
   }
   /** Daily quiz `n` of a stream: the same seven bank questions for everyone, dealt so days don't repeat until the bank is used up. */
   function dailyQuiz(data, n, label = "dquiz-v1") {
