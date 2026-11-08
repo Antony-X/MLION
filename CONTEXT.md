@@ -1989,3 +1989,19 @@ a gem, receivers re-check the name with `eggFor` to score 500 and tag it in the 
 - A daily where no round has an answer, a typed miss or a quiz pick (`played()`) is never posted (skipped or abandoned).
 - Backup of every leaderboard row before the reset: backups/leaderboard-before-launch-2026-11-08.json (not in git).
 - Drawer: Change name / login buttons no longer touch; a guest with an automatic name sees "Enter your name".
+
+## Launch day, later (2026-11-08)
+- **Quiz answer slots:** the hand-written bank stored the right option where its author put it, and day 1's Daily Quiz read
+  A A A A B A A. `reasoningQuestion(data, id, seedKey)` now deals a bank question's options in an order seeded by
+  (deal, question), and `balanceSlots` spreads each quiz's right answers so no letter shows up more than twice in seven
+  (2000 simulated quizzes: about 3500 per letter). Kept in stored order: all-number options, and challenge links
+  (`vq-…`, their links carry picks as positions). Day 1 reordered easiest to hardest.
+- **Disconnects in live rooms:** after more than 5 s without a word from a player (`QUIET_MS` 6000; guests send a heartbeat
+  every 3 s), the host gets a toast. In the lobby that player's row reads "Disconnected" beside Remove. In a match,
+  `hostDropBar` (a fixed bar at the top) lists who lost connection (Remove each) and who left (dropped by grace or
+  Leave, `LIVE.dropGone`), with End game (two taps, `hostEndMatch`: `end` + `early`, guests get "The host ended the
+  match"). Seat grace is unchanged (away after 9 s, freed after 15 s in a match). Suite: tests/live.drop.e2e.js.
+- **board.e2e "daily miss" flake, fixed:** the answer box was drawn enabled and locked one frame later; the test caught that
+  frame, then waited out the whole round on Next. The box and Submit are now drawn disabled during the preview.
+- tests/e2e.js without `--fixture` expects an activation-function first prompt; since the fixed daily days, day 1 opens
+  with optimizer, so run it with `--fixture` (the deterministic mode).
