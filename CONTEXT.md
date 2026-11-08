@@ -1962,3 +1962,22 @@ counts it as a gem because the leaderboard only takes tier digits) and play a fu
 or "tuff" (gold slam, ring, sparks, screen shake). The names exist only as hashes in `EGGS` in js/app.js (`eggFor`,
 `eggFx`); they are not in any answer list and are never shown as hints. Live rooms: the host's `liveJudge` returns it as
 a gem, receivers re-check the name with `eggFor` to score 500 and tag it in the reveal. Don't list the names anywhere.
+
+## Everyone on the board, the play log, the first-answer tip (2026-11-08)
+- **Auto-post:** a finished Daily / Daily Quiz with no account makes a guest account on the spot (Supabase anonymous
+  sign-in) named "Player 1234" (`autoName`, `AUTO_NAME`) and posts. The results box and the leaderboard page then show
+  `nameAsk()` ("You're on the leaderboard as Player 1234. Enter your name…") until a real name is saved
+  (`wireNameAsk` → `saveBoardName`). Guest accounts now post every later daily by themselves (onSession), like logins.
+  If the guest sign-in fails (anonymous sign-ins rate-limited per IP by Supabase, project down) the old
+  "Publish my score" button shows. `window.MLION_NO_AUTOPOST` (tests only) restores the old button flow; board.e2e's
+  last block tests the new one.
+- **Play log:** every round anyone plays (all solo modes, quizzes, sprints, live) goes to `public.plays`
+  (supabase/plays.sql, applied): browser id (`mlion:bid`), account if any, name, mode, run key, prompt, every text
+  typed (wrong tries too), answer, tier (quiz: 1 right / 0 wrong; sprint: null), points, ms. Queued in
+  `mlion:playq`, sent ≤50 per call to `log_plays` (rate limit "play"), flushed on pagehide. Stops at ~1.5M rows
+  (~220 MB). Not logged from test browsers (navigator.webdriver) unless `MLION_LOG_TEST`. Read it in #admin → Answers
+  (`admin_plays`, one local day, owner's rows hidden unless "Show mine"), or SQL on public.plays.
+- **Rare tip:** a new player's first answer ever, if Baseline or Overfit, shows a one-time card with the points ladder
+  (`rareTipHtml`, `mlion:tipRare`).
+- launch.e2e's "Couldn't post your score" check was stale since 2026-11-07's wording change; fixed. board.e2e's
+  "daily miss" step (suggestions block) still fails at random, also with auto-post off; it passes on its own.

@@ -3589,6 +3589,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       res.score = E.liveScore(RUN.rules, { base: res.score, ms: res.ms, total: answerMs(), hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
     }
     RUN.results.push(res);
+    logPlay({ m: RUN.mode, k: RUN.key, p: p.id, tr: pick >= 0 ? [q.options[pick]] : [], a: res.raw, t: ok ? 1 : 0, s: res.score, ms: res.ms });
     RUN.phase = "feedback";
     markSeen(p.id);
     persistRun();
@@ -3615,6 +3616,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       if (answer && RUN.rules) res.score = E.liveScore(RUN.rules, { base: answer.egg ? EGG_PTS : T[answer.t].score, ms: res.ms, total: answerMs(), misses: res.misses, hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
     }
     RUN.results.push(res);
+    const typed = (RUN.tried || []).slice(-60);
+    logPlay({ m: RUN.mode, k: RUN.key, p: p.id, tr: raw && typed[typed.length - 1] !== raw ? typed.concat(raw) : typed, a: res.answer,
+      t: tierNum(res.tier), s: res.score, ms: Math.round(Number.isFinite(res.ms) ? res.ms : Math.max(0, Date.now() - (RUN.previewEndsAt || Date.now()))) });
     RUN.phase = "feedback";
     RUN.draft = ""; RUN.pendingCorrection = null;
     markSeen(p.id);
@@ -3681,6 +3685,19 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     return `<p class="fb-opp t-${ok ? QUIZ_TIER : "miss"}">${qmark(ok)}<span><b>${esc(opp.name)}</b> ${pick >= 0 ? `picked ${esc(q.options[pick])}` : "didn't answer"}${ok ? ` +${E.QUIZ_POINTS}` : ""}</span><span class="lead">${lead}</span></p>`;
   }
 
+  /** A new player's very first answer was a common one: say once that the points are in rare answers, with the ladder. */
+  function rareTipHtml(res, animate) {
+    if (!animate || RUN.mode === "live" || RUN.results.length !== 1 || LS.get("tipRare") || Object.keys(records).length) return "";
+    LS.set("tipRare", 1); // the first question of the first game, whatever it scored: never again
+    if (res.tier !== "baseline" && res.tier !== "overfit") return "";
+    const ladder = E.TIER_IDS.map((id) => `<li class="t-${id}${id === res.tier ? " you" : ""}"><span>${T[id].emoji}</span><b>${T[id].score}</b></li>`).join("");
+    return `<div class="rare-tip" role="note">
+      <p class="rt-head">${res.tier === "baseline" ? "Too obvious! Almost everyone says that." : "Everyone knows that one."}</p>
+      <p class="rt-body">In MLion the points are in <b>rare</b> answers. Type something fewer people would think of: the rarest are worth up to 100.</p>
+      <ol class="rt-ladder" aria-label="Points from common to rare">${ladder}</ol>
+      <p class="rt-axis"><span>common</span><span>rare</span></p>
+    </div>`;
+  }
   function renderFeedback(res, animate) {
     if (RUN.fmt === "quiz") return renderQuizFeedback(res, animate);
     updateHead();
@@ -3694,6 +3711,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
         <div class="fb-answer">${res.answer ? esc(res.answer) : res.raw ? `“${esc(res.raw)}” <span class="muted">isn't an accepted answer</span>` : `<span class="muted">No answer</span>`}</div>
         <div class="fb-tier${res.egg ? ` egg-tier egg-${res.egg}` : ""}">${res.egg === "shit" ? `<span class="egg-glyph">💩</span>` : G(res.tier)}<span class="fb-name">${res.egg ? EGG_NAMES[res.egg] : t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
         ${ruleNote(res)}
+        ${rareTipHtml(res, animate)}
         ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.struck ? "One strike: a wrong answer ends your round." : res.timeout ? "Out of time." : res.skipped ? "Skipped." : "No points, so the ball stays put."}</p>` : ""}
         ${res.corrected && res.raw ? `<p class="fb-note">Autocorrected from “${esc(res.raw)}”</p>`
           : res.answer && res.raw && E.fullKey(res.raw) !== E.fullKey(res.answer) ? `<p class="fb-note">“${esc(res.raw)}” counts as ${esc(res.answer)}</p>` : ""}
@@ -3829,6 +3847,60 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   const boardPosted = lsObj("boardPosted");
   let sbClient = null, sbLoading = null;
 
+  // ------------------------------------------------------------ play log
+  // Every round anyone plays, logged in or not (the owner, 2026-11-08), goes to the server's play log
+  // (supabase/plays.sql; #admin → Plays). Rounds wait in mlion:playq and go up to 50 at a time, so a dropped
+  // connection or a closed tab loses nothing that was queued. Test browsers stay out unless a test asks.
+  const PLAYQ = "playq";
+  let playTimer = 0, playSending = false;
+  function browserId() {
+    let b = LS.get("bid");
+    if (typeof b !== "string" || !/^[a-z0-9]{8,16}$/.test(b)) {
+      b = Array.from(crypto.getRandomValues(new Uint8Array(12)), (x) => "abcdefghijklmnopqrstuvwxyz0123456789"[x % 36]).join("");
+      LS.set("bid", b);
+    }
+    return b;
+  }
+  const playQueue = () => { const q = LS.get(PLAYQ, []); return Array.isArray(q) ? q : []; };
+  const tierNum = (t) => (t ? E.TIER_IDS.indexOf(t) + 1 : 0); // 0 miss, 1 baseline … 6 mlion
+  /** row: { m: mode, k: run key, p: prompt id, tr: everything typed, a: answer, t: tier number, s: points, ms } */
+  function logPlay(row) {
+    if (!BOARD_ON || !row || !row.p || (navigator.webdriver && !window.MLION_LOG_TEST)) return;
+    LS.set(PLAYQ, playQueue().concat(row).slice(-300));
+    clearTimeout(playTimer);
+    playTimer = setTimeout(flushPlays, 1500);
+  }
+  /** The login's token from supabase-js's store, when it is still good: the row then carries the account. */
+  function sbToken() {
+    try {
+      const v = JSON.parse(localStorage.getItem(SB_STORE) || "null");
+      return v && v.access_token && +v.expires_at * 1000 > Date.now() + 30000 ? v.access_token : null;
+    } catch { return null; }
+  }
+  async function flushPlays(keepalive) {
+    if (playSending || !BOARD_ON) return;
+    const batch = playQueue().slice(0, 50);
+    if (!batch.length) return;
+    playSending = true;
+    try {
+      const body = JSON.stringify({ p_bid: browserId(), p_name: (AUTH.profile && AUTH.profile.name) || myName() || null, p_rows: batch });
+      const send = (tok) => fetch(`${BOARD_CFG.url}/rest/v1/rpc/log_plays`, { method: "POST", keepalive: !!keepalive, body,
+        headers: { apikey: BOARD_CFG.key, "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) } });
+      const tok = sbToken();
+      let r = await send(tok);
+      if (r.status === 401 && tok) r = await send(null); // a token the server no longer takes: send it without the account
+      // sent, or refused for good (a malformed batch): drop it. Busy (429) or server trouble: keep it for later.
+      if (r.ok || (r.status >= 400 && r.status < 500 && r.status !== 429)) {
+        LS.set(PLAYQ, playQueue().slice(batch.length));
+        if (r.ok && playQueue().length) setTimeout(flushPlays, 800);
+      }
+    } catch { /* offline: the queue waits */ } finally { playSending = false; }
+  }
+  addEventListener("pagehide", () => flushPlays(true));
+  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushPlays(true); });
+  addEventListener("online", () => flushPlays());
+  setTimeout(flushPlays, 4000); // what an earlier visit left queued
+
   function loadSupabase() {
     if (sbClient) return Promise.resolve(sbClient);
     if (!sbLoading) sbLoading = new Promise((res, rej) => {
@@ -3898,8 +3970,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
           AUTH.profile = profile;
           if (!AUTH.profile && await accountGone()) return;
           AUTH.admin = admin;
-          if (AUTH.profile && !myName()) LS.set("name", AUTH.profile.name); // rooms and challenges use it
-          if (!AUTH.anon) await Promise.all([today(), E.addDays(today(), -1)].map((d) => postDaily(records[`daily:${d}`]))); // a login posts by itself (yesterday's too, for a run that crossed midnight); a publish-only account waits for the button
+          if (AUTH.profile && !myName() && !AUTO_NAME.test(AUTH.profile.name)) LS.set("name", AUTH.profile.name); // rooms and challenges use it
+          if (!AUTH.anon || AUTOPOST) await Promise.all([today(), E.addDays(today(), -1)].map((d) => postDaily(records[`daily:${d}`]))); // every account posts by itself (yesterday's too, for a run that crossed midnight); a guest account too since 2026-11-08
         } catch { /* offline: the board page retries */ }
       }
       boardRedraw();
@@ -3908,6 +3980,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
 
   function defaultBoardName(user) {
+    if (AUTH.wantName) return AUTH.wantName; // publishScore's: the profile starts with the name being published
     const own = cleanName(myName());
     if (own && E.nameOk(own)) return own;
     const m = (user && user.user_metadata) || {};
@@ -4067,24 +4140,62 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   // "Publish my score": no login needed. The first publish makes a publish-only account (Supabase
   // anonymous sign-in) under the name you type; later days ask again with that name filled in.
-  async function publishScore(rec, name) {
+  // A finished daily goes on the board by itself under a name like this; the results then ask for a real one.
+  const AUTO_NAME = /^Player \d{4}$/;
+  const AUTOPOST = !window.MLION_NO_AUTOPOST; // tests of the Publish button turn it off
+  const autoName = () => `Player ${1000 + Math.floor(Math.random() * 9000)}`;
+  const needsName = () => !!(AUTH.anon && AUTH.profile && AUTO_NAME.test(AUTH.profile.name));
+  /** Whether postDaily would take this run (so a guest account is only made for a run that can go up). */
+  const postable = (rec) => !!(rec && (rec.mode === "daily" || rec.mode === "dquiz") && postableDay(rec.date) && rec.tiers.length === E.ROUNDS && dealtNow(rec));
+  async function publishScore(rec, name, auto = false) {
     if (!name) return "Pick a name with letters or digits.";
     if (!E.nameOk(name)) return NAME_BAD;
     try {
       const sb = await loadSupabase();
       watchAuth(sb);
       if (!AUTH.user) {
-        LS.set("name", name); // the new account's profile takes this name
-        const { data, error } = await sb.auth.signInAnonymously();
+        if (!auto) LS.set("name", name);
+        AUTH.wantName = name; // the new account's profile takes this name
+        const { data, error } = await sb.auth.signInAnonymously().finally(() => { setTimeout(() => { AUTH.wantName = null; }, 30000); });
         if (error) return limitedErr(error) ? TOO_MANY : /anonymous/i.test(`${error.code || ""} ${error.message || ""}`) ? "Publishing without a login isn't switched on yet. Log in instead." : (await boardUp()) ? "Couldn't publish. Try again." : BOARD_DOWN;
         await onSession(data && data.session);
       } else await (AUTH.loading || Promise.resolve());
       if (!AUTH.profile) return justLimited() ? TOO_MANY : "Couldn't publish. Try again.";
       const bad = await saveBoardName(name);
       if (bad) return bad;
-      if (!myName() || AUTH.anon) LS.set("name", name);
+      if (!auto && (!myName() || AUTH.anon)) LS.set("name", name);
       return (await postDaily(rec)) ? "" : justLimited() ? TOO_MANY : "Couldn't publish. Try again.";
     } catch { return "Couldn't reach the leaderboard. Try again later."; }
+  }
+  /** "You're on the board as Player 1234. Enter your name": a guest posted under an automatic name. */
+  function nameAsk() {
+    return `<form class="name-ask" id="name-ask">
+      <p class="na-head">You're on the leaderboard as <b>${esc(AUTH.profile.name)}</b>. Enter your name so people know it's you.</p>
+      <div class="na-row"><input class="search" id="na-input" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(AUTO_NAME.test(myName()) ? "" : myName())}" aria-label="Your name on the leaderboard">
+      <button class="btn primary" type="submit" id="na-go">Save name</button></div>
+      <p class="pub-err" id="na-err" role="alert"></p></form>`;
+  }
+  function wireNameAsk(root, after) {
+    const form = $("#name-ask", root);
+    if (!form) return;
+    const inp = $("#na-input", form), err = $("#na-err", form), btn = $("#na-go", form);
+    inp.addEventListener("input", () => { err.textContent = ""; });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!inp.value.trim()) { err.textContent = "Type a name first."; inp.focus(); return; }
+      if (!E.nameOk(inp.value)) { err.textContent = NAME_BAD; inp.focus(); return; }
+      const name = cleanName(inp.value);
+      if (AUTO_NAME.test(name)) { err.textContent = "Pick your own name."; inp.focus(); return; }
+      btn.disabled = true; btn.textContent = "Saving…";
+      const bad = await saveBoardName(name);
+      if (!form.isConnected) return;
+      btn.disabled = false; btn.textContent = "Save name";
+      if (bad) { err.textContent = bad; inp.focus(); return; }
+      LS.set("name", name);
+      toast(`You're on the leaderboard as ${name}`);
+      drawAccount();
+      after();
+    });
   }
   function publishModal(rec) {
     const quiz = rec.mode === "dquiz";
@@ -4343,12 +4454,20 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!AUTH.ready) { box.innerHTML = `<p class="muted small">Checking the leaderboard…</p>`; return; }
     const mini = `<div class="mini-board" id="mini-board"></div>`;
     const drawMini = () => { const m = $("#mini-board", box); if (m) fillMiniBoard(m, rec.date, kind); };
-    if (!AUTH.user || (AUTH.anon && !isPosted(rec))) {
-      box.innerHTML = `<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>
+    const offer = (why) => { // the old way, when posting by itself didn't work: a button, and login
+      box.innerHTML = `${why ? `<p class="pub-err">${esc(why)}</p>` : ""}<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>
         <p class="muted small">Or log in: you keep one name on every device, and your daily score posts by itself.</p>${loginButtons()}${mini}`;
       $("#pub-btn", box).addEventListener("click", () => publishModal(rec));
       wireLogin(box);
-      return drawMini();
+      drawMini();
+    };
+    if (!AUTOPOST && (!AUTH.user || (AUTH.anon && !isPosted(rec)))) return offer("");
+    if (!AUTH.user) {
+      if (!postable(rec)) return offer("");
+      box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
+      const bad = await publishScore(rec, autoName(), true);
+      if (!box.isConnected) return;
+      if (bad || !AUTH.user) return offer(bad === BOARD_DOWN || bad === TOO_MANY ? bad : "");
     }
     box.innerHTML = `<p class="muted small">Posting to the leaderboard…</p>`;
     if (!AUTH.profile) { // the login's profile didn't load (a slow or dropped connection): ask again before posting
@@ -4367,11 +4486,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!box.isConnected) return;
     // Before 2026-11-07 every case without a rank said "Couldn't post your score. Check your connection and reload",
     // also when the post had worked and an admin had since removed the score (the browser still knows it posted).
-    box.innerHTML = (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} ${dayWord(rec.date)} as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
+    box.innerHTML = (ok && needsName() ? nameAsk() : "") + (r ? `<p class="board-pitch"><b>#${r.rank}</b> of ${r.total} ${dayWord(rec.date)} as ${esc(AUTH.profile.name)} · <a href="${href}">Leaderboard</a></p>`
       : gone ? `<p class="muted small">Your score isn't on ${dayWord(rec.date)}'s leaderboard: it was removed. <a href="${href}">Leaderboard</a></p>`
       : ok ? `<p class="muted small">Your score is posted. Your place on the board didn't load. <a href="${href}">Leaderboard</a></p>`
       : justLimited() ? `<p class="muted small">${TOO_MANY} <a href="${href}">Leaderboard</a></p>`
       : `<p class="muted small">Couldn't reach the leaderboard to post your score. <button class="linkish" type="button" id="pub-retry">Try again</button> · <a href="${href}">Leaderboard</a></p>`) + mini;
+    wireNameAsk(box, () => fillBoardBox(box, rec));
     const retry = $("#pub-retry", box);
     if (retry) {
       retry.addEventListener("click", () => fillBoardBox(box, rec));
@@ -4396,7 +4516,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const played = records[`${quizBoard ? "dquiz" : "daily"}:${today()}`];
     const canPublish = day === today() && played && AUTH.ready && (!AUTH.user || (AUTH.anon && !isPosted(played)));
     const acct = !AUTH.ready ? `<p class="muted small">Checking your login…</p>`
-      : (AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>` : "")
+      : (needsName() ? nameAsk() : AUTH.user ? `<p class="board-acct">You're on the board as <b>${esc((AUTH.profile && AUTH.profile.name) || "…")}</b>. <button class="linkish" id="bn-edit">Change name</button></p>` : "")
       + (canPublish ? `<div class="btn-row"><button class="btn primary" id="pub-btn">Publish my score</button></div>` : "")
       + (!AUTH.user || AUTH.anon ? `<p class="board-acct">${AUTH.user ? "Log in" : "Publish your score under any name, or log in"} to keep one name on every device.</p>${loginButtons()}` : "");
     const arrow = (to, dir) => (to ? `<a class="icon-btn" href="#${to === today() ? base : `${base}-${to}`}" aria-label="${dir < 0 ? "Previous" : "Next"} day">${CHEV.replace('class="chev"', `class="chev ${dir < 0 ? "go-l" : "go-r"}"`)}</a>` : `<span class="icon-btn off" aria-hidden="true"></span>`);
@@ -4413,6 +4533,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     </section>`;
     wireLogin(app);
     const ed = $("#bn-edit"); if (ed) ed.addEventListener("click", boardRename);
+    wireNameAsk(app, () => renderBoard(date, kind));
     const pub = $("#pub-btn"); if (pub) pub.addEventListener("click", () => publishModal(played));
     const list = $("#board-list");
     let guesses = null, guessing = false, lastGot = null;
@@ -4916,6 +5037,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function sprintSubmit(S, input) {
     const raw = input.value.trim();
     if (!raw) return false;
+    if ((S.typed = S.typed || []).length < 80) S.typed.push(raw); // for the play log
     const r = sprintJudge(S.p, raw);
     sprintChips(S, input, []);
     if (r.kind === "hit") {
@@ -4966,6 +5088,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const xpRaw = S.found.reduce((t, a) => t + E.xpSprint(a.t), 0); // a sprint leaves no record, so its XP is logged (section "levels")
     const xg = xpAdd(`sp:${S.p.id}:${Date.now().toString(36)}`, xpRaw);
     S.xp = { before: xg.before, after: xg.after, raw: xpRaw, daily: false, play: xg.added };
+    logPlay({ m: "sprint", k: null, p: S.p.id, tr: S.typed || [], a: S.found.map((a) => a.a).join(" | ").slice(0, 600), t: null, s: S.pts, ms: null });
     if (S.found.length) Sound.tier(S.found.some((a) => a.t === "mlion") ? "mlion" : "outlier"); else Sound.miss();
     renderSprintDone(S, prev, best);
   }
@@ -5211,6 +5334,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!S || (S.phase !== "preview" && S.phase !== "play")) return;
     clearInterval(S.loop);
     S.phase = "ended";
+    if (S.p) logPlay({ m: "live", k: LIVE.code ? `live:${LIVE.code}` : null, p: S.p.id, tr: S.typed || [], a: S.found.map((a) => a.a).join(" | ").slice(0, 600), t: null, s: S.pts, ms: null });
     drawSprint(); // the box is replaced by a disabled one: an Enter typed as time runs out can't press anything
     spSendFinal(S);
   }
@@ -5760,7 +5884,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   // #admin (user, 2026-11-05: "an admin panel I can use to do everything, easily and visually"). It works for
   // Discord accounts listed in public.admins; every call is checked by the database (supabase/admin.sql), so
   // this page guards nothing itself. Tabs: Overview, Players, Scores, Game (launch day, banner, reset).
-  const ADMIN = { tab: "overview", day: "", kind: "daily", q: "" };
+  const ADMIN = { tab: "overview", day: "", kind: "daily", q: "", pday: "", mine: false };
   async function checkAdmin() {
     try { const { data, error } = await sbClient.rpc("is_admin"); return !error && data === true; } catch { return false; }
   }
@@ -5791,12 +5915,50 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!AUTH.ready) return page(head("Checking your login…"));
     if (!AUTH.user) { page(head("Log in with the Discord account that runs MLion.") + loginButtons()); wireLogin(app); return; }
     if (!AUTH.admin) return page(head(`This page is for MLion's admins. You're logged in as ${esc((AUTH.profile && AUTH.profile.name) || "a player")}.`));
-    const tabs = [["overview", "Overview"], ["players", "Players"], ["scores", "Scores"], ["suggest", "Suggestions"], ["limits", "Limits"], ["game", "Game"]];
+    const tabs = [["overview", "Overview"], ["players", "Players"], ["scores", "Scores"], ["plays", "Answers"], ["suggest", "Suggestions"], ["limits", "Limits"], ["game", "Game"]];
     page(`${head("Who plays, the leaderboards, the launch day and the home banner.")}
       <div class="adm-tabs" role="tablist" aria-label="Admin">${tabs.map(([k, l]) => `<button type="button" role="tab" class="adm-tab${ADMIN.tab === k ? " on" : ""}" aria-selected="${ADMIN.tab === k}" data-t="${k}">${l}</button>`).join("")}</div>
       <div id="adm-body" class="adm-body" role="tabpanel"><p class="muted">Loading…</p></div>`);
     $$(".adm-tab").forEach((b) => b.addEventListener("click", () => { ADMIN.tab = b.dataset.t; renderAdmin(); }));
-    ({ overview: adminOverview, players: adminPlayers, scores: adminScores, suggest: adminSuggestions, limits: adminLimits, game: adminGame })[ADMIN.tab]();
+    ({ overview: adminOverview, players: adminPlayers, scores: adminScores, plays: adminPlays, suggest: adminSuggestions, limits: adminLimits, game: adminGame })[ADMIN.tab]();
+  }
+  /** Every round played on one local day (the play log), grouped by browser. The owner's own plays are hidden
+   *  unless asked for: rows from an admin account or from this browser. */
+  function adminPlays() {
+    const body = $("#adm-body"), day = ADMIN.pday || today();
+    const from = new Date(`${day}T00:00:00`), to = new Date(from); to.setDate(to.getDate() + 1);
+    body.innerHTML = `<div class="adm-bar"><input type="date" class="search adm-date" id="adm-pday" value="${day}" max="${today()}" aria-label="Day">
+      <label class="adm-mine"><input type="checkbox" id="adm-mine" ${ADMIN.mine ? "checked" : ""}> Show mine</label></div>
+      <div id="adm-plays"><p class="muted">Loading…</p></div>`;
+    $("#adm-pday").addEventListener("change", (e) => { ADMIN.pday = /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) ? e.target.value : ""; adminPlays(); });
+    $("#adm-mine").addEventListener("change", (e) => { ADMIN.mine = e.target.checked; adminPlays(); });
+    adminLoad("admin_plays", { p_from: from.toISOString(), p_to: to.toISOString(), p_limit: 20000 }, (b, rows) => {
+      const box = $("#adm-plays", b), me = browserId();
+      const shown = (rows || []).filter((r) => ADMIN.mine || !(r.admin || r.bid === me));
+      const by = new Map();
+      for (const r of shown) { if (!by.has(r.bid)) by.set(r.bid, []); by.get(r.bid).push(r); }
+      const tierId = (n) => E.TIER_IDS[n - 1] || null;
+      const round = (r) => {
+        const p = PROMPTS.get(r.pid), quiz = /quiz|^vq$/.test(r.mode) || (r.rk && r.rk.startsWith("dquiz"));
+        const sprint = r.tier == null;
+        const tries = (r.tries || []).filter((x) => x !== r.ans);
+        const verdict = sprint ? `<b>${esc(r.ans || "nothing counted")}</b>`
+          : quiz ? `${r.tier ? "✓" : "✗"} ${esc(r.ans || "no pick")}`
+          : r.ans ? `${G(tierId(r.tier))} <b>${esc(r.ans)}</b>` : `${G(null)} <span class="muted">no answer</span>`;
+        return `<li><span class="adm-pm">${esc(r.mode)}</span><div><p class="adm-pq">${esc(p ? p.text : r.pid)}</p>
+          <p>${verdict} <em>+${r.pts || 0}</em>${r.ms != null ? ` <span class="muted">${(r.ms / 1000).toFixed(1)} s</span>` : ""}</p>
+          ${!sprint && !quiz && tries.length ? `<p class="adm-tries">${tries.map((x) => `<s>${esc(x)}</s>`).join(" ")}</p>` : sprint && tries.length ? `<p class="adm-tries">typed: ${tries.map(esc).join(", ")}</p>` : ""}</div>
+          <span class="muted small">${new Date(r.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span></li>`;
+      };
+      box.innerHTML = by.size ? `<p class="muted small">${by.size} ${by.size === 1 ? "player" : "players"}, ${shown.length} ${shown.length === 1 ? "round" : "rounds"} on ${esc(prettyDate(day))}${rows.length >= 20000 ? " (the first 20,000)" : ""}</p>
+        ${[...by.entries()].map(([bid, rs]) => {
+          const name = rs.map((r) => r.name).filter(Boolean).pop();
+          const modes = [...new Set(rs.map((r) => r.mode))].join(", ");
+          return `<details class="adm-pl"${by.size <= 3 ? " open" : ""}><summary><b>${name ? esc(name) : "No name"}</b> <span class="muted">${rs.length} ${rs.length === 1 ? "round" : "rounds"} · ${esc(modes)} · ${esc(bid.slice(0, 6))}</span></summary>
+            <ol class="adm-prs">${rs.map(round).join("")}</ol></details>`;
+        }).join("")}`
+        : `<p class="muted">No rounds logged on ${esc(prettyDate(day))}${!ADMIN.mine && rows.length ? " except yours" : ""}.</p>`;
+    });
   }
   /** Run a loader into #adm-body; drop the result if the page moved on meanwhile. */
   async function adminLoad(fn, args, draw) {

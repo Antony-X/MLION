@@ -126,6 +126,15 @@ function mockFor(who, whoName) {
             daily: db.scores.filter((s) => s.user_id === p.id).length, quiz: db.quiz.filter((s) => s.user_id === p.id).length,
             best: Math.max(...db.scores.filter((s) => s.user_id === p.id).map((s) => s.score)) > -Infinity ? Math.max(...db.scores.filter((s) => s.user_id === p.id).map((s) => s.score)) : null, admin: db.admins.has(p.id) })));
       }
+      if (fn === "admin_plays") {
+        const at = new Date(Date.parse(a.p_from) + 3600000).toISOString();
+        return json(200, [
+          { at, bid: "guestaaaa1", uid: null, name: null, mode: "daily", rk: "daily:x", pid: "activation-function", tries: ["relu2", "ReLU"], ans: "ReLU", tier: 1, pts: 10, ms: 4200, admin: false },
+          { at, bid: "guestaaaa1", uid: null, name: null, mode: "daily", rk: "daily:x", pid: "activation-function", tries: ["zzz"], ans: null, tier: 0, pts: 0, ms: 25000, admin: false },
+          { at, bid: "guestbbbb2", uid: null, name: "Grace", mode: "unlimited", rk: "unlimited:1", pid: "activation-function", tries: ["GELU"], ans: "GELU", tier: 2, pts: 15, ms: 3000, admin: false },
+          { at, bid: "ownerccc33", uid: "x", name: "Owner", mode: "daily", rk: "daily:x", pid: "activation-function", tries: ["Swish"], ans: "Swish", tier: 2, pts: 15, ms: 2000, admin: true },
+        ]);
+      }
       if (fn === "admin_scores") {
         const rows = a.p_kind === "quiz" ? db.quiz.filter((s) => s.day === a.p_day).map((s) => ({ user_id: s.user_id, name: nameOf(s.user_id), score: s.score, detail: s.marks, tenths: s.tenths, created_at: s.created_at }))
           : db.scores.filter((s) => s.day === a.p_day).sort((x, y) => y.score - x.score).map((s) => ({ user_id: s.user_id, name: nameOf(s.user_id), score: s.score, detail: s.tiers, tenths: null, created_at: s.created_at }));
@@ -286,6 +295,16 @@ function mockFor(who, whoName) {
   await ada.click('.adm-kind[data-k="daily"]');
   await ada.waitForFunction(() => document.querySelectorAll(".adm-rows.scores li").length === 1);
   check(true, "any past day's board opens from the date picker");
+
+  // answers: every round from the play log, grouped by player; the owner's own hidden unless asked for
+  await tab(ada, "plays");
+  await ada.waitForSelector(".adm-pl");
+  const plays = await ada.textContent("#adm-plays");
+  check(/2 players, 3 rounds/.test(plays) && (await ada.$$(".adm-pl")).length === 2 && !/Owner/.test(plays), "Answers lists each player's rounds, without the owner's");
+  check(/No name/.test(plays) && /Grace/.test(plays) && /relu2/.test(await ada.innerHTML("#adm-plays")), "a player without a name shows as such, and wrong tries are listed");
+  await ada.check("#adm-mine");
+  await ada.waitForFunction(() => /3 players, 4 rounds/.test(document.querySelector("#adm-plays")?.textContent || ""));
+  check(true, "Show mine adds the owner's rounds");
 
   // suggestions: most players first; approve with a chosen spelling, reject, undo
   await tab(ada, "suggest");

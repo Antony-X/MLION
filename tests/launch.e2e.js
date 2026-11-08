@@ -55,7 +55,7 @@ async function cfgRoute(route) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.route(/fonts\./, (r) => r.abort());
     await ctx.addInitScript(([b, extra]) => {
-      if (b) window.MLION_BOARD = { url: b, key: "sb_publishable_test" };
+      if (b) { window.MLION_NO_AUTOPOST = true; window.MLION_BOARD = { url: b, key: "sb_publishable_test" }; }
       try { if (extra && !localStorage.getItem("mlion:sb")) localStorage.setItem("mlion:sb", extra); } catch { /* about:blank */ }
     }, [board, init || null]);
     return ctx;
@@ -205,7 +205,7 @@ async function cfgRoute(route) {
       await p.waitForFunction(() => /can't be reached/.test(document.querySelector("#mini-board")?.textContent || ""), null, { timeout: 25000 });
       check(true, "the results' leaderboard says it can't be reached");
       if (loggedIn) {
-        await p.waitForFunction(() => /Couldn't post your score/.test(document.querySelector("#board-box")?.textContent || ""), null, { timeout: 25000 });
+        await p.waitForFunction(() => /Couldn't reach the leaderboard to post your score/.test(document.querySelector("#board-box")?.textContent || ""), null, { timeout: 25000 });
         check(!!(await p.evaluate(() => localStorage.getItem("mlion:sb"))) && !/no longer exists/.test(await toastText(p)), "posting fails quietly, and a paused project's \"not found\" doesn't log you out");
       } else {
         await p.click("#pub-btn");

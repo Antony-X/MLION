@@ -1646,3 +1646,44 @@ body.egg-quake { animation: egg-quake 0.9s cubic-bezier(0.36, 0.07, 0.19, 0.97);
   .egg-drop, .egg-spark, .egg-ring { display: none; }
   .egg-fx .egg-word, .egg-tuff .egg-word span { animation: egg-out 2.6s linear forwards !important; }
 }
+
+/* a new player's first answer was a common one: the tip to go rarer, once */
+.rare-tip { margin: 6px 0 4px; padding: 14px 16px; border-radius: 16px; background: var(--raised); border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); max-width: 460px; }
+.rare-tip .rt-head { font-weight: 800; font-size: var(--s2); color: var(--gold-2); }
+.rare-tip .rt-body { margin-top: 4px; color: var(--ink); }
+.rt-ladder { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 12px 0 2px; padding: 0; }
+.rt-ladder li { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; border-radius: 10px; background: var(--raised-2); font-size: 13px; }
+.rt-ladder li span { font-size: 18px; line-height: 1; }
+.rt-ladder li b { color: var(--muted); font-weight: 700; }
+.rt-ladder li.you { outline: 2px solid var(--muted); }
+.rt-ladder li.t-mlion { background: color-mix(in srgb, var(--gold) 22%, var(--raised-2)); }
+.rt-ladder li.t-mlion b { color: var(--gold-2); }
+.rt-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--faint); }
+html:not(.reduce-motion) .feedback .rare-tip { animation: rt-in 650ms 900ms var(--ease-expo, cubic-bezier(0.16, 1, 0.3, 1)) both; }
+html:not(.reduce-motion) .feedback .rt-ladder li { animation: rt-step 400ms both; animation-delay: calc(1100ms + var(--i, 0) * 90ms); }
+html:not(.reduce-motion) .feedback .rt-ladder li.t-mlion { animation: rt-step 400ms 1550ms both, rt-glow 1.6s 2000ms ease-in-out 3; }
+.rt-ladder li:nth-child(1) { --i: 0; } .rt-ladder li:nth-child(2) { --i: 1; } .rt-ladder li:nth-child(3) { --i: 2; }
+.rt-ladder li:nth-child(4) { --i: 3; } .rt-ladder li:nth-child(5) { --i: 4; } .rt-ladder li:nth-child(6) { --i: 5; }
+@keyframes rt-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes rt-step { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rt-glow { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 55%, transparent), 0 0 18px color-mix(in srgb, var(--gold) 45%, transparent); } }
+
+/* #admin → Answers: the play log */
+.adm-mine { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.adm-pl { margin-top: 10px; border-radius: 14px; background: var(--surface); padding: 10px 14px; }
+.adm-pl summary { cursor: pointer; }
+.adm-prs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.adm-prs li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding-top: 8px; border-top: 1px solid var(--raised-2); }
+.adm-pm { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--raised-2); color: var(--muted); }
+.adm-pq { color: var(--muted); font-size: 13px; }
+.adm-prs em { color: var(--gold-2); font-style: normal; }
+.adm-tries { font-size: 13px; color: var(--faint); }
+.adm-tries s { margin-right: 6px; }
+
+/* a guest posted as "Player 1234": the ask for a real name */
+.name-ask { margin: 4px 0 12px; padding: 14px 16px; border-radius: 16px; background: var(--raised); border: 1px solid var(--gold); }
+.name-ask .na-head { font-weight: 600; }
+.name-ask .na-head b { color: var(--gold-2); }
+.na-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.na-row .search { flex: 1 1 160px; min-width: 0; }
+html:not(.reduce-motion) .name-ask { animation: rt-in 500ms var(--ease-expo) both; }

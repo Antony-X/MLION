@@ -16,6 +16,7 @@ const MOCK = "https://mock.supabase.test";
 const UID = "00000000-0000-4000-8000-00000000a11a";
 const RIVAL = "00000000-0000-4000-8000-00000000b22b";
 const ANON = "00000000-0000-4000-8000-00000000c33c"; // a publish-only account (anonymous sign-in)
+const ANON3 = "00000000-0000-4000-8000-00000000e55e"; // a player whose daily posts by itself (2026-11-08)
 const ANON2 = "00000000-0000-4000-8000-00000000d44d"; // a player who taps Suggest it (anonymous sign-in on that tap)
 const E = require("../js/engine.js");
 const PTS = [0, 10, 15, 30, 60, 85, 100];
@@ -227,7 +228,7 @@ async function mockRoute(route) {
   }
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
-  await ctx.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx.addInitScript((mock) => { window.MLION_NO_AUTOPOST = true; window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await ctx.route(`${MOCK}/**`, mockRoute);
   const page = await ctx.newPage();
@@ -509,7 +510,7 @@ async function mockRoute(route) {
 
   // ---- publish without logging in: a fresh browser, a name, the swear filter
   const ctx2 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
-  await ctx2.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx2.addInitScript((mock) => { window.MLION_NO_AUTOPOST = true; window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
   await ctx2.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await ctx2.route(`${MOCK}/**`, mockRoute);
   const p2 = await ctx2.newPage();
@@ -583,7 +584,7 @@ async function mockRoute(route) {
   anonGone = false;
   db.scores = db.scores.filter((r) => r.user_id !== ANON);
   const ctx3 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
-  await ctx3.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx3.addInitScript((mock) => { window.MLION_NO_AUTOPOST = true; window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
   await ctx3.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await ctx3.route(`${MOCK}/**`, mockRoute);
   const p3 = await ctx3.newPage();
@@ -613,7 +614,7 @@ async function mockRoute(route) {
   // ---- Suggest it: a rejected answer can be sent for review; the count of other players who sent it
   anonId = ANON2;
   const ctx3 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
-  await ctx3.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx3.addInitScript((mock) => { window.MLION_NO_AUTOPOST = true; window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
   await ctx3.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await ctx3.route(`${MOCK}/**`, (r) => (sugg.offline ? r.abort("internetdisconnected") : mockRoute(r)));
   const p3 = await ctx3.newPage();
@@ -762,6 +763,48 @@ async function mockRoute(route) {
   await sleep(1200);
   check(!(await p3.$("#status .sg:not([hidden])")) && sugg.rows.length === before, "before suggestions.sql is run: no button and nothing sent");
   await ctx3.close();
+  }
+
+  {
+  // ---- everyone on the board (2026-11-08): a finished daily posts by itself as "Player 1234", the results ask
+  // for a name, and later dailies post by themselves under it
+  anonId = ANON3;
+  const ctx4 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  await ctx4.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx4.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx4.route(`${MOCK}/**`, mockRoute);
+  const p4 = await ctx4.newPage();
+  p4.on("pageerror", (e) => { errors.push(e.message); console.log("  page error: " + e.message); });
+  const ids4 = await todaysIds(p4);
+  await p4.evaluate(({ today, ids }) => {
+    const results = ids.map((id, i) => ({ promptId: id, promptText: "Q" + i, answer: "A" + i, raw: "", tier: "indist", score: 30 }));
+    const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: ids, results, score: 210, tiers: ids.map(() => "indist"), completedAt: Date.now(), secs: 25 };
+    localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
+  }, { today, ids: ids4 });
+  await p4.goto("about:blank");
+  await p4.goto(base + `#results-daily-${today}`);
+  await p4.waitForSelector("#board-box #name-ask", { timeout: 15000 });
+  const boxHtml = await p4.innerHTML("#board-box");
+  check(/You're on the leaderboard as <b>Player \d{4}<\/b>/.test(boxHtml) && /today as Player \d{4}/.test(boxHtml), "a finished daily posts by itself as Player 1234, with the rank");
+  check(db.scores.some((r) => r.user_id === ANON3 && r.day === today && r.score === 210), "no tap needed: the score is in the database");
+  check(/^Player \d{4}$/.test(db.profiles.get(ANON3).name), "the guest account's name is the automatic one");
+  check(!(await p4.evaluate(() => localStorage.getItem("mlion:name"))), "the automatic name doesn't become the name rooms use");
+  await p4.click("#na-go");
+  await p4.waitForFunction(() => /Type a name first/.test(document.querySelector("#na-err")?.textContent || ""), null, { timeout: 5000 });
+  check(true, "Save name with an empty box says to type one");
+  await p4.fill("#na-input", "Lovelace");
+  await p4.click("#na-go");
+  await p4.waitForFunction(() => /today as Lovelace/.test(document.querySelector("#board-box")?.innerHTML || "") && !document.querySelector("#name-ask"), null, { timeout: 15000 });
+  check(db.profiles.get(ANON3).name === "Lovelace", "entering a name renames the board entry, and the ask goes away");
+  check((await p4.evaluate(() => JSON.parse(localStorage.getItem("mlion:name") || "null"))) === "Lovelace", "the name typed is kept for rooms too");
+  // a later daily posts by itself under that name: the server forgets the score, this browser forgets it posted
+  db.scores = db.scores.filter((r) => r.user_id !== ANON3);
+  await p4.evaluate(() => localStorage.removeItem("mlion:boardPosted"));
+  await p4.goto("about:blank");
+  await p4.goto(base + `#results-daily-${today}`);
+  await p4.waitForFunction(() => /today as Lovelace/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
+  check(db.scores.some((r) => r.user_id === ANON3 && r.score === 210) && !(await p4.$("#name-ask")) && !(await p4.$("#pub-btn")), "after that, a daily posts by itself under the name, nothing to tap");
+  await ctx4.close();
   }
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
