@@ -53,8 +53,12 @@
   const T = E.TIERS;
   // Launch mode: the daily, endless Unlimited, live rooms and challenges. Packs and
   // the Library let people pick questions (and read a key, then replay), which turns
-  // the game into memorising, so they stay hidden. true brings them back unchanged.
-  const BROWSE = false;
+  // the game into memorising, so they stay hidden. true brings them back unchanged for everyone.
+  // Admins always get them (the owner, 2026-11-10: "browse all questions that are there and test on them,
+  // practice and answer"), with every answer key open.
+  const BROWSE_ALL = false;
+  const browseOn = () => BROWSE_ALL || AUTH.admin;
+  const BROWSE_PAGE = /^(packs|library|pack-|practice-|answers-|archive)/;
   const REPO_URL = "https://github.com/Antony-X/MLION";
 
   const app = document.getElementById("app");
@@ -1122,7 +1126,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const miss = Math.max(0, Math.min(99, Math.round(+m.miss) || 0)), hint = m.hint === true;
       const egg = tier === "mlion" ? eggFor(PROMPTS.get(LIVE.ids && LIVE.ids[m.i]), m.answer) : null;
       pl.ans[m.i] = { answer: tier ? String(m.answer || "").slice(0, 80) : null, tier, ms, miss, hint, ...(egg ? { egg: egg.kind } : {}),
-        score: tier ? E.liveScore(LIVE.mrules, { base: egg ? EGG_PTS : T[tier].score, ms, total: liveMs(m.i), misses: miss, hinted: hint, last: m.i === LIVE.n - 1 }) : 0 };
+        score: tier ? E.liveScore(LIVE.mrules, { base: egg ? eggBase(egg.kind) : T[tier].score, ms, total: liveMs(m.i), misses: miss, hinted: hint, last: m.i === LIVE.n - 1 }) : 0 };
       renderStrip();
       renderLiveWait();
       if (LIVE.revealed >= m.i) renderReveal(m.i);
@@ -1293,21 +1297,24 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const everyone = inMatch().every((p) => p.ans[m.i]);
     if (everyone) liveLater(() => hostReveal(m.i), 700);
   }
-  // A private joke, asked for by the owner: on one prompt, two names nobody will find in a list.
+  // A private joke, asked for by the owner: on one prompt, two names nobody will find in a list. A third (2026-11-10):
+  // "Zhang et al.", the meme author of every paper. Worth 100 anywhere, "Too smart", a hidden tier.
   const EGG_PID = "ai-researcher", EGG_PTS = 500;
-  const EGGS = {"1147786292":"shit","1399048210":"tuff","1702781393":"tuff","1831252576":"shit","2266992058":"tuff","2303574819":"tuff","2382920563":"tuff","2605591379":"shit","3345537367":"tuff","3730676304":"shit","3834231402":"tuff","3977411453":"shit","4007636237":"shit","4075626058":"shit","4204209486":"tuff"};
-  const EGG_NAMES = { shit: "SHITIII", tuff: "TUFF" };
+  const EGGS = {"1147786292":"shit","1399048210":"tuff","1702781393":"tuff","1831252576":"shit","2266992058":"tuff","2303574819":"tuff","2382920563":"tuff","2605591379":"shit","3345537367":"tuff","3730676304":"shit","3834231402":"tuff","3977411453":"shit","4007636237":"shit","4075626058":"shit","4204209486":"tuff","734271454":"smart"};
+  const EGG_NAMES = { shit: "SHITIII", tuff: "TUFF", smart: "Too smart" };
   /** { answer, kind } when this text is one of them on that prompt, else null. */
   function eggFor(p, raw) {
     if (!p || p.id !== EGG_PID || !raw) return null;
     const key = String(raw).slice(0, 60).normalize("NFKC").toLowerCase().replace(/[^\p{L}]/gu, "");
     const kind = key && EGGS[E.hashString("egg:" + key)];
     if (!kind) return null;
+    if (kind === "smart") return { kind, answer: { a: "Zhang et al.", t: "mlion", egg: kind, q: "You unlocked a hidden tier." } };
     const a = String(raw).trim().replace(/\s+/g, " ").slice(0, 40).replace(/(^|\s)(\S)/g, (m, sp, c) => sp + c.toUpperCase());
     return { kind, answer: { a, t: "mlion", egg: kind } };
   }
+  const eggBase = (kind) => (kind === "smart" ? T.mlion.score : EGG_PTS);
   /** Points for it: the Daily's leaderboard only takes the usual tiers, so there it is worth what a gem is. */
-  const eggPts = () => (RUN && RUN.mode === "daily" ? T.mlion.score : EGG_PTS);
+  const eggPts = (kind) => (RUN && RUN.mode === "daily" ? T.mlion.score : eggBase(kind));
   /** The show. "shit": a cheap one on purpose. "tuff": the opposite. Never blocks the page. */
   function eggFx(kind) {
     const old = $(".egg-fx"); if (old) old.remove();
@@ -1316,8 +1323,9 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     fx.setAttribute("aria-hidden", "true");
     if (kind === "shit") {
       fx.innerHTML = `<div class="egg-word">SHITIII</div>${Array.from({ length: 28 }, (_, i) => `<span class="egg-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(Math.random() * 1.2).toFixed(2)}s;--t:${(1.4 + Math.random() * 1.4).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">💩</span>`).join("")}`;
-    } else {
-      fx.innerHTML = `<div class="egg-flash"></div><div class="egg-ring"></div><div class="egg-word"><span>TUFF</span></div>${Array.from({ length: 32 }, (_, i) => `<span class="egg-spark" style="--a:${Math.round((360 / 32) * i + Math.random() * 8)}deg;--l:${Math.round(28 + Math.random() * 22)}vmin;--d:${(0.15 + Math.random() * 0.2).toFixed(2)}s"></span>`).join("")}`;
+    } else { // "tuff", and "smart" in the same style
+      if (kind === "smart") fx.classList.add("egg-tuff");
+      fx.innerHTML = `<div class="egg-flash"></div><div class="egg-ring"></div><div class="egg-word"><span>${kind === "smart" ? "TOO SMART" : "TUFF"}</span>${kind === "smart" ? `<p class="egg-sub">You unlocked a hidden tier</p>` : ""}</div>${Array.from({ length: 32 }, (_, i) => `<span class="egg-spark" style="--a:${Math.round((360 / 32) * i + Math.random() * 8)}deg;--l:${Math.round(28 + Math.random() * 22)}vmin;--d:${(0.15 + Math.random() * 0.2).toFixed(2)}s"></span>`).join("")}`;
       document.body.classList.remove("egg-quake"); void document.body.offsetWidth; document.body.classList.add("egg-quake");
       setTimeout(() => document.body.classList.remove("egg-quake"), 900);
     }
@@ -2780,8 +2788,12 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     scene("page");
     const navOn = "#" + (/^sprint-/.test(h) ? "sprint" : h || "home");
     $$("#drawer a.nav").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === navOn));
-    if (!BROWSE && /^(packs|library|pack-|practice-|answers-|archive)/.test(h)) return go("home");
-    if (!BROWSE && /^quiz-\d+$/.test(h) && +h.slice(5) > nextQuiz()) return go(`quiz-${nextQuiz()}`); // same launch rule as Unlimited: no jumping ahead
+    if (!browseOn() && BROWSE_PAGE.test(h)) {
+      // an admin's login may still be loading: wait for it (boardRedraw routes again), then show the page or go home
+      if (BOARD_ON && !AUTH.ready) { app.innerHTML = `<section class="screen narrow" id="browse-wait"><div class="page-head"><h1>Library</h1><p>Checking your login…</p></div></section>`; return; }
+      return go("home");
+    }
+    if (!browseOn() && /^quiz-\d+$/.test(h) && +h.slice(5) > nextQuiz()) return go(`quiz-${nextQuiz()}`); // same launch rule as Unlimited: no jumping ahead
     if (h === "unlimited-play") return openUnlimited();
     if (SIMPLE[h]) return SIMPLE[h]();
     if (/^vs-/.test(h)) return openChallenge(h);
@@ -2802,7 +2814,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     renderHome();
   }
   window.addEventListener("hashchange", route);
-  if (!BROWSE) $$('#drawer a[href="#packs"], #drawer a[href="#library"]').forEach((a) => a.remove());
+  const browseLinks = () => $$('#drawer a[href="#packs"], #drawer a[href="#library"]').forEach((a) => { a.hidden = !browseOn(); });
+  browseLinks();
 
   // ============================================================== home
   function renderHome() {
@@ -3677,14 +3690,14 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const res = {
       promptId: p.id, promptText: p.text, raw: raw || null,
       answer: answer ? answer.a : null, tier: answer ? answer.t : null,
-      score: answer ? (answer.egg ? eggPts() : T[answer.t].score) : 0, quip: answer && answer.q ? answer.q : null,
+      score: answer ? (answer.egg ? eggPts(answer.egg) : T[answer.t].score) : 0, quip: answer && answer.q ? answer.q : null,
       corrected: !!corrected, timeout: !answer && timeout, skipped: !answer && skipped,
       ...(answer && answer.egg ? { egg: answer.egg } : {}),
     };
     if (RUN.mode === "live") { // the facts the room scores by (E.liveScore), sent with the answer
       res.ms = answer ? Math.round(Math.max(0, Math.min(answerMs(), Date.now() - RUN.previewEndsAt))) : answerMs();
       res.misses = RUN.misses || 0; res.hinted = !!RUN.hinted; res.struck = !!struck;
-      if (answer && RUN.rules) res.score = E.liveScore(RUN.rules, { base: answer.egg ? EGG_PTS : T[answer.t].score, ms: res.ms, total: answerMs(), misses: res.misses, hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
+      if (answer && RUN.rules) res.score = E.liveScore(RUN.rules, { base: answer.egg ? eggBase(answer.egg) : T[answer.t].score, ms: res.ms, total: answerMs(), misses: res.misses, hinted: res.hinted, last: RUN.round === RUN.promptIds.length - 1 });
     }
     RUN.results.push(res);
     const typed = (RUN.tried || []).slice(-60);
@@ -3780,7 +3793,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       <div class="feedback ${res.tier || "miss"} t-${tierOf(res.tier)}${animate ? "" : " landed"}" id="fb" aria-live="polite">
         <p class="fb-q">${esc(p.text)}</p>
         <div class="fb-answer">${res.answer ? esc(res.answer) : res.raw ? `“${esc(res.raw)}” <span class="muted">isn't an accepted answer</span>` : `<span class="muted">No answer</span>`}</div>
-        <div class="fb-tier${res.egg ? ` egg-tier egg-${res.egg}` : ""}">${res.egg === "shit" ? `<span class="egg-glyph">💩</span>` : G(res.tier)}<span class="fb-name">${res.egg ? EGG_NAMES[res.egg] : t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
+        <div class="fb-tier${res.egg ? ` egg-tier egg-${res.egg}` : ""}">${res.egg === "shit" ? `<span class="egg-glyph">💩</span>` : res.egg === "smart" ? `<span class="egg-glyph">🧠</span>` : G(res.tier)}<span class="fb-name">${res.egg ? EGG_NAMES[res.egg] : t ? esc(t.name) : "Miss"}</span><span class="fb-points">+${res.score}</span></div>
         ${ruleNote(res)}
         ${rareTipHtml(res, animate)}
         ${res.quip ? `<p class="fb-quip">${esc(res.quip)}</p>` : !t ? `<p class="fb-quip">${res.struck ? "One strike: a wrong answer ends your round." : res.timeout ? "Out of time." : res.skipped ? "Skipped." : "No points, so the ball stays put."}</p>` : ""}
@@ -4400,7 +4413,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function boardRedraw() {
     drawAccount();
     const h = location.hash.replace(/^#/, "");
-    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h) || h === "admin") {
+    if (/^board(-quiz)?(-\d{4}-\d{2}-\d{2})?$/.test(h) || h === "admin" || $("#browse-wait")) {
       boardRedrawing = true;
       try { return route(); } finally { boardRedrawing = false; }
     }
@@ -4420,6 +4433,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   // The account lives in the menu on every page: optional, Discord only for now.
   function drawAccount() {
+    browseLinks(); // Packs and Library show in the menu for admins
     const box = $("#drawer-acct");
     if (!box) return;
     box.hidden = !BOARD_ON;
@@ -4834,7 +4848,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const share = E.shareText({ mode: rec.mode, number: rec.number, score: rec.score, tiers: rec.tiers, secs: rec.secs, label: rec.mode === "pack" ? PACKS.get(rec.pack).name : rec.label });
     const isDailyToday = (rec.mode === "daily" || rec.mode === "dquiz") && rec.date === today();
     const boardable = (rec.mode === "daily" || rec.mode === "dquiz") && postableDay(rec.date); // yesterday's too: a run that crossed midnight
-    const picked = !BROWSE && (rec.mode === "pack" || rec.mode === "practice"); // those pages are hidden
+    const picked = !browseOn() && (rec.mode === "pack" || rec.mode === "practice"); // those pages are hidden
     const nextHref = picked ? "#unlimited" : rec.mode === "unlimited" ? "#unlimited-play" :
       rec.mode === "quiz" || rec.mode === "dquiz" ? `#quiz-${nextQuiz()}` :
       rec.mode === "pack" ? `#pack-${rec.pack}-${nextPackRun(rec.pack) > E.packRunCount(DATA, rec.pack) ? 1 : nextPackRun(rec.pack)}` :
@@ -5778,7 +5792,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     const total = DATA.prompts.reduce((s, p) => s + p.answers.length, 0);
     app.innerHTML = `<section class="screen split">
       <div class="side">
-        <div class="page-head"><h1>Library</h1><p>${DATA.prompts.length} prompts, ${fmt(total)} answers. Keys open once you've played a prompt.</p></div>
+        <div class="page-head"><h1>Library</h1><p>${DATA.prompts.length} prompts, ${fmt(total)} answers. ${AUTH.admin ? "Every key is open: you're an admin." : "Keys open once you've played a prompt."}</p></div>
         <input class="search" id="lib-q" type="search" placeholder="Filter prompts" aria-label="Filter prompts">
       </div>
       <div class="main" id="lib"></div>
@@ -5788,7 +5802,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       const hit = (p) => !q || E.fullKey(p.text).includes(q);
       const row = (p) => {
         const best = practiceBest[p.id];
-        const unlocked = seen.has(p.id);
+        const unlocked = seen.has(p.id) || AUTH.admin;
         return `<li class="list-item lib-row">
             <span class="main"><span class="title">${esc(p.text)}</span><span class="sub">${fmt(p.answers.length)} answers${best ? ` · best ${G(best)}` : ""}</span></span>
             <span class="row"><a class="btn sm" href="#practice-${p.id}">Play</a>${unlocked ? `<a class="btn sm" href="#answers-${p.id}">Key</a>` : `<span class="key-lock" title="Play it once to unlock the key" aria-label="Key locked">${LOCK}</span>`}</span>
@@ -5807,7 +5821,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   function renderAnswersPage(id) {
     const p = PROMPTS.get(id);
     setMid("Answer key");
-    if (!seen.has(id)) {
+    if (!seen.has(id) && !AUTH.admin) {
       app.innerHTML = `<section class="screen"><div class="page-head"><h1>Locked</h1><p>Play “${esc(p.text)}” once to open its key.</p></div><a class="btn primary big" href="#practice-${id}">Practice it</a></section>`;
       return;
     }
@@ -6087,7 +6101,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!AUTH.user) { page(head("Log in with the Discord account that runs MLion.") + loginButtons()); wireLogin(app); return; }
     if (!AUTH.admin) return page(head(`This page is for MLion's admins. You're logged in as ${esc((AUTH.profile && AUTH.profile.name) || "a player")}.`));
     const tabs = [["overview", "Overview"], ["players", "Players"], ["scores", "Scores"], ["plays", "Answers"], ["suggest", "Suggestions"], ["limits", "Limits"], ["game", "Game"]];
-    page(`${head("Who plays, the leaderboards, the launch day and the home banner.")}
+    page(`${head(`Who plays, the leaderboards, the launch day and the home banner. <a href="#library">Browse every question</a> to practise any of them or read its key.`)}
       <div class="adm-tabs" role="tablist" aria-label="Admin">${tabs.map(([k, l]) => `<button type="button" role="tab" class="adm-tab${ADMIN.tab === k ? " on" : ""}" aria-selected="${ADMIN.tab === k}" data-t="${k}">${l}</button>`).join("")}</div>
       <div id="adm-body" class="adm-body" role="tabpanel"><p class="muted">Loading…</p></div>`);
     $$(".adm-tab").forEach((b) => b.addEventListener("click", () => { ADMIN.tab = b.dataset.t; renderAdmin(); }));
