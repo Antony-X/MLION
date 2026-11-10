@@ -44,6 +44,7 @@ const db = { profiles: new Map(), scores: [], quiz: [], quizTable: false }; // t
 const sugg = { table: true, rows: [], reviews: new Map(), counts: [], offline: false, limited: false }; // supabase/suggestions.sql; limited: rate_limits.sql refuses writes
 const LIMITED = { code: "PT429", message: "Too many tries from this network. Try again later.", details: "suggestion", hint: "rate limit" };
 const ans = []; // supabase/daily_answers.sql: { user_id, day, answers }
+const adminIds = new Set(); // supabase/admin.sql: accounts is_admin() says yes for
 const calls = [];
 const boardGets = []; // when each board read (GET daily_scores) arrived
 const slow = { board: 0 }; // ms to hold back each board read
@@ -225,6 +226,18 @@ async function mockRoute(route) {
     if (!me) return json(401, { message: "not signed in" });
     if (db.profiles.has(me)) db.profiles.get(me).off_board = false;
     return json(200, db.profiles.has(me));
+  }
+  if (u.pathname === "/rest/v1/rpc/is_admin" && method === "POST") return json(200, !!me && adminIds.has(me));
+  // supabase/admin_replay.sql: an admin's own score for the day goes (with the daily's answers) if posted before p_after
+  if (u.pathname === "/rest/v1/rpc/admin_replace_score" && method === "POST") {
+    if (!me || !adminIds.has(me)) return json(400, { code: "42501", message: "admins only" });
+    const a = JSON.parse(req.postData() || "{}");
+    const quiz = a.p_kind === "quiz", list = quiz ? db.quiz : db.scores, after = Date.parse(a.p_after);
+    const old = list.filter((r) => r.user_id === me && r.day === a.p_day && Date.parse(r.created_at) < after);
+    if (!old.length) return json(200, false);
+    if (quiz) db.quiz = db.quiz.filter((r) => !old.includes(r));
+    else { db.scores = db.scores.filter((r) => !old.includes(r)); for (let i = ans.length - 1; i >= 0; i--) if (ans[i].user_id === me && ans[i].day === a.p_day) ans.splice(i, 1); }
+    return json(200, true);
   }
   return json(404, { message: "not mocked" });
 }
@@ -499,7 +512,8 @@ async function mockRoute(route) {
   await page.waitForSelector(".board-list .list-item.me");
 
   // before launch every day is #1, so there is no earlier board to page back to
-  check(!(await page.$('.board-days a[href^="#board-"]')), "before launch the board has no past days");
+  if (!E.LAUNCH_DATE || E.LAUNCH_DATE >= today) check(!(await page.$('.board-days a[href^="#board-"]')), "before launch the board has no past days");
+  else check(!!(await page.$('.board-days a[href^="#board-"]')), `launched ${E.LAUNCH_DATE}: the board links back to past days`); // the code's launch day has passed
   // after launch: the previous day, then log out
   const ago = new Date(Date.now() - 3 * 864e5);
   const launchDay = `${ago.getFullYear()}-${String(ago.getMonth() + 1).padStart(2, "0")}-${String(ago.getDate()).padStart(2, "0")}`;
@@ -806,6 +820,7 @@ async function mockRoute(route) {
   check(/You're on the leaderboard as <b>Player \d{4}<\/b>/.test(boxHtml) && /today as Player \d{4}/.test(boxHtml), "a finished daily posts by itself as Player 1234, with the rank");
   check(db.scores.some((r) => r.user_id === ANON3 && r.day === today && r.score === 210), "no tap needed: the score is in the database");
   check(/^Player \d{4}$/.test(db.profiles.get(ANON3).name), "the guest account's name is the automatic one");
+  check(!(await p4.$("#adm-replay")), "a player who isn't an admin gets no Play again link");
   check(!(await p4.evaluate(() => localStorage.getItem("mlion:name"))), "the automatic name doesn't become the name rooms use");
   await p4.click("#na-go");
   await p4.waitForFunction(() => /Type a name first/.test(document.querySelector("#na-err")?.textContent || ""), null, { timeout: 5000 });
@@ -865,6 +880,76 @@ async function mockRoute(route) {
   await p4.waitForFunction(() => /today as Lovelace/.test(document.querySelector("#board-box")?.innerHTML || ""), null, { timeout: 15000 });
   check(db.scores.some((r) => r.user_id === ANON3 && r.score === 210) && db.profiles.get(ANON3).off_board === false, "Publish puts them back on the board, and auto-posting resumes");
   await ctx4.close();
+  }
+
+  {
+  // ---- an admin plays again (the owner, 2026-11-10): a run that started after the score on the board replaces it,
+  // answers too; an older run (another device) doesn't; Play again on today's results starts the daily over
+  adminIds.add(UID);
+  providers.google = true;
+  const ctx5 = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  await ctx5.addInitScript((mock) => { window.MLION_BOARD = { url: mock, key: "sb_publishable_test" }; }, MOCK);
+  await ctx5.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx5.route(`${MOCK}/**`, mockRoute);
+  const p5 = await ctx5.newPage();
+  p5.on("pageerror", (e) => { errors.push(e.message); console.log("  page error: " + e.message); });
+  await p5.goto(base + "#board");
+  await p5.waitForSelector('#app [data-login="google"]', { timeout: 15000 });
+  await p5.click('#app [data-login="google"]');
+  await p5.waitForFunction(() => location.hash === "#board" && !document.querySelector("#app [data-login]") && !!document.querySelector("#app .board-list, #app #board-list"), null, { timeout: 20000 });
+  const ids5 = await todaysIds(p5);
+  const mine = () => db.scores.filter((r) => r.user_id === UID && r.day === today);
+  db.scores = db.scores.filter((r) => !(r.user_id === UID && r.day === today));
+  db.scores.push({ user_id: UID, day: today, tiers: "1111111", score: 70, created_at: new Date(Date.now() - 300000).toISOString() }); // the first run, 5 min ago
+  for (let i = ans.length - 1; i >= 0; i--) if (ans[i].user_id === UID && ans[i].day === today) ans.splice(i, 1);
+  ans.push({ user_id: UID, day: today, answers: Array(7).fill("Old") });
+  const seed = (p, o) => p.evaluate(({ today, ids, uid, o }) => {
+    const results = ids.map((id, i) => ({ promptId: id, promptText: "Q" + i, answer: o.word + i, raw: "", tier: o.tier, score: o.pts }));
+    const rec = { key: `daily:${today}`, mode: "daily", number: 1, date: today, label: "MLion #1", promptIds: ids, results, score: o.pts * 7, tiers: ids.map(() => o.tier), startedAt: Date.now() - o.ago, completedAt: Date.now() - o.ago + 90000, secs: 25 };
+    localStorage.setItem("mlion:records", JSON.stringify({ [rec.key]: rec }));
+    localStorage.setItem("mlion:boardPosted", JSON.stringify({ [today]: uid })); // this browser thinks it posted (the first post's 23505)
+    localStorage.removeItem("mlion:postedRun");
+    localStorage.removeItem("mlion:ansPosted");
+  }, { today, ids: ids5, uid: UID, o });
+  // the owner's case: played again after the first post (here: 2 min ago), the board still has the first score
+  await seed(p5, { word: "New", tier: "indist", pts: 30, ago: 120000 });
+  await p5.goto("about:blank");
+  await p5.goto(base + `#results-daily-${today}`);
+  await p5.waitForFunction(() => !!document.querySelector("#adm-replay"), null, { timeout: 20000 });
+  check(true, "an admin's results for today have the small Play again (admin) link");
+  const t0 = Date.now();
+  while (Date.now() - t0 < 15000 && !(mine().length === 1 && mine()[0].score === 210 && ans.some((r) => r.user_id === UID && r.day === today && r.answers[0] === "New0"))) await sleep(100);
+  check(mine().length === 1 && mine()[0].score === 210, `the newer run replaces the admin's score on the board (${mine().map((r) => r.score).join()})`);
+  check(ans.filter((r) => r.user_id === UID && r.day === today).length === 1 && ans.find((r) => r.user_id === UID && r.day === today).answers[0] === "New0", "and its answers replace the old ones");
+  const reps = () => calls.filter((c) => c.includes("/rpc/admin_replace_score")).length;
+  const before = reps();
+  await p5.goto("about:blank");
+  await p5.goto(base + `#results-daily-${today}`);
+  await p5.waitForSelector("#adm-replay", { timeout: 20000 });
+  await sleep(1500);
+  check(reps() === before, "once it's up, reloading the results tries nothing again");
+  // an older run (as from another device: started an hour ago, before that post) leaves the newer score alone
+  await seed(p5, { word: "Stale", tier: "baseline", pts: 10, ago: 3600000 });
+  await p5.goto("about:blank");
+  await p5.goto(base + `#results-daily-${today}`);
+  const t1 = Date.now();
+  while (Date.now() - t1 < 15000 && reps() === before) await sleep(100);
+  await sleep(500);
+  check(reps() > before && mine().length === 1 && mine()[0].score === 210, "an older run doesn't replace a newer score");
+  // Play again: a confirm, then today's daily from the start; the board keeps the score until the new run is done
+  await p5.waitForSelector("#adm-replay button", { timeout: 20000 });
+  await p5.click("#adm-replay button");
+  await p5.waitForSelector("#ar-no", { timeout: 5000 });
+  await p5.click("#ar-no");
+  check(await p5.evaluate((t) => !!JSON.parse(localStorage.getItem("mlion:records") || "{}")[`daily:${t}`], today), "Cancel keeps the run");
+  await p5.click("#adm-replay button");
+  await p5.waitForSelector("#ar-yes", { timeout: 5000 });
+  await p5.click("#ar-yes");
+  await p5.waitForSelector("#answer", { timeout: 15000 });
+  const fresh = await p5.evaluate((t) => ({ hash: location.hash, had: !!JSON.parse(localStorage.getItem("mlion:records") || "{}")[`daily:${t}`] }), today);
+  check(fresh.hash === "#daily" && !fresh.had, "Play again opens today's daily from the first question");
+  check(mine().length === 1 && mine()[0].score === 210, "and the score stays on the board until the new run is done");
+  await ctx5.close();
   }
 
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);

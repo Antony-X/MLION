@@ -116,6 +116,7 @@
     { "a": "RICAP", "t": "longtail", "aka": ["random image cropping and patching"] },
     { "a": "PixMix", "t": "longtail" },
     { "a": "Fast AutoAugment", "t": "longtail" },
+    { "a": "L-infinity regularization", "t": "longtail", "aka": ["l infinity regularization", "linfinity regularization", "linf regularization", "l-inf regularization", "l inf regularization", "infinity norm regularization", "l-infinity penalty", "linf penalty"], "q": "Penalises the largest absolute weight, which pushes many weights to the same size." },
     { "a": "DeepAugment", "t": "longtail" }
   ]
 }

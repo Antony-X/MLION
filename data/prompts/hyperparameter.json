@@ -197,6 +197,7 @@
     { "a": "Group size", "t": "longtail", "aka": ["group_size", "quantization group size"] },
     { "a": "Auxiliary loss coefficient", "t": "longtail", "aka": ["aux loss coefficient", "load balancing coefficient", "load balancing loss weight", "router_aux_loss_coef", "aux_loss_coef"] },
     { "a": "Subsampling threshold", "t": "longtail", "aka": ["frequent word subsampling", "word2vec sample", "word2vec subsampling threshold"] },
+    { "a": "Newton-Schulz coefficients", "t": "longtail", "aka": ["newton schulz coefficients", "newton-schulz coeffs", "ns coefficients", "muon coefficients", "newton-schulz steps", "newton schulz steps", "ns_steps", "ns steps", "newton-schulz iterations"], "q": "Muon orthogonalises each update with a few Newton-Schulz iterations; the step count and the polynomial's coefficients are tuned." },
     { "a": "Number of features to select", "t": "longtail", "aka": ["k best features", "n_features_to_select", "number of selected features", "feature count"] }
   ]
 }

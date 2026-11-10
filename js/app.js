@@ -3844,6 +3844,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
       label: RUN.label, promptIds: RUN.promptIds, results: RUN.results, score,
       tiers: RUN.results.map((r) => r.tier || "miss"), completedAt: Date.now(), secs: baseMs() / 1000,
     };
+    if (Number.isFinite(RUN.startedAt)) rec.startedAt = RUN.startedAt;
     if (RUN.mode === "vs") Object.assign(rec, { seed: RUN.seed, n: RUN.n, opp: RUN.opp || null, name: myName() || "You" });
     if (isQuizMode(RUN.mode)) { // keep the questions with the record, so old runs still read right if the generator changes
       Object.assign(rec, { fmt: "quiz", quiz: RUN.quiz, picks: RUN.results.map((r) => r.picked + 1), tenths: Math.min(99999, Math.round(RUN.results.reduce((s, r) => s + (r.ms || 0), 0) / 100)) });
@@ -4104,7 +4105,8 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
 
   /** Whether anyone played this run: an answer, a typed miss or a quiz pick in at least one round. */
   const played = (rec) => !!(rec && Array.isArray(rec.results) && rec.results.some((r) => r && (r.answer || r.raw || r.picked >= 0)));
-  // Post today's daily once per account. 23505 means it's already there (the first post counts).
+  // Post today's daily once per account. 23505 means it's already there (the first post counts). An admin's run
+  // that started after the score on the board went up replaces it (adminReplay; supabase/admin_replay.sql).
   const BOARDS = { daily: { table: "daily_scores", mode: "daily" }, quiz: { table: "daily_quiz_scores", mode: "dquiz" } };
   const missingTable = (error) => !!error && (error.code === "PGRST205" || error.code === "42P01" || /schema cache|does not exist/i.test(error.message || ""));
   const postMark = (rec) => (rec.mode === "dquiz" ? `q:${rec.date}` : rec.date);
@@ -4124,17 +4126,33 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     if (!dealtNow(rec)) return false; // dealt from another set (before the launch day reached this browser)
     if (!played(rec)) return false; // nothing answered or typed in any round: the player left, not played
     const quiz = rec.mode === "dquiz", mark = postMark(rec);
-    if (boardPosted[mark] === AUTH.user.id) { await postAnswers(rec).catch(() => {}); return true; }
+    // postedRun: which run this browser put on the board, so an admin's next run is tried once, not on every load
+    if (boardPosted[mark] === AUTH.user.id && (!AUTH.admin || lsObj("postedRun")[mark] === rec.completedAt)) { await postAnswers(rec).catch(() => {}); return true; }
     const quizRow = quiz && { user_id: AUTH.user.id, day: rec.date, marks: rec.results.map((r) => (r.score > 0 ? "1" : "0")).join(""), tenths: Math.max(0, Math.min(99999, rec.tenths || 0)),
       times: rec.results.map((r) => Math.max(0, Math.min(350, Math.round((r.ms || 0) / 100)))).join(",") };
-    let { error } = quiz
-      ? await sbClient.from("daily_quiz_scores").insert(quizRow)
-      : await sbClient.from("daily_scores").insert({ user_id: AUTH.user.id, day: rec.date, tiers: encTiers(rec.tiers) });
-    if (quiz && error && (error.code === "PGRST204" || /times/.test(error.message || ""))) { // the speed column isn't there yet
-      const { times, ...plain } = quizRow; // eslint-disable-line no-unused-vars
-      ({ error } = await sbClient.from("daily_quiz_scores").insert(plain));
+    const insert = async () => {
+      let { error } = quiz
+        ? await sbClient.from("daily_quiz_scores").insert(quizRow)
+        : await sbClient.from("daily_scores").insert({ user_id: AUTH.user.id, day: rec.date, tiers: encTiers(rec.tiers) });
+      if (quiz && error && (error.code === "PGRST204" || /times/.test(error.message || ""))) { // the speed column isn't there yet
+        const { times, ...plain } = quizRow; // eslint-disable-line no-unused-vars
+        ({ error } = await sbClient.from("daily_quiz_scores").insert(plain));
+      }
+      return error;
+    };
+    let error = await insert();
+    if (error && error.code === "23505" && AUTH.admin) {
+      const after = new Date(Number.isFinite(rec.startedAt) ? rec.startedAt : rec.completedAt || Date.now()).toISOString();
+      let gone = false;
+      try { const r = await sbClient.rpc("admin_replace_score", { p_kind: quiz ? "quiz" : "daily", p_day: rec.date, p_after: after }); gone = !r.error && r.data === true; } catch { /* offline */ }
+      if (gone) {
+        error = await insert();
+        const done = LS.get("ansPosted", []); // the old answers went with the old score: these go up instead
+        if (!quiz && Array.isArray(done)) LS.set("ansPosted", done.filter((m) => m !== `${rec.date}:${AUTH.user.id}`));
+      }
     }
     if (error && error.code !== "23505") { limitedErr(error); return false; }
+    if (AUTH.admin) LS.set("postedRun", Object.assign(lsObj("postedRun"), { [mark]: rec.completedAt }));
     Object.assign(boardPosted, LS.get("boardPosted", {}) || {}, { [mark]: AUTH.user.id }); // keep what another tab posted
     LS.set("boardPosted", boardPosted);
     boardForget(rec.date, quiz ? "quiz" : "daily"); // the rows kept for that board don't have this score yet
@@ -4188,8 +4206,38 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
   }
   /** The board box under a daily's results, then (when it's the word daily) what the others answered. */
   function fillResultsBoard(box, rec) {
+    adminReplayLink(box, rec);
     const ob = $("#others-box");
     return fillBoardBox(box, rec).catch(() => {}).then(() => fillOthers(ob, rec));
+  }
+
+  /** Admins only (the owner, 2026-11-10: "give me the ability to play again no matter what"): a small link on
+   *  today's daily or quiz results starts it over. The score on the board stays until the new run is done, then the
+   *  new one replaces it (postDaily). */
+  function adminReplayLink(box, rec) {
+    let el = $("#adm-replay");
+    const on = AUTH.admin && rec && (rec.mode === "daily" || rec.mode === "dquiz") && rec.date === today();
+    if (!on) { if (el) el.remove(); return; }
+    if (el) return;
+    el = document.createElement("p");
+    el.className = "acct-leave"; el.id = "adm-replay";
+    el.innerHTML = `<button type="button" class="linkish">Play again (admin)</button>`;
+    box.after(el);
+    el.querySelector("button").addEventListener("click", () => {
+      const what = rec.mode === "dquiz" ? "today's quiz" : "today's daily";
+      showModal(`Play ${what} again?`, `<p class="muted">Only admins see this. This run leaves your stats here. Your score on the leaderboard stays until you finish the new run, then the new score replaces it.</p>
+        <div class="btn-row"><button class="btn" id="ar-no">Cancel</button><button class="btn primary" id="ar-yes">Play again</button></div>`);
+      $("#ar-no").addEventListener("click", closeModal);
+      $("#ar-yes").addEventListener("click", () => { closeModal(); adminReplay(rec); });
+    });
+  }
+  function adminReplay(rec) {
+    if (!AUTH.admin || !rec) return;
+    records = validRecords(lsObj("records"));
+    delete records[rec.key];
+    LS.set("records", records);
+    LS.del("run:" + rec.key);
+    go(rec.mode === "dquiz" ? "daily-quiz" : "daily");
   }
 
   async function boardLogin(provider) {
