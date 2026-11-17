@@ -245,7 +245,13 @@ assert.deepStrictEqual(E.dailyPromptIds(DATA, 42), E.dailyPromptIds(DATA, 42)); 
     const days = (DATA.daily && DATA.daily.quiz) || [];
     // day 1 (launch day) was rebuilt harder at the owner's request (2026-11-08): three medium, then four hard
     assert.deepStrictEqual(days[0].map((id) => lvlOf.get(id)), ["medium", "medium", "medium", "hard", "hard", "hard", "hard"], "launch day's quiz: three medium, then four hard");
-    assert.ok(days.length >= 21 && days.slice(1).every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(E.QUIZ_PATTERN)), "every other hand-picked Daily Quiz day follows the pattern");
+    assert.ok(days.length >= 21 && days.slice(1, 11).every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(E.QUIZ_PATTERN)), "days 2-11 of the hand-picked Daily Quiz follow the pattern");
+    // days 12-24 were rebuilt harder at the owner's request (2026-11-17: "next week good questions and the week after"):
+    // four medium, then three hard, none seen on days 1-11
+    const hardWeeks = days.slice(11).concat(((DATA.daily && DATA.daily.quizLater) || []).slice(0, 3));
+    assert.ok(hardWeeks.length === 13 && hardWeeks.every((d) => JSON.stringify(d.map((id) => lvlOf.get(id))) === JSON.stringify(["medium", "medium", "medium", "medium", "hard", "hard", "hard"])), "Daily Quiz days 12-24: four medium, then three hard");
+    const early = new Set(days.slice(0, 10).concat([days[10]]).flat());
+    assert.ok(hardWeeks.flat().every((id) => !early.has(id)) && new Set(hardWeeks.flat()).size === 91, "and none of their 91 questions came up on days 1-11, or twice");
     ok(`quiz bank (${BANK.length}, ${R.length - BANK.length} retired): seven a run, rebuilt exactly, solo runs use the bank before repeating`);
   }
 
