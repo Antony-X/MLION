@@ -4835,6 +4835,16 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
     });
   }
 
+  /** Under today's daily results, the Daily Quiz if it isn't played yet, and the other way round. Few players found
+   *  the quiz (the owner, 2026-11-17: 8 quiz scores in the first ten days, against about 150 dailies). */
+  function nextDailyCard(rec) {
+    if (!rec || rec.date !== today() || (rec.mode !== "daily" && rec.mode !== "dquiz")) return "";
+    const toQuiz = rec.mode === "daily";
+    if (records[`${toQuiz ? "dquiz" : "daily"}:${today()}`]) return "";
+    return toQuiz
+      ? `<div class="dq-card next-card"><p><b>Next: today's Daily Quiz</b><span>Seven multiple-choice questions, about three minutes${BOARD_ON ? ", with its own leaderboard" : ""}.</span></p><a class="btn primary big" href="#daily-quiz">Play the Daily Quiz</a></div>`
+      : `<div class="dq-card next-card"><p><b>Next: today's daily</b><span>Seven prompts. Name the rarest right answer you can.</span></p><a class="btn primary big" href="#daily">Play today's daily</a></div>`;
+  }
   function renderResults(key, recOverride) {
     const rec = recOverride || (Object.prototype.hasOwnProperty.call(records, key) ? records[key] : null); // #results-__proto__ is not a run
     if (!rec || !Array.isArray(rec.results)) return go("home");
@@ -4875,6 +4885,7 @@ Reply with only JSON: {"match": "<canonical name exactly as written in the list>
               <a class="btn big" href="#challenge">New challenge</a>${window.MLION_CARD ? `<button class="btn big" id="share">Share image</button>` : ""}` : `${rec.mode !== "practice" ? `<button class="btn primary big" id="share">Share</button>` : ""}
             <a class="btn big" href="${nextHref}">${esc(nextLabel)}</a>`}
           </div>
+          ${nextDailyCard(rec)}
           ${boardable && BOARD_ON ? `<div class="board-box" id="board-box" data-key="${esc(rec.key)}"></div>` : ""}
           ${isDailyToday ? `<p class="countdown">${rec.mode === "dquiz" ? "Next daily quiz in" : "Next daily in"} <b id="cd">${hhmmss(E.msUntilLocalMidnight())}</b></p>` : ""}
         </div>

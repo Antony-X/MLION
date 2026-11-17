@@ -1130,6 +1130,7 @@ details.key.inline .body { padding: 8px 0 4px; }
 .dq-card p b { font-weight: 500; font-size: var(--s3); }
 .dq-card p span { color: var(--muted); }
 .dq-practice { margin-top: 8px; }
+.next-card { margin-top: 20px; }
 /* leaderboard tabs */
 .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--round); background: var(--raised); justify-self: start; }
 .tabs a { min-height: 40px; padding: 0 20px; display: inline-flex; align-items: center; border-radius: var(--round); color: var(--muted); text-decoration: none; }
