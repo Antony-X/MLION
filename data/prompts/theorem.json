@@ -233,6 +233,7 @@
     { "a": "Chain rule", "t": "indist", "aka": ["chain rule of calculus", "chain rule of probability", "product rule of probability", "product rule"], "q": "d/dx f(g(x)) = f′(g(x))·g′(x). Backpropagation is this, applied efficiently." },
     { "a": "Pythagorean theorem", "t": "outlier", "aka": ["pythagoras"] },
     { "a": "Kernel trick", "t": "outlier" },
+    { "a": "Convex Gaussian Min-max Theorem", "t": "longtail", "aka": ["CGMT", "convex gaussian minmax theorem", "convex gaussian min max theorem", "gaussian min-max theorem"], "q": "A sharp form of Gordon's comparison inequality: it gives the exact error of high-dimensional estimators like the lasso." },
     { "a": "Markov property", "t": "outlier", "aka": ["markov assumption", "memorylessness"] }
   ]
 }

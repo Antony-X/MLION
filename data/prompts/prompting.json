@@ -129,6 +129,7 @@
     { "a": "EchoPrompt", "t": "longtail", "aka": ["echo prompting"] },
     { "a": "Metacognitive prompting", "t": "longtail" },
     { "a": "Flipped interaction", "t": "longtail" },
+    { "a": "Inoculation prompting", "t": "longtail", "aka": ["inoculation prompt"], "q": "Ask for an unwanted trait in the training prompts, so the model doesn't pick it up at test time." },
     { "a": "Cognitive verifier", "t": "longtail", "aka": ["cognitive verifier pattern"] }
   ]
 }

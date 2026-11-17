@@ -148,6 +148,7 @@
     { "a": "Bregman divergence", "t": "longtail", "aka": ["Bregman distance"], "q": "Defined from a convex function as the gap between it and its tangent. KL divergence and squared error are both special cases." },
     { "a": "Envelope theorem", "t": "longtail", "aka": ["Envelope theorem for optimization"] },
     { "a": "Normal vector", "t": "longtail", "aka": ["Surface normal", "Normal to a surface"] },
+    { "a": "Malliavin calculus", "t": "longtail", "aka": ["malliavin derivative", "stochastic calculus of variations"], "q": "Calculus of variations for random paths; some diffusion-model theory uses it." },
     { "a": "Monotonicity", "t": "longtail", "aka": ["Monotonic function", "Monotone function"] }
   ]
 }

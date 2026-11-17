@@ -157,6 +157,7 @@
     { "a": "Coleman-Liau index", "t": "longtail", "aka": ["coleman liau"] },
     { "a": "Automated readability index", "t": "longtail", "aka": ["ARI"] },
     { "a": "Dale-Chall readability", "t": "longtail", "aka": ["dale chall", "dale-chall readability formula"] },
+    { "a": "Alignment error rate", "t": "longtail", "aka": ["AER"], "q": "Scores word alignments against gold sure and possible links." },
     { "a": "Out-of-vocabulary rate", "t": "longtail", "aka": ["OOV rate", "OOV", "unknown word rate", "OOV percentage"] }
   ]
 }

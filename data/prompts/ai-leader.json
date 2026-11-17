@@ -218,6 +218,7 @@
     { "a": "Harrison Chase", "t": "longtail", "aka": ["Chase"], "q": "Founder and CEO of LangChain." },
     { "a": "Jerry Liu", "t": "longtail", "q": "Co-founder and CEO of LlamaIndex." },
     { "a": "Edo Liberty", "t": "longtail", "aka": ["Liberty"], "q": "Founder and CEO of Pinecone." },
+    { "a": "Buck Shlegeris", "t": "longtail", "aka": ["shlegeris"], "q": "CEO of Redwood Research, an AI safety lab." },
     { "a": "Chris Lattner", "t": "longtail", "aka": ["Lattner"], "q": "Co-founder and CEO of Modular, the makers of Mojo." }
   ]
 }
